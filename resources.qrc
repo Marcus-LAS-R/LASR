@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/las_r" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
