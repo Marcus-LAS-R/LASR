@@ -134,9 +134,11 @@ class AnalizujDzKat(object):
         # {Wyr1: ['OP', 'OF' ...]}
         self.wl_dict = {}
 
-        QgsMessageLog.logMessage( "Pobrano użytków: "+str(len(self.uzytki)), "Las-R" )
-        QgsMessageLog.logMessage( "Pobrano własności: "+str(len(self.wlasnosci)),
-                                  "Las-R" )
+        QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)),
+                                 "Las-R" )
+        QgsMessageLog.logMessage("Pobrano własności: "+
+                                 str(len(self.wlasnosci)),
+                                 "Las-R" )
         # lista wlascicieli z kodami OP
         # [[wlasciciel, wyr1], ...]
         self.lista_OP = []
@@ -171,7 +173,7 @@ class AnalizujDzKat(object):
         self.dz_wlasnosci_op = [k for k, val in self.wl_dict.items()
                                 if set(['OP']) == set(val)]
 
-        # lista dzialek ze wlasnosciami
+        # lista dzialek z wlasnosciami
         self.dz_wlasnosci_opif = [k for k, val in self.wl_dict.items()
                                   if set(['OP', 'OF']) == set(val)]
 
@@ -709,7 +711,7 @@ class PobierzDane(QDialog):
             self.ui.comboBox_ident.setDisabled(False)
         except:
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec()
+            msbx.exec_()
             self.lyr = False
             self.ui.comboBox_ident.setDisabled(True)
 
@@ -730,7 +732,8 @@ class PobierzDane(QDialog):
             self.ui.label_bazy_wynik.setText("Nie znaleziono baz *.mdb")
 
     def identyfikuj(self):
-        """Metoda sprawdza wybór uzytkownika i udostepnia odpowiednie pola do wyboru"""
+        """ Metoda sprawdza wybór uzytkownika i
+            udostepnia odpowiednie pola do wyboru"""
         if self.ui.comboBox_ident.currentText() == '---':
             self.ui.groupBox_adradm.setDisabled(True)
             self.ui.groupBox_kol.setDisabled(True)

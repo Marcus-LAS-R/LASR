@@ -35,6 +35,7 @@ class Baza(object):
         return False
 
     def uzytki(self):
+        # kwer1
         sql = '''
         SELECT
                   F_PARCEL.COUNTY_CD
@@ -62,6 +63,7 @@ class Baza(object):
         return self.cur.execute(sql).fetchall()
 
     def wlasnosci(self):
+        # kwer2
         sql = '''
         SELECT
                   F_PARCEL_LAND_USE.PARCEL_INT_NUM

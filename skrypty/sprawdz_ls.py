@@ -9,6 +9,7 @@ from qgis.core import *
 import processing
 from collections import Counter, namedtuple
 from .baza_wrapper import Baza
+from .baza_przetworz import Przetworz
 from ..ui.ui_sprawdz_ls import Ui_Dialog
 
 
@@ -45,7 +46,12 @@ class AnalizujKlu(object):
         self.district = ''  # kod powiatu
         self.dz_nieles = []  # lista dzialek nielesnych
 
-        self.czas = datetime.now().isoformat().replace(":", "")[:-7].replace('-', '')
+        self.indeks = QgsSpatialIndex()
+        self.sf = {}  # slownik z singleparts features w postaci{id: feature, }
+        self.sl_sf_na_dzkat = {}  # slownik {PARCELID: [id1, id2, ..]}
+
+        self.czas = datetime.now().isoformat(
+                        ).replace(":", "")[:-7].replace('-', '')
 
         self.kolumny_dz = [
             QgsField("COUNTY", QVariant.String, len=2),
@@ -75,20 +81,12 @@ class AnalizujKlu(object):
         self.dd = PobierzDane(self.lyr)
         self.dd.exec_()
 
-    def sprawdz_warunki(self):
-        """Sprawdz czy warstwy maja odpowiednie struktury"""
-        if not self.dd.lyrk.isValid() and not self.dd.lyrd.isValid():
-            return False
+    def przetworz(self):
+        if not self.klu.isValid():
+            self.klu = QgsVectorLayer(self.dd.lineEdit_klu, 'klu', 'ogr')
+        if not self.dzkat.isValid():
+            self.dzkat = QgsVectorLayer(self.dd.lineEdit_dz, 'dz', 'ogr')
 
-        if [x.name() for x in self.dd.lyrd.dataProvider().fields()] not in \
-                self.kolumny_dz:
-            return False
-
-        return True
-
-    def pobierz_dane(self):
-        self.lyrk = self.dd.lyrk
-        self.lyrd = self.dd.lyrd
         self.bazy = glob.glob(
             os.path.join(self.dd.ui.lineEdit_bazy.text(),
                          '*.mdb'))
@@ -116,6 +114,102 @@ class AnalizujKlu(object):
                     'Nie udało połączyć się z: ' + baza,
                     "Las-R"
                 )
+                QgsMessageBar.pushWarning('Uwaga',
+                                          'Nie udało się odczytać bazy: ' +
+                                          baza
+                                          )
+
+    def przygotuj_tabele(self):
+        self.p = Przetworz()
+        self.p.dodaj_uzytki(self.uzytki)
+        self.p.dodaj_wlasnosci(self.wlasnosci)
+        self.p.przetworz_dzialki()
+        self.p.przetworz_uzytkowanie()
+
+    def sprawdz_warunki(self):
+        """Sprawdz czy warstwy maja odpowiednie struktury"""
+        if not self.klu.isValid() or not self.dzkat.isValid():
+            return False
+
+        if [x.name() for x in self.dzkat.dataProvider().fields()] not in \
+                self.kolumny_dz:
+            return False
+
+        return True
+
+    def przygotuj_do_analizy(self):
+        """ W zaleznosci od wyboru uzytkownika robimy dissolve po au i sq albo
+        LANDID. W drugim przypadku dodajemy brakujace pola sq i au,
+        uzupelniamy je ze slownika i kontynuujemy sciezke programu"""
+
+        # jezeli wybrano LANDID
+        if self.typ == 'LAN':
+            pola = [x.name() for x in self.klu.dataProvider().fields()]
+            pola_dodaj = []
+            if 'SQ' not in pola:
+                pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
+            if 'AU' not in pola:
+                pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+
+            self.sq = 'SQ'
+            self.au = 'AU'
+
+            if len(pola_dodaj) > 0:
+                self.klu.startEditing()
+                attr = self.klu.dataProvider().fields().toList()
+                self.klu.addAttributes(attr+pola_dodaj)
+                self.klu.updateFields()
+                self.klu.commitChanges()
+
+            self.klu.startEditing()
+            iau = self.klu.fieldNameIndex('AU')
+            isq = self.klu.fieldNameIndex('SQ')
+            for f in self.klu.getFeatures():
+                if f['LANDID'] in self.p.uzytki:
+                    zsq = self.p.uzytki[f['LANDID']][1]
+                    zau = self.p.uzytki[f['LANDID']][0]
+                else:
+                    zsq = 'xxx'
+                    zau = 'xxx'
+                self.klu.changeAttributeValue(f.id(), iau, zau)
+                self.klu.changeAttributeValue(f.id(), isq, zsq)
+            self.klu.commitChanges()
+
+
+        sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
+        self.kat = os.path.dirname(sciezka)
+        processing.run("native:dissolve", {
+                        'INPUT': self.klu.name(),
+                        'FIELD': [self.au, self.sq],
+                        'OUTPUT': os.path.join(self.kat, 'klu_dissolve.shp')
+        })
+
+        processing.run("native:intersection", {
+                        'INPUT': self.klu,
+                        'OVERLAY': self.dzkat,
+                        'INPUT_FIELDS': "",
+                        'OVERLAY_FILEDS': "",
+                        'OUTPUT': os.path.join(
+                            self.kat, 'LS_multiparts_'+self.czas+'.shp'
+                        )
+        })
+
+        processing.run("native:multiparttosingleparts", {
+                        'OUTPUT': os.path.join(
+                            self.kat, 'LS_singleparts_'+self.czas+'.shp'),
+                        'INPUT': os.path.join(
+                            self.kat, 'LS_multiparts_'+self.czas+'.shp')
+                        })
+
+        self.singleparts = QgsVectorLayer(os.path.join(
+            self.kat, 'LS_singleparts'+self.czas+'.shp'),
+            'Ls_singleparts_'+self.czas+'.shp',
+            'ogr')
+
+
+
+
+
 
 class PobierzDane(QDialog):
     def __init__(self, k=False, d=False):
@@ -179,7 +273,7 @@ class PobierzDane(QDialog):
             self.ui.comboBox_ident.setDisabled(False)
         except:
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec()
+            msbx.exec_()
             self.lyrk = False
             self.ui.comboBox_ident.setDisabled(True)
 
@@ -197,7 +291,7 @@ class PobierzDane(QDialog):
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
         except:
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec()
+            msbx.exec_()
             self.lyrd = False
 
     def pobierz_bazy(self):
@@ -217,7 +311,8 @@ class PobierzDane(QDialog):
             self.ui.label_bazy.setText("Nie znaleziono baz *.mdb")
 
     def identyfikuj(self):
-        """Metoda sprawdza wybór uzytkownika i udostepnia odpowiednie pola do wyboru"""
+        """ Metoda sprawdza wybór uzytkownika i
+            udostepnia odpowiednie pola do wyboru"""
         if self.ui.comboBox_ident.currentText() == '---':
             self.ui.groupBox_adradm.setDisabled(True)
             self.ui.groupBox_kol.setDisabled(True)
