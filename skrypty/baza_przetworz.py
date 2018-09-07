@@ -17,7 +17,7 @@ class Przetworz(object):
 
         # slownik z wszystkimi dzialkami w postaci:
         # {GGOOOONRDZ: [WOJ, POWIAT, WYR1, PARCEL_AREA, PARCEL_INT_NUM]}
-        self.dzialki = []  # dz_dict
+        self.dzialki = {}  # dz_dict
 
         # slownik z wlasnosciami wlasciciela = {"wlascieciel": [wyr1, ...]}
         # nalezy sotosowac tylko dla firm, prywatni moga zostac pogrupowani,
@@ -132,7 +132,7 @@ class Przetworz(object):
         self.dz_lesne = set([x[-1][4:] for x in
                              self.baza_uzytki if x[9] == "Ls"])
 
-        self.dz_dict = {x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
+        self.dzialki = {x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
                         for x in self.baza_uzytki}
 
         for item in self.baza_wlasnosci:
