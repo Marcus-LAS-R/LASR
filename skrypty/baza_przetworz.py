@@ -62,13 +62,14 @@ class Przetworz(object):
         # {Wyr1: 2, }
         self.sl_ile_uzytkow_na_dzialce = {}  # ile_uzytkow_baza
 
-    def dane_z_bazy(metoda):
-        def wrap(self):
-            if len(self.baza_wlasnosci) > 0 and len(self.baza_uzytki) > 0:
-                metoda(self)
-            else:
-                pass
-        return wrap
+    # def dane_z_bazy(metoda):
+        # def wrap(*args):
+            # self = args[0]
+            # if len(self.baza_wlasnosci) > 0 and len(self.baza_uzytki) > 0:
+                # metoda(self)
+            # else:
+                # print('Brak zaimportowanych wlasnosci albo uzytkow!')
+        # return wrap
 
     def dodaj_wlasnosci(self, tab):
         self.baza_wlasnosci = tab
@@ -86,31 +87,31 @@ class Przetworz(object):
         self.przetworz_ile_ls_na_dzialce()
         self.przetworz_sl_pow_dla_ls()
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_wszystkie_ls(self):
         self.ls = set([x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
                        for x in self.baza_uzytki if x[9] == 'Ls'])
 
-    @dane_z_bazy
+    # @dane_z_baz
     def przetworz_ls_podwojne(self):
         self.ls_podwojne = [y[0] for y in Counter(
             [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
              for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
             if y[1] > 1]
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_uzytki(self):
         self.uzytki = {x[12]+'.'+self.isNone(x[9])+self.isNone(x[10]):
                        [x[9], self.isNone(x[10]), x[11], x[12], x[6]]
                        for x in self.baza_uzytki}
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_ile_uzytow_na_dzialce(self):
         self.sl_ile_uzytkow_na_dzialce = {x[12]: 0 for x in self.baza_uzytki}
         for x in self.baza_uzytki:
             self.sl_ile_uzytkow_na_dzialce[x[12]] += 1
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_ile_ls_na_dzialce(self):
         for x in self.baza_uzytki:
             if x[9] == 'Ls':
@@ -118,15 +119,15 @@ class Przetworz(object):
                     self.sl_ls_na_dz[x[12]] = []
                 self.sl_ls_na_dz[x[12]].append(self.isNone(x[10]))
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_sl_pow_dla_ls(self):
-        if len(self.sl_ls_na_dz) > 0:
+        if len(self.sl_ls_na_dz.keys()) > 0:
             for x in self.baza_uzytki:
                 if x[12] in self.sl_ls_na_dz:
                     if len(self.sl_ls_na_dz[x[12]]) == 1:
                         self.sl_pow_ls_dzkat[x[12]] = [x[11], x[7]]
 
-    @dane_z_bazy
+    # @dane_z_bazy
     def przetworz_dzialki(self):
         self.dz_lesne = set([x[-1][4:] for x in
                              self.baza_uzytki if x[9] == "Ls"])
@@ -143,9 +144,9 @@ class Przetworz(object):
             wlasciciel = item[1].rstrip(' \t\n')
 
             # dodaj wlasnosci danego wlasciciela do slownika
-            if wlasciciel not in self.sl_wlasnosci:
-                self.sl_wlasnosci[wlasciciel] = []
-            self.sl_wlasnosci[wlasciciel].append(wyr1)
+            if wlasciciel not in self.sl_wlasnosc:
+                self.sl_wlasnosc[wlasciciel] = []
+            self.sl_wlasnosc[wlasciciel].append(wyr1)
 
             if wyr1 not in self.sl_kody_wlasciceli_na_dzialce:
                 self.sl_kody_wlasciceli_na_dzialce[wyr1] = []

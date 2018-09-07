@@ -50,8 +50,17 @@ class Baza(object):
                 , F_PARCEL_LAND_USE.AREA_USE_CD
                 , F_PARCEL_LAND_USE.SOIL_QUALITY_CD
                 , F_PARCEL_LAND_USE.LAND_USE_AREA
-                , [COUNTY_CD] & [DISTRICT_CD] & [MUNICIPALITY_CD] & [COMMUNITY_CD] & \'.\' & [REG_SHEET_NR2] &
-                  IIF (ISNULL(F_PARCEL.REG_SHEET_NR2),\'\', \'.\') & [PARCEL_NR] AS Wyr1
+        '''
+        if self.baza[-6:] == 'sqlite':
+            sql += '''
+                , F_PARCEL.COUNTY_CD || F_PARCEL.DISTRICT_CD || F_PARCEL.MUNICIPALITY_CD || F_PARCEL.COMMUNITY_CD || '.' || coalesce(F_PARCEL.REG_SHEET_NR2, '') ||
+                CASE WHEN coalesce(F_PARCEL.REG_SHEET_NR2, '')  = ''then '' ELSE '.' END  || F_PARCEL.PARCEL_NR AS Wyr1 '''
+        else:
+            sql += '''
+            , [COUNTY_CD] & [DISTRICT_CD] & [MUNICIPALITY_CD] & [COMMUNITY_CD] & \'.\' & [REG_SHEET_NR2] &
+            IIF (ISNULL(F_PARCEL.REG_SHEET_NR2),\'\', \'.\') & [PARCEL_NR] AS Wyr1'''
+
+        sql += '''
         FROM
                   F_PARCEL
                   INNER JOIN

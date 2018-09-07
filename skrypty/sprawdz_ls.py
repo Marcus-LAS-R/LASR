@@ -5,12 +5,19 @@ import shutil
 from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
-from qgis.core import *
+from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, \
+    QgsCoordinateReferenceSystem, QgsVectorLayer, \
+    QgsMessageLog, QgsProject
 import processing
-from collections import Counter, namedtuple
+from collections import Counter, namedtuple, defaultdict
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
 from ..ui.ui_sprawdz_ls import Ui_Dialog
+
+
+class recursivedefaultdict(defaultdict):
+    def __init__(self):
+        self.default_factory = type(self)
 
 
 class SprawdzLs(object):
@@ -23,16 +30,29 @@ class SprawdzLs(object):
         try:
             k = self.iface.activeLayer()
         except:
-            pass
+            QgsMessageLog.logMessage('Nie zaznaczono warstwy w TOC!', 'LasR')
 
         for key, lyr in QgsProject.instance().mapLayers().items():
             if key[:5] == 'DZKAT':
                 d = lyr
 
-        analizuj = AnalizujKlu(self.iface, k, d)
+        self.a = AnalizujKlus(self.iface, k, d)
+
+    def wczytaj(self):
+        self.a.pobierz_dane_od_uzytkownika()
+        self.a.przetworz()
+
+    def sprawdz(self):
+        if self.a.sprawdz_warunki():
+            return False
+
+    def przygotuj(self):
+        self.a.przygotuj_tabele()
+        self.a.przygotuj_do_analizy()
 
 
-class AnalizujKlu(object):
+
+class AnalizujKlus(object):
     def __init__(self, i, k, d):
         self.iface = i
         self.klu = k
@@ -114,10 +134,11 @@ class AnalizujKlu(object):
                     'Nie udało połączyć się z: ' + baza,
                     "Las-R"
                 )
-                QgsMessageBar.pushWarning('Uwaga',
-                                          'Nie udało się odczytać bazy: ' +
-                                          baza
-                                          )
+                self.iface.messageBar.pushWarning(
+                    'Uwaga',
+                    'Nie udało się odczytać bazy: ' +
+                    baza
+                )
 
     def przygotuj_tabele(self):
         self.p = Przetworz()
@@ -175,7 +196,6 @@ class AnalizujKlu(object):
                 self.klu.changeAttributeValue(f.id(), isq, zsq)
             self.klu.commitChanges()
 
-
         sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
         processing.run("native:dissolve", {
@@ -201,14 +221,68 @@ class AnalizujKlu(object):
                             self.kat, 'LS_multiparts_'+self.czas+'.shp')
                         })
 
+        # Rozbij uzytki na single parts
         self.singleparts = QgsVectorLayer(os.path.join(
             self.kat, 'LS_singleparts'+self.czas+'.shp'),
             'Ls_singleparts_'+self.czas+'.shp',
             'ogr')
 
 
+class PrzetworzKlu(object):
+    def __init__(self, d, k, p):
+        # d-feature z analizowana dzialka i struktura pol zgodna ze skryptem
+        # k-tablica z featurami klu na tej dzialce, wszystkie musza byc
+        # przykryte przez kontur dzialki.
+        self.dz = d
+        self.klus = k
+        # wskaznik do slownikow na podstawie bazy
+        self.p = p
 
+        # nazwy pol przetrzymujacych uzytki
+        self.sq = 'SQ'
+        self.au = 'AU'
 
+        self.bledy_topo = []  # tabel z featurami sklasyfikowanymi jako bledy
+
+        # tabela z rozbieznosciam powierzchniowymi, w postaci [LANDID, LANDID]
+        self.rozb_pow = []
+
+        # tabela z brakujacymi ls na dzialce, wg bazy,
+        # w postaci [LANDID, LANDID]
+        self.braki = []
+
+        # tablica z uwagami do raportu, grupowana wg skrotow ponizej:
+        # pow - rozbieznosc powierzchni miedzy baza a grafika
+        # brakb - brak ls w bazie, jest w grafice
+        # brakg - brak ls w grafice, jest w bazie
+        # topo - bledy topologiczne do rozwiazania przez uzytkownika
+        # mikro - mikrolsy do usuniecia przez uzytkownika
+        # dubb - zdublowane ls, klu w bazie
+        # dubg - zdublowane ls, klu w grafice
+        # podm - ls z podmieniona grafika na kontru z dzialki (tylko przy 1 ls)
+        # op - dzialka tylko z wlasnoscia OP
+        # opif - dzialka tylko z wlasnoscia OPiF
+        #
+        # postac zapisu: {landid: {'topo', 'mikro', 'wlas'}, {...}}
+        self.uwagi = recursivedefaultdict()
+
+    def nazwa_sq_au(self, s, a):
+        self.sq = s
+        self.au = a
+
+    def is_valid(self):
+        if len(self.dz) == 0:
+            return False
+
+        if 'PARCELID' not in [x.name() for x in
+                              self.dz.dataProvider().fields()]:
+            return False
+
+        if ['PARCELID', self.sq, self.au] not in [x.name() for x in
+                                                  self.klus[0].fields()]:
+            return False
+
+        return True
 
 
 class PobierzDane(QDialog):
@@ -245,8 +319,8 @@ class PobierzDane(QDialog):
     def wczytaj_pola(self):
         """Metoda uzupelnia comboboxy na podstawie podanej warstwy"""
         # wybierz nazwy pol z warstwy, ktore nie sa numeryczne
-        self.pola = ['---'] + [x.name() for x in self.lyrk.dataProvider().fields(
-                               ).toList() if not x.isNumeric()]
+        self.pola = ['---'] + [x.name() for x in self.lyrk.dataProvider(
+                                    ).fields().toList() if not x.isNumeric()]
 
         # wyczysc wszystkie comboboxy z kolumnami
         comboboxy = [
@@ -280,7 +354,8 @@ class PobierzDane(QDialog):
     def pobierz_dzkat(self):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
         if self.lyrk:
-            kat = os.path.dirname(self.lyrk.dataProvider().dataSourceUri().split("|")[0])
+            kat = os.path.dirname(
+                self.lyrk.dataProvider().dataSourceUri().split("|")[0])
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
                                                 kat,
@@ -298,10 +373,12 @@ class PobierzDane(QDialog):
         """Metoda pobiera wskazany przez użytkownika katalog"""
         kat = ""
         if self.lyrk:
-            kat = os.path.dirname(self.lyrk.dataProvider().dataSourceUri().split("|")[0])
-        bazy_kat = QFileDialog().getExistingDirectory(self,
-                                                      "Katalog z bazami danych",
-                                                      kat)
+            kat = os.path.dirname(self.lyrk.dataProvider().dataSourceUri(
+                                                            ).split("|")[0])
+        bazy_kat = QFileDialog().getExistingDirectory(
+            self,
+            "Katalog z bazami danych",
+            kat)
         self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
         if self.ile_baz > 0:
             self.ui.label_bazy.setText("Znalazałem baz: "+str(self.ile_baz))

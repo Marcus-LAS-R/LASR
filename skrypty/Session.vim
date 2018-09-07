@@ -150,7 +150,7 @@ nmap ySs <Plug>YSsurround
 nmap yss <Plug>Yssurround
 nmap yS <Plug>YSurround
 nmap ys <Plug>Ysurround
-nnoremap <SNR>86_: :=v:count ? v:count : ''
+nnoremap <SNR>111_: :=v:count ? v:count : ''
 smap <S-Tab> <Plug>snipMateBack
 vnoremap <silent> <Plug>NetrwBrowseXVis :call netrw#BrowseXVis()
 nnoremap <silent> <Plug>NetrwBrowseX :call netrw#BrowseX(expand((exists("g:netrw_gx")? g:netrw_gx : '<cfile>')),netrw#CheckIfRemote())
@@ -248,8 +248,8 @@ set autochdir
 set background=dark
 set backspace=2
 set backupdir=~/.cache/vim/backup//
-set completefunc=youcompleteme#CompleteFunc
 set completeopt=menuone
+set cpoptions=aAceFsB
 set diffopt=filler,vertical
 set directory=~/.cache/vim/swap//
 set expandtab
@@ -264,9 +264,8 @@ set mouse=a
 set pastetoggle=<F2>
 set pyxversion=3
 set ruler
-set runtimepath=~/.vim,~/.vim/bundle/Vundle.vim,~/.vim/bundle/vim-fugitive,~/.vim/bundle/YouCompleteMe,~/.vim/bundle/vim-airline,~/.vim/bundle/nerdtree,~/.vim/bundle/python-mode,~/.vim/bundle/nerdcommenter,~/.vim/bundle/vim-signature,~/.vim/bundle/Mark--Karkat,~/.vim/bundle/indentLine,~/.vim/bundle/vim-addon-mw-utils,~/.vim/bundle/tlib_vim,~/.vim/bundle/ag.vim,~/.vim/bundle/vim-snipmate,~/.vim/bundle/vim-snippets,~/.vim/bundle/vim-surround,~/.vim/bundle/vim-airline-themes,~/.vim/bundle/gundo.vim,~/.vim/bundle/vim-virtualenv,~/.vim/bundle/vim-notes,~/.vim/bundle/vim-misc,~/.vim/bundle/vim-jsbeautify,~/.vim/bundle/emmet-vim,~/.vim/bundle/typescript-vim,~/.vim/bundle/vim-coloresque,~/.vim/bundle/vim-sqlformat,/usr/share/vim/vimfiles,/usr/share/vim/vim81,/usr/share/vim/vimfiles/after,~/.vim/after,~/.vim/bundle/Vundle.vim,~/.vim/bundle/Vundle.vim/after,~/.vim/bundle/vim-fugitive/after,~/.vim/bundle/YouCompleteMe/after,~/.vim/bundle/vim-airline/after,~/.vim/bundle/nerdtree/after,~/.vim/bundle/python-mode/after,~/.vim/bundle/nerdcommenter/after,~/.vim/bundle/vim-signature/after,~/.vim/bundle/Mark--Karkat/after,~/.vim/bundle/indentLine/after,~/.vim/bundle/vim-addon-mw-utils/after,~/.vim/bundle/tlib_vim/after,~/.vim/bundle/ag.vim/after,~/.vim/bundle/vim-snipmate/after,~/.vim/bundle/vim-snippets/after,~/.vim/bundle/vim-surround/after,~/.vim/bundle/vim-airline-themes/after,~/.vim/bundle/gundo.vim/after,~/.vim/bundle/vim-virtualenv/after,~/.vim/bundle/vim-notes/after,~/.vim/bundle/vim-misc/after,~/.vim/bundle/vim-jsbeautify/after,~/.vim/bundle/emmet-vim/after,~/.vim/bundle/typescript-vim/after,~/.vim/bundle/vim-coloresque/after,~/.vim/bundle/vim-sqlformat/after
+set runtimepath=~/.vim,~/.vim/bundle/Vundle.vim,~/.vim/bundle/vim-fugitive,~/.vim/bundle/YouCompleteMe,~/.vim/bundle/vim-airline,~/.vim/bundle/nerdtree,~/.vim/bundle/python-mode,~/.vim/bundle/nerdcommenter,~/.vim/bundle/vim-signature,~/.vim/bundle/Mark--Karkat,~/.vim/bundle/indentLine,~/.vim/bundle/vim-addon-mw-utils,~/.vim/bundle/tlib_vim,~/.vim/bundle/ag.vim,~/.vim/bundle/vim-snipmate,~/.vim/bundle/vim-snippets,~/.vim/bundle/vim-surround,~/.vim/bundle/vim-airline-themes,~/.vim/bundle/sessionman.vim,~/.vim/bundle/gundo.vim,~/.vim/bundle/vim-virtualenv,~/.vim/bundle/vim-notes,~/.vim/bundle/vim-misc,~/.vim/bundle/vim-jsbeautify,~/.vim/bundle/emmet-vim,~/.vim/bundle/typescript-vim,~/.vim/bundle/vim-coloresque,~/.vim/bundle/vim-sqlformat,/usr/share/vim/vimfiles,/usr/share/vim/vim81,/usr/share/vim/vimfiles/after,~/.vim/after,~/.vim/bundle/Vundle.vim,~/.vim/bundle/Vundle.vim/after,~/.vim/bundle/vim-fugitive/after,~/.vim/bundle/YouCompleteMe/after,~/.vim/bundle/vim-airline/after,~/.vim/bundle/nerdtree/after,~/.vim/bundle/python-mode/after,~/.vim/bundle/nerdcommenter/after,~/.vim/bundle/vim-signature/after,~/.vim/bundle/Mark--Karkat/after,~/.vim/bundle/indentLine/after,~/.vim/bundle/vim-addon-mw-utils/after,~/.vim/bundle/tlib_vim/after,~/.vim/bundle/ag.vim/after,~/.vim/bundle/vim-snipmate/after,~/.vim/bundle/vim-snippets/after,~/.vim/bundle/vim-surround/after,~/.vim/bundle/vim-airline-themes/after,~/.vim/bundle/sessionman.vim/after,~/.vim/bundle/gundo.vim/after,~/.vim/bundle/vim-virtualenv/after,~/.vim/bundle/vim-notes/after,~/.vim/bundle/vim-misc/after,~/.vim/bundle/vim-jsbeautify/after,~/.vim/bundle/emmet-vim/after,~/.vim/bundle/typescript-vim/after,~/.vim/bundle/vim-coloresque/after,~/.vim/bundle/vim-sqlformat/after
 set scrolloff=5
-set shiftround
 set shiftwidth=4
 set shortmess=filnxtToOc
 set showmatch
@@ -290,414 +289,15 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
-badd +1 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/las_r.py
-badd +6 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/baza_wrapper.py
-badd +93 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_ls.py
-badd +143 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_dzkat.py
-badd +75 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/baza_przetworz.py
 argglobal
 silent! argdel *
-$argadd ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/las_r.py
-edit ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_dzkat.py
 set splitbelow splitright
-wincmd _ | wincmd |
-vsplit
-1wincmd h
-wincmd w
-wincmd _ | wincmd |
-split
-1wincmd k
-wincmd w
 set nosplitbelow
 wincmd t
 set winminheight=0
 set winheight=1
 set winminwidth=0
 set winwidth=1
-exe 'vert 1resize ' . ((&columns * 105 + 105) / 211)
-exe '2resize ' . ((&lines * 40 + 25) / 50)
-exe 'vert 2resize ' . ((&columns * 105 + 105) / 211)
-exe '3resize ' . ((&lines * 6 + 25) / 50)
-exe 'vert 3resize ' . ((&columns * 105 + 105) / 211)
-argglobal
-noremap <buffer> <silent> ra :PymodeRopeAutoImport
-noremap <buffer> <silent> r1p :call pymode#rope#module_to_package()
-noremap <buffer> <silent> rnc :call pymode#rope#generate_class()
-noremap <buffer> <silent> rnp :call pymode#rope#generate_package()
-noremap <buffer> <silent> rnf :call pymode#rope#generate_function()
-noremap <buffer> <silent> ru :call pymode#rope#use_function()
-noremap <buffer> <silent> rs :call pymode#rope#signature()
-noremap <buffer> <silent> rv :call pymode#rope#move()
-noremap <buffer> <silent> ri :call pymode#rope#inline()
-vnoremap <buffer> <silent> rl :call pymode#rope#extract_variable()
-vnoremap <buffer> <silent> rm :call pymode#rope#extract_method()
-noremap <buffer> <silent> r1r :call pymode#rope#rename_module()
-noremap <buffer> <silent> rr :call pymode#rope#rename()
-noremap <buffer> <silent> ro :call pymode#rope#organize_imports()
-noremap <buffer> <silent> f :call pymode#rope#find_it()
-noremap <buffer> <silent> d :call pymode#rope#show_doc()
-noremap <buffer> <silent> ,g :call pymode#rope#goto_definition()
-vnoremap <buffer> <silent> ,r :PymodeRun
-nnoremap <buffer> <silent> ,r :PymodeRun
-onoremap <buffer> C :call pymode#motion#select('^\s*class\s', 0)
-vnoremap <buffer> <silent> K :call pymode#doc#show(@*)
-nnoremap <buffer> <silent> K :call pymode#doc#find()
-onoremap <buffer> M :call pymode#motion#select('^\s*def\s', 0)
-onoremap <buffer> [C :call pymode#motion#move('\v^(class|def)\s', 'b')
-nnoremap <buffer> [C :call pymode#motion#move('\v^(class|def)\s', 'b')
-vnoremap <buffer> [M :call pymode#motion#vmove('^\s*def\s', 'b')
-vnoremap <buffer> [[ :call pymode#motion#vmove('\v^(class|def)\s', 'b')
-onoremap <buffer> [M :call pymode#motion#move('^\s*def\s', 'b')
-onoremap <buffer> [[ :call pymode#motion#move('\v^(class|def)\s', 'b')
-nnoremap <buffer> [M :call pymode#motion#move('^\s*def\s', 'b')
-nnoremap <buffer> [[ :call pymode#motion#move('\v^(class|def)\s', 'b')
-onoremap <buffer> ]C :call pymode#motion#move('\v^(class|def)\s', '')
-nnoremap <buffer> ]C :call pymode#motion#move('\v^(class|def)\s', '')
-vnoremap <buffer> ]M :call pymode#motion#vmove('^\s*def\s', '')
-vnoremap <buffer> ]] :call pymode#motion#vmove('\v^(class|def)\s', '')
-onoremap <buffer> ]M :call pymode#motion#move('^\s*def\s', '')
-onoremap <buffer> ]] :call pymode#motion#move('\v^(class|def)\s', '')
-nnoremap <buffer> ]M :call pymode#motion#move('^\s*def\s', '')
-nnoremap <buffer> ]] :call pymode#motion#move('\v^(class|def)\s', '')
-vnoremap <buffer> aM :call pymode#motion#select('^\s*def\s', 0)
-onoremap <buffer> aM :call pymode#motion#select('^\s*def\s', 0)
-vnoremap <buffer> aC :call pymode#motion#select('^\s*class\s', 0)
-onoremap <buffer> aC :call pymode#motion#select('^\s*class\s', 0)
-vnoremap <buffer> iM :call pymode#motion#select('^\s*def\s', 1)
-onoremap <buffer> iM :call pymode#motion#select('^\s*def\s', 1)
-vnoremap <buffer> iC :call pymode#motion#select('^\s*class\s', 1)
-onoremap <buffer> iC :call pymode#motion#select('^\s*class\s', 1)
-setlocal keymap=
-setlocal noarabic
-setlocal autoindent
-setlocal backupcopy=
-setlocal balloonexpr=
-setlocal nobinary
-setlocal nobreakindent
-setlocal breakindentopt=
-setlocal bufhidden=
-setlocal buflisted
-setlocal buftype=
-setlocal nocindent
-setlocal cinkeys=0{,0},0),:,!^F,o,O,e
-setlocal cinoptions=
-setlocal cinwords=if,else,while,do,for,switch
-set colorcolumn=80
-setlocal colorcolumn=+1
-setlocal comments=b:#,fb:-
-setlocal commentstring=#\ %s
-setlocal complete=.,w,b,u,t,i
-setlocal concealcursor=inc
-setlocal conceallevel=2
-setlocal completefunc=youcompleteme#CompleteFunc
-setlocal nocopyindent
-setlocal cryptmethod=
-setlocal nocursorbind
-setlocal nocursorcolumn
-set cursorline
-setlocal cursorline
-setlocal define=^s*\\(def\\|class\\)
-setlocal dictionary=
-setlocal nodiff
-setlocal equalprg=
-setlocal errorformat=
-setlocal expandtab
-if &filetype != 'python'
-setlocal filetype=python
-endif
-setlocal fixendofline
-setlocal foldcolumn=0
-setlocal foldenable
-setlocal foldexpr=0
-setlocal foldignore=#
-setlocal foldlevel=2
-setlocal foldmarker={{{,}}}
-set foldmethod=indent
-setlocal foldmethod=indent
-setlocal foldminlines=1
-set foldnestmax=2
-setlocal foldnestmax=2
-setlocal foldtext=foldtext()
-setlocal formatexpr=
-setlocal formatoptions=cq
-setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
-setlocal formatprg=
-setlocal grepprg=
-setlocal iminsert=0
-setlocal imsearch=-1
-setlocal include=^\\s*\\(from\\|import\\)
-setlocal includeexpr=substitute(substitute(substitute(v:fname,b:grandparent_match,b:grandparent_sub,''),b:parent_match,b:parent_sub,''),b:child_match,b:child_sub,'g')
-setlocal indentexpr=pymode#indent#get_indent(v:lnum)
-setlocal indentkeys=!^F,o,O,<:>,0),0],0},=elif,=except
-setlocal noinfercase
-setlocal iskeyword=@,48-57,_,192-255
-setlocal keywordprg=pydoc
-setlocal nolinebreak
-setlocal nolisp
-setlocal lispwords=
-setlocal nolist
-setlocal makeencoding=
-setlocal makeprg=
-setlocal matchpairs=(:),{:},[:]
-setlocal modeline
-setlocal modifiable
-setlocal nrformats=bin,octal,hex
-set number
-setlocal number
-setlocal numberwidth=4
-setlocal omnifunc=python3complete#Complete
-setlocal path=
-setlocal nopreserveindent
-setlocal nopreviewwindow
-setlocal quoteescape=\\
-setlocal noreadonly
-setlocal norelativenumber
-setlocal norightleft
-setlocal rightleftcmd=search
-setlocal noscrollbind
-setlocal shiftwidth=4
-setlocal noshortname
-setlocal signcolumn=auto
-setlocal nosmartindent
-setlocal softtabstop=4
-setlocal nospell
-setlocal spellcapcheck=[.?!]\\_[\\])'\"\	\ ]\\+
-setlocal spellfile=
-setlocal spelllang=en
-setlocal statusline=%!airline#statusline(1)
-setlocal suffixesadd=.py
-setlocal noswapfile
-setlocal synmaxcol=3000
-if &syntax != 'python'
-setlocal syntax=python
-endif
-setlocal tabstop=4
-setlocal tagcase=
-setlocal tags=
-setlocal termwinkey=
-setlocal termwinscroll=10000
-setlocal termwinsize=
-setlocal textwidth=79
-setlocal thesaurus=
-setlocal noundofile
-setlocal undolevels=-123456
-setlocal varsofttabstop=
-setlocal vartabstop=
-setlocal nowinfixheight
-setlocal nowinfixwidth
-set nowrap
-setlocal nowrap
-setlocal wrapmargin=0
-45
-normal! zo
-656
-normal! zo
-657
-normal! zc
-682
-normal! zc
-719
-normal! zc
-735
-normal! zc
-let s:l = 212 - ((22 * winheight(0) + 23) / 47)
-if s:l < 1 | let s:l = 1 | endif
-exe s:l
-normal! zt
-212
-normal! 014|
-wincmd w
-argglobal
-if bufexists('~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_ls.py') | buffer ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_ls.py | else | edit ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr/skrypty/sprawdz_ls.py | endif
-noremap <buffer> <silent> ra :PymodeRopeAutoImport
-noremap <buffer> <silent> r1p :call pymode#rope#module_to_package()
-noremap <buffer> <silent> rnc :call pymode#rope#generate_class()
-noremap <buffer> <silent> rnp :call pymode#rope#generate_package()
-noremap <buffer> <silent> rnf :call pymode#rope#generate_function()
-noremap <buffer> <silent> ru :call pymode#rope#use_function()
-noremap <buffer> <silent> rs :call pymode#rope#signature()
-noremap <buffer> <silent> rv :call pymode#rope#move()
-noremap <buffer> <silent> ri :call pymode#rope#inline()
-vnoremap <buffer> <silent> rl :call pymode#rope#extract_variable()
-vnoremap <buffer> <silent> rm :call pymode#rope#extract_method()
-noremap <buffer> <silent> r1r :call pymode#rope#rename_module()
-noremap <buffer> <silent> rr :call pymode#rope#rename()
-noremap <buffer> <silent> ro :call pymode#rope#organize_imports()
-noremap <buffer> <silent> f :call pymode#rope#find_it()
-noremap <buffer> <silent> d :call pymode#rope#show_doc()
-noremap <buffer> <silent> ,g :call pymode#rope#goto_definition()
-vnoremap <buffer> <silent> ,r :PymodeRun
-nnoremap <buffer> <silent> ,r :PymodeRun
-onoremap <buffer> C :call pymode#motion#select('^\s*class\s', 0)
-vnoremap <buffer> <silent> K :call pymode#doc#show(@*)
-nnoremap <buffer> <silent> K :call pymode#doc#find()
-onoremap <buffer> M :call pymode#motion#select('^\s*def\s', 0)
-onoremap <buffer> [C :call pymode#motion#move('\v^(class|def)\s', 'b')
-nnoremap <buffer> [C :call pymode#motion#move('\v^(class|def)\s', 'b')
-vnoremap <buffer> [M :call pymode#motion#vmove('^\s*def\s', 'b')
-vnoremap <buffer> [[ :call pymode#motion#vmove('\v^(class|def)\s', 'b')
-onoremap <buffer> [M :call pymode#motion#move('^\s*def\s', 'b')
-onoremap <buffer> [[ :call pymode#motion#move('\v^(class|def)\s', 'b')
-nnoremap <buffer> [M :call pymode#motion#move('^\s*def\s', 'b')
-nnoremap <buffer> [[ :call pymode#motion#move('\v^(class|def)\s', 'b')
-onoremap <buffer> ]C :call pymode#motion#move('\v^(class|def)\s', '')
-nnoremap <buffer> ]C :call pymode#motion#move('\v^(class|def)\s', '')
-vnoremap <buffer> ]M :call pymode#motion#vmove('^\s*def\s', '')
-vnoremap <buffer> ]] :call pymode#motion#vmove('\v^(class|def)\s', '')
-onoremap <buffer> ]M :call pymode#motion#move('^\s*def\s', '')
-onoremap <buffer> ]] :call pymode#motion#move('\v^(class|def)\s', '')
-nnoremap <buffer> ]M :call pymode#motion#move('^\s*def\s', '')
-nnoremap <buffer> ]] :call pymode#motion#move('\v^(class|def)\s', '')
-vnoremap <buffer> aM :call pymode#motion#select('^\s*def\s', 0)
-onoremap <buffer> aM :call pymode#motion#select('^\s*def\s', 0)
-vnoremap <buffer> aC :call pymode#motion#select('^\s*class\s', 0)
-onoremap <buffer> aC :call pymode#motion#select('^\s*class\s', 0)
-vnoremap <buffer> iM :call pymode#motion#select('^\s*def\s', 1)
-onoremap <buffer> iM :call pymode#motion#select('^\s*def\s', 1)
-vnoremap <buffer> iC :call pymode#motion#select('^\s*class\s', 1)
-onoremap <buffer> iC :call pymode#motion#select('^\s*class\s', 1)
-setlocal keymap=
-setlocal noarabic
-setlocal autoindent
-setlocal backupcopy=
-setlocal balloonexpr=
-setlocal nobinary
-setlocal nobreakindent
-setlocal breakindentopt=
-setlocal bufhidden=
-setlocal buflisted
-setlocal buftype=
-setlocal nocindent
-setlocal cinkeys=0{,0},0),:,!^F,o,O,e
-setlocal cinoptions=
-setlocal cinwords=if,else,while,do,for,switch
-set colorcolumn=80
-setlocal colorcolumn=+1
-setlocal comments=b:#,fb:-
-setlocal commentstring=#\ %s
-setlocal complete=.,w,b,u,t,i
-setlocal concealcursor=inc
-setlocal conceallevel=2
-setlocal completefunc=youcompleteme#CompleteFunc
-setlocal nocopyindent
-setlocal cryptmethod=
-setlocal nocursorbind
-setlocal nocursorcolumn
-set cursorline
-setlocal cursorline
-setlocal define=^s*\\(def\\|class\\)
-setlocal dictionary=
-setlocal nodiff
-setlocal equalprg=
-setlocal errorformat=
-setlocal expandtab
-if &filetype != 'python'
-setlocal filetype=python
-endif
-setlocal fixendofline
-setlocal foldcolumn=0
-setlocal foldenable
-setlocal foldexpr=0
-setlocal foldignore=#
-setlocal foldlevel=2
-setlocal foldmarker={{{,}}}
-set foldmethod=indent
-setlocal foldmethod=indent
-setlocal foldminlines=1
-set foldnestmax=2
-setlocal foldnestmax=2
-setlocal foldtext=foldtext()
-setlocal formatexpr=
-setlocal formatoptions=cq
-setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
-setlocal formatprg=
-setlocal grepprg=
-setlocal iminsert=0
-setlocal imsearch=-1
-setlocal include=^\\s*\\(from\\|import\\)
-setlocal includeexpr=substitute(substitute(substitute(v:fname,b:grandparent_match,b:grandparent_sub,''),b:parent_match,b:parent_sub,''),b:child_match,b:child_sub,'g')
-setlocal indentexpr=pymode#indent#get_indent(v:lnum)
-setlocal indentkeys=!^F,o,O,<:>,0),0],0},=elif,=except
-setlocal noinfercase
-setlocal iskeyword=@,48-57,_,192-255
-setlocal keywordprg=pydoc
-setlocal nolinebreak
-setlocal nolisp
-setlocal lispwords=
-setlocal nolist
-setlocal makeencoding=
-setlocal makeprg=
-setlocal matchpairs=(:),{:},[:]
-setlocal modeline
-setlocal modifiable
-setlocal nrformats=bin,octal,hex
-set number
-setlocal number
-setlocal numberwidth=4
-setlocal omnifunc=python3complete#Complete
-setlocal path=
-setlocal nopreserveindent
-setlocal nopreviewwindow
-setlocal quoteescape=\\
-setlocal noreadonly
-setlocal norelativenumber
-setlocal norightleft
-setlocal rightleftcmd=search
-setlocal noscrollbind
-setlocal shiftwidth=4
-setlocal noshortname
-setlocal signcolumn=auto
-setlocal nosmartindent
-setlocal softtabstop=4
-setlocal nospell
-setlocal spellcapcheck=[.?!]\\_[\\])'\"\	\ ]\\+
-setlocal spellfile=
-setlocal spelllang=en
-setlocal statusline=%!airline#statusline(2)
-setlocal suffixesadd=.py
-setlocal noswapfile
-setlocal synmaxcol=3000
-if &syntax != 'python'
-setlocal syntax=python
-endif
-setlocal tabstop=4
-setlocal tagcase=
-setlocal tags=
-setlocal termwinkey=
-setlocal termwinscroll=10000
-setlocal termwinsize=
-setlocal textwidth=79
-setlocal thesaurus=
-setlocal noundofile
-setlocal undolevels=-123456
-setlocal varsofttabstop=
-setlocal vartabstop=
-setlocal nowinfixheight
-setlocal nowinfixwidth
-set nowrap
-setlocal nowrap
-setlocal wrapmargin=0
-36
-normal! zo
-154
-normal! zo
-157
-normal! zo
-164
-normal! zo
-187
-normal! zo
-215
-normal! zo
-215
-normal! zc
-let s:l = 51 - ((33 * winheight(0) + 20) / 40)
-if s:l < 1 | let s:l = 1 | endif
-exe s:l
-normal! zt
-51
-normal! 069|
-wincmd w
 argglobal
 enew
 setlocal keymap=
@@ -708,9 +308,9 @@ setlocal balloonexpr=
 setlocal nobinary
 setlocal nobreakindent
 setlocal breakindentopt=
-setlocal bufhidden=wipe
+setlocal bufhidden=
 setlocal buflisted
-setlocal buftype=quickfix
+setlocal buftype=
 setlocal nocindent
 setlocal cinkeys=0{,0},0),:,0#,!^F,o,O,e
 setlocal cinoptions=
@@ -720,9 +320,9 @@ setlocal colorcolumn=80
 setlocal comments=s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-
 setlocal commentstring=/*%s*/
 setlocal complete=.,w,b,u,t,i
-setlocal concealcursor=
-setlocal conceallevel=0
-setlocal completefunc=youcompleteme#CompleteFunc
+setlocal concealcursor=inc
+setlocal conceallevel=2
+setlocal completefunc=
 setlocal nocopyindent
 setlocal cryptmethod=
 setlocal nocursorbind
@@ -735,8 +335,8 @@ setlocal nodiff
 setlocal equalprg=
 setlocal errorformat=
 setlocal expandtab
-if &filetype != 'qf'
-setlocal filetype=qf
+if &filetype != ''
+setlocal filetype=
 endif
 setlocal fixendofline
 setlocal foldcolumn=0
@@ -746,7 +346,7 @@ setlocal foldignore=#
 setlocal foldlevel=0
 setlocal foldmarker={{{,}}}
 set foldmethod=indent
-setlocal foldmethod=manual
+setlocal foldmethod=indent
 setlocal foldminlines=1
 set foldnestmax=2
 setlocal foldnestmax=2
@@ -773,7 +373,7 @@ setlocal makeencoding=
 setlocal makeprg=
 setlocal matchpairs=(:),{:},[:]
 setlocal modeline
-setlocal nomodifiable
+setlocal modifiable
 setlocal nrformats=bin,octal,hex
 set number
 setlocal number
@@ -797,12 +397,12 @@ setlocal nospell
 setlocal spellcapcheck=[.?!]\\_[\\])'\"\	\ ]\\+
 setlocal spellfile=
 setlocal spelllang=en
-setlocal statusline=%!airline#statusline(3)
+setlocal statusline=%!airline#statusline(1)
 setlocal suffixesadd=
 setlocal noswapfile
 setlocal synmaxcol=3000
-if &syntax != 'qf'
-setlocal syntax=qf
+if &syntax != ''
+setlocal syntax=
 endif
 setlocal tabstop=4
 setlocal tagcase=
@@ -816,18 +416,11 @@ setlocal noundofile
 setlocal undolevels=-123456
 setlocal varsofttabstop=
 setlocal vartabstop=
-setlocal winfixheight
+setlocal nowinfixheight
 setlocal nowinfixwidth
 set nowrap
 setlocal nowrap
 setlocal wrapmargin=0
-wincmd w
-2wincmd w
-exe 'vert 1resize ' . ((&columns * 105 + 105) / 211)
-exe '2resize ' . ((&lines * 40 + 25) / 50)
-exe 'vert 2resize ' . ((&columns * 105 + 105) / 211)
-exe '3resize ' . ((&lines * 6 + 25) / 50)
-exe 'vert 3resize ' . ((&columns * 105 + 105) / 211)
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0
   silent exe 'bwipe ' . s:wipebuf
