@@ -1,17 +1,15 @@
 import os
-import re
 import glob
-import shutil
 from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, \
     QgsCoordinateReferenceSystem, QgsVectorLayer, \
-    QgsMessageLog, QgsProject
+    QgsMessageLog, QgsProject, QgsWkbTypes
 import processing
 from collections import Counter, namedtuple, defaultdict
-from .baza_wrapper import Baza
-from .baza_przetworz import Przetworz
+from baza_wrapper import Baza
+from baza_przetworz import Przetworz
 from ..ui.ui_sprawdz_ls import Ui_Dialog
 
 
@@ -29,7 +27,7 @@ class SprawdzLs(object):
         # sprawdz czy uzyszkodnik zaznaczyl warstwe
         try:
             k = self.iface.activeLayer()
-        except:
+        except:  # nopep8
             QgsMessageLog.logMessage('Nie zaznaczono warstwy w TOC!', 'LasR')
 
         for key, lyr in QgsProject.instance().mapLayers().items():
@@ -49,7 +47,6 @@ class SprawdzLs(object):
     def przygotuj(self):
         self.a.przygotuj_tabele()
         self.a.przygotuj_do_analizy()
-
 
 
 class AnalizujKlus(object):
@@ -232,7 +229,7 @@ class PrzetworzKlu(object):
     def __init__(self, d, k, p):
         # d-feature z analizowana dzialka i struktura pol zgodna ze skryptem
         # k-tablica z featurami klu na tej dzialce, wszystkie musza byc
-        # przykryte przez kontur dzialki.
+        # przykryte przez poligon dzialki, oraz byc singlepart
         self.dz = d
         self.klus = k
         # wskaznik do slownikow na podstawie bazy
@@ -242,7 +239,23 @@ class PrzetworzKlu(object):
         self.sq = 'SQ'
         self.au = 'AU'
 
-        self.bledy_topo = []  # tabel z featurami sklasyfikowanymi jako bledy
+        # PARCELID wyciagniety z dzialki w metodzie przetworz
+        self.pid = ''
+
+        # slownik z uzytkami na dzialce i zsumowanymi powierzchniami, obliczany
+        # w metodzie przetworz
+        # sl = {LANDID: 4,3222, LANDID: 0.0002, ....}
+        self.klus_pow = {}
+
+        # slownik z featurami pogrupowanymi po LANDID, w postaci:
+        # obliczany w metodzie przetworz
+        # sl = {LANDID: [f1, f2, f3], LANDID2: [f4, f5,...],}
+        self.klus_grupy = {}
+
+        # poprawne klu
+        self.klus_popr = []
+        self.klus_bledy = []  # tabel z featurami sklasyfikowanymi jako bledy
+        self.klus_do_spr = []  # lista z featurami do sprawdzenia
 
         # tabela z rozbieznosciam powierzchniowymi, w postaci [LANDID, LANDID]
         self.rozb_pow = []
@@ -253,36 +266,203 @@ class PrzetworzKlu(object):
 
         # tablica z uwagami do raportu, grupowana wg skrotow ponizej:
         # pow - rozbieznosc powierzchni miedzy baza a grafika
-        # brakb - brak ls w bazie, jest w grafice
-        # brakg - brak ls w grafice, jest w bazie
+        # brakb - brak uzytku w bazie, jest w grafice
+        # brakg - brak uzytku w grafice, jest w bazie
+        # brakdzb - brak dzkat w bazie, jest w grafice
         # topo - bledy topologiczne do rozwiazania przez uzytkownika
         # mikro - mikrolsy do usuniecia przez uzytkownika
         # dubb - zdublowane ls, klu w bazie
         # dubg - zdublowane ls, klu w grafice
-        # podm - ls z podmieniona grafika na kontru z dzialki (tylko przy 1 ls)
+        # podm - ls z podmieniona grafika na kontur z dzialki (tylko przy 1 ls)
         # op - dzialka tylko z wlasnoscia OP
         # opif - dzialka tylko z wlasnoscia OPiF
         #
-        # postac zapisu: {landid: {'topo', 'mikro', 'wlas'}, {...}}
+        # postac zapisu:
+        # {'mikro': {landid: [0.0001], landid: [0.0021]},
+        #  'podm': {landid: [0.5894, 0.7842], ....},
+        #  }
         self.uwagi = recursivedefaultdict()
+
+        # True jezeli na dzialce nie ma zadnych klu
+        self.bez_uzytkow = False
 
     def nazwa_sq_au(self, s, a):
         self.sq = s
         self.au = a
 
     def is_valid(self):
-        if len(self.dz) == 0:
+        if self.dz.geometry().wkbType() not in [QgsWkbTypes.Polygon,
+                                                QgsWkbTypes.Multipolygon]:
             return False
 
         if 'PARCELID' not in [x.name() for x in
-                              self.dz.dataProvider().fields()]:
+                              self.dz.dataProvider().fields().toList()]:
             return False
 
-        if ['PARCELID', self.sq, self.au] not in [x.name() for x in
-                                                  self.klus[0].fields()]:
+        if ['PARCELID', self.sq, self.au] not in \
+                [x.name() for x in self.klus[0].fields().toList()]:
+            return False
+
+        # jezeli na dzialce znajduja sie uzytki z innej dzialki
+        if set(self.dz['PARCELID']) != set([x['PARCELID'] for x in self.klus]):
             return False
 
         return True
+
+    def przetworz(self):
+        self.pid = self.dz['PARCELID']
+
+        # oblicz sumaryczna powierzchnie dla uzytku na dzialce, sumujac
+        # wszystkie multipoligony
+        if len(self.klus) == 0:
+            self.bez_uzytkow = True
+            return False
+
+        self.klus_pow = {self.stworz_landid(x): 0
+                         for x in self.klus}
+        self.klus_grupy = {self.stworz_landid(x): [] for x in self.klus}
+        for f in self.klus:
+            self.klus_pow[self.stworz_landid(f)] += \
+                round(f.geometry().area()/10000, 4)
+            self.klus_grupy[self.stworz_landid(f)].append(f)
+
+        return True
+
+    def sprawdz_topologie(self):
+        """Metoda sprawdza czy klu nakladaja sie na siebie, w przypadku gdy
+        jeden z poligonow jest przykryty przez inny wiekszy, ten mniejszy
+        jest klasyfikowany jako blad i przerzucany do warstwy bledow i pomijany
+        w dalszej obrobce. Jezeli dwa poligony nachodza na siebie tylko troche
+        ich czesc wspolna jest dodana do warstwy bledow jako do sprawdzenia"""
+
+        if len(self.klus) < 2:
+            return
+
+        do_usuniecia = []
+        for i in range(len(self.klus)-1):
+            for j in range(i+1, len(self.klus)):
+                if self.klus[i].geometry().intersects(self.klus[j].geometry()):
+                    inter = self.klus[i].geometry().intersection(
+                        self.klus[j].geometry())
+                    if inter.area() == 0:
+                        pass
+                    else:
+                        # powierzchnia przeciecie jest taka sama jak
+                        # powierzchnia jednego z klu -> idzie do bledow
+                        if inter.area() == self.klus[i].geometry().area() or \
+                                inter.area() == self.klus[j].geometry().area():
+                            if inter.area() == self.klus[i].geometry().area():
+                                do_usuniecia.append(i)
+                            if inter.area() == self.klus[j].geometry().area():
+                                do_usuniecia.append(j)
+                    # powierzchnia przeciecia jest taka sama jak powierzchnia
+                    # obu klu
+                        elif self.klus[i].geometry().area() == \
+                                inter.area() and \
+                                self.klus[j].geometry().area() == inter.area():
+                            f = self.new_feat(
+                                uw='nałożone identyczne poligony')
+                            f.setGeometry(inter)
+                            self.klus_do_spr(f)
+
+        # usun z listy klus featurki sklasyfikowane jako bledy
+        do_usuniecia = list(set(do_usuniecia)).sort(reverse=True)
+        for i in do_usuniecia:
+            f = self.new_feat(au=self.au, sq=self.sq,
+                              uw='przykryty przez wiekszy')
+            f.setGeometry(self.klus[i].geometry())
+            self.klus_bledy.append(f)
+            self.klus.remove(i)
+
+    def s_wasy(self, f):
+        """Metoda sprawdza czy w geometrii podanego featurka znajduja sie
+        charakterystyczne 'wasy' ktore sa bledem topologicznym.
+        Sprawdza czy pomiedzy dwoma lub trzema segmentami (krotki segm w srod.)
+        odcinkiem nie wystepuje kat bliski 360 stopni +-5 stopni, jezeli tak,
+        dodaj do warstwy wonsow"""
+        if f.geometry().wkbType() == QgsWkbTypes.Polygon:
+            linia = f.geometry().asPolygon()[0][0]
+        if f.geometry().wkbType() == QgsWkbTypes.Multipolygon:
+            linia = f.geometry().asMultiPolygon()[0][0]
+
+        for i, pkt in enumerate(linia):
+            if i == 0:
+                pocz = linia[-3]
+                sr = linia[-2]
+                pocz1 = linia[-1]
+            elif i == 1:
+                pass
+                # dodac sprawdzenie kata miedzy pierwszymi 2 pkt
+            else:
+                # sprawdzic kat miedzy
+                pocz = linia[i-2]
+                sr = linia[i-1]
+
+
+
+    def s_czy_dz_w_bazie(self):
+        if self.dz['PARCELID'] in self.p.sl_kody_wlasciceli_na_dzialce:
+            return True
+
+        # jezeli brak w bazie dopisz co trzeba do klu i zostaw jako poprawne
+        self.braki['brakb'] = {self.stworz_landid(x):
+                               self.p.uzytki[self.stworz_landid(x)][2]
+                               for x in self.klus}
+        for x in self.klus:
+            f = self.new_feat(au=x[self.au], sq=x[self.sq], uw='Brak w bazie')
+            f.setGeometry(x.geometry())
+            self.klus_popr.append(f)
+        return False
+
+    def s_czy_ls_na_calosci(self):
+        """Metoda sprawdza czy uzytek znajduje sie na calej dzialce, jest jeden
+        w zbiorze uzytkow w bazie, jezeli tak to podmienia jego grafike na
+        kontur dzialki"""
+
+        if self.pid in self.p.sl_pow_ls_dzkat:
+            if self.p[self.pid][0] == self.p[self.pid][1]:
+                f = self.new_feat('Ls', self.p.sl_ls_na_dz[self.pid][0])
+                f.setGeometry(self.dz.geometry())
+                self.klus_popr.append(f)
+                return True
+        return False
+
+    def s_czy_jeden_ls(self):
+        """Metoda sprawdza czy w bazie jest jeden ls, jezeli tak, sprawdza czy
+        na dzialce znajduje sie jeden ls o tej samej klasie"""
+        if len(self.p.sl_ls_na_dz[self.pid]) == 1:
+            # jezeli na dzialce jest tylko jedna klasa Ls dopisz i sparwdz topo
+            if len([x for x in self.klus_pow.keys()
+                    if x.split('.')[-1][:2] == 'Ls']) == 1:
+                for k, val in self.klus.items():
+                    pass
+
+    def new_feat(self, au=False, sq=False, uw=False):
+        f = QgsFeature()
+        f.setFields([
+            QgsField('PARCELID', QVariant.String, len=30),
+            QgsField('AU', QVariant.String, len=10),
+            QgsField('SQ', QVariant.String, len=10),
+            QgsField('UWAGI', QVariant.String, len=230),
+        ])
+        f.setAttribure(f.fieldNameIndex('PARCELID'), self.pid)
+        if au:
+            f.setAttribure(f.fieldNameIndex('AU'), au)
+        if sq:
+            f.setAttribure(f.fieldNameIndex('SQ'), sq)
+        if uw:
+            f.setAttribure(f.fieldNameIndex('UWAGI'), uw)
+        return f
+
+    def stworz_landid(self, f):
+        """metoda tworzy LANDID na podstawie danych podanego feature'a"""
+        return f['PARCELID'] + '.' + f[self.au] + self.isNone(f[self.sq])
+
+    def isNone(self, a):
+        if a is None:
+            return ''
+        else:
+            return a
 
 
 class PobierzDane(QDialog):
@@ -345,7 +525,7 @@ class PobierzDane(QDialog):
             self.ui.lineEdit_klu.setText(
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
             self.ui.comboBox_ident.setDisabled(False)
-        except:
+        except:  # nopep8
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
             msbx.exec_()
             self.lyrk = False
@@ -364,7 +544,7 @@ class PobierzDane(QDialog):
             self.lyrd = QgsVectorLayer(warstwa, "dz", "ogr")
             self.ui.lineEdit_dz.setText(
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
-        except:
+        except:  # nopep8
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
             msbx.exec_()
             self.lyrd = False
