@@ -1,4 +1,5 @@
 .idea/
 __pycache_/
+skrypty/__pycache_/
 .pytest_cache/
 *.pyc
