@@ -7,18 +7,18 @@ from qgis.gui import *
 from PyQt5.QtCore import *
 from PyQt5 import QtGui
 
-from ..skrypty.sprawdz_ls import PrzetworzKlu
-from ..skrypty.baza_przetworz import Przetworz
-from ..skrypty import baza_wrapper
+from sprawdz_ls import PrzetworzKlu
+from baza_przetworz import Przetworz
+import baza_wrapper
 
 sys.setrecursionlimit(100000)
 
+QgsApplication.setPrefixPath('/usr/', True)
+qgs = QgsApplication([], False)
+qgs.initQgis()
 
 @pytest.fixture()
 def w():
-    QgsApplication.setPrefixPath('/usr/', True)
-    qgs = QgsApplication([], False)
-    qgs.initQgis()
 
     dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
                          'dz',

@@ -118,3 +118,16 @@ class Baza(object):
         '''
         return self.cur.execute(sql).fetchall()
 
+    def dopisane_FO(self):
+        """Metoda sprawdza czy w bazie są wpisane jakiekolwiek formy ochrony,
+           jeżeli tak, zwraca True"""
+
+        sql = 'select count(*) from F_SET;'
+        ile_wydz = self.cur.execute(sql).fetchall()
+
+        sql = 'select count(*) from F_LAND_PROTECT;'
+        ile_obsz = self.cur.execute(sql).fetchall()
+
+        if ile_wydz[0] == 0 and ile_obsz[0] == 0:
+            return False
+        return True

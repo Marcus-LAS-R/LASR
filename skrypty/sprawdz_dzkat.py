@@ -652,6 +652,7 @@ class AnalizujDzKat(object):
         self.lyrw.updateFields()
         self.lyrw.commitChanges()
 
+
 class PobierzDane(QDialog):
     def __init__(self, w):
         super(PobierzDane, self).__init__()

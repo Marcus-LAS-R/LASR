@@ -13,7 +13,7 @@ def wczytaj():
         baza = r'e:\TEMP\sprawdz_ls\Bobrowniki_Gmina.mdb'
 
     b = baza_wrapper.Baza(baza)
-    b_lacz = b.polacz()
+    b.polacz()
     p = Przetworz()
     p.u = b.uzytki()
     p.w = b.wlasnosci()
@@ -25,9 +25,8 @@ def wczytaj():
     return p
 
 
-# @pytest.mark.parametrize('p', [p])
-# def test_instancji(p):
-#     assert isinstance(p, Przetworz)
+def test_instancji(wczytaj):
+    assert isinstance(wczytaj, Przetworz)
 
 
 def test_dodania_uztykow_do_obiektu(wczytaj):
@@ -35,14 +34,23 @@ def test_dodania_uztykow_do_obiektu(wczytaj):
     assert len(wczytaj.u) == len(wczytaj.baza_uzytki)
 
 
-# @pytest.mark.parametrize('p, u', [p, w])
-# def test_dodania_wlasnosci_do_obiektu(p, u):
-    # u_przed = len(p.baza_wlasnosci)
-    # p.dodaj_uzytki(u)
-    # u_po = len(p.baza_wlasnosci)
-    # assert u_przed == u_po
+def test_dodania_wlasnosci_do_obiektu(wczytaj):
+    wczytaj.dodaj_wlasnosci(wczytaj.w)
+    assert len(wczytaj.w) == len(wczytaj.baza_wlasnosci)
 
 
-# @pytest.mark.parametrize('p', [p])
-# def test_przetworz_uztyki(p):
-    # pass
+def test_sprawdzenia_ilosci_dzkat(wczytaj):
+    suma = len(wczytaj.dz_of) + len(wczytaj.dz_op) + len(wczytaj.dz_opif)
+    assert suma == len(list(wczytaj.dzialki.keys()))
+
+
+def test_sprawdzenia_wlasnosci(wczytaj):
+    wczytaj.dodaj_uzytki(wczytaj.u)
+    wczytaj.dodaj_wlasnosci(wczytaj.w)
+    wczytaj.przetworz_uzytkowanie()
+    wczytaj.przetworz_dzialki()
+    kody = []
+    for w in wczytaj.sl_kody_wlasciceli_na_dzialce.values():
+        kody += w
+
+    assert set(kody).issubset(set(['OP', 'OF']))
