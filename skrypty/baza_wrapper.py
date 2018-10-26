@@ -1,4 +1,4 @@
-import pypyodbc as pyodbc
+import pyodbc as pyodbc
 import sqlite3
 
 
@@ -21,7 +21,9 @@ class Baza(object):
             DRV = '{Microsoft Access Driver (*.mdb, *.accdb)}'
             PWD = 'pw'
             # polacz
-            self.con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV, MDB, PWD))
+            self.con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,
+                                                                       MDB,
+                                                                       PWD))
             self.cur = self.con.cursor()
             self.ok = True
             return True
@@ -33,6 +35,10 @@ class Baza(object):
             return True
 
         return False
+
+    def zamknij(self):
+        self.cur.close()
+        self.con.close()
 
     def uzytki(self):
         # kwer1
@@ -53,20 +59,34 @@ class Baza(object):
         '''
         if self.baza[-6:] == 'sqlite':
             sql += '''
-                , F_PARCEL.COUNTY_CD || F_PARCEL.DISTRICT_CD || F_PARCEL.MUNICIPALITY_CD || F_PARCEL.COMMUNITY_CD || '.' || coalesce(F_PARCEL.REG_SHEET_NR2, '') ||
-                CASE WHEN coalesce(F_PARCEL.REG_SHEET_NR2, '')  = ''then '' ELSE '.' END  || F_PARCEL.PARCEL_NR AS Wyr1 '''
+                , F_PARCEL.COUNTY_CD ||
+                F_PARCEL.DISTRICT_CD ||
+                F_PARCEL.MUNICIPALITY_CD ||
+                F_PARCEL.COMMUNITY_CD ||
+                '.' || coalesce(F_PARCEL.REG_SHEET_NR2, '') ||
+                CASE WHEN
+                coalesce(F_PARCEL.REG_SHEET_NR2, '')  = ''
+                then ''
+                ELSE '.'
+                END  ||
+                F_PARCEL.PARCEL_NR AS Wyr1 '''
         else:
             sql += '''
-            , [COUNTY_CD] & [DISTRICT_CD] & [MUNICIPALITY_CD] & [COMMUNITY_CD] & \'.\' & [REG_SHEET_NR2] &
-            IIF (ISNULL(F_PARCEL.REG_SHEET_NR2),\'\', \'.\') & [PARCEL_NR] AS Wyr1'''
+            , [COUNTY_CD] &
+            [DISTRICT_CD] &
+            [MUNICIPALITY_CD] &
+            [COMMUNITY_CD] & \'.\' &
+            [REG_SHEET_NR2] &
+            IIF (ISNULL(F_PARCEL.REG_SHEET_NR2),\'\', \'.\') &
+            [PARCEL_NR] AS Wyr1'''
 
         sql += '''
         FROM
                   F_PARCEL
                   INNER JOIN
-                            F_PARCEL_LAND_USE
+                    F_PARCEL_LAND_USE
                   ON
-                            F_PARCEL.PARCEL_INT_NUM = F_PARCEL_LAND_USE.PARCEL_INT_NUM
+                    F_PARCEL.PARCEL_INT_NUM = F_PARCEL_LAND_USE.PARCEL_INT_NUM
         ;
         '''
         return self.cur.execute(sql).fetchall()
@@ -87,23 +107,26 @@ class Baza(object):
         FROM
                   F_PARCEL
                   INNER JOIN
-                            ((V_ADDRESS
-                            INNER JOIN
-                                      V_PARCEL_PARTICIPATION
-                            ON
-                                      V_ADDRESS.ADDR_NR = V_PARCEL_PARTICIPATION.addr_nr)
-                            INNER JOIN
-                                      F_PARCEL_LAND_USE
-                            ON
-                                      V_PARCEL_PARTICIPATION.parcel_int_num = F_PARCEL_LAND_USE.PARCEL_INT_NUM)
+                    ((V_ADDRESS
+                    INNER JOIN
+                        V_PARCEL_PARTICIPATION
+                    ON
+                        V_ADDRESS.ADDR_NR = V_PARCEL_PARTICIPATION.addr_nr)
+                    INNER JOIN
+                        F_PARCEL_LAND_USE
+                    ON
+                        V_PARCEL_PARTICIPATION.parcel_int_num =
+                        F_PARCEL_LAND_USE.PARCEL_INT_NUM)
                   ON
-                            (
-                                      V_PARCEL_PARTICIPATION.parcel_int_num = F_PARCEL.PARCEL_INT_NUM
-                            )
-                            AND
-                            (
-                                      F_PARCEL.PARCEL_INT_NUM = F_PARCEL_LAND_USE.PARCEL_INT_NUM
-                            )
+                    (
+                        V_PARCEL_PARTICIPATION.parcel_int_num =
+                        F_PARCEL.PARCEL_INT_NUM
+                    )
+                    AND
+                    (
+                        F_PARCEL.PARCEL_INT_NUM =
+                        F_PARCEL_LAND_USE.PARCEL_INT_NUM
+                    )
         GROUP BY
                   F_PARCEL_LAND_USE.PARCEL_INT_NUM
                 , V_ADDRESS.name_1
@@ -118,7 +141,7 @@ class Baza(object):
         '''
         return self.cur.execute(sql).fetchall()
 
-    def dopisane_FO(self):
+    def dopisane_fo(self):
         """Metoda sprawdza czy w bazie są wpisane jakiekolwiek formy ochrony,
            jeżeli tak, zwraca True"""
 
@@ -128,6 +151,40 @@ class Baza(object):
         sql = 'select count(*) from F_LAND_PROTECT;'
         ile_obsz = self.cur.execute(sql).fetchall()
 
-        if ile_wydz[0] == 0 and ile_obsz[0] == 0:
+        if ile_wydz[0][0] == 0 and ile_obsz[0][0] == 0:
             return False
         return True
+
+    def pobierz_sl_fo(self):
+        """Metoda pobiera słownik form ochrony z bazy i zwraca je w postaci
+        słownika typ formy: id"""
+
+        sql = '''select
+                    PROTEC_AREA_CD,
+                    PROTEC_AREA_NR
+                from
+                    F_PROT_AREA_DIC
+                ;
+                '''
+        pob = self.cur.execute(sql).fetchall()
+        if len(pob) > 0:
+            return {x[0]: x[1] for x in pob}
+        return False
+
+    def pobierz_wydzielenia(self):
+        """Metoda pobiera z bazy wsystkie wpisane wydzielenia wraz z
+        odpowiadającymi im arodes_int_num'ami i zwraca je w postaci slownika"""
+
+        sql = '''select
+                    ADRESS_FOREST,
+                    ARODES_INT_NUM
+                from
+                    F_ARODES
+                where
+                    ARODES_TYP_CD = 'WYDZIEL'
+                ;
+                '''
+        wydz = self.cur.execute(sql).fetchall()
+        if len(wydz) > 0:
+            return {x[0]: x[1] for x in wydz}
+        return False

@@ -32,6 +32,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 import os.path
 
 from .skrypty import sprawdz_dzkat
+from .skrypty import baza_dopisz_fochr
 
 
 class LasR:
@@ -187,6 +188,12 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        self.dop_fo = QAction(QIcon(None),
+                                'Dopisz formy ochrony',
+                                self.iface.mainWindow())
+        self.baza_taks.addAction(self.dop_fo)
+        self.dop_fo.triggered.connect(self.dopisz_f_ochr)
+
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
         # self.add_action(
@@ -204,7 +211,7 @@ class LasR:
         #         action)
         #     self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        self.menu.deleteLater()
+        self.menu = False
         # del self.toolbar
 
 
@@ -215,10 +222,16 @@ class LasR:
         # Run the dialog event loop
         # result = self.dlg.exec_()
         # See if OK was pressed
-        if result:
+        # if result:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
-            pass
+            # pass
+        pass
 
     def przygotuj_dzewid(self):
         sprawdz_dzkat.SprawdzDzKat(self.iface)
+
+    def dopisz_f_ochr(self):
+        b = baza_dopisz_fochr.DopiszFO(self.iface)
+        b.pobierz_dane_od_uzytkownika()
+        b.sprawdz_all()
