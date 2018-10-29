@@ -1,51 +1,55 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 
 
-def sprawdz_topo(poly):
+def poprawna_topo(poly):
     """ funkcja sprawdza poprawnosc topologiczną poligonu:
         - nakładające się wierzchołki w poligonie
         - 'wąsy'
     """
 
-    sl = {}  # slownik z punktami w poligonie do sprawdzenia powtorzen
-    powt = []  # tablica z powtarzajacymi sie pkt w obrebie poligonu
     for part in poly:
-        for i, pkt in enumerate(part):
-            # sprawdzanie nakladajacych sie pkt w multipoligonach
-            if i < len(part):
-                if pkt[0] not in sl:
-                    sl[pkt[0]] = []
-                    sl[pkt[0]].append(pkt[1])
+        if len(part) > 5:
+            for i, pkt in enumerate(part):
+                # sprawdzanie występowania wąsów w poligonach
+                tazym = []   # tablica azymotow
+                todl = []  # tablica odleglosci
+
+                if i == 0:
+                    tsp = [part[-4], part[-3], part[-2], pkt]
                 else:
-                    # jezeli pkt ma wsp x taka sama ale innego y dodaj do sl
-                    if pkt[1] not in sl[pkt[0]]:
-                        sl[pkt[0]].append(pkt[1])
-                    # jezeli pkt jest juz w slowniku - blad topo
-                    else:
-                        powt.append(pkt)
+                    tsp = tsp[1:] + [pkt]
 
-            # sprawdzanie występowania wąsów w poligonach
-            tazym = []   # tablica azymotow
-            todl = []  # tablica odleglosci
+                # oblicz zestawienia dla 4 ostatnich pkt
+                for x in range(1, 4):
+                    tazym.append(oblicz_azymut(tsp[x-1], tsp[x]))
+                    todl.append(oblicz_odl(tsp[x-1], tsp[x]))
 
-            if i == 0:
-                tsp = [part[-3], part[-2], part[-1], pkt]
+                # czy pary maja maly azymut
+                for ai in range(1, 3):
+                    pierwszy = tazym[ai-1]
+                    drugi = 180 + tazym[ai]
+                    if drugi >= 360:
+                        drugi -= 360
+                        if abs(pierwszy-drugi) < 2:
+                            return False
 
-            # oblicz zestawienia dla 4 ostatnich pkt
-            for x in range(1, 4):
-                tazym.append(oblicz_azymut(tsp[x-1], tsp[x]))
-                todl.append(oblicz_odl(tsp[x-1], tsp[x]))
+                # czy pierwszy i ostatni odcinek maja przeciwny azymut a
+                #  doc miedzy nimi jest mniejszy od kilku metrow
+                trzeci = 180 + tazym[-1]
+                if trzeci >= 360:
+                    trzeci -= 360
 
-            # czy pierwsza para ma maly azymut
-            pass
+                if abs(tazym[0]-trzeci) < 2 and todl[1] < 1:
+                    return False
 
-
-
+    return True
 
 
 def oblicz_odl(A, B):
     """funkcja oblicza odległość pomiędzy 2 pkt na płaszczyźnie"""
-    return np.sqrt((B.y-A.y) * (B.y-A.y) + (B.x-A.x) * (B.x-A.x))
+    return np.sqrt((B.y()-A.y()) * (B.y()-A.y()) +
+                   (B.x()-A.x()) * (B.x()-A.x()))
 
 
 def oblicz_azymut(A, B):

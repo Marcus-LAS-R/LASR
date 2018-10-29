@@ -1,5 +1,8 @@
-import pyodbc as pyodbc
+import os
+import pypyodbc as pyodbc
 import sqlite3
+from datetime import datetime
+from shutil import copyfile
 
 
 class Baza(object):
@@ -15,6 +18,10 @@ class Baza(object):
 
     def polacz(self):
         '''Metoda sprawdzajaca i laczaca sie z bazą'''
+
+        # jezeli juz jestesmy polaczeni, nic ni rob
+        if self.con and self.cur:
+            return True
 
         if self.baza[-3:] == 'mdb':
             MDB = self.baza
@@ -39,6 +46,24 @@ class Baza(object):
     def zamknij(self):
         self.cur.close()
         self.con.close()
+
+    def wpisz(self, sql):
+        """Metoda dopisuje do bazy podanego sql"""
+        self.cur.execute(sql)
+        self.con.commit()
+
+    def utworz_kopie(self, wpis=''):
+        """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
+        znacznikiem czasu oraz ew podanym wpisem"""
+        katalog, plik = os.path.split(self.baza)
+        plikn = plik[:-4] + \
+            '_' + wpis + '_' + \
+            datetime.now().isoformat().replace(':', '')[:-7] + \
+            '.mdb'
+        copyfile(self.baza, os.path.join(katalog, plikn))
+
+        # debug
+        # self.baza = plikn
 
     def uzytki(self):
         # kwer1
