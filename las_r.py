@@ -35,6 +35,8 @@ import os.path
 from .skrypty import sprawdz_dzkat
 from .skrypty import sprawdzenia_topo
 from .skrypty import baza_dopisz_fochr
+from .skrypty import shp_dopisz_kody
+from .skrypty import shp_symbolizacja
 
 
 class LasR:
@@ -167,6 +169,31 @@ class LasR:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
+        # akcje toolbara --------------------
+        self.akcje_toolbara = []
+        # koniec akcji ----------------------
+
+        # ikony -----------------------------
+        ico_wydz_dopisz = QIcon(os.path.join(self.plugin_dir,
+                                             'ico',
+                                             'wydz_dopisz.png'))
+        ico_wydz_rys_zab = QIcon(os.path.join(self.plugin_dir,
+                                              'ico',
+                                              'wydz_rys_zab.png'))
+        ico_wydz_rys_gat = QIcon(os.path.join(self.plugin_dir,
+                                              'ico',
+                                              'wydz_rys_gat.png'))
+        ico_wydz_rys_orto = QIcon(os.path.join(self.plugin_dir,
+                                               'ico',
+                                               'wydz_rys_orto.png'))
+        ico_wydz_rys_stl = QIcon(os.path.join(self.plugin_dir,
+                                              'ico',
+                                              'wydz_rys_stl.png'))
+        ico_topo = QIcon(os.path.join(self.plugin_dir,
+                                      'ico',
+                                      'spr_topo.png'))
+        # koniec ikon -----------------------
+
         self.menu = QMenu(self.iface.mainWindow())
         self.menu.setObjectName('Las-R')
         self.menu.setTitle('Las-R')
@@ -195,13 +222,63 @@ class LasR:
         self.baza_taks.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
 
-        self.spr_topo = QAction(QIcon(None),
+        self.spr_topo = QAction(ico_topo,
                                 'Sprawdź topologię',
                                 self.iface.mainWindow())
         self.spr_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
 
-        # self.toolbar.addAction(self.spr_topo)
+        self.dop_wydz = QAction(ico_wydz_dopisz,
+                                'Dopisz do wydzieleń',
+                                self.iface.mainWindow())
+        self.menu.addAction(self.dop_wydz)
+        self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
+
+        # toolbar -----------------------------
+        self.dop_meta = QAction(ico_wydz_dopisz,
+                                'dopisz metadane',
+                                self.iface.mainWindow())
+        self.toolbar.addAction(self.dop_meta)
+        self.dop_meta.triggered.connect(self.dopisanie_wydzielen)
+
+        self.toolbar.addSeparator()
+
+        self.rys_gat = QAction(ico_wydz_rys_gat,
+                               'rysuj gatunki',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_gat)
+        self.rys_gat.triggered.connect(self.rysuj_gatunki)
+
+        self.rys_zab = QAction(ico_wydz_rys_zab,
+                               'rysuj zabiegi',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_zab)
+        self.rys_zab.triggered.connect(self.rysuj_zabiegi)
+
+        self.rys_stl = QAction(ico_wydz_rys_stl,
+                               'rysuj STL',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_stl)
+        self.rys_stl.triggered.connect(self.rysuj_stl)
+
+        self.rys_orto = QAction(ico_wydz_rys_orto,
+                                'rysuj na orto',
+                                self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_orto)
+        self.rys_orto.triggered.connect(self.rysuj_orto)
+
+        self.toolbar.addSeparator()
+
+        self.toolbar.addAction(self.spr_topo)
+
+        self.akcje_toolbara = [self.dop_meta,
+                               self.rys_stl,
+                               self.rys_gat,
+                               self.rys_zab,
+                               self.rys_orto,
+                               self.spr_topo
+                               ]
+        # toolbar koniec ---------------------
 
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
@@ -219,8 +296,11 @@ class LasR:
         #         action)
         #     self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        self.menu.setVisible(False)
-        del self.menu
+        if self.menu is not None:
+            self.iface.mainWindow().menuBar().removeAction(
+                self.menu.menuAction())
+        for a in self.akcje_toolbara:
+            self.iface.removeToolBarIcon(a)
         # del self.toolbar
 
     def run(self):
@@ -258,3 +338,21 @@ class LasR:
         b.spr_wasy()
         b.spr_nakladanie()
         b.dodaj_warstwy()
+
+    def dopisanie_wydzielen(self):
+        d = shp_dopisz_kody.DopiszKody(self.iface)
+        d.pobierzBaze()
+        d.dopisz_kody()
+
+    def rysuj_gatunki(self):
+        pass
+        shp_symbolizacja.rysuj(self.iface, 'gat')
+
+    def rysuj_zabiegi(self):
+        shp_symbolizacja.rysuj(self.iface, 'zab')
+
+    def rysuj_orto(self):
+        shp_symbolizacja.rysuj(self.iface, 'orto')
+
+    def rysuj_stl(self):
+        shp_symbolizacja.rysuj(self.iface, 'stl')

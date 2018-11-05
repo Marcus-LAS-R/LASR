@@ -300,24 +300,27 @@ class PobierzDane(QDialog):
                                            'Wskaż baze Taksatora',
                                            self.kat,
                                            "Access MDB (*.mdb)")[0]
-        self.kat = os.path.dirname(sc)
-        self.ui.lineEdit_baza.setText(sc)
+        if sc != '':
+            self.kat = os.path.dirname(sc)
+            self.ui.lineEdit_baza.setText(sc)
 
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę wydzielen',
                                            self.kat,
                                            "ESRI Shapefile (*.shp)")[0]
-        self.kat = os.path.dirname(sc)
-        self.ui.lineEdit_wydz.setText(sc)
-
-    def kat_fochr(self):
-            sc = QFileDialog().getOpenFileName(self,
-                                               'Wskaż warstwę form ochrony',
-                                               self.kat,
-                                               "ESRI Shapefile (*.shp)")[0]
+        if sc != '':
             self.kat = os.path.dirname(sc)
             self.ui.lineEdit_wydz.setText(sc)
+
+    def kat_fochr(self):
+        sc = QFileDialog().getOpenFileName(self,
+                                           'Wskaż warstwę form ochrony',
+                                           self.kat,
+                                           "ESRI Shapefile (*.shp)")[0]
+        if sc != '':
+            self.kat = os.path.dirname(sc)
+            self.ui.lineEdit_fochr.setText(sc)
 
 
 if __name__ == '__console__':

@@ -213,3 +213,153 @@ class Baza(object):
         if len(wydz) > 0:
             return {x[0]: x[1] for x in wydz}
         return False
+
+    def pobierz_do_mapy(self):
+        """ Metoda pobiera z bazy tabele na podstawie ktorej generowane beda
+        odpowiednie kody i opisy na mapach"""
+
+        sql = """
+        SELECT
+        rodz_pow.ADRESS_FOREST,
+        rodz_pow.AREA_TYPE_CD,
+        rodz_pow.SITE_TYPE_CD,
+        rodz_pow.SUB_AREA,
+        do_lacz.PART_CD,
+        do_lacz.SPECIES_CD & hal.gtd AS SPECIES_CD,
+        do_lacz.SPECIES_AGE,
+        do_lacz.STANDDENSITY_INDEX,
+        do_lacz.STOREY_CD,
+        do_lacz.STAND_STRUCT_CD
+
+        FROM
+
+        (
+        (SELECT
+        F_ARODES.ADRESS_FOREST,
+        F_SUBAREA.SUB_AREA,
+        F_SUBAREA.AREA_TYPE_CD,
+        F_SUBAREA.SITE_TYPE_CD
+        FROM
+        F_ARODES
+        INNER JOIN F_SUBAREA
+        ON
+        F_ARODES.ARODES_INT_NUM = F_SUBAREA.ARODES_INT_NUM) as rodz_pow
+
+        LEFT JOIN
+
+        (SELECT
+        F_ARODES.ADRESS_FOREST,
+        F_STOREY_SPECIES.SPECIES_RANK_ORDER,
+        F_STOREY_SPECIES.PART_CD,
+        F_STOREY_SPECIES.SPECIES_CD,
+        F_STOREY_SPECIES.SPECIES_AGE,
+        F_STOREY_SPECIES.SITE_CLASS_CD,
+        F_STOREY_SPECIES.STOREY_CD,
+        F_SUBAREA.AREA_TYPE_CD,
+        F_SUBAREA.STAND_STRUCT_CD,
+        F_AROD_STOREY.STANDDENSITY_INDEX
+        FROM
+        (F_ARODES
+        INNER JOIN
+        (F_STOREY_SPECIES
+        INNER JOIN
+        F_SUBAREA
+        ON F_STOREY_SPECIES.ARODES_INT_NUM = F_SUBAREA.ARODES_INT_NUM)
+        ON F_ARODES.ARODES_INT_NUM = F_SUBAREA.ARODES_INT_NUM)
+        INNER JOIN
+        F_AROD_STOREY
+        ON F_SUBAREA.ARODES_INT_NUM = F_AROD_STOREY.ARODES_INT_NUM
+
+        WHERE
+        (((F_STOREY_SPECIES.SPECIES_RANK_ORDER)=1) AND
+        ((F_STOREY_SPECIES.STOREY_CD)=\'DRZEW\' Or
+        (F_STOREY_SPECIES.STOREY_CD)=\'IP\') AND
+        ((F_AROD_STOREY.STOREY_CD)=\'DRZEW\' Or
+        (F_AROD_STOREY.STOREY_CD)=\'IP\'))
+        ) as do_lacz
+
+        ON
+
+        rodz_pow.ADRESS_FOREST = do_lacz.ADRESS_FOREST)
+
+        LEFT JOIN
+
+        (SELECT
+        wyb.adr_first,
+        wyb.kol_max,
+        sel.gtd
+
+        FROM
+
+        (SELECT
+        F_ARODES.ADRESS_FOREST as adr,
+        F_AROD_GOAL.GOAL_RANK_ORDER as kol,
+        F_AROD_GOAL.SPECIES_CD as gtd
+
+        FROM
+        F_AROD_GOAL RIGHT JOIN
+        (F_ARODES INNER JOIN F_SUBAREA
+        ON
+        F_ARODES.ARODES_INT_NUM=F_SUBAREA.ARODES_INT_NUM)
+        ON F_AROD_GOAL.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
+
+        GROUP BY
+        F_ARODES.ADRESS_FOREST,
+        F_SUBAREA.SUB_AREA,
+        F_SUBAREA.AREA_TYPE_CD,
+        F_AROD_GOAL.GOAL_RANK_ORDER,
+        F_AROD_GOAL.SPECIES_CD
+
+        HAVING
+        (((F_SUBAREA.AREA_TYPE_CD)=\'HAL\'))
+        ) as sel
+
+        inner JOIN
+
+        (SELECT
+        FIRST(F_ARODES.ADRESS_FOREST) as adr_first,
+        MAX(F_AROD_GOAL.GOAL_RANK_ORDER) as kol_max
+
+        FROM
+        F_AROD_GOAL RIGHT JOIN
+        (F_ARODES
+        INNER JOIN
+        F_SUBAREA
+        ON F_ARODES.ARODES_INT_NUM=F_SUBAREA.ARODES_INT_NUM)
+        ON F_AROD_GOAL.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
+
+        GROUP BY
+        F_ARODES.ADRESS_FOREST,
+        F_SUBAREA.AREA_TYPE_CD
+
+        HAVING
+        (((F_SUBAREA.AREA_TYPE_CD)=\'HAL\'))
+
+        ) as wyb
+
+        ON
+
+        (sel.adr = wyb.adr_first and sel.kol >= wyb.kol_max)
+
+        ) as hal
+
+        ON
+
+        rodz_pow.ADRESS_FOREST = hal.adr_first
+        ;
+
+        """
+        return self.cur.execute(sql).fetchall()
+
+    def pobierz_zab_do_mapy(self):
+        sql = """
+            SELECT
+                F_ARODES.ADRESS_FOREST,
+                F_AROD_CUE.MEASURE_CD,
+                F_AROD_CUE.CUTTING_AREA
+            FROM
+                F_AROD_CUE INNER JOIN F_ARODES
+                ON F_AROD_CUE.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
+                ORDER BY F_ARODES.ADRESS_FOREST, F_AROD_CUE.CUE_RANK_ORDER;
+        """
+        return self.cur.execute(sql).fetchall()
