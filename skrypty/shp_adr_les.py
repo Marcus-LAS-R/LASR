@@ -17,7 +17,7 @@ def zaadresuj(iface):
             Qgis.Critical
         )
         QgsMessageLog.logMessage(
-            '------ KONIEC -------- ',
+            '------ KONIEC -------- \n',
             'LasR',
             Qgis.Info
         )
@@ -75,12 +75,14 @@ def zaadresuj(iface):
                     'poprawnie uzupełnione, (Patrz log LasR)',
                     Qgis.Warning,
                     10)
-                message_trig += 1
+            message_trig += 1
+
             QgsMessageLog.logMessage(
                 list(adr.values())[0],
                 'LasR',
                 Qgis.Warning
             )
+
         lyr.dataProvider().changeAttributeValues({key: adr})
 
     lyr.commitChanges()
@@ -92,7 +94,7 @@ def zaadresuj(iface):
             10)
 
     QgsMessageLog.logMessage(
-        '------ KONIEC -------- ',
+        '------ KONIEC -------- \n',
         'LasR',
         Qgis.Info
     )

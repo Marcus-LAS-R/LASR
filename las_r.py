@@ -38,6 +38,9 @@ from .skrypty import baza_dopisz_fochr
 from .skrypty import shp_dopisz_kody
 from .skrypty import shp_symbolizacja
 from .skrypty import shp_adr_les
+from .skrypty import shp_literkuj
+from .skrypty import shp_numeruj
+from .skrypty import shp_sprWydzOddz
 
 
 class LasR:
@@ -217,6 +220,18 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        self.zanum = QAction(QIcon(None),
+                             'Zanumeruj oddziały',
+                             self.iface.mainWindow())
+        self.przyg_danych.addAction(self.zanum)
+        self.zanum.triggered.connect(self.zanumeruj)
+
+        self.zalit = QAction(QIcon(None),
+                             'Zaliterkuj wydzielenia',
+                             self.iface.mainWindow())
+        self.przyg_danych.addAction(self.zalit)
+        self.zalit.triggered.connect(self.zaliterkuj)
+
         self.dop_adrles = QAction(QIcon(None),
                                   'Zaadresuj [ADR_LES]',
                                   self.iface.mainWindow())
@@ -228,6 +243,12 @@ class LasR:
                               self.iface.mainWindow())
         self.baza_taks.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
+
+        self.spr_w_o = QAction(QIcon(None),
+                               'Sprawdź wydzielenia w oddziałach',
+                               self.iface.mainWindow())
+        self.spr_danych.addAction(self.spr_w_o)
+        self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
         self.spr_topo = QAction(ico_topo,
                                 'Sprawdź topologię',
@@ -353,6 +374,15 @@ class LasR:
 
     def dopisz_adrles(self):
         shp_adr_les.zaadresuj(self.iface)
+
+    def zaliterkuj(self):
+        shp_literkuj.Literkuj(self.iface)
+
+    def zanumeruj(self):
+        shp_numeruj.Numeruj(self.iface)
+
+    def sprawdz_wydz_w_oddz(self):
+        shp_sprWydzOddz.SprWydzOddz(self.iface)
 
     def rysuj_gatunki(self):
         pass
