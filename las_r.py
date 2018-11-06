@@ -37,6 +37,7 @@ from .skrypty import sprawdzenia_topo
 from .skrypty import baza_dopisz_fochr
 from .skrypty import shp_dopisz_kody
 from .skrypty import shp_symbolizacja
+from .skrypty import shp_adr_les
 
 
 class LasR:
@@ -216,6 +217,12 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        self.dop_adrles = QAction(QIcon(None),
+                                  'Zaadresuj [ADR_LES]',
+                                  self.iface.mainWindow())
+        self.przyg_danych.addAction(self.dop_adrles)
+        self.dop_adrles.triggered.connect(self.dopisz_adrles)
+
         self.dop_fo = QAction(QIcon(None),
                               'Dopisz formy ochrony',
                               self.iface.mainWindow())
@@ -343,6 +350,9 @@ class LasR:
         d = shp_dopisz_kody.DopiszKody(self.iface)
         d.pobierzBaze()
         d.dopisz_kody()
+
+    def dopisz_adrles(self):
+        shp_adr_les.zaadresuj(self.iface)
 
     def rysuj_gatunki(self):
         pass
