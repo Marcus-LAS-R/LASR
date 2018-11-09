@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 import os.path
 
 from .skrypty import sprawdz_dzkat
+from .skrypty import shp_dopOddzWydz
 from .skrypty import sprawdzenia_topo
 from .skrypty import baza_dopisz_fochr
 from .skrypty import shp_dopisz_kody
@@ -41,6 +42,8 @@ from .skrypty import shp_adr_les
 from .skrypty import shp_literkuj
 from .skrypty import shp_numeruj
 from .skrypty import shp_sprWydzOddz
+from .skrypty import shp_przygCiecie
+from .skrypty import spr_wydzielen
 
 
 class LasR:
@@ -79,7 +82,7 @@ class LasR:
         # self.actions = []
         # self.menu = self.tr(u'&Las-R')
         # # TODO: We are going to let the user set this up in a future iteratio
-        self.toolbar = self.iface.addToolBar(u'LasR')
+        self.toolbar = self.iface.addToolBar(u'LAS-R')
         self.toolbar.setObjectName(u'LasR')
 
     # noinspection PyMethodMayBeStatic
@@ -196,11 +199,14 @@ class LasR:
         ico_topo = QIcon(os.path.join(self.plugin_dir,
                                       'ico',
                                       'spr_topo.png'))
+        ico_wydz_spr = QIcon(os.path.join(self.plugin_dir,
+                                          'ico',
+                                          'wydz_sprawdz.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
-        self.menu.setObjectName('Las-R')
-        self.menu.setTitle('Las-R')
+        self.menu.setObjectName('LAS-R')
+        self.menu.setTitle('LAS-R')
 
         menuBar = self.iface.mainWindow().menuBar()
         menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(),
@@ -226,6 +232,18 @@ class LasR:
         self.przyg_danych.addAction(self.zanum)
         self.zanum.triggered.connect(self.zanumeruj)
 
+        self.przyg_ciec = QAction(QIcon(None),
+                                  u"Przygotuj wydzielenia do cięcia",
+                                  self.iface.mainWindow())
+        self.przyg_danych.addAction(self.przyg_ciec)
+        self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
+
+        self.dop_w_o = QAction(QIcon(None),
+                               'dopisz oddziały do wydzieleń',
+                               self.iface.mainWindow())
+        self.przyg_danych.addAction(self.dop_w_o)
+        self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
+
         self.zalit = QAction(QIcon(None),
                              'Zaliterkuj wydzielenia',
                              self.iface.mainWindow())
@@ -250,6 +268,12 @@ class LasR:
         self.spr_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
+        self.spr_wydz = QAction(ico_wydz_spr,
+                                'Sprawdź wydzielenia',
+                                self.iface.mainWindow())
+        self.spr_danych.addAction(self.spr_wydz)
+        self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
+
         self.spr_topo = QAction(ico_topo,
                                 'Sprawdź topologię',
                                 self.iface.mainWindow())
@@ -268,6 +292,8 @@ class LasR:
                                 self.iface.mainWindow())
         self.toolbar.addAction(self.dop_meta)
         self.dop_meta.triggered.connect(self.dopisanie_wydzielen)
+
+        self.toolbar.addAction(self.spr_wydz)
 
         self.toolbar.addSeparator()
 
@@ -300,6 +326,7 @@ class LasR:
         self.toolbar.addAction(self.spr_topo)
 
         self.akcje_toolbara = [self.dop_meta,
+                               self.spr_wydz,
                                self.rys_stl,
                                self.rys_gat,
                                self.rys_zab,
@@ -367,6 +394,13 @@ class LasR:
         b.spr_nakladanie()
         b.dodaj_warstwy()
 
+    def sprawdzenie_wydzielen(self):
+        k = spr_wydzielen.KontrolaWydzielen(self.iface)
+        if k.poprawne_wydz():
+            k.sprawdz_odl_wydz()
+            k.sprawdz_odl_lz()
+            k.pokaz_bledy()
+
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)
         d.pobierzBaze()
@@ -374,6 +408,12 @@ class LasR:
 
     def dopisz_adrles(self):
         shp_adr_les.zaadresuj(self.iface)
+
+    def dopisz_wydz_w_oddz(self):
+        shp_dopOddzWydz.dopOddzWydz(self.iface)
+
+    def przygotuj_do_ciecia(self):
+        shp_przygCiecie.przygotujDoCiecia(self.iface)
 
     def zaliterkuj(self):
         shp_literkuj.Literkuj(self.iface)

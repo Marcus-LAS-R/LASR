@@ -4,10 +4,10 @@ from collections import Counter
 from PyQt5.QtCore import QVariant
 
 
-def SprWydzOddz(iface):  # noqa
 
+def dopOddzWydz(iface):  # noqa
     QgsMessageLog.logMessage(
-        '------ SPRAWDŹ WYDZIELENIA W ODDZIAŁACH --------- ',
+        '------ DOPISZ WYDZIELENIA DO ODDZIAŁÓW --------- ',
         'LasR',
         Qgis.Info
     )
@@ -95,8 +95,12 @@ def SprWydzOddz(iface):  # noqa
         sl_wydz[f.id()] = f
 
     # sprawdz przeciecia wydzielen z poszczegolnymi oddzialami
+    # jeżeli są poprawne dopisz numer oddziału
+    fnm = wydz.dataProvider().fieldNameMap()
     f_przec = []
-    f_niezg = []  # wydz o niezgodnych numerach oddzialow
+    f_dop = []  # tablica z juz dopisanymi id wydzielen
+    dopisano = 0
+    wydz.startEditing()
     for foddz in oddz.getFeatures():
         ids = si.intersects(foddz.geometry().boundingBox())
 
@@ -104,33 +108,30 @@ def SprWydzOddz(iface):  # noqa
             if sl_wydz[idk].geometry().intersects(foddz.geometry()):
                 inter = sl_wydz[idk].geometry().intersection(foddz.geometry())
                 if inter.area() > 0:
-                    if abs(inter.area()/sl_wydz[idk].geometry().area()) > 0.01\
+                    if abs(inter.area() /
+                           sl_wydz[idk].geometry().area()) >= 0.99:
+                        if idk not in f_dop:
+                            wydz.changeAttributeValues(idk,
+                                                       {fnm['ODDZ']:
+                                                        str(foddz['ODDZ'])})
+                            f_dop.append(idk)
+                            dopisano += 1
+                    elif abs(inter.area() /
+                             sl_wydz[idk].geometry().area()) > 0.01\
                             and abs(inter.area() /
                                     sl_wydz[idk].geometry().area()) < 0.99:
                         if idk not in [x.id() for x in f_przec]:
                             f_przec.append(sl_wydz[idk])
-                    else:
-                        if abs(inter.area() /
-                               sl_wydz[idk].geometry().area()) >= 0.99:
-                            if 'NULL' not in [str(foddz['ODDZ']),
-                                              str(sl_wydz[idk]['ODDZ'])]:
-                                adr_w = '_'.join([foddz['MUNICIP'],
-                                                  foddz['COMMUNITY'],
-                                                  foddz['ODDZ'],
-                                                  ])
-                                adr_o = '_'.join([sl_wydz[idk]['MUNICIP'],
-                                                  sl_wydz[idk]['COMMUNITY'],
-                                                  sl_wydz[idk]['ODDZ'],
-                                                  ])
 
-                                if adr_w != adr_o:
-                                    f_niezg.append(sl_wydz[idk])
+    wydz.commitChanges()
 
     if len(f_przec) > 0:
         iface.messageBar().pushMessage(
             'ZNALEZIONO PRZECIĘCIA',
             'do TOC dodano warstwę z wydzieleniami przykrywającymi '
-            'granice oddziałów',
+            'granice oddziałów   ||| '
+            'Dopisano numery oddziałów do: '+str(dopisano) + '/' +
+            str(wydz.featureCount()) + ' wydzieleń',
             Qgis.Warning,
             10
         )
@@ -159,42 +160,11 @@ def SprWydzOddz(iface):  # noqa
         polyLyr.commitChanges()
         QgsProject.instance().addMapLayer(polyLyr)
 
-    elif len(f_niezg) > 0:
-        iface.messageBar().pushMessage(
-            'ZNALEZIONO BŁĘDY KODOWANIA',
-            'do TOC dodano warstwę z wydzieleniami z błędnymi kodami',
-            Qgis.Warning,
-            10
-        )
-
-        polyLyr = QgsVectorLayer(
-                "MultiPolygon?crs=epsg:2180",
-                "WYDZ_błędne_kody_ODDZ",
-                "memory")
-
-        polylyr_dp = polyLyr.dataProvider()
-        polyLyr.startEditing()
-        polylyr_dp.addAttributes([
-            QgsField("ID", QVariant.Int),
-        ])
-        polyLyr.updateFields()
-
-        fs = []
-        for i, it in enumerate(f_niezg):
-            feat = QgsFeature()
-            feat.setGeometry(it.geometry())
-            feat.setFields(polyLyr.fields())
-            feat['ID'] = i
-            fs.append(feat)
-
-        polylyr_dp.addFeatures(fs)
-        polyLyr.commitChanges()
-        QgsProject.instance().addMapLayer(polyLyr)
-
     else:
         iface.messageBar().pushMessage(
             'OK',
-            'Wydzielenia leżą w oddziałach i mają poprawne kody',
+            'Dopisano numery oddziałów do: '+str(dopisano) + '/' +
+            str(wydz.featureCount()) + ' wydzieleń',
             Qgis.Success,
             10
         )

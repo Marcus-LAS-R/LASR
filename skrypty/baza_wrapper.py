@@ -1,8 +1,49 @@
 import os
+import glob
+import platform
 import pypyodbc as pyodbc
 import sqlite3
+from PyQt5.QtWidgets import QFileDialog
+from qgis.core import Qgis
 from datetime import datetime
 from shutil import copyfile
+
+
+def znajdz_baze_do_wydz(iface):
+    wydz = iface.activeLayer()
+    wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
+    kat = os.path.dirname(wydz_sc)
+
+    if platform.system()[:3] == 'Win':
+        bTemp = glob.glob(os.path.join(kat, "..", "*.mdb"))
+    else:
+        bTemp = glob.glob(os.path.join(kat, "..", "*.sqlite"))
+
+    if len(bTemp) != 1:
+        bTemp = [QFileDialog().getOpenFileName(iface.mainWindow(),
+                                               'Wskaż baze Taksatora',
+                                               kat,
+                                               "Access MDB (*.mdb)")[0]
+                 ]
+
+    if len(bTemp) == 1:
+        baza = Baza(bTemp[0])
+        if baza.polacz():
+            baza.zamknij()
+            return bTemp[0]
+        else:
+            iface.messageBar().pushMessage(
+                'Baza',
+                'Nie udało się pobrać danych z bazy',
+                Qgis.Critical,
+                10)
+    else:
+        iface.messageBar().pushMessage(
+            'Baza',
+            'Nie udało się pobrać danych z bazy',
+            Qgis.Critical,
+            10)
+    return False
 
 
 class Baza(object):

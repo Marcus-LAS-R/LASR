@@ -15,9 +15,17 @@ class SprawdzWydzielenia():
         spr = [
             self.spr_baza_polacz,
             self.spr_popr,
-            self.spr_adrles,
+            self.spr_kolumn,
             self.spr_wydz_baza,
             self.spr_wydz_duble,
+        ]
+
+        komunikaty = [
+            'Połączenie z bazą: OK',
+            'Sprawdzenie poprawności warstwy wydz: OK',
+            'Sprawdzenie obecności niezbędnych kolumn: OK',
+            'Porównanie wydzieleń w warstwie z bazą: OK',
+            'Sprawdzenie zdublowanych wydzieleń w warstwie: OK'
         ]
 
         for i, s in enumerate(spr):
@@ -29,6 +37,13 @@ class SprawdzWydzielenia():
                     'Warstwa wydzieleń niepoprawna!',
                     'LasR')
                 return False
+            else:
+                QgsMessageLog.logMessage(
+                    komunikaty[i],
+                    'LasR',
+                    Qgis.Info
+                )
+
         return True
 
     def spr_baza_polacz(self):
@@ -45,7 +60,7 @@ class SprawdzWydzielenia():
         return True
 
     def spr_popr(self):
-        if not self.wydz.isValid() or not self.fo.isValid():
+        if not self.wydz.isValid():
             if not self.wydz.isValid():
                 self.iface.messageBar().pushMessage(
                     'Wydzielenia',
@@ -55,11 +70,13 @@ class SprawdzWydzielenia():
                 return False
         return True
 
-    def spr_adrles(self):
-        if 'ADR_LES' not in self.wydz.dataProvider().fieldNameMap():
+    def spr_kolumn(self):
+        pola = [x for x in ['WYDZ', 'ODDZ', 'ADR_LES']
+                if x not in self.wydz.dataProvider().fieldNameMap()]
+        if len(pola) > 0:
             self.iface.messageBar().pushMessage(
                 'Wydzielenia',
-                'Brak kolumny ADR_LES w warstwie',
+                'Brak kolumn '+', '.join(pola)+' w warstwie',
                 Qgis.Critical,
                 10)
             return False
@@ -73,7 +90,8 @@ class SprawdzWydzielenia():
                                                )
         adr_w = [x['ADR_LES'] for x in self.wydz.getFeatures(request)]
         adr_b = self.baza.pobierz_wydzielenia()
-        braki = [x for x in adr_w if x not in adr_b]
+        brakiw = [x for x in adr_w if x not in adr_b]
+        brakib = [x for x in adr_b if x not in adr_w]
 
         QgsMessageLog.logMessage(
             'Znaleziono poligonów w shp: ' + str(len(adr_w)),
@@ -91,7 +109,7 @@ class SprawdzWydzielenia():
             Qgis.Info
         )
 
-        if len(braki) > 0:
+        if len(brakiw) > 0:
             self.iface.messageBar().pushMessage(
                 'BAZA',
                 'W shp znajdują się wydzielenia, które nie są dopisane do ' +
@@ -102,9 +120,26 @@ class SprawdzWydzielenia():
             QgsMessageLog.logMessage('Brakujące wydzielenia w bazie:',
                                      'LasR',
                                      Qgis.Critical)
-            for b in braki:
+            for b in brakiw:
                 QgsMessageLog.logMessage(b, 'LasR', Qgis.Critical)
+
+        if len(brakib) > 0:
+            self.iface.messageBar().pushMessage(
+                'BAZA',
+                'W bazie znajdują się wydzielenia, które nie są dopisane do ' +
+                'warstwy! Patrz log LasR',
+                Qgis.Critical,
+                10)
+
+            QgsMessageLog.logMessage('Brakujące wydzielenia w warstwie:',
+                                     'LasR',
+                                     Qgis.Critical)
+            for b in brakib:
+                QgsMessageLog.logMessage(b, 'LasR', Qgis.Critical)
+
+        if len(brakib) > 0 or len(brakiw) > 0:
             return False
+
         return True
 
     def spr_wydz_duble(self):

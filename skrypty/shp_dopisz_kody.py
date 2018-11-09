@@ -1,13 +1,10 @@
 import os
-import glob
-import platform
 from collections import defaultdict
 from qgis.core import QgsVectorLayer, QgsProject, Qgis, \
     QgsField, QgsMessageLog, QgsCoordinateReferenceSystem, QgsVectorFileWriter
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QFileDialog
 
-from .baza_wrapper import Baza
+from .baza_wrapper import Baza, znajdz_baze_do_wydz
 
 
 class recursivedefaultdict(defaultdict):
@@ -52,6 +49,12 @@ class DopiszKody():
         if typ not in [u'D-STAN', u'PŁAZ', u'HAL', u'ZRĄB', u'LZ-Ł']:
             return 580
 
+        if typ == "LZ-Ł":
+            return 590
+
+        if typ == 'ZRĄB':
+            return 579
+
         # Przepisanie dziwnych gatunkow
         if gat[:2] == "SO":
             gat = "SO"
@@ -71,12 +74,6 @@ class DopiszKody():
                 return 571
             else:
                 return 572
-
-        if typ == "LZ-Ł":
-            return 590
-
-        if typ == 'ZRĄB':
-            return 579
 
         if gat[:2] not in ['SO', 'LB', 'ŚW', 'JD', 'DG', 'MD', 'DB', 'KL',
                            'GB', 'BK', 'JS', 'WZ', 'OL', 'BR', 'AK', 'TP',
@@ -241,37 +238,18 @@ class DopiszKody():
         # wybierz zaznaczona werstwe WYDZ o odpowiedniej strukturze
         # opis gdzie sie laczymy
 
-        if platform.system()[:3] == 'Win':
-            bTemp = glob.glob(os.path.join(self.kat, "..", "*.mdb"))
-        else:
-            bTemp = glob.glob(os.path.join(self.kat, "..", "*.sqlite"))
-
-        if len(bTemp) != 1:
-            wybierz = QFileDialog().getOpenFileName(self.iface.mainWindow(),
-                                                    'Wskaż baze Taksatora',
-                                                    self.kat,
-                                                    "Access MDB (*.mdb)")[0]
-            bTemp = [wybierz]
-
-        if len(bTemp) == 1:
-            self.baza = Baza(bTemp[0])
+        baza_sc = znajdz_baze_do_wydz(self.iface)
+        if baza_sc:
+            self.baza = Baza(baza_sc)
             if self.baza.polacz():
                 self.dane = self.baza.pobierz_do_mapy()
                 self.sl = {x[0]: x[1:] for x in self.dane}
                 self.ciecia_raw = self.baza.pobierz_zab_do_mapy()
                 self.przetworz_zab()
-            else:
-                self.iface.messageBar().pushMessage(
-                    'Baza',
-                    'Nie udało się pobrać danych z bazy',
-                    Qgis.Critical,
-                    10)
-        else:
-            self.iface.messageBar().pushMessage(
-                'Baza',
-                'Nie udało się pobrać danych z bazy',
-                Qgis.Critical,
-                10)
+                self.baza.zamknij()
+                return True
+
+        return False
 
     def przetworz_zab(self):
         """Metoda przetwarza pobrane zabiegi, przygotowuj slownik do dopisania
