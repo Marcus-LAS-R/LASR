@@ -1,54 +1,59 @@
 import pytest
 import platform
 from qgis.core import *
-import qgis.utils
 import sys
-from qgis.gui import *
 from PyQt5.QtCore import *
-from PyQt5 import QtGui
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
-from ..skrypty.sprawdz_ls import PrzetworzKlu
-from ..skrypty.baza_przetworz import Przetworz
-from ..skrypty import baza_wrapper
+from .skrypty.sprawdz_ls import PrzetworzKlu
+from .skrypty.baza_przetworz import Przetworz
+from .skrypty import baza_wrapper
+
+import os
 
 sys.setrecursionlimit(100000)
 
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+# from attribute_transfer import AttributeTransfer
+# from create_dummy_data import create_dummy_data_polygon_or_line
 
-@pytest.fixture()
-def w():
-    QgsApplication.setPrefixPath('/usr/', True)
-    qgs = QgsApplication([], False)
-    qgs.initQgis()
+app = QCoreApplication(sys.argv)
+QgsApplication.setPrefixPath("/usr/share/qgis", True)
+QgsApplication.initQgis()
 
-    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
-                         'dz',
-                         'ogr')
-    dzf = [x for x in dzl.getFeatures()]
 
-    klul = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/LSwyb.shp', 'ls',
-                          'ogr')
-    lsf = [x for x in klul.getFeatures()]
+# @pytest.fixture()
+# def w():
+    # dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
+                         # 'dz',
+                         # 'ogr')
+    # dzf = [x for x in dzl.getFeatures()]
 
-    if platform.system() == 'Linux':
-        baza = '/home/qnox/upul/testy/grabica/baza.sqlite'
-    else:
-        baza = r'e:\TEMP\sprawdz_ls\Bobrowniki_Gmina.mdb'
+    # klul = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/LSwyb.shp', 'ls',
+                          # 'ogr')
+    # lsf = [x for x in klul.getFeatures()]
 
-    b = baza_wrapper.Baza(baza)
-    b.polacz()
-    u = b.uzytki()
-    w = b.wlasnosci()
-    p = Przetworz()
-    p.dodaj_uzytki(u)
-    p.dodaj_wlasnosci(w)
-    p.przetworz_uzytkowanie()
-    p.przetworz_dzialki()
+    # if platform.system() == 'Linux':
+        # baza = '/home/qnox/upul/testy/grabica/baza.sqlite'
+    # else:
+        # baza = r'e:\TEMP\sprawdz_ls\Bobrowniki_Gmina.mdb'
 
-    pp = PrzetworzKlu(dzf, lsf, p)
-    return pp
+    # b = baza_wrapper.Baza(baza)
+    # b.polacz()
+    # u = b.uzytki()
+    # w = b.wlasnosci()
+    # p = Przetworz()
+    # p.dodaj_uzytki(u)
+    # p.dodaj_wlasnosci(w)
+    # p.przetworz_uzytkowanie()
+    # p.przetworz_dzialki()
+
+    # pp = PrzetworzKlu(dzf, lsf, p)
+    # return pp
 
 
 # @pytest.mark.parametrize('baza, dzf, lsf', [dzf, lsf, p])
-def test_poprawnosc_sprawdzenia(w):
+def test_poprawnosc_sprawdzenia():
     a = 1  # w.is_valid()
     assert a == 2

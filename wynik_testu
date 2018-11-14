@@ -1,7 +1,0 @@
-============================= test session starts ==============================
-platform linux -- Python 3.7.0, pytest-3.7.4, py-1.5.4, pluggy-0.7.1 -- /usr/bin/python
-cachedir: .pytest_cache
-rootdir: /home/qnox/.local/share/QGIS/QGIS3/profiles/default/python/plugins/lasr, inifile:
-collecting ... collected 1 item
-
-========================= no tests ran in 0.92 seconds =========================

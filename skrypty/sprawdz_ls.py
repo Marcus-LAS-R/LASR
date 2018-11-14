@@ -8,8 +8,8 @@ from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, \
     QgsMessageLog, QgsProject, QgsWkbTypes
 import processing
 from collections import Counter, namedtuple, defaultdict
-from baza_wrapper import Baza
-from baza_przetworz import Przetworz
+from .baza_wrapper import Baza
+from .baza_przetworz import Przetworz
 from ..ui.ui_sprawdz_ls import Ui_Dialog
 
 

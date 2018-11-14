@@ -1,5 +1,8 @@
 .idea/
+.pytest_cache/
+.ropeproject/
+skrypty/.ropeproject/*
 __pycache_/
 skrypty/__pycache_/
-.pytest_cache/
+skrypty/.pytest_cache/
 *.pyc
