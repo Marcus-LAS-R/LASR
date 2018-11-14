@@ -403,8 +403,10 @@ class LasR:
 
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)
-        d.pobierzBaze()
-        d.dopisz_kody()
+        if d.pobierz_dane():
+            if d.poprawne_wydz():
+                if d.pobierzBaze():
+                    d.dopisz_kody()
 
     def dopisz_adrles(self):
         shp_adr_les.zaadresuj(self.iface)
@@ -425,7 +427,6 @@ class LasR:
         shp_sprWydzOddz.SprWydzOddz(self.iface)
 
     def rysuj_gatunki(self):
-        pass
         shp_symbolizacja.rysuj(self.iface, 'gat')
 
     def rysuj_zabiegi(self):

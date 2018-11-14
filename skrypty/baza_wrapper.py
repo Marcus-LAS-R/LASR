@@ -87,6 +87,8 @@ class Baza(object):
     def zamknij(self):
         self.cur.close()
         self.con.close()
+        self.con = False
+        self.cur = False
 
     def wpisz(self, sql):
         """Metoda dopisuje do bazy podanego sql"""
@@ -266,7 +268,19 @@ class Baza(object):
         rodz_pow.SITE_TYPE_CD,
         rodz_pow.SUB_AREA,
         do_lacz.PART_CD,
+        """
+
+        if self.baza[-3:] == 'mdb':
+            sql += """
         do_lacz.SPECIES_CD & hal.gtd AS SPECIES_CD,
+            """
+        elif self.baza[-6:] == 'sqlite':
+            sql += """
+        IFNULL(do_lacz.SPECIES_CD, '') || IFNULL(hal.gtd, '') AS SPECIES_CD,
+            """
+
+        sql += \
+            """
         do_lacz.SPECIES_AGE,
         do_lacz.STANDDENSITY_INDEX,
         do_lacz.STOREY_CD,
@@ -338,10 +352,10 @@ class Baza(object):
         F_AROD_GOAL.SPECIES_CD as gtd
 
         FROM
-        F_AROD_GOAL RIGHT JOIN
         (F_ARODES INNER JOIN F_SUBAREA
         ON
         F_ARODES.ARODES_INT_NUM=F_SUBAREA.ARODES_INT_NUM)
+        LEFT JOIN F_AROD_GOAL
         ON F_AROD_GOAL.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
 
         GROUP BY
@@ -358,15 +372,27 @@ class Baza(object):
         inner JOIN
 
         (SELECT
-        FIRST(F_ARODES.ADRESS_FOREST) as adr_first,
+        """
+
+        if self.baza[-3:] == 'mdb':
+            sql += """
+            FIRST(F_ARODES.ADRESS_FOREST) as adr_first,
+            """
+        elif self.baza[-6:] == 'sqlite':
+            sql += """
+            F_ARODES.ADRESS_FOREST as adr_first,
+            """
+
+        sql += \
+            """
         MAX(F_AROD_GOAL.GOAL_RANK_ORDER) as kol_max
 
         FROM
-        F_AROD_GOAL RIGHT JOIN
         (F_ARODES
         INNER JOIN
         F_SUBAREA
         ON F_ARODES.ARODES_INT_NUM=F_SUBAREA.ARODES_INT_NUM)
+        LEFT JOIN F_AROD_GOAL
         ON F_AROD_GOAL.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
 
         GROUP BY

@@ -6,9 +6,9 @@
       <rule filter="SLMN_KOL = 1" symbol="1" key="{0fc5854b-8ed0-41ed-967b-ab4ded3f1ea6}" label="So I"/>
       <rule filter="SLMN_KOL =2" symbol="2" key="{e23406ab-d51c-437f-b3ee-8d45f886d04d}" label="So II"/>
       <rule filter="SLMN_KOL = 3" symbol="3" key="{e3a55e91-9ce9-4f64-a50e-3a24d96c5a36}" label="So III"/>
-      <rule filter="SLMN_KOL = 4" symbol="4" key="{0e275bc3-86d2-4e47-a7b0-4164147c93b0}" label="Św I"/>
+      <rule filter="SLMN_KOL = 4" symbol="4" key="{0e275bc3-86d2-4e47-a7b0-4164147c93b0}" label="Św I"/>
       <rule filter="SLMN_KOL =5" symbol="5" key="{b22a867a-c226-48b1-92a2-7739099b8205}" label="Św II"/>
-      <rule filter="SLMN_KOL = 6" symbol="6" key="{4b4d8b3c-4364-4a1d-893e-254fdca42f5c}" label="Św III"/>
+      <rule filter="SLMN_KOL = 6" symbol="6" key="{4b4d8b3c-4364-4a1d-893e-254fdca42f5c}" label="Św III"/>
       <rule filter="SLMN_KOL = 7" symbol="7" key="{9dda0fc5-45f5-4c83-8924-80bd3916b9fb}" label="Jd, Dg I"/>
       <rule filter="SLMN_KOL = 8" symbol="8" key="{e4f95519-5e7d-4e7e-8fdd-a6817de42245}" label="Jd, Dg II"/>
       <rule filter="SLMN_KOL = 9" symbol="9" key="{54678454-8149-4b10-b445-55172f78f87e}" label="Jd, Dg III"/>
@@ -31,7 +31,7 @@
       <rule filter="SLMN_KOL = 26" symbol="26" key="{65743852-adfe-46c4-bb4e-a2ab0b8bc5cb}" label="Tp, Os, Wb, Lp I"/>
       <rule filter="SLMN_KOL = 27" symbol="27" key="{0b9d1a0b-27cc-4ab2-a56f-2e7488137e1d}" label="Tp, Os, Wb, Lp I"/>
       <rule filter="SLMN_KOL = 500" symbol="28" key="{0ff9dc5f-13e3-4407-8837-e247cfc085fa}" label="So KO"/>
-      <rule filter="SLMN_KOL = 501" symbol="29" key="{01f2ec52-c900-4adf-a9d9-edd707ecc581}" label="Św KO"/>
+      <rule filter="SLMN_KOL = 501" symbol="29" key="{01f2ec52-c900-4adf-a9d9-edd707ecc581}" label="Św KO"/>
       <rule filter="SLMN_KOL = 502" symbol="30" key="{7c315fe7-f676-4409-907b-406b9c7c0d2f}" label="Jd, Dg KO"/>
       <rule filter="SLMN_KOL = 503" symbol="31" key="{3dff3385-8f59-473b-b594-66e3df3e7954}" label="Db KO"/>
       <rule filter="SLMN_KOL = 504" symbol="32" key="{3e5b3447-ef0a-471d-9637-9f56b15bc9a7}" label="Bk KO"/>
@@ -40,7 +40,7 @@
       <rule filter="SLMN_KOL = 507" symbol="35" key="{6412ff07-09ca-43b0-80a3-005c900e4369}" label="Brz, Ak KO"/>
       <rule filter="SLMN_KOL = 508" symbol="36" key="{aa8b99bd-4343-4d6c-a651-c731344f85aa}" label="Tp, Os, Wb, Lp I"/>
       <rule filter="SLMN_KOL = 550" symbol="37" key="{9208d0ff-8dba-4c34-8907-61018eff8ee6}" label="So hal"/>
-      <rule filter="SLMN_KOL = 551" symbol="38" key="{756d69c4-027d-478d-8be1-a28540ec4531}" label="Św hal"/>
+      <rule filter="SLMN_KOL = 551" symbol="38" key="{756d69c4-027d-478d-8be1-a28540ec4531}" label="Św hal"/>
       <rule filter="SLMN_KOL = 552" symbol="39" key="{eb26f301-c387-42a8-a2cb-9bddf90c0763}" label="Jd, Dg hal"/>
       <rule filter="SLMN_KOL = 553" symbol="40" key="{cd27dd33-61eb-4b7c-8caa-fde48d8707e9}" label="Db hal"/>
       <rule filter="SLMN_KOL = 554" symbol="41" key="{c43fd933-45b9-41b7-9e83-bb7a43a25cbd}" label="Bk, Gb hal"/>
@@ -48,12 +48,12 @@
       <rule filter="SLMN_KOL = 556" symbol="43" key="{c31b8571-988a-4894-ae14-cc8ba52d696d}" label="Ol hal"/>
       <rule filter="SLMN_KOL = 557" symbol="44" key="{5665c9d7-fc5b-49c1-91e2-a763a061e3cc}" label="Brz, Ak hal"/>
       <rule filter="SLMN_KOL = 558" symbol="45" key="{de88f663-39dc-4a43-9f35-0ba3616bb912}" label="Tp, Os, Wb, Lp hal"/>
-      <rule filter="SLMN_KOL = 563" symbol="46" key="{85b6b9be-22f9-43c6-af0d-a47dd1383d8d}" label="Kamieniołomy"/>
+      <rule filter="SLMN_KOL = 563" symbol="46" key="{85b6b9be-22f9-43c6-af0d-a47dd1383d8d}" label="Kamieniołomy"/>
       <rule filter="SLMN_KOL = 575" symbol="47" key="{585c74cc-f7cc-43a9-b45d-e69eced617b3}" label="Szkółki leśne"/>
       <rule filter="SLMN_KOL = 577" symbol="48" key="{3640efa3-da59-4810-b99e-0d17b3bb812a}" label="Użytki ekologiczne"/>
       <rule filter="SLMN_KOL = 578" symbol="49" key="{f1b3c24c-5392-49a2-ba6c-ac4c2a102f9b}" label="Wody"/>
       <rule filter="SLMN_KOL = 580" symbol="50" key="{8916e9eb-0a79-4eaa-a5ab-769e15577bdb}" label="Inne"/>
-      <rule filter="SLMN_KOL = 590" symbol="51" key="{6e3b3ce8-8ec0-458b-8acf-196e15b0ad37}" label="Zadrzewienia leśne"/>
+      <rule filter="SLMN_KOL = 590" symbol="51" key="{6e3b3ce8-8ec0-458b-8acf-196e15b0ad37}" label="Zadrzewienia leśne"/>
       <rule filter="SLMN_KOL = 579" symbol="52" key="{5a43f5b7-e63e-4d87-b39f-83df93e060a5}" label="ZRAB"/>
       <rule filter="SLMN_KOL = 572" symbol="53" key="{c8157715-70b9-4915-9dab-e6db7e1d4777}" label="PLAZ LISC"/>
       <rule filter="SLMN_KOL = 571" symbol="54" key="{538605c3-dd50-482f-a8b1-f2f3417ff4a1}" label="PLAZ_IGL"/>

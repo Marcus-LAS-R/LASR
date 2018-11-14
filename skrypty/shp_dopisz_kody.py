@@ -5,6 +5,7 @@ from qgis.core import QgsVectorLayer, QgsProject, Qgis, \
 from PyQt5.QtCore import QVariant
 
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
+from .sprawdzenia_warstw import SprawdzWydzielenia
 
 
 class recursivedefaultdict(defaultdict):
@@ -12,27 +13,44 @@ class recursivedefaultdict(defaultdict):
         self.default_factory = type(self)
 
 
-class DopiszKody():
+class DopiszKody(SprawdzWydzielenia):
     def __init__(self, iface):
         self.iface = iface
 
-        blad = True
-        try:
-            self.layer = iface.activeLayer()
-            self.wydz_path = \
-                self.layer.dataProvider().dataSourceUri().split("|")[0]
-            self.kat = os.path.dirname(self.wydz_path)
-            if 'ADR_LES' in [x.name() for x in self.layer.fields()]:
-                blad = False
-        except:  # nopep8
-            pass
+        QgsMessageLog.logMessage(
+            '--- DOPISZ METADANE DO WYDZIELEŃ ---',
+            'LasR',
+            Qgis.Info
+        )
 
-        if blad:
+    def pobierz_dane(self):
+        """Metoda pobiera i sprwdza poprawność wskazanej warstwy oraz
+        komplementarnej bazy"""
+
+        self.wydz = self.iface.activeLayer()
+        self.wydz_path = \
+            self.wydz.dataProvider().dataSourceUri().split("|")[0]
+        self.kat = os.path.dirname(self.wydz_path)
+
+        baza_sc = znajdz_baze_do_wydz(self.iface)
+
+        if baza_sc:
+            self.baza = Baza(baza_sc)
+        else:
             self.iface.messageBar().pushMessage(
                 "Błąd",
-                u"Porszę zaznaczyć warstwę wydzieleń z kolumną [ADR_LES]",
+                'Nie udało się połączyć z bazą danych',
                 Qgis.Critical)
-            return
+            self.koniec()
+            return False
+        return True
+
+    def koniec(self):
+        QgsMessageLog.logMessage(
+            '\n\n--- KONIEC ---',
+            'LasR',
+            Qgis.Info
+        )
 
     def isNone(self, x, typ='s'):
         if x is None:
@@ -238,17 +256,28 @@ class DopiszKody():
         # wybierz zaznaczona werstwe WYDZ o odpowiedniej strukturze
         # opis gdzie sie laczymy
 
-        baza_sc = znajdz_baze_do_wydz(self.iface)
-        if baza_sc:
-            self.baza = Baza(baza_sc)
-            if self.baza.polacz():
-                self.dane = self.baza.pobierz_do_mapy()
-                self.sl = {x[0]: x[1:] for x in self.dane}
-                self.ciecia_raw = self.baza.pobierz_zab_do_mapy()
-                self.przetworz_zab()
-                self.baza.zamknij()
-                return True
+        if self.baza.polacz():
+            self.dane = self.baza.pobierz_do_mapy()
+            self.sl = {x[0]: x[1:] for x in self.dane}
+            self.ciecia_raw = self.baza.pobierz_zab_do_mapy()
+            self.przetworz_zab()
+            self.baza.zamknij()
 
+            QgsMessageLog.logMessage(
+                'Przetworzyłem dane z bazy!',
+                'LasR',
+                Qgis.Info
+            )
+
+            return True
+
+        QgsMessageLog.logMessage(
+            'Nie udało się przetworzyć bazy i przygotować danych do dopisania',
+            'LasR',
+            Qgis.Critical
+        )
+
+        self.koniec()
         return False
 
     def przetworz_zab(self):
@@ -323,7 +352,7 @@ class DopiszKody():
 
     def dopisz_kody(self):  # noqa
         # kopiujemy shp
-        feats = [feat for feat in self.layer.getFeatures()]
+        feats = [feat for feat in self.wydz.getFeatures()]
 
         crs = QgsCoordinateReferenceSystem("epsg:2180")
         wpol = QgsVectorLayer("Polygon?crs=epsg:2180", "WYDZ_DOP", "memory")
@@ -332,8 +361,8 @@ class DopiszKody():
         wpol.startEditing()
 
         # Dodajemy odpowiednie kolumny:
-        attr_nazwy = [x.name() for x in self.layer.fields()]
-        attr = self.layer.fields()
+        attr_nazwy = [x.name() for x in self.wydz.fields()]
+        attr = self.wydz.fields()
         pola = [
             # QgsField("COUNTY_L", QVariant.String, len=1),
             # QgsField("COUNTY", QVariant.String, len=2),
@@ -390,7 +419,6 @@ class DopiszKody():
         wpol.startEditing()
 
         fnm = wpol_data.fieldNameMap()
-        QgsMessageLog.logMessage(u'Dodałem pola', "LasR")
 
         brak_opisu = []
         for feat in wpol.getFeatures():
@@ -485,6 +513,8 @@ class DopiszKody():
                                    "ogr")
         # dodaj kopie do mapy
         QgsProject.instance().addMapLayer(self.wpol)
+
+        self.koniec()
 
 
 # if __name__ == '__console__':

@@ -106,17 +106,17 @@ class SprawdzWydzielenia():
         brakib = [x for x in adr_b if x not in adr_w]
 
         QgsMessageLog.logMessage(
-            'Znaleziono poligonów w shp: ' + str(len(adr_w)),
+            '   Znaleziono poligonów w shp: ' + str(len(adr_w)),
             'LasR',
             Qgis.Info
         )
         QgsMessageLog.logMessage(
-            'Znaleziono wydzieleń w shp: ' + str(len(set(adr_w))),
+            '   Znaleziono wydzieleń w shp: ' + str(len(set(adr_w))),
             'LasR',
             Qgis.Info
         )
         QgsMessageLog.logMessage(
-            'Znaleziono wydzieleń w bazie: ' + str(len(adr_b)),
+            '   Znaleziono wydzieleń w bazie: ' + str(len(adr_b)),
             'LasR',
             Qgis.Info
         )

@@ -59,7 +59,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
 
                 self.odl_wydz[f['ADR_LES']] = max(odl)
 
-                if max(odl) > 29.99:
+                if max(odl) > 29.999:
                     self.f_przek_odl.append(f)
 
         # tabela z odległościami wiekszymi niz 30 m w wydzieleniach
@@ -113,7 +113,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
             wydz_bodl.updateFields()
 
             fs = []
-            for i, it in enumerate(self.wydz_przek_odl):
+            for i, it in enumerate(self.f_przek_odl):
                 feat = QgsFeature()
                 feat.setGeometry(it.geometry())
                 feat.setFields(wydz_bodl.fields())
