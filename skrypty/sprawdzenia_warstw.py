@@ -3,7 +3,7 @@ from collections import Counter
 
 
 class SprawdzWydzielenia():
-    """Klasa poboczna wymaga aby klasa dziedzicząca miałą już dodany wskaxnik
+    """Klasa poboczna wymaga aby klasa dziedzicząca miałą już dodany wskaznik
     do wydz i bazy taksatora. Sprawdza poprawność pól w wydzieleniach, czy nie
     ma niepołączonych wydzieleń."""
 
@@ -16,6 +16,7 @@ class SprawdzWydzielenia():
             self.spr_baza_polacz,
             self.spr_popr,
             self.spr_kolumn,
+            self.spr_crs,
             self.spr_wydz_baza,
             self.spr_wydz_duble,
         ]
@@ -24,6 +25,7 @@ class SprawdzWydzielenia():
             'Połączenie z bazą: OK',
             'Sprawdzenie poprawności warstwy wydz: OK',
             'Sprawdzenie obecności niezbędnych kolumn: OK',
+            'Sprawdzenie układu wspł. (EPSG:2180) : OK'
             'Porównanie wydzieleń w warstwie z bazą: OK',
             'Sprawdzenie zdublowanych wydzieleń w warstwie: OK'
         ]
