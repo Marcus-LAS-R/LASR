@@ -25,7 +25,7 @@ class SprawdzWydzielenia():
             'Połączenie z bazą: OK',
             'Sprawdzenie poprawności warstwy wydz: OK',
             'Sprawdzenie obecności niezbędnych kolumn: OK',
-            'Sprawdzenie układu wspł. (EPSG:2180) : OK'
+            'Sprawdzenie układu wspł. (EPSG:2180) : OK',
             'Porównanie wydzieleń w warstwie z bazą: OK',
             'Sprawdzenie zdublowanych wydzieleń w warstwie: OK'
         ]
