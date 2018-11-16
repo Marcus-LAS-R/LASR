@@ -430,3 +430,68 @@ class Baza(object):
                 ORDER BY F_ARODES.ADRESS_FOREST, F_AROD_CUE.CUE_RANK_ORDER;
         """
         return self.cur.execute(sql).fetchall()
+
+    def pobierz_naglowek(self):
+        """Metoda pobiera dane naglowkowe, nazwy i kody administracyjne, dla
+        wpisanych obrebow w bazie"""
+
+        sql = """
+            SELECT
+                F_COUNTY.COUNTY_NAME,
+                F_DISTRICT.DISTRICT_NAME,
+                F_MUNICIPALITY.MUNICIPALITY_NAME,
+                F_COMMUNITY.COMMUNITY_NAME,
+                F_COMMUNITY.MUNICIPALITY_CD,
+                F_COMMUNITY.COMMUNITY_CD
+            FROM
+                (F_DISTRICT INNER JOIN F_MUNICIPALITY ON
+                (F_DISTRICT.DISTRICT_CD = F_MUNICIPALITY.DISTRICT_CD)
+                AND
+                (F_DISTRICT.COUNTY_CD = F_MUNICIPALITY.COUNTY_CD))
+                INNER JOIN F_COMMUNITY ON
+                (F_MUNICIPALITY.MUNICIPALITY_CD = F_COMMUNITY.MUNICIPALITY_CD)
+                AND
+                (F_MUNICIPALITY.DISTRICT_CD = F_COMMUNITY.DISTRICT_CD)
+                AND
+                (F_MUNICIPALITY.COUNTY_CD = F_COMMUNITY.COUNTY_CD)
+                INNER JOIN F_COUNTY ON
+                (F_MUNICIPALITY.COUNTY_CD = F_COUNTY.COUNTY_CD)
+            ;
+        """
+        return self.cur.execute(sql).fetchall()
+
+    def pobierz_pow_oprac(self):
+        """Metoda pobiera powierzchnie opracowania z rozbiciem dla kazdego
+        obrebu ewid"""
+
+        if self.baza[-3:] == 'mdb':
+            sql = """
+            select * from [TABELA 1 POW z pkt 1 , 3 i 4_POW_LS_WPISANE];"""
+            return self.cur.execute(sql).fetchall()
+
+        elif self.baza[-6:] == 'sqlite':
+            sql = """
+                select
+                    *
+                from
+                POW_suma
+               ;
+               """
+
+            tab = self.cur.execute(sql).fetchall()
+            return [list(t).append(sum(t[2:])) for t in tab]
+
+        return False
+
+    def pobierz_daty_waznosci(self):
+        """Metoda pobiera datę ostatniej modyfikacji geodezji oraz okres
+        obowiązywania planu z tabeli F_PARAMETER"""
+
+        sql = """
+            select
+                DbValidityYearFrom,
+                DbValidityYearTo,
+                EWID_STATE
+            from F_PARAMETER;
+        """
+        return self.cur.execute(sql).fetchall()

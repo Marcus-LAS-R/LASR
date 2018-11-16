@@ -44,6 +44,7 @@ from .skrypty import shp_numeruj
 from .skrypty import shp_sprWydzOddz
 from .skrypty import shp_przygCiecie
 from .skrypty import spr_wydzielen
+from .skrypty import naklejki
 
 
 class LasR:
@@ -286,6 +287,12 @@ class LasR:
         self.menu.addAction(self.dop_wydz)
         self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
 
+        self.nakl = QAction(QIcon(None),
+                            'Generuj naklejki',
+                            self.iface.mainWindow())
+        self.menu.addAction(self.nakl)
+        self.nakl.triggered.connect(self.rysuj_naklejki)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
                                 'dopisz metadane',
@@ -425,6 +432,11 @@ class LasR:
 
     def sprawdz_wydz_w_oddz(self):
         shp_sprWydzOddz.SprWydzOddz(self.iface)
+
+    def rysuj_naklejki(self):
+        n = naklejki.GenerujNaklejki(self.iface)
+        if n.pobierz_dane():
+            pass
 
     def rysuj_gatunki(self):
         shp_symbolizacja.rysuj(self.iface, 'gat')
