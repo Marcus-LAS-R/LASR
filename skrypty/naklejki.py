@@ -2,8 +2,12 @@ from datetime import datetime
 import os
 import platform
 import glob
-from qgis.core import QgsMessageLog, Qgis, QgsFillSymbol
-from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
+from qgis.core import QgsMessageLog, Qgis, QgsFillSymbol, QgsProject, \
+    QgsPrintLayout, QgsLayoutSize, QgsLayoutItemShape, QgsLayoutItemLabel, \
+    QgsUnitTypes, QgsLayoutPoint, QgsLayoutItem, QgsLayoutItemPicture
+from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem, QMessageBox
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont, QColor
 
 from .baza_wrapper import Baza
 
@@ -15,6 +19,9 @@ class GenerujNaklejki:
     def __init__(self, iface):
         self.iface = iface
         self.tomy_sl = {}  # slownik z ilością tomów dla kazdego z opracowan
+
+        # LayoutManager - obsluga layoutow
+        self.mn = QgsProject.instance().layoutManager()
 
         # przesuniecie ustawiane przez skrypt gdy nazwa obrebu
         # jest dluzsza niz standard ustawiony przy generowanie grzebietu
@@ -38,6 +45,25 @@ class GenerujNaklejki:
                      u'Uproszczone Plany Urządzenia Lasu'],
             'ANEKS': [u'Aneks', u'Aneks'],
         }
+
+    def inne_layouty(self):
+        """Metoda sprawdza czy w otwarym projekcie sa już jakieś layouty,
+        jeżeli tak pyta użytkownika czy chce kontynuować.
+        Zwraca True/False"""
+
+        if len(self.mn.layouts()) == 0:
+            return False
+        else:
+            m = QMessageBox()
+            m.setText(
+                'W otwartym projekcie wykryto layouty, '
+                'istnieje możliwość ich nadpisania, kontynuować?')
+            m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            m.exec_()
+
+            if m == QMessageBox.No:
+                return True
+            return False
 
     def pobierz_dane(self):
         """Metoda pobiera od uzytkownika sciezke do baz, oraz informacje o
@@ -114,6 +140,8 @@ class GenerujNaklejki:
                 "LasR",
                 Qgis.Info)
 
+        return True
+
     def znajdz_bazy(self):
         """Metoda szuka w podanej scieżce baz w zależności od systemu"""
 
@@ -181,6 +209,240 @@ class GenerujNaklejki:
         self.powy = {''.join(x[:2]): x[5] for x in self.pow_raw}
         return True
 
+    def generuj_all(self):
+        """Metoda zbiorcza do generowania naklejek"""
+
+        self.iface.messageBar().pushMessage(
+            'Generowanie naklejek',
+            'to potrwa kilka minut, uzbrój się w cierpliwość',
+            Qgis.Warning,
+            5
+        )
+
+    def gen_okladke(self):
+        if 'Okładka' in [l.name() for l in self.mn.layouts()]:
+            self.mn.removeLayout(self.mn.layoutByName('Okładka'))
+
+        QgsMessageLog.logMessage(
+            u'Generuj okładkę na płytkę',
+            "LasR",
+            Qgis.Info)
+
+        sl = {
+            1: 8.6,
+            2: 11.7,
+            3: 15,
+            4: 17.5,
+            5: 20.9,
+            6: 24,
+            7: 27,
+            8: 30,
+            9: 33,
+            10: 36,
+            11: 39,
+            12: 41.5,
+        }
+
+        lay = QgsPrintLayout(QgsProject.instance())
+        lay.initializeDefaults()
+        lay.setName('Okładka')
+        self.mn.addLayout(lay)
+
+        # zielona ramka do wyciecia
+        okl = QgsLayoutItemShape(lay)
+        okl.attemptResize(
+            QgsLayoutSize(120, 120, QgsUnitTypes.LayoutMillimeters))
+        okl.attemptMove(
+            QgsLayoutPoint(30, 30, QgsUnitTypes.LayoutMillimeters))
+        okl.setShapeType(1)
+        okl.setSymbol(self.g)
+        lay.addItem(okl)
+
+        # nazwa opracowania
+        naz = QgsLayoutItemLabel(lay)
+        naz.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        naz.attemptResize(
+            QgsLayoutSize(110, 15.1, QgsUnitTypes.LayoutMillimeters))
+        naz.attemptMove(
+            QgsLayoutPoint(90, 29.8, QgsUnitTypes.LayoutMillimeters))
+        naz.setHAlign(Qt.AlignCenter)
+        naz.setText(self.sl_typ[self.typ][1])
+        naz.setFont(QFont("Arial", 16, QFont.Bold))
+        naz.setFontColor(QColor("#000000"))
+        lay.addItem(naz)
+
+        przes = 3
+        obr = []
+        for k in sorted(self.sl_gminy.keys()):
+            # nazwa gminy
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText('Gmina ' + self.sl_gminy[k]+" ("+k+")")
+            l1.setFont(QFont("Arial", 12, QFont.Bold))
+            l1.setFontColor(QColor("#000000"))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(110, 6.73, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(90,
+                               38+przes,
+                               QgsUnitTypes.LayoutMillimeters))
+            lay.addItem(l1)
+            przes += 5
+
+            # nazwy obrebow
+            obr = [ko[4:]+' '+v for ko, v in self.sl_obr.items()
+                   if ko[:3] == k]
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText(', '.join(sorted(obr)))
+            l1.setFont(QFont("Arial", 8, QFont.Normal))
+            l1.setFontColor(QColor("#000000"))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.setMarginX(0)
+            l1.setMarginY(0)
+            l1.attemptResize(
+                QgsLayoutSize(110, 5.2,
+                              QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(90, 38.2+przes,
+                               QgsUnitTypes.LayoutMillimeters))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.adjustSizeToText()
+
+            if l1.boundingRect().width() // 110 > 0:
+                l1.setHAlign(Qt.AlignCenter)
+                l1.attemptResize(QgsLayoutSize(
+                    110,
+                    sl[l1.boundingRect().width()//100],
+                    QgsUnitTypes.LayoutMillimeters))
+                l1.attemptMove(
+                    QgsLayoutPoint(90, 38.2+przes,
+                                   QgsUnitTypes.LayoutMillimeters))
+            else:
+                l1.setHAlign(Qt.AlignCenter)
+                l1.attemptResize(
+                    QgsLayoutSize(110, 5.2,
+                                  QgsUnitTypes.LayoutMillimeters))
+                l1.attemptMove(
+                    QgsLayoutPoint(90, 38.2+przes,
+                                   QgsUnitTypes.LayoutMillimeters))
+
+            lay.addItem(l1)
+            przes += l1.boundingRect().height() - 3
+
+        # okres obowiazywania
+        przes += 5
+        l2 = QgsLayoutItemLabel(lay)
+        l2.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l2.setText("Plany na okres: "+str(self.od)+" - "+str(self.do))
+        l2.setFont(QFont("Arial", 12, QFont.Bold))
+        l2.setFontColor(QColor("#000000"))
+        l2.setMarginX(0)
+        l2.setMarginY(0)
+        l2.setHAlign(Qt.AlignCenter)
+        l2.attemptResize(
+            QgsLayoutSize(110, 7, QgsUnitTypes.LayoutMillimeters))
+        l2.attemptMove(
+            QgsLayoutPoint(90,
+                           38+przes,
+                           QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(l2)
+        przes += 10
+
+        # powiat
+        l2 = QgsLayoutItemLabel(lay)
+        l2.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l2.setText("Powiat "+list(self.ops.values())[0][0])
+        l2.setFont(QFont("Arial", 16, QFont.Bold))
+        l2.setFontColor(QColor("#000000"))
+        l2.setMarginX(0)
+        l2.setMarginY(0)
+        l2.setHAlign(Qt.AlignLeft)
+        l2.setVAlign(Qt.AlignVCenter)
+        l2.attemptResize(
+            QgsLayoutSize(40, 22, QgsUnitTypes.LayoutMillimeters))
+        xpn = 121
+        if przes + 38 > 121:
+            xpn = 38 + przes + 5
+        l2.attemptMove(
+            QgsLayoutPoint(76, xpn,
+                           QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(l2)
+
+        # herb
+        h = QgsLayoutItemPicture(lay)
+        h.attemptResize(
+            QgsLayoutSize(23, 30, QgsUnitTypes.LayoutMillimeters))
+        ypn = 116
+        if przes + 38 > 116:
+            ypn = 38 + przes
+        h.attemptMove(
+            QgsLayoutPoint(32, ypn,
+                           QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(h)
+
+        # wykonawca opis
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText("Wykonawca:")
+        l1.setFont(QFont("Arial", 10, QFont.Normal))
+        l1.setFontColor(QColor("#000000"))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(50, 5.6, QgsUnitTypes.LayoutMillimeters))
+        ypn = 116
+        if przes + 38 > 116:
+            ypn = 38 + przes
+        l1.attemptMove(
+            QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(l1)
+
+        # wykonawca logo
+        h = QgsLayoutItemPicture(lay)
+        h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        h.setPicturePath(os.path.join(
+            os.path.dirname(__file__), '..', 'img', 'lasr.tif'
+        ))
+        h.attemptResize(
+            QgsLayoutSize(36, 10, QgsUnitTypes.LayoutMillimeters))
+        ypn = 121
+        if przes + 38 > 121:
+            ypn = 38 + przes + 7
+        h.attemptMove(
+            QgsLayoutPoint(120, ypn,
+                           QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(h)
+
+        # dofinansowal
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText("Dofinansował:")
+        l1.setFont(QFont("Arial", 10, QFont.Normal))
+        l1.setFontColor(QColor("#000000"))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(50, 5.6, QgsUnitTypes.LayoutMillimeters))
+        ypn = 130
+        if przes + 38 > 130:
+            ypn = 38 + przes + 19
+        l1.attemptMove(
+            QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(l1)
+
+        # dofinansował logo
+        h = QgsLayoutItemPicture(lay)
+        h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        h.attemptResize(
+            QgsLayoutSize(42, 15, QgsUnitTypes.LayoutMillimeters))
+        ypn = 136
+        if przes + 38 > 136:
+            ypn = 38 + przes + 7
+        h.attemptMove(
+            QgsLayoutPoint(120, ypn,
+                           QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(h)
+
 
 class PobierzDane(QDialog, Ui_DialogNaklejki):
     def __init__(self):
@@ -194,7 +456,7 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         self.comboBox_typ.currentIndexChanged.connect(self.zmiana_typu)
 
         self.lineEdit_do.setText('31.12.'+str(
-            datetime.now().year+11
+            datetime.now().year+10
         ))
         self.lineEdit_od.setText('01.01.'+str(
             datetime.now().year+1

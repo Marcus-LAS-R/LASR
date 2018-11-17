@@ -435,8 +435,14 @@ class LasR:
 
     def rysuj_naklejki(self):
         n = naklejki.GenerujNaklejki(self.iface)
+
+        # jeżeli w projekcie sa inne layout i uzytkownik nie chce kontynuowac
+        # to przerywamy procedure
+        if n.inne_layouty():
+            return
+
         if n.pobierz_dane():
-            pass
+            n.gen_okladke()
 
     def rysuj_gatunki(self):
         shp_symbolizacja.rysuj(self.iface, 'gat')

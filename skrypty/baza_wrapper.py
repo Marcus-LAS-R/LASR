@@ -108,6 +108,15 @@ class Baza(object):
         # debug
         # self.baza = plikn
 
+    def isNone(self, x, typ='i'):
+        if x is None:
+            if typ == "s":
+                return " "
+            if typ == "i":
+                return 0
+        else:
+            return x
+
     def uzytki(self):
         # kwer1
         sql = '''
@@ -444,17 +453,17 @@ class Baza(object):
                 F_COMMUNITY.MUNICIPALITY_CD,
                 F_COMMUNITY.COMMUNITY_CD
             FROM
-				F_COUNTY INNER JOIN
-				((F_DISTRICT INNER JOIN F_MUNICIPALITY
-				ON (F_DISTRICT.DISTRICT_CD = F_MUNICIPALITY.DISTRICT_CD)
-				AND (F_DISTRICT.COUNTY_CD = F_MUNICIPALITY.COUNTY_CD))
-				INNER JOIN F_COMMUNITY ON
-				(F_MUNICIPALITY.MUNICIPALITY_CD = F_COMMUNITY.MUNICIPALITY_CD)
-				AND (F_MUNICIPALITY.DISTRICT_CD = F_COMMUNITY.DISTRICT_CD)
-				AND
-				(F_MUNICIPALITY.COUNTY_CD = F_COMMUNITY.COUNTY_CD))
-				ON F_COUNTY.COUNTY_CD = F_DISTRICT.COUNTY_CD
-				;
+                F_COUNTY INNER JOIN
+                ((F_DISTRICT INNER JOIN F_MUNICIPALITY
+                ON (F_DISTRICT.DISTRICT_CD = F_MUNICIPALITY.DISTRICT_CD)
+                AND (F_DISTRICT.COUNTY_CD = F_MUNICIPALITY.COUNTY_CD))
+                INNER JOIN F_COMMUNITY ON
+                (F_MUNICIPALITY.MUNICIPALITY_CD = F_COMMUNITY.MUNICIPALITY_CD)
+                AND (F_MUNICIPALITY.DISTRICT_CD = F_COMMUNITY.DISTRICT_CD)
+                AND
+                (F_MUNICIPALITY.COUNTY_CD = F_COMMUNITY.COUNTY_CD))
+                ON F_COUNTY.COUNTY_CD = F_DISTRICT.COUNTY_CD
+                ;
             """
         return self.cur.execute(sql).fetchall()
 
@@ -477,7 +486,9 @@ class Baza(object):
                """
 
             tab = self.cur.execute(sql).fetchall()
-            return [list(t).append(sum(t[2:])) for t in tab]
+
+            return [list(t) + [sum(t[2:4])-t[4]]
+                    for t in tab]
 
         return False
 

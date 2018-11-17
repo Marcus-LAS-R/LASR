@@ -6,9 +6,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from .skrypty.sprawdz_ls import PrzetworzKlu
-from .skrypty.baza_przetworz import Przetworz
-from .skrypty import baza_wrapper
+from skrypty.sprawdz_ls import PrzetworzKlu
+from skrypty.baza_przetworz import Przetworz
+from skrypty import baza_wrapper
 
 import os
 

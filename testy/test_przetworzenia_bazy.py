@@ -1,8 +1,8 @@
 import pytest
 import platform
 
-from ..skrypty.baza_przetworz import Przetworz
-from ..skrypty import baza_wrapper
+from skrypty.baza_przetworz import Przetworz
+from skrypty import baza_wrapper
 
 
 @pytest.fixture()
