@@ -46,6 +46,25 @@ class GenerujNaklejki:
             'ANEKS': [u'Aneks', u'Aneks'],
         }
 
+        self.sl_nfosigw = {
+            1: 'WFOSIGW_podlaskie.jpg',
+            2: 'WFOSIGW_pomorskie.jpg',
+            3: 'WFOSIGW_slaskie.jpg',
+            4: 'WFOSIGW_swietokrzyskie.jpg',
+            5: 'WFOSIGW_malopolskie.jpg',
+            6: 'WFOSIGW_lodzkie.jpg',
+            7: 'WFOSIGW_lubelskie.jpg',
+            8: 'WFOSIGW_warminsko-mazurskie.jpg',
+            9: 'WFOSIGW_opolskie.jpg',
+            10: 'WFOSIGW_wielkopolskie.jpg',
+            11: 'WFOSIGW_podkarpackie.jpg',
+            12: 'WFOSIGW_zachodnio-pomorskie.jpg',
+            13: 'WFOSIGW_kujawsko-pomorskie.jpg',
+            14: 'WFOSIGW_mazowieckie.jpg',
+            15: 'WFOSIGW_dolnoslaskie.jpg',
+            16: 'WGOSIGW_lubuskie.jpg',
+        }
+
     def inne_layouty(self):
         """Metoda sprawdza czy w otwarym projekcie sa już jakieś layouty,
         jeżeli tak pyta użytkownika czy chce kontynuować.
@@ -219,7 +238,7 @@ class GenerujNaklejki:
             5
         )
 
-    def gen_okladke(self):
+    def gen_okladke(self):  # noqa
         if 'Okładka' in [l.name() for l in self.mn.layouts()]:
             self.mn.removeLayout(self.mn.layoutByName('Okładka'))
 
@@ -314,7 +333,7 @@ class GenerujNaklejki:
                 l1.setHAlign(Qt.AlignCenter)
                 l1.attemptResize(QgsLayoutSize(
                     110,
-                    sl[l1.boundingRect().width()//100],
+                    sl[l1.boundingRect().width()//110],
                     QgsUnitTypes.LayoutMillimeters))
                 l1.attemptMove(
                     QgsLayoutPoint(90, 38.2+przes,
@@ -335,7 +354,7 @@ class GenerujNaklejki:
         przes += 5
         l2 = QgsLayoutItemLabel(lay)
         l2.setReferencePoint(QgsLayoutItem.UpperMiddle)
-        l2.setText("Plany na okres: "+str(self.od)+" - "+str(self.do))
+        l2.setText("Plany na lata: "+str(self.od)+" - "+str(self.do))
         l2.setFont(QFont("Arial", 12, QFont.Bold))
         l2.setFontColor(QColor("#000000"))
         l2.setMarginX(0)
@@ -362,11 +381,11 @@ class GenerujNaklejki:
         l2.setVAlign(Qt.AlignVCenter)
         l2.attemptResize(
             QgsLayoutSize(40, 22, QgsUnitTypes.LayoutMillimeters))
-        xpn = 121
-        if przes + 38 > 121:
+        xpn = 116
+        if przes + 38 > 116:
             xpn = 38 + przes + 5
         l2.attemptMove(
-            QgsLayoutPoint(76, xpn,
+            QgsLayoutPoint(81, xpn,
                            QgsUnitTypes.LayoutMillimeters))
         lay.addItem(l2)
 
@@ -378,22 +397,30 @@ class GenerujNaklejki:
         if przes + 38 > 116:
             ypn = 38 + przes
         h.attemptMove(
-            QgsLayoutPoint(32, ypn,
+            QgsLayoutPoint(37, ypn,
                            QgsUnitTypes.LayoutMillimeters))
+        h.setPicturePath(self.info.lineEdit_herb.text())
         lay.addItem(h)
 
         # wykonawca opis
         l1 = QgsLayoutItemLabel(lay)
         l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
         l1.setText("Wykonawca:")
-        l1.setFont(QFont("Arial", 10, QFont.Normal))
+        l1.setFont(QFont("Arial", 7, QFont.Normal))
         l1.setFontColor(QColor("#000000"))
         l1.setHAlign(Qt.AlignCenter)
         l1.attemptResize(
             QgsLayoutSize(50, 5.6, QgsUnitTypes.LayoutMillimeters))
+
         ypn = 116
         if przes + 38 > 116:
             ypn = 38 + przes
+
+        if not self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() == 0:
+            ypn = 126
+            if przes + 38 > 126:
+                ypn = 38 + przes
         l1.attemptMove(
             QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
         lay.addItem(l1)
@@ -409,16 +436,28 @@ class GenerujNaklejki:
         ypn = 121
         if przes + 38 > 121:
             ypn = 38 + przes + 7
+
+        if not self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() == 0:
+            ypn = 131
+            if przes + 38 > 131:
+                ypn = 38 + przes
+
         h.attemptMove(
             QgsLayoutPoint(120, ypn,
                            QgsUnitTypes.LayoutMillimeters))
         lay.addItem(h)
 
+        # jezeli nie ma dofinansowania konczymy
+        if not self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() == 0:
+            return
+
         # dofinansowal
         l1 = QgsLayoutItemLabel(lay)
         l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
         l1.setText("Dofinansował:")
-        l1.setFont(QFont("Arial", 10, QFont.Normal))
+        l1.setFont(QFont("Arial", 7, QFont.Normal))
         l1.setFontColor(QColor("#000000"))
         l1.setHAlign(Qt.AlignCenter)
         l1.attemptResize(
@@ -430,18 +469,173 @@ class GenerujNaklejki:
             QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
         lay.addItem(l1)
 
-        # dofinansował logo
-        h = QgsLayoutItemPicture(lay)
-        h.setReferencePoint(QgsLayoutItem.UpperMiddle)
-        h.attemptResize(
-            QgsLayoutSize(42, 15, QgsUnitTypes.LayoutMillimeters))
-        ypn = 136
-        if przes + 38 > 136:
-            ypn = 38 + przes + 7
-        h.attemptMove(
-            QgsLayoutPoint(120, ypn,
-                           QgsUnitTypes.LayoutMillimeters))
-        lay.addItem(h)
+        if not self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() > 0:
+
+            # dofinansował wfosigw
+            h = QgsLayoutItemPicture(lay)
+            h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            h.attemptResize(
+                QgsLayoutSize(39.5, 13.5, QgsUnitTypes.LayoutMillimeters))
+            ypn = 136
+            if przes + 38 > 136:
+                ypn = 38 + przes + 7
+            h.attemptMove(
+                QgsLayoutPoint(120, ypn,
+                               QgsUnitTypes.LayoutMillimeters))
+            h.setPicturePath(os.path.join(
+                os.path.dirname(__file__), '..', 'img',
+                self.sl_nfosigw[self.info.comboBox_nfosigw.currentIndex()]
+            ))
+            lay.addItem(h)
+
+        if self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() == 0:
+
+            # dofinansowalo pgllp
+            h = QgsLayoutItemPicture(lay)
+            h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            h.attemptResize(
+                QgsLayoutSize(13.5, 13.5, QgsUnitTypes.LayoutMillimeters))
+            ypn = 136
+            if przes + 38 > 136:
+                ypn = 38 + przes + 7
+            h.attemptMove(
+                QgsLayoutPoint(120, ypn,
+                               QgsUnitTypes.LayoutMillimeters))
+            h.setPicturePath(os.path.join(
+                os.path.dirname(__file__), '..', 'img', 'PGLLP.jpg'
+            ))
+            lay.addItem(h)
+
+        if self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() > 0:
+
+            # dofinansował wfosigw
+            h = QgsLayoutItemPicture(lay)
+            h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            h.attemptResize(
+                QgsLayoutSize(39.5, 13.5, QgsUnitTypes.LayoutMillimeters))
+            ypn = 136
+            if przes + 38 > 136:
+                ypn = 38 + przes + 7
+            h.attemptMove(
+                QgsLayoutPoint(130, ypn, QgsUnitTypes.LayoutMillimeters))
+            h.setPicturePath(os.path.join(
+                os.path.dirname(__file__), '..', 'img',
+                self.sl_nfosigw[self.info.comboBox_nfosigw.currentIndex()]
+            ))
+            lay.addItem(h)
+
+            # dofinansowalo pgllp
+            h = QgsLayoutItemPicture(lay)
+            h.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            h.attemptResize(
+                QgsLayoutSize(13.5, 13.5, QgsUnitTypes.LayoutMillimeters))
+            ypn = 136
+            if przes + 38 > 136:
+                ypn = 38 + przes + 7
+            h.attemptMove(
+                QgsLayoutPoint(100, ypn, QgsUnitTypes.LayoutMillimeters))
+            h.setPicturePath(os.path.join(
+                os.path.dirname(__file__), '..', 'img', 'PGLLP.jpg'
+            ))
+            lay.addItem(h)
+
+    def gen_plytke(self):  # noqa
+        if 'Płytka' in [l.name() for l in self.mn.layouts()]:
+            self.mn.removeLayout(self.mn.layoutByName('Płytka'))
+
+        QgsMessageLog.logMessage(
+            u'Generuję naklejkę na płytkę',
+            "LasR",
+            Qgis.Info)
+        lay = QgsPrintLayout(QgsProject.instance())
+        lay.initializeDefaults()
+        lay.setName('Płytka')
+        self.mn.addLayout(lay)
+
+        # nazwa opracowania
+        for przes in [0, 130]:
+            # zielone krzyzyki do wyciecia
+            okl = QgsLayoutItemShape(lay)
+            okl.attemptResize(
+                QgsLayoutSize(10, 2, QgsUnitTypes.LayoutMillimeters))
+            okl.attemptMove(
+                QgsLayoutPoint(84+przes, 88, QgsUnitTypes.LayoutMillimeters))
+            okl.setShapeType(1)
+            okl.setSymbol(self.g)
+            lay.addItem(okl)
+
+            okl = QgsLayoutItemShape(lay)
+            okl.attemptResize(
+                QgsLayoutSize(2, 10, QgsUnitTypes.LayoutMillimeters))
+            okl.attemptMove(
+                QgsLayoutPoint(88+przes, 84, QgsUnitTypes.LayoutMillimeters))
+            okl.setShapeType(1)
+            okl.setSymbol(self.g)
+            lay.addItem(okl)
+
+            naz = QgsLayoutItemLabel(lay)
+            naz.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            naz.attemptResize(
+                QgsLayoutSize(78, 14.2, QgsUnitTypes.LayoutMillimeters))
+            naz.attemptMove(
+                QgsLayoutPoint(89+przes, 43.1, QgsUnitTypes.LayoutMillimeters))
+            naz.setHAlign(Qt.AlignCenter)
+            naz.setText(self.sl_typ[self.typ][1])
+            naz.setFont(QFont("Arial", 14, QFont.Bold))
+            naz.setFontColor(QColor("#90bc00"))
+            lay.addItem(naz)
+
+            # lata opracowania
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText('Plany na lata: ' +
+                       self.info.lineEdit_od.text()[-4:] + ' - ' +
+                       self.info.lineEdit_do.text()[-4:])
+            l1.setFont(QFont("Arial", 14, QFont.Bold))
+            naz.setHAlign(Qt.AlignCenter)
+            l1.setFontColor(QColor("#90bc00"))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(63, 8.7, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(89+przes,
+                               128.1,
+                               QgsUnitTypes.LayoutMillimeters))
+            lay.addItem(l1)
+
+            # powiat
+            l2 = QgsLayoutItemLabel(lay)
+            l2.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l2.setText("Powiat "+list(self.ops.values())[0][0])
+            l2.setFont(QFont("Arial", 20, QFont.Bold))
+            l2.setFontColor(QColor("#000000"))
+            l2.setMarginX(0)
+            l2.setMarginY(0)
+            l2.setHAlign(Qt.AlignCenter)
+            l2.setVAlign(Qt.AlignVCenter)
+            l2.attemptResize(
+                QgsLayoutSize(93.9, 14.2, QgsUnitTypes.LayoutMillimeters))
+            l2.attemptMove(
+                QgsLayoutPoint(89+przes, 59, QgsUnitTypes.LayoutMillimeters))
+            lay.addItem(l2)
+
+            # gminy
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText("Gminy: "+', '.join(
+                sorted(list(set([x[1] for x in self.ops.values()])))))
+            l1.setFont(QFont("Arial", 14, QFont.Bold))
+            l1.setFontColor(QColor("#000000"))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(101, 25, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(89+przes, 103,
+                               QgsUnitTypes.LayoutMillimeters))
+            lay.addItem(l1)
 
 
 class PobierzDane(QDialog, Ui_DialogNaklejki):
@@ -450,8 +644,10 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         self.setupUi(self)
         self.go_flag = False
         self.lineEdit_sciezka.setText('/home/qnox/upul/testy/grabica/')
+        self.kat = ''  # sciezka do podawania w QFileDialogu
 
-        self.pushButton_wybierz.clicked.connect(self.pobierz_katalog)
+        self.pushButton_wybierz.clicked.connect(self.pobierz_katalog_tpu)
+        self.pushButton_herb.clicked.connect(self.pobierz_sc_herb)
         self.buttonBox.accepted.connect(self.ok)
         self.comboBox_typ.currentIndexChanged.connect(self.zmiana_typu)
 
@@ -465,6 +661,17 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
     def ok(self):
         self.go_flag = True
 
+    def pobierz_sc_herb(self):
+        plik, _ = QFileDialog.getOpenFileName(
+            self,
+            'plik z herbem',
+            self.kat,
+            "obrazy (*.png *.jpg *.bmp *.tif)"
+        )
+
+        if os.path.isfile(plik):
+            self.lineEdit_herb.setText(plik)
+
     def zmiana_typu(self):
         if self.comboBox_typ.currentText() == 'ISL':
             self.checkBox_polacz.setEnabled(True)
@@ -476,14 +683,19 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         else:
             self.checkBox_tomy.setEnabled(True)
 
-    def pobierz_katalog(self):
+    def pobierz_katalog_tpu(self):
         plik = QFileDialog.getExistingDirectory(
             self,
             'Katalog z bazami TPU',
-            '', QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+            self.kat,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
 
         self.lineEdit_sciezka.setText(plik)
+        self.kat = plik
+
+        if os.path.isfile(os.path.join(plik, 'herb.png')):
+            self.lineEdit_herb.setText(os.path.join(plik, 'herb.png'))
 
 
 class Tomowanie(QDialog, Ui_DialogTomy):
