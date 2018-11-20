@@ -444,6 +444,7 @@ class LasR:
         if n.pobierz_dane():
             n.gen_okladke()
             n.gen_plytke()
+            n.gen_naklejki()
 
     def rysuj_gatunki(self):
         shp_symbolizacja.rysuj(self.iface, 'gat')

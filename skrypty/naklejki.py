@@ -4,7 +4,8 @@ import platform
 import glob
 from qgis.core import QgsMessageLog, Qgis, QgsFillSymbol, QgsProject, \
     QgsPrintLayout, QgsLayoutSize, QgsLayoutItemShape, QgsLayoutItemLabel, \
-    QgsUnitTypes, QgsLayoutPoint, QgsLayoutItem, QgsLayoutItemPicture
+    QgsUnitTypes, QgsLayoutPoint, QgsLayoutItem, QgsLayoutItemPicture, \
+    QgsLayoutPageCollection, QgsLayoutItemPage
 from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem, QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -636,6 +637,272 @@ class GenerujNaklejki:
                 QgsLayoutPoint(89+przes, 103,
                                QgsUnitTypes.LayoutMillimeters))
             lay.addItem(l1)
+
+    def gen_naklejki(self):
+        if 'Operaty' in [l.name() for l in self.mn.layouts()]:
+            self.mn.removeLayout(self.mn.layoutByName('Operaty'))
+
+        QgsMessageLog.logMessage(
+            u'Generuję naklejki na operaty',
+            "LasR",
+            Qgis.Info)
+        lay = QgsPrintLayout(QgsProject.instance())
+        lay.initializeDefaults()
+        lay.setName('Operaty')
+        self.mn.addLayout(lay)
+
+        # przesuniecia dla kafelkow i grzebietow
+        xprzes = [0, 125, 0, 125]
+        yprzes = [0, 80, 80, 0]
+        xprzes2 = [0, 60, 120, 180]
+
+        # rozpocznij managera stron i dodaj pierwsza strone
+        pages = QgsLayoutPageCollection(lay)
+        pages.clear()
+
+        page = QgsLayoutItemPage(lay)
+        page.setPageSize(QgsLayoutSize(297, 210))
+        pages.addPage(page)
+
+        tab = []  # TODO: tabela z pogrupowanymi danymi
+        for si, key in enumerate(sorted(self.ops.keys())):
+            for px, py in zip(xprzes, yprzes):
+                self.g_kafelek(tab, lay)
+            for px in xprzes2:
+                self.g_grzebiet(tab, lay)
+
+            pages.extendByNewPage()
+
+    def g_grzebiet(self, tab, lay):
+        """Metoda generuje grzebiety na operaty w zaleznosci od podanego
+        przesuniecia i strony, oraz danych w postaci tablicy"""
+
+        si = tab[2]
+        px = tab[0]
+        ob = tab[3]
+        opr = self.sl_typ[self.typ][0]
+
+        dlug_calk = 0  # calkowita dlugosc ramki grzebietu
+        add = 0  # przesuniecie calej naklejki ramki w dol o ile mm
+        posz = 0  # poszerzenie naklejki o tyle mm
+
+        # ramka grzbietu - generuj na poczatku aby byla jak najnizej w stosie
+        okl = QgsLayoutItemShape(lay)
+
+        # nazwa obiektu
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperLeft)
+        l1.setText(ob)
+        l1.setFont(QFont("Arial", 7, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+
+        # sprawdz czy naklejka nie wymaga poszerzenia
+        szer = l1.boundingRect().width()
+        if szer > 50:
+            posz = szer - 50
+            # jezeli nakl. jest szersza od 5 cm przesun ja w dol o 9mm jezeli
+            # jest parzystą
+            if px in [60, 180]:
+                add = 9
+        else:
+            posz = 0
+            szer = 50
+
+        dlug_calk = szer + 5
+
+        # jeżeli występują tomy dodaj obrocony opis
+        if tab[9] != '':
+            dlug_calk += 10
+
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText(tab[9])
+            l1.setFont(QFont("Arial", 7, QFont.Bold))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(18, 6, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(20+szer+px, 180+add,
+                               QgsUnitTypes.LayoutMillimeters),
+                page=si
+            )
+            l1.setFontColor(QColor("#00b050"))
+            l1.rotateitem(-90)
+            lay.addItem(l1)
+
+        l1.attemptMove(
+            QgsLayoutPoint(20+px, 180+add, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
+
+        # dalsze ustawienia ramki
+        okl.attemptResize(
+            QgsLayoutSize(dlug_calk, 5.4, QgsUnitTypes.LayoutMillimeters))
+        okl.attemptMove(
+            QgsLayoutPoint(20+px, 180+add,
+                           QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        okl.setShapeType(1)
+        okl.setSymbol(self.g)
+        lay.addItem(okl)
+
+        # nazwa opracowania
+        naz = QgsLayoutItemLabel(lay)
+        naz.setReferencePoint(QgsLayoutItem.UpperLeft)
+        naz.attemptMove(
+            QgsLayoutPoint(20.5+posz/2+px, 179.14+add,
+                           QgsUnitTypes.LayoutMillimeters),
+            site=si
+        )
+        naz.setHAlign(Qt.AlignCenter)
+        naz.setText(opr)
+        naz.setFont(QFont("Arial", 6, QFont.Bold))
+        naz.setFontColor(QColor("#00b050"))
+        lay.addItem(naz)
+
+    def g_kafelek(self, tab, lay):
+        """generuje kafelek do naklejenia na czoło operatu"""
+
+        px = tab[0]
+        py = tab[1]
+        si = tab[2]
+
+        # zielona ramka do wyciecia
+        okl = QgsLayoutItemShape(lay)
+        okl.attemptResize(
+            QgsLayoutSize(115, 70, QgsUnitTypes.LayoutMillimeters))
+        okl.attemptMove(
+            QgsLayoutPoint(135+px, 20+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        okl.setShapeType(1)
+        okl.setSymbol(self.g)
+        lay.addItem(okl)
+
+        # nazwa opracowania
+        naz = QgsLayoutItemLabel(lay)
+        naz.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        naz.attemptResize(
+            QgsLayoutSize(107, 8, QgsUnitTypes.LayoutMillimeters))
+        naz.attemptMove(
+            QgsLayoutPoint(77.5+px, 26.1+py, QgsUnitTypes.LayoutMillimeters))
+        naz.setHAlign(Qt.AlignCenter)
+        naz.setText(self.sl_typ[self.typ][0])
+        naz.setFont(QFont("Arial", 13, QFont.Bold))
+        naz.setFontColor(QColor("#00b050"))
+        lay.addItem(naz)
+
+        # obiekt
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText(tab[3])
+        l1.setFont(QFont("Arial", 17, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(106, 17, QgsUnitTypes.LayoutMillimeters))
+        l1.attemptMove(
+            QgsLayoutPoint(77.5+px, 35+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
+
+        # gmina
+        if tab[4] != '':
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText(tab[4])
+            l1.setFont(QFont("Arial", 14, QFont.Bold))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(108, 14, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(77.5+px, 52.1+py,
+                               QgsUnitTypes.LayoutMillimeters),
+                page=si
+            )
+            l1.setFontColor(QColor("#00b050"))
+            lay.addItem(l1)
+
+        # tom opracowania
+        if tab[9] != '':
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText(tab[9])
+            l1.setFont(QFont("Arial", 9, QFont.Bold))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(77.5+px, 60.1+py,
+                               QgsUnitTypes.LayoutMillimeters),
+                page=si
+            )
+            l1.setFontColor(QColor("#00b050"))
+            lay.addItem(l1)
+
+        # Powiat
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText(tab[5])
+        l1.setFont(QFont("Arial", 11, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+        l1.attemptMove(
+            QgsLayoutPoint(77.5+px, 65.6+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
+
+        # plany na okresy
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText(tab[6])
+        l1.setFont(QFont("Arial", 11, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+        l1.attemptMove(
+            QgsLayoutPoint(77.5+px, 71.8+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
+
+        # powierzchnia
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText(tab[7])
+        l1.setFont(QFont("Arial", 11, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+        l1.attemptMove(
+            QgsLayoutPoint(77.5+px, 71.8+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
+
+        # stan na
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText(tab[8])
+        l1.setFont(QFont("Arial", 9, QFont.Bold))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+        l1.attemptMove(
+            QgsLayoutPoint(77.5+px, 82+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
+        l1.setFontColor(QColor("#00b050"))
+        lay.addItem(l1)
 
 
 class PobierzDane(QDialog, Ui_DialogNaklejki):
