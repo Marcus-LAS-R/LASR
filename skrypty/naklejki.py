@@ -5,7 +5,7 @@ import glob
 from qgis.core import QgsMessageLog, Qgis, QgsFillSymbol, QgsProject, \
     QgsPrintLayout, QgsLayoutSize, QgsLayoutItemShape, QgsLayoutItemLabel, \
     QgsUnitTypes, QgsLayoutPoint, QgsLayoutItem, QgsLayoutItemPicture, \
-    QgsLayoutPageCollection, QgsLayoutItemPage
+    QgsLayoutItemPage
 from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem, QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -137,8 +137,8 @@ class GenerujNaklejki:
                     self.tomy_sl[ngm] = 1
 
         # jezeli uzyszkodnik zaznaczyl ze ma wiele tomow niech wprowadzi
+        tomy_gui = Tomowanie(self.tomy_sl)
         if self.tomy:
-            tomy_gui = Tomowanie(self.tomy_sl)
             tomy_gui.exec_()
 
             if tomy_gui.go_flag:
@@ -151,6 +151,8 @@ class GenerujNaklejki:
                                          '\n   '.join(zloz),
                                          "LasR",
                                          Qgis.Info)
+        else:
+            self.tomy_sl = tomy_gui.sl
 
         if len(list(self.geod.keys())) > 0:
             QgsMessageLog.logMessage(
@@ -224,9 +226,10 @@ class GenerujNaklejki:
         # slowniki nazw i kodow w posataci {KOD: NAZWA, ...}
         self.sl_gminy = {x[4]: x[2] for x in self.nag_raw}
         self.sl_obr = {x[4]+'_'+x[5]: x[3] for x in self.nag_raw}
+        self.powiat_naz = self.nag_raw[0][1]
 
         self.ops = {''.join(x[4:]): x[1:4] for x in self.nag_raw}
-        self.powy = {''.join(x[:2]): x[5] for x in self.pow_raw}
+        self.powy = {'_'.join(x[:2]): x[5] for x in self.pow_raw}
         return True
 
     def generuj_all(self):
@@ -235,9 +238,59 @@ class GenerujNaklejki:
         self.iface.messageBar().pushMessage(
             'Generowanie naklejek',
             'to potrwa kilka minut, uzbrój się w cierpliwość',
-            Qgis.Warning,
+            Qgis.Info,
             5
         )
+
+        _ok = True
+        try:
+            if self.plyta:
+                self.gen_plytke()
+        except:  # nopep8
+            _ok = False
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Coś poszło nie tak przy generowaniu naklejki na plytkę',
+                Qgis.Warning,
+                5
+            )
+
+        try:
+            if self.naklejki:
+                self.gen_naklejki()
+        except:  # nopep8
+            _ok = False
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Coś poszło nie tak przy generowaniu naklejek na operaty',
+                Qgis.Warning,
+                5
+            )
+
+        try:
+            if self.okladka:
+                self.gen_okladke()
+        except:  # nopep8
+            _ok = False
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Coś poszło nie tak przy generowaniu okładki na plytkę',
+                Qgis.Warning,
+                5
+            )
+
+        if _ok:
+            self.iface.messageBar().pushMessage(
+                'OK',
+                'Pomyślnie wygenerowano zaznaczone rzeczy',
+                Qgis.Success,
+                5
+            )
+
+        QgsMessageLog.logMessage(
+            '\n--- KONIEC ---',
+            "LasR",
+            Qgis.Info)
 
     def gen_okladke(self):  # noqa
         if 'Okładka' in [l.name() for l in self.mn.layouts()]:
@@ -657,7 +710,8 @@ class GenerujNaklejki:
         xprzes2 = [0, 60, 120, 180]
 
         # rozpocznij managera stron i dodaj pierwsza strone
-        pages = QgsLayoutPageCollection(lay)
+        # pages = QgsLayoutPageCollection(lay)
+        pages = lay.pageCollection()
         pages.clear()
 
         page = QgsLayoutItemPage(lay)
@@ -665,13 +719,58 @@ class GenerujNaklejki:
         pages.addPage(page)
 
         tab = []  # TODO: tabela z pogrupowanymi danymi
-        for si, key in enumerate(sorted(self.ops.keys())):
-            for px, py in zip(xprzes, yprzes):
-                self.g_kafelek(tab, lay)
-            for px in xprzes2:
-                self.g_grzebiet(tab, lay)
+        # kolejnosc danych w tabeli:
+        # 0 - przesuniecie px
+        # 1 - przesunieceie py
+        # 2 - stron w opracowaniu
+        # 3 - nazwa obiektu razem z przydomkiem
+        # 4 - nazwa gminy, jezeil nie ma zostaw ''
+        # 5 - nazwa powiatu
+        # 6 - pelny opis okresu obowiazywania planow
+        # 7 - powierzchnia z opisem
+        # 8 - stan na
+        # 9 - tom opracowania jako int
+        si = 0
+        for k, val in self.tomy_sl.items():
+            t = [0, 0, si, ]
 
-            pages.extendByNewPage()
+            if len(k.split(' ')[0]) == 3:
+                t.append('gm. '+' '.join(k.split(' ')[1:]))
+                t.append('')
+            else:
+                t.append('obr. '+' '.join(k.split(' ')[1:]))
+                t.append('gm. '+self.sl_gminy[k[:3]])
+
+            t.append('powiat '+self.powiat_naz)
+            t.append('na okres: ' + self.od + ' r. do ' + self.do + ' r.')
+
+            if len(k.split(' ')[0]) == 3:
+                pp = str(round(sum([y for x, y in self.powy.items()
+                                    if x[:3] == k.split(' ')[0]]), 4))
+            else:
+                pp = str(round(self.powy[k.split(' ')[0]], 4))
+
+            pp_txt = pp.replace('.', ',') + (4 - len(pp.split('.')[1])) * '0'
+            t.append('pow. ' + pp_txt + ' ha')
+
+            t.append('stan ewid. na ' + self.geod[k[:3]] + ' r.')
+            t.append(0)
+
+            for site in range(1, val+1):
+                if si > 0:
+                    pages.extendByNewPage()
+
+                if val > 1:
+                    t[9] = site
+
+                for px, py in zip(xprzes, yprzes):
+                    tab = [px, py, si, ] + t[3:]
+                    self.g_kafelek(tab, lay)
+                for px in xprzes2:
+                    tab = [px, 0, si, ] + t[3:]
+                    self.g_grzebiet(tab, lay)
+
+                si += 1
 
     def g_grzebiet(self, tab, lay):
         """Metoda generuje grzebiety na operaty w zaleznosci od podanego
@@ -697,6 +796,7 @@ class GenerujNaklejki:
         l1.setHAlign(Qt.AlignCenter)
 
         # sprawdz czy naklejka nie wymaga poszerzenia
+        l1.adjustSizeToText()
         szer = l1.boundingRect().width()
         if szer > 50:
             posz = szer - 50
@@ -705,33 +805,35 @@ class GenerujNaklejki:
             if px in [60, 180]:
                 add = 9
         else:
+            l1.attemptResize(
+                QgsLayoutSize(50, 3.3, QgsUnitTypes.LayoutMillimeters))
             posz = 0
             szer = 50
 
-        dlug_calk = szer + 5
+        dlug_calk = szer + 2
 
         # jeżeli występują tomy dodaj obrocony opis
-        if tab[9] != '':
-            dlug_calk += 10
+        if tab[9] > 0:
+            dlug_calk += 1.5
 
-            l1 = QgsLayoutItemLabel(lay)
-            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
-            l1.setText(tab[9])
-            l1.setFont(QFont("Arial", 7, QFont.Bold))
-            l1.setHAlign(Qt.AlignCenter)
-            l1.attemptResize(
-                QgsLayoutSize(18, 6, QgsUnitTypes.LayoutMillimeters))
-            l1.attemptMove(
-                QgsLayoutPoint(20+szer+px, 180+add,
+            ltom = QgsLayoutItemLabel(lay)
+            ltom.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            ltom.setText('t. '+str(tab[9]))
+            ltom.setFont(QFont("Arial", 7, QFont.Bold))
+            ltom.setHAlign(Qt.AlignCenter)
+            ltom.attemptResize(
+                QgsLayoutSize(6, 6, QgsUnitTypes.LayoutMillimeters))
+            ltom.attemptMove(
+                QgsLayoutPoint(20+szer+px, 179.7+add,
                                QgsUnitTypes.LayoutMillimeters),
                 page=si
             )
-            l1.setFontColor(QColor("#00b050"))
-            l1.rotateitem(-90)
-            lay.addItem(l1)
+            ltom.setFontColor(QColor("#00b050"))
+            ltom.setItemRotation(-90)
+            lay.addItem(ltom)
 
         l1.attemptMove(
-            QgsLayoutPoint(20+px, 180+add, QgsUnitTypes.LayoutMillimeters),
+            QgsLayoutPoint(20+px, 182+add, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
         l1.setFontColor(QColor("#00b050"))
@@ -753,10 +855,12 @@ class GenerujNaklejki:
         naz = QgsLayoutItemLabel(lay)
         naz.setReferencePoint(QgsLayoutItem.UpperLeft)
         naz.attemptMove(
-            QgsLayoutPoint(20.5+posz/2+px, 179.14+add,
+            QgsLayoutPoint(20.5+posz/2+px, 179.1+add,
                            QgsUnitTypes.LayoutMillimeters),
-            site=si
+            page=si
         )
+        naz.attemptResize(
+            QgsLayoutSize(50, 4, QgsUnitTypes.LayoutMillimeters))
         naz.setHAlign(Qt.AlignCenter)
         naz.setText(opr)
         naz.setFont(QFont("Arial", 6, QFont.Bold))
@@ -775,7 +879,7 @@ class GenerujNaklejki:
         okl.attemptResize(
             QgsLayoutSize(115, 70, QgsUnitTypes.LayoutMillimeters))
         okl.attemptMove(
-            QgsLayoutPoint(135+px, 20+py, QgsUnitTypes.LayoutMillimeters),
+            QgsLayoutPoint(20+px, 20+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
         okl.setShapeType(1)
@@ -788,7 +892,9 @@ class GenerujNaklejki:
         naz.attemptResize(
             QgsLayoutSize(107, 8, QgsUnitTypes.LayoutMillimeters))
         naz.attemptMove(
-            QgsLayoutPoint(77.5+px, 26.1+py, QgsUnitTypes.LayoutMillimeters))
+            QgsLayoutPoint(77.5+px, 26.1+py, QgsUnitTypes.LayoutMillimeters),
+            page=si
+        )
         naz.setHAlign(Qt.AlignCenter)
         naz.setText(self.sl_typ[self.typ][0])
         naz.setFont(QFont("Arial", 13, QFont.Bold))
@@ -828,10 +934,10 @@ class GenerujNaklejki:
             lay.addItem(l1)
 
         # tom opracowania
-        if tab[9] != '':
+        if tab[9] > 0:
             l1 = QgsLayoutItemLabel(lay)
             l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
-            l1.setText(tab[9])
+            l1.setText('tom ' + str(tab[9]))
             l1.setFont(QFont("Arial", 9, QFont.Bold))
             l1.setHAlign(Qt.AlignCenter)
             l1.attemptResize(
@@ -878,12 +984,12 @@ class GenerujNaklejki:
         l1 = QgsLayoutItemLabel(lay)
         l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
         l1.setText(tab[7])
-        l1.setFont(QFont("Arial", 11, QFont.Bold))
+        l1.setFont(QFont("Arial", 13, QFont.Bold))
         l1.setHAlign(Qt.AlignCenter)
         l1.attemptResize(
             QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
         l1.attemptMove(
-            QgsLayoutPoint(77.5+px, 71.8+py, QgsUnitTypes.LayoutMillimeters),
+            QgsLayoutPoint(77.5+px, 76.8+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
         l1.setFontColor(QColor("#00b050"))
@@ -1002,9 +1108,9 @@ class Tomowanie(QDialog, Ui_DialogTomy):
         self.go_flag = True
 
         ilew = self.tableWidget.rowCount()
+        self.sl = {}
         for i in range(ilew):
             kod = self.tableWidget.item(i, 0)
             it = self.tableWidget.item(i, 1)
             if it.text().isdigit():
-                if int(it.text()) > 1:
-                    self.sl[str(kod.text())] = int(it.text())
+                self.sl[str(kod.text())] = int(it.text())

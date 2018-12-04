@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from qgis.core import QgsVectorLayer, QgsProject, Qgis, \
+from qgis.core import QgsVectorLayer, Qgis, QgsProject, \
     QgsField, QgsMessageLog, QgsCoordinateReferenceSystem, QgsVectorFileWriter
 from PyQt5.QtCore import QVariant
 
@@ -364,12 +364,12 @@ class DopiszKody(SprawdzWydzielenia):
         attr_nazwy = [x.name() for x in self.wydz.fields()]
         attr = self.wydz.fields()
         pola = [
-            # QgsField("COUNTY_L", QVariant.String, len=1),
-            # QgsField("COUNTY", QVariant.String, len=2),
-            # QgsField("DISTRICT", QVariant.String, len=2),
-            # QgsField("MUNICIP", QVariant.String, len=3),
-            # QgsField("COMMUNITY", QVariant.String, len=4),
-            # QgsField("GRP", QVariant.String, len=2),
+            QgsField("COUNTY_L", QVariant.String, len=1),
+            QgsField("COUNTY", QVariant.String, len=2),
+            QgsField("DISTRICT", QVariant.String, len=2),
+            QgsField("MUNICIP", QVariant.String, len=3),
+            QgsField("COMMUNITY", QVariant.String, len=4),
+            QgsField("GRP", QVariant.String, len=2),
             # QgsField("ODDZ", QVariant.String, len=4),
             # QgsField("WYDZ", QVariant.String, len=4),
             # QgsField("ADR_LES", QVariant.String, len=35),
@@ -492,10 +492,11 @@ class DopiszKody(SprawdzWydzielenia):
                         u'Probemy przy generowaniu kodów, zobacz log',
                         level=Qgis.Warning)
 
+                wpol_data.changeAttributeValues({feat.id(): dop})
+
             else:
                 brak_opisu.append(adr)
                 dop[fnm['SLMN_KOL']] = 0
-            wpol_data.changeAttributeValues({feat.id(): dop})
 
         wpol.commitChanges()
 
@@ -511,7 +512,12 @@ class DopiszKody(SprawdzWydzielenia):
                                                 "WYDZ_DOPISANE.shp"),
                                    "WYDZ_DOPISANE",
                                    "ogr")
-        # dodaj kopie do mapy
+        self.wpol.dataProvider().setEncoding('utf-8')
+
+        self.iface.messageBar().pushMessage(
+            'OK',
+            u'Metadane dopisane do wydzieleń',
+            level=Qgis.Success)
         QgsProject.instance().addMapLayer(self.wpol)
 
         self.koniec()

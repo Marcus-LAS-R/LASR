@@ -1,5 +1,6 @@
 from qgis.core import Qgis, QgsMessageLog, QgsFeatureRequest
 from collections import Counter
+from PyQt5.QtWidgets import QMessageBox
 
 
 class SprawdzWydzielenia():
@@ -33,12 +34,24 @@ class SprawdzWydzielenia():
         for i, s in enumerate(spr):
             tt = s
             if not tt():
-                if self.baza.con:
-                    self.baza.zamknij()
-                QgsMessageLog.logMessage(
-                    'Warstwa wydzieleń niepoprawna!',
-                    'LasR')
-                return False
+                # jeżeli są rozbieżności między bazą a warstwą zapytaj czy
+                # użytkownik chce kontynuować procedurę
+                if i == 4:
+                    m = QMessageBox()
+                    m.setText(
+                        'W bazie lub w warstwie są niełączące się wydzielenia'
+                        ', kontynuować?')
+                    m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                    m.exec_()
+
+                    if m == QMessageBox.No:
+                        self.przerwij()
+                        return False
+
+                # jeżeli są inne rozbieżności, kończymy
+                else:
+                    self.przerwij()
+                    return False
             else:
                 QgsMessageLog.logMessage(
                     komunikaty[i],
@@ -47,6 +60,13 @@ class SprawdzWydzielenia():
                 )
 
         return True
+
+    def przerwij(self):
+        if self.baza.con:
+            self.baza.zamknij()
+        QgsMessageLog.logMessage(
+            'Warstwa wydzieleń niepoprawna!',
+            'LasR')
 
     def spr_baza_polacz(self):
         if not self.baza.polacz():

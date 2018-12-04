@@ -50,7 +50,7 @@ def Numeruj(iface):
             f.geometry().boundingBox().xMaximum(),
             f['MUNICIP'],
             f['COMMUNITY'],
-            0,
+            f['ODDZ'],
         ])
 
     tab = sorted(tab, key=itemgetter(1), reverse=True)
@@ -62,6 +62,7 @@ def Numeruj(iface):
     obr = ""
     oddz = 1
     puste = 0
+    znumerowane = 0
     for t in tab:
         if 'NULL' in [str(t[3]), str(t[4])]:
             puste += 1
@@ -70,8 +71,12 @@ def Numeruj(iface):
             gmi = t[3]
             obr = t[4]
             oddz = 1
-        sl[t[0]] = {fnm['ODDZ']: str(oddz)}
-        oddz += 1
+
+        if t[5] == 'NULL':
+            sl[t[0]] = {fnm['ODDZ']: str(oddz)}
+            oddz += 1
+        else:
+            znumerowane += 1
 
     lyr.startEditing()
     for key, val in sl.items():
@@ -92,6 +97,13 @@ def Numeruj(iface):
             'warstwy! Zanumerowano: ' + str(len(sl))+' oddziałów',
             Qgis.Warning,
             10)
+
+    if znumerowane > 0:
+        QgsMessageLog.logMessage(
+            'Pominięto zanumerowanych oddziałów: ' + str(znumerowane),
+            'LasR',
+            Qgis.Info
+        )
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
