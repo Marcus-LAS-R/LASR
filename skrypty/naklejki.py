@@ -85,7 +85,7 @@ class GenerujNaklejki:
                 return True
             return False
 
-    def pobierz_dane(self):
+    def pobierz_dane(self):  # noqa
         """Metoda pobiera od uzytkownika sciezke do baz, oraz informacje o
         rodzaju opracowania i tomach"""
 
@@ -154,6 +154,7 @@ class GenerujNaklejki:
         else:
             self.tomy_sl = tomy_gui.sl
 
+        # sprawdz czy mamy potrzebne daty dla geodezji dla gmin
         if len(list(self.geod.keys())) > 0:
             QgsMessageLog.logMessage(
                 'Daty ważności geodezji zapisane w bazach:\n   ' +
@@ -161,6 +162,31 @@ class GenerujNaklejki:
                               for k, v in self.geod.items()]),
                 "LasR",
                 Qgis.Info)
+
+            # jezeli w gmin jest wiecej niż baz powiel na podstawie jednej
+            # wartosci brakujace gminy - data powinna być taka sama o ile to
+            # ten sam obiekt.
+            if len(list(self.geod.keys())) != len(list(self.sl_gminy.keys())):
+                # wybierz jedna datę
+                data = list(self.geod.values())[0]
+                wyps = 'Daty geodezji ustawione automatycznie dla gmin:\n'
+                for gm in list(self.sl_gminy.keys()):
+                    if gm not in self.geod:
+                        self.geod[gm] = data
+                        wyps += '    (' + gm + ') ' + self.sl_gminy[gm] + \
+                            ' - ' + data + '\n'
+
+                QgsMessageLog.logMessage(
+                    wyps,
+                    "LasR",
+                    Qgis.Info)
+
+        else:
+            QgsMessageLog.logMessage(
+                'Brak dat ważności geodezji w bazie - tabela F_PARAMETER',
+                "LasR",
+                Qgis.Warning)
+            return False
 
         return True
 
@@ -402,7 +428,7 @@ class GenerujNaklejki:
                                    QgsUnitTypes.LayoutMillimeters))
 
             lay.addItem(l1)
-            przes += l1.boundingRect().height() - 3
+            przes += l1.boundingRect().height() - 2
 
         # okres obowiazywania
         przes += 5
@@ -456,29 +482,6 @@ class GenerujNaklejki:
         h.setPicturePath(self.info.lineEdit_herb.text())
         lay.addItem(h)
 
-        # wykonawca opis
-        l1 = QgsLayoutItemLabel(lay)
-        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
-        l1.setText("Wykonawca:")
-        l1.setFont(QFont("Arial", 7, QFont.Normal))
-        l1.setFontColor(QColor("#000000"))
-        l1.setHAlign(Qt.AlignCenter)
-        l1.attemptResize(
-            QgsLayoutSize(50, 5.6, QgsUnitTypes.LayoutMillimeters))
-
-        ypn = 116
-        if przes + 38 > 116:
-            ypn = 38 + przes
-
-        if not self.info.checkBox_pgllp.isChecked() and \
-                self.info.comboBox_nfosigw.currentIndex() == 0:
-            ypn = 126
-            if przes + 38 > 126:
-                ypn = 38 + przes
-        l1.attemptMove(
-            QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
-        lay.addItem(l1)
-
         # wykonawca logo
         h = QgsLayoutItemPicture(lay)
         h.setReferencePoint(QgsLayoutItem.UpperMiddle)
@@ -501,6 +504,29 @@ class GenerujNaklejki:
             QgsLayoutPoint(120, ypn,
                            QgsUnitTypes.LayoutMillimeters))
         lay.addItem(h)
+
+        # wykonawca opis
+        l1 = QgsLayoutItemLabel(lay)
+        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+        l1.setText("Wykonawca:")
+        l1.setFont(QFont("Arial", 7, QFont.Normal))
+        l1.setFontColor(QColor("#000000"))
+        l1.setHAlign(Qt.AlignCenter)
+        l1.attemptResize(
+            QgsLayoutSize(50, 5.6, QgsUnitTypes.LayoutMillimeters))
+
+        ypn = 116
+        if przes + 38 > 116:
+            ypn = 38 + przes - 2
+
+        if not self.info.checkBox_pgllp.isChecked() and \
+                self.info.comboBox_nfosigw.currentIndex() == 0:
+            ypn = 126
+            if przes + 38 > 126:
+                ypn = 38 + przes - 2
+        l1.attemptMove(
+            QgsLayoutPoint(120, ypn, QgsUnitTypes.LayoutMillimeters))
+        lay.addItem(l1)
 
         # jezeli nie ma dofinansowania konczymy
         if not self.info.checkBox_pgllp.isChecked() and \
@@ -753,12 +779,12 @@ class GenerujNaklejki:
                     pp = str(round(sum([y for x, y in self.powy.items()
                                         if x[:3] == k.split(' ')[0]]), 4))
                 except:  # nopep8
-                    pp = 'xxx.xxxx'
+                    pp = '000.0000'
             else:
                 if k.split(' ')[0] in self.powy:
                     pp = str(round(self.powy[k.split(' ')[0]], 4))
                 else:
-                    pp = 'xxx.xxxx'
+                    pp = '000.0000'
 
             pp_txt = pp.replace('.', ',') + (4 - len(pp.split('.')[1])) * '0'
             t.append('pow. ' + pp_txt + ' ha')
@@ -767,26 +793,25 @@ class GenerujNaklejki:
             t.append(0)
 
             # jezeli mamy powierzchnie dla tego obrebu rysuj naklejki
-            if pp != 'xxx.xxxx':
-                for site in range(1, val+1):
-                    # QgsMessageLog.logMessage('|'.join(map(str, t)),
-                    #    'LasR'
-                    # )
+            for site in range(1, val+1):
+                # QgsMessageLog.logMessage('|'.join(map(str, t)),
+                #    'LasR'
+                # )
 
-                    if si > 0:
-                        pages.extendByNewPage()
+                if si > 0:
+                    pages.extendByNewPage()
 
-                    if val > 1:
-                        t[9] = site
+                if val > 1:
+                    t[9] = site
 
-                    for px, py in zip(xprzes, yprzes):
-                        tab = [px, py, si, ] + t[3:]
-                        self.g_kafelek(tab, lay)
-                    for px in xprzes2:
-                        tab = [px, 0, si, ] + t[3:]
-                        self.g_grzebiet(tab, lay)
+                for px, py in zip(xprzes, yprzes):
+                    tab = [px, py, si, ] + t[3:]
+                    self.g_kafelek(tab, lay)
+                for px in xprzes2:
+                    tab = [px, 0, si, ] + t[3:]
+                    self.g_grzebiet(tab, lay)
 
-                    si += 1
+                si += 1
 
     def g_grzebiet(self, tab, lay):
         """Metoda generuje grzebiety na operaty w zaleznosci od podanego
@@ -1037,7 +1062,7 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         super(PobierzDane, self).__init__(None)
         self.setupUi(self)
         self.go_flag = False
-        self.lineEdit_sciezka.setText('/home/qnox/upul/testy/grabica/')
+        self.lineEdit_sciezka.setText('/home/qnox/upul/testy/namyslow/')
         self.kat = ''  # sciezka do podawania w QFileDialogu
 
         self.pushButton_wybierz.clicked.connect(self.pobierz_katalog_tpu)
