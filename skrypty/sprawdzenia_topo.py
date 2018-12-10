@@ -122,7 +122,7 @@ class SprawdzTopo():
             for id in ids:
                 if id != it.id():
                     inter = it.geometry().intersection(self.slf[id].geometry())
-                    if inter.area() > 0.0:
+                    if inter.area() > 0.01:
                         print('nalozenie: '+str(inter.area()))
                         self.bl_poly.append([inter, 'nakladanie'])
 

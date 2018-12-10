@@ -72,7 +72,7 @@ def Numeruj(iface):
             obr = t[4]
             oddz = 1
 
-        if t[5] == 'NULL':
+        if t[5] in ['NULL', '']:
             sl[t[0]] = {fnm['ODDZ']: str(oddz)}
             oddz += 1
         else:
