@@ -9,7 +9,7 @@ from qgis.core import *
 import processing
 from collections import Counter, namedtuple
 from .baza_wrapper import Baza
-from ..ui.ui_sprawdz_dzkat import Ui_Dialog
+from .ui.ui_sprawdz_dzkat import Ui_Dialog
 
 
 class SprawdzDzKat(object):

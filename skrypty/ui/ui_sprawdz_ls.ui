@@ -34,6 +34,11 @@
      <height>16</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="text">
     <string>Warstwa KLU:</string>
    </property>
@@ -47,6 +52,11 @@
      <height>16</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="text">
     <string>Warstwa DZKAT:</string>
    </property>
@@ -59,6 +69,11 @@
      <width>101</width>
      <height>16</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="text">
     <string>Katalog z bazami:</string>
@@ -160,6 +175,11 @@
      <height>22</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <item>
     <property name="text">
      <string>OF i współwłasności</string>
@@ -193,6 +213,11 @@
      <height>23</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="text">
     <string>Wybierz</string>
    </property>
@@ -205,6 +230,11 @@
      <width>75</width>
      <height>23</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="text">
     <string>Wybierz</string>
@@ -219,6 +249,11 @@
      <height>23</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="text">
     <string>Wybierz</string>
    </property>
@@ -232,6 +267,11 @@
      <height>21</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial Narrow</family>
+    </font>
+   </property>
    <property name="text">
     <string>Sposób identyfikacji użytków:</string>
    </property>
@@ -242,11 +282,16 @@
    </property>
    <property name="geometry">
     <rect>
-     <x>170</x>
+     <x>200</x>
      <y>180</y>
-     <width>321</width>
+     <width>291</width>
      <height>22</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="editable">
     <bool>false</bool>
@@ -279,6 +324,11 @@
      <height>51</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="title">
     <string>Kolumna z LANDID</string>
    </property>
@@ -304,6 +354,11 @@
      <width>261</width>
      <height>81</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="title">
     <string>Kolumny z AU i SQ</string>
@@ -367,6 +422,11 @@
      <height>31</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="text">
     <string>OK</string>
    </property>
@@ -379,6 +439,11 @@
      <width>75</width>
      <height>31</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="text">
     <string>Porzuć</string>

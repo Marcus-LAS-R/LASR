@@ -12,8 +12,8 @@ from PyQt5.QtGui import QFont, QColor
 
 from .baza_wrapper import Baza
 
-from ..ui.ui_naklejki_dialog import Ui_DialogNaklejki
-from ..ui.ui_naklejki_tomy import Ui_DialogTomy
+from .ui.ui_naklejki_dialog import Ui_DialogNaklejki
+from .ui.ui_naklejki_tomy import Ui_DialogTomy
 
 
 class GenerujNaklejki:
@@ -1120,6 +1120,9 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
 class Tomowanie(QDialog, Ui_DialogTomy):
     def __init__(self, sl):
         super(Tomowanie, self).__init__(None)
+        # slownik gmin w postaci:
+        # {'0001 KUCZERA': 1,
+        #  '0002 STASZOW': 1,}
 
         self.sl = sl
         self.setupUi(self)

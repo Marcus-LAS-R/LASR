@@ -1,16 +1,16 @@
 import pytest
+import os
+import sys
 import platform
 from qgis.core import *
-import sys
+from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
 
-from skrypty.sprawdz_ls import PrzetworzKlu
-from skrypty.baza_przetworz import Przetworz
-from skrypty import baza_wrapper
+# from skrypty.sprawdz_ls import PrzetworzKlu
+# from skrypty.baza_przetworz import Przetworz
+# from skrypty import baza_wrapper
 
-import os
 
 sys.setrecursionlimit(100000)
 
@@ -18,9 +18,14 @@ sys.setrecursionlimit(100000)
 # from attribute_transfer import AttributeTransfer
 # from create_dummy_data import create_dummy_data_polygon_or_line
 
-app = QCoreApplication(sys.argv)
-QgsApplication.setPrefixPath("/usr/share/qgis", True)
+app = QApplication(sys.argv)
+QgsApplication.setPrefixPath("/usr", True)
+# qgs = QgsApplication([], False)
 QgsApplication.initQgis()
+
+# app = QCoreApplication(sys.argv)
+# QgsApplication.setPrefixPath("/usr/share/qgis", True)
+# QgsApplication.initQgis()
 
 
 # @pytest.fixture()
@@ -55,5 +60,14 @@ QgsApplication.initQgis()
 
 # @pytest.mark.parametrize('baza, dzf, lsf', [dzf, lsf, p])
 def test_poprawnosc_sprawdzenia():
+    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
+                         'dz',
+                         'ogr')
     a = 1  # w.is_valid()
-    assert a == 2
+    assert dzl.isValid() is True
+
+def test_liczby_poly():
+    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
+                         'dz',
+                         'ogr')
+    assert dzl.featureCount() > 10

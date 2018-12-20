@@ -1,6 +1,6 @@
 import platform
-from baza_wrapper import Baza
-from baza_przetworz import Przetworz
+from .baza_wrapper import Baza
+from .baza_przetworz import Przetworz
 
 
 if platform.system() == 'Linux':

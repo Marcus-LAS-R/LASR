@@ -90,11 +90,14 @@ class Przetworz(object):
 
     @dane_z_bazy
     def przetworz_wszystkie_ls(self):
+        # set(LANDID, LANDID), ...
         self.ls = set([x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
                        for x in self.baza_uzytki if x[9] == 'Ls'])
 
     @dane_z_bazy
     def przetworz_ls_podwojne(self):
+        # [ LANDID, LANDID, ...] w tablicy znajduja sie tylko ls ktore w bazie
+        # wystepuja wiecej niz raz na dzialce
         self.ls_podwojne = [y[0] for y in Counter(
             [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
              for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
@@ -102,18 +105,21 @@ class Przetworz(object):
 
     @dane_z_bazy
     def przetworz_uzytki(self):
+        # {LANDID: [AU, SQ, LANDUSE_AREA, PARCELID, PARCEL_INT_NUM], ...}
         self.uzytki = {x[12]+'.'+self.isNone(x[9])+self.isNone(x[10]):
                        [x[9], self.isNone(x[10]), x[11], x[12], x[6]]
                        for x in self.baza_uzytki}
 
     @dane_z_bazy
     def przetworz_ile_uzytow_na_dzialce(self):
+        # {PARCELID: 1, PARCELID: 2, ...}
         self.sl_ile_uzytkow_na_dzialce = {x[12]: 0 for x in self.baza_uzytki}
         for x in self.baza_uzytki:
             self.sl_ile_uzytkow_na_dzialce[x[12]] += 1
 
     @dane_z_bazy
     def przetworz_ile_ls_na_dzialce(self):
+        # {PARCELID: ]
         for x in self.baza_uzytki:
             if x[9] == 'Ls':
                 if x[12] not in self.sl_ls_na_dz:

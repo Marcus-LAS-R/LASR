@@ -7,15 +7,16 @@ from qgis.gui import *
 from PyQt5.QtCore import *
 from PyQt5 import QtGui
 
-from sprawdz_ls import PrzetworzKlu
-from baza_przetworz import Przetworz
-import baza_wrapper
+from .sprawdz_ls import PrzetworzKlu
+from .baza_przetworz import Przetworz
+import skrypty.baza_wrapper
 
 sys.setrecursionlimit(100000)
 
+app = QApplication([])
 QgsApplication.setPrefixPath('/usr/', True)
-qgs = QgsApplication([], False)
-qgs.initQgis()
+# qgs = QgsApplication([], False)
+QgsApplication.initQgis()
 
 @pytest.fixture()
 def w():

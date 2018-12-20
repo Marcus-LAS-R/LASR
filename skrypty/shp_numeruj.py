@@ -2,7 +2,7 @@ from qgis.core import Qgis, QgsMessageLog
 from operator import itemgetter
 
 
-def Numeruj(iface):
+def Numeruj(iface):  # noqa
     lyr = iface.activeLayer()
 
     QgsMessageLog.logMessage(
@@ -72,11 +72,13 @@ def Numeruj(iface):
             obr = t[4]
             oddz = 1
 
-        if t[5] not in ['NULL', '']:
+        # if t[5] not in ['NULL', '']:
+        try:
+            if t[5][0]:
+                znumerowane += 1
+        except:  # noqa
             sl[t[0]] = {fnm['ODDZ']: str(oddz)}
             oddz += 1
-        else:
-            znumerowane += 1
 
     lyr.startEditing()
     for key, val in sl.items():

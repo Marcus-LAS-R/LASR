@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
 
 from .baza_wrapper import Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
-from ..ui.ui_baza_dopiszFO import Ui_Dialog
+from .ui.ui_baza_dopiszFO import Ui_Dialog
 
 
 class DopiszFO(SprawdzWydzielenia):
