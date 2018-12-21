@@ -1,16 +1,13 @@
 import pytest
-import os
 import sys
-import platform
-from qgis.core import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from qgis.core import *  # noqa
+from PyQt5.QtWidgets import *  # noqa
+from PyQt5.QtCore import *  # noqa
+from PyQt5.QtGui import *  # noqa
 
-# from skrypty.sprawdz_ls import PrzetworzKlu
+from skrypty.sprawdz_ls import SprawdzMikro, AnalizujKlus, PobierzDane
 # from skrypty.baza_przetworz import Przetworz
 # from skrypty import baza_wrapper
-
 
 sys.setrecursionlimit(100000)
 
@@ -18,56 +15,69 @@ sys.setrecursionlimit(100000)
 # from attribute_transfer import AttributeTransfer
 # from create_dummy_data import create_dummy_data_polygon_or_line
 
-app = QApplication(sys.argv)
-QgsApplication.setPrefixPath("/usr", True)
+app = QApplication(sys.argv)  # noqa
+QgsApplication.setPrefixPath("/usr", True)  # noqa
 # qgs = QgsApplication([], False)
-QgsApplication.initQgis()
-
-# app = QCoreApplication(sys.argv)
-# QgsApplication.setPrefixPath("/usr/share/qgis", True)
-# QgsApplication.initQgis()
+QgsApplication.initQgis()  # noqa
 
 
-# @pytest.fixture()
-# def w():
-    # dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
-                         # 'dz',
-                         # 'ogr')
-    # dzf = [x for x in dzl.getFeatures()]
-
-    # klul = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/LSwyb.shp', 'ls',
-                          # 'ogr')
-    # lsf = [x for x in klul.getFeatures()]
-
-    # if platform.system() == 'Linux':
-        # baza = '/home/qnox/upul/testy/grabica/baza.sqlite'
-    # else:
-        # baza = r'e:\TEMP\sprawdz_ls\Bobrowniki_Gmina.mdb'
-
-    # b = baza_wrapper.Baza(baza)
-    # b.polacz()
-    # u = b.uzytki()
-    # w = b.wlasnosci()
-    # p = Przetworz()
-    # p.dodaj_uzytki(u)
-    # p.dodaj_wlasnosci(w)
-    # p.przetworz_uzytkowanie()
-    # p.przetworz_dzialki()
-
-    # pp = PrzetworzKlu(dzf, lsf, p)
-    # return pp
-
-
-# @pytest.mark.parametrize('baza, dzf, lsf', [dzf, lsf, p])
-def test_poprawnosc_sprawdzenia():
-    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
+@pytest.fixture()
+def przetwarzanie_wejsciowe():
+    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/shp/DZKAT.shp',
                          'dz',
                          'ogr')
-    a = 1  # w.is_valid()
-    assert dzl.isValid() is True
-
-def test_liczby_poly():
-    dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/test/DZKATwyb.shp',
-                         'dz',
+    lsl = QgsVectorLayer('/home/qnox/upul/testy/grabica/shp/KLU.shp',
+                         'klu',
                          'ogr')
-    assert dzl.featureCount() > 10
+    iface = 1
+
+    a = AnalizujKlus(iface, lsl, dzl)
+    a.dd = PobierzDane(k=lsl, d=dzl)
+    # a.dd.ui.lineEdit_klu.setText('/home/qnox/upul/testy/shp/KLU.shp')
+    # a.dd.ui.lineEdit_dzkat.setText('/home/qnox/upul/testy/shp/DZKAT.shp')
+    a.dd.ui.lineEdit_bazy.setText('/home/qnox/upul/testy/grabica')
+    a.dd.ui.comboBox_ident.setCurrentIndex(2)
+    a.dd.ui.comboBox_au.setCurrentIndex(1)
+    a.dd.ui.comboBox_sq.setCurrentIndex(2)
+
+    a.przetworz()
+
+    return a
+
+
+@pytest.fixture()
+def mikro():
+    pass
+
+
+def test_aKlu_pobrania_danych_od_uzytk(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+
+    assert a.dd.ui.lineEdit_klu.text() == \
+        '/home/qnox/upul/testy/grabica/shp/KLU.shp'
+    assert a.dd.ui.lineEdit_dzkat.text() == \
+        '/home/qnox/upul/testy/grabica/shp/DZKAT.shp'
+    assert a.dd.ui.lineEdit_bazy.text() == \
+        '/home/qnox/upul/testy/grabica'
+    assert a.dd.ui.comboBox_ident.isEnabled() is True
+    assert a.dd.ui.comboBox_ident.currentIndex() == 2
+    assert a.dd.ui.comboBox_au.isEnabled() is True
+    assert a.dd.ui.comboBox_sq.isEnabled() is True
+    assert a.dd.ui.comboBox_au.currentIndex() == 1
+    assert a.dd.ui.comboBox_sq.currentIndex() == 2
+
+
+def test_aKlu_pobrania_danych_przetworzenie_baz(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+
+    assert len(a.bazy) > 0
+
+
+def test_aKlu_pobrania_danych_uzytki(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+    assert len(a.uzytki) > 2
+
+
+def test_aKlu_pobrania_danych_wlasnosci(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+    assert len(a.wlasnosci) > 2

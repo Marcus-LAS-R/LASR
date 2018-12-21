@@ -6,6 +6,19 @@ from skrypty import baza_wrapper
 
 
 @pytest.fixture()
+def polacz():
+    if platform.system() == 'Linux':
+        baza = '/home/qnox/upul/testy/grabica/baza.sqlite'
+    else:
+        baza = r'e:\TEMP\sprawdz_ls\Bobrowniki_Gmina.mdb'
+
+    b = baza_wrapper.Baza(baza)
+    wyn = b.polacz()
+    b.zamknij()
+    return wyn
+
+
+@pytest.fixture()
 def wczytaj():
     if platform.system() == 'Linux':
         baza = '/home/qnox/upul/testy/grabica/baza.sqlite'
@@ -17,12 +30,19 @@ def wczytaj():
     p = Przetworz()
     p.u = b.uzytki()
     p.w = b.wlasnosci()
-    # p.dodaj_uzytki(u)
-    # p.dodaj_wlasnosci(w)
+    p.dodaj_uzytki(b.uzytki())
+    p.dodaj_wlasnosci(b.wlasnosci())
+    b.zamknij()
+    p.przetworz_dzialki()
+    p.przetworz_wszystkie_ls()
+    p.przetworz_uzytkowanie()
     # p.przetworz_uzytkowanie()
-    # p.przetworz_dzialki()
 
     return p
+
+
+def test_polaczenia_z_baza(polacz):
+    assert polacz is True
 
 
 def test_instancji(wczytaj):
@@ -30,13 +50,13 @@ def test_instancji(wczytaj):
 
 
 def test_dodania_uztykow_do_obiektu(wczytaj):
-    wczytaj.dodaj_uzytki(wczytaj.u)
-    assert len(wczytaj.u) == len(wczytaj.baza_uzytki)
+    w = wczytaj
+    assert len(w.baza_uzytki) == len(w.u)
 
 
 def test_dodania_wlasnosci_do_obiektu(wczytaj):
-    wczytaj.dodaj_wlasnosci(wczytaj.w)
-    assert len(wczytaj.w) == len(wczytaj.baza_wlasnosci)
+    w = wczytaj
+    assert len(w.baza_wlasnosci) == len(w.w)
 
 
 def test_sprawdzenia_ilosci_dzkat(wczytaj):
@@ -44,13 +64,29 @@ def test_sprawdzenia_ilosci_dzkat(wczytaj):
     assert suma == len(list(wczytaj.dzialki.keys()))
 
 
-def test_sprawdzenia_wlasnosci(wczytaj):
-    wczytaj.dodaj_uzytki(wczytaj.u)
-    wczytaj.dodaj_wlasnosci(wczytaj.w)
-    wczytaj.przetworz_uzytkowanie()
-    wczytaj.przetworz_dzialki()
+def test_sprawdzenia_kodow_wlasnosci(wczytaj):
     kody = []
     for w in wczytaj.sl_kody_wlasciceli_na_dzialce.values():
         kody += w
 
     assert set(kody).issubset(set(['OP', 'OF']))
+
+
+def test_przetworzenia_listy_lsow(wczytaj):
+    assert len(wczytaj.ls) > 2
+
+
+def test_przetworzenia_podwojnych_ls(wczytaj):
+    assert len(wczytaj.ls_podwojne) >= 0
+
+
+def test_przetworzenia_ile_uzytkow_na_dz(wczytaj):
+    assert len(wczytaj.sl_ile_uzytkow_na_dzialce.keys()) > 0
+
+
+def test_przetworzenia_ile_ls_na_dz(wczytaj):
+    assert len(wczytaj.sl_ls_na_dz.keys()) > 0
+
+
+def test_przetworzenia_l_pow_dla_ls(wczytaj):
+    assert len(wczytaj.sl_pow_ls_dzkat.keys()) > 0

@@ -6,11 +6,11 @@ from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes
-import processing
 from collections import Counter, namedtuple, defaultdict  # noqa
-from .baza_wrapper import Baza
-from .baza_przetworz import Przetworz
-from .ui.ui_sprawdz_ls import Ui_Dialog
+# import processing  # import przeniesiony do metody - pytest probemy!
+from baza_wrapper import Baza
+from baza_przetworz import Przetworz
+from ui.ui_sprawdz_ls import Ui_Dialog
 
 
 class recursivedefaultdict(defaultdict):
@@ -216,6 +216,12 @@ class AnalizujKlus(object):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
         dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
         porownawczej z baza. Nie zwraca żadnej wartości"""
+
+        # import modulu umieszony w metodzie czasowo, inaczej bruzdzil przy
+        # tesowaniu.
+        # TODO: przeniesc jako import na poczatek pliku po zakonczeniu
+        # testowania
+        import processing
 
         sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
@@ -621,7 +627,11 @@ class PrzetworzKlu(object):
 
 class SprawdzMikro(object):
     def __init__(self, tab):
+        # tablica ze wszystkimi poprawnymi klu (duze i male razem, nieposort.)
         self.klus_popr = tab
+
+        # tablica z przetworzonymi klu po poprawkach mikro
+        self.klus_popr_zwrot = []
 
         self.pid = ''
         if len(tab) > 0:
@@ -630,6 +640,7 @@ class SprawdzMikro(object):
         self.do_usun = []  # f.id() do usuniecia z klus_popr
         # [[f.id(), f.id()], ...] id laczonego, id bazowego
         self.do_polacz = []
+        self.do_spr = []  # feature do sprawdzenia przez uzyszkodnika
 
     def is_valid(self):  # noqa
         """Metoda sprawdza mikrouzytki i o ile takie istnieją w tablicy
@@ -685,16 +696,17 @@ class SprawdzMikro(object):
             polacz = False  # flaga do polaczenia lub usuniecia
 
             # jezeli uzytek jest w bazie
-            if landid in self.p.uzytki:
+            if 'Brak w bazie, ' not in k['UWAGI']:
                 # jezeli uzytek ma mala pow w bazie - zostaw
                 if self.sl_ile_popr_klu[landid] < 2 and \
-                        self.p.uzytki[landid] < 0.006:
+                        self.sl_pow_popr_klu[landid] < 0.006:
                     # na dzialce jest zlokalizowany maly uzytek, olac
                     pass
 
-                # jezeli mikrus jest < 5% pow calego uzytku - skasuj
-                else:
-                    if (k.area()/10000)/self.p.uzytki[landid][2] < 0.05:
+                elif self.sl_ile_popr_klu[landid] > 1 and \
+                        self.sl_pow_popr_klu[landid] > 0.006:
+                    # jezeli mikrus jest < 5% pow calego uzytku - skasuj
+                    if (k.area()/10000)/self.sl_pow_popr_klu[landid] < 0.05:
                         polacz = True
 
             # jezeli mikrusa nie ma w bazie, skasuj/polacz
@@ -705,46 +717,93 @@ class SprawdzMikro(object):
             if polacz:
                 self.polacz_klu(k)
 
-    def polacz_klu(self, k):
+    def polacz_klu(self, k):  # noqa
         ids = self.si.intersects(k.geometry().boundingBox())
 
-        # statystyki najblizszego
-        linia = 0
-        powie = 0
-        id_lacz = -1
-
-        # znajdz sasiada z ktorym dzieli najwiecej miejsca
+        # znajdz sasiadow z ktorymi dzieli najwiecej miejsca
+        p_area = []  # tablica z przecieciami powierzchniowymi[[id, pow], ...]
+        p_line = []  # tablica z przecieciami liniowymi [[id, len], ...]
         for id in ids:
             if id != k.id():
                 pass
             else:
                 geom = self.slk[id].geometry()
                 if geom.intersects(k.geometry()):
+                    # informacje o przecieciu
                     inter = geom.intersection(k.geometry())
 
+                    # jezeli przeciecie jest powierzchniowe i nie calkowite do
+                    # sprawdzenia przez uzyszkodnika
                     # jezeli przeciecie jest powierzchniowe
-                    if inter.area() > powie and inter.area() > 0.001:
-                        if id not in self.do_usun or id not in \
-                                [x[0] for x in self.do_polacz]:
-                            id_lacz = id
-                            powie = inter.area()
-                            linia = inter.length()
+                    if round(inter.area(), 3) > 0.000:
+                        p_area.append([id, round(inter.area(), 3)])
 
                     # jezeli tylko liniowe
-                    if inter.area() < 0.001 and inter.length() > linia:
-                        if id not in self.do_usun or id not in \
-                                [x[0] for x in self.do_polacz]:
-                            id_lacz = id
-                            linia = inter.length()
+                    else:
+                        p_line.append([id, inter.length()])
 
-        self.do_polacz.append([k.id(), id_lacz])
+        # jezeli przecina sie z jednym  dolacz do niego, niezaleznie od tego
+        # czy stylka sie na wiekszej dlugosci z czym innym
+        if len(p_area) == 1:
+            # jezeli powierzchnia jest taka sama jak innego klu tzn ze jest to
+            # blad nachodzenia 2 klu na siebie - do wyjasnienia!
+            if round(self.slk[p_area[0][0]].area(), 3) != p_area[0][1]:
+                self.do_polacz.append([k.id(), p_area[0][0]])
+            else:
+                self.do_spr.append(k)
 
+        # jezeli mikrus pokrywa sie z innymi uzytkami w 100%, usuwamy -
+        # sprawdzilismy wczesniej czy aby nie jest niezbedny
+        elif len(p_area) > 1:
+            if sum([x[1] for x in p_area]) == round(k.area(), 3):
+                self.do_usun.append(k.id())
+
+        # jezeli mikrus z niczym sie nie przecina, dolacz do sasiada z ktorym
+        # dzieli najwiecej wspolnego miejsca
+        else:
+            if len(p_line) > 0:
+                p_line = sorted(p_line, key=lambda x: x[1], reverse=True)
+                if p_line[0][0] not in self.do_usun:
+                    self.do_polacz.append([k.id(), p_line[0][0]])
+                else:
+                    if len(p_line) == 2 and p_line[1][0] not in self.do_usun:
+                        self.do_polacz.append([k.id(), p_line[1][0]])
+                    else:
+                        self.do_spr.append(k)
+
+        # jezeli z niczym nie sasiaduje - usuwamy
         if len(ids) == 0:
             self.do_usun.append(k.id())
 
     def s_mikro_process(self, du, dp):
         """Metoda usuwa, bądź łączy mikrouzytki z warstwy klus_popr wg podanych
         tabel (generowanych w s_mikro). """
+
+        # polacz geom featurow przeznaczonych do laczenia
+        for it in self.do_polacz:
+            # jezeli feature do laczenia znalazl sie jednak na liscie do
+            # usuniecia przesun mikrusa na warstwe do sprawdzenia
+            if it[1] in self.do_usun:
+                self.do_spr.append(self.slk[it[0]])
+
+            else:
+                feat_baza = self.slk[it[1]]
+                g_bazy = self.slk[it[1]].geometry()
+                g_lacz = self.slk[it[0]].geometry()
+
+                # geometria po union
+                g_union = g_bazy.combine(g_lacz)
+
+                # wyczyść a potem ustaw nowa geometrie
+                feat_baza.clearGeometry()
+                feat_baza.setGeometry(g_union)
+
+                self.klus_popr_zwrot.append(feat_baza)
+
+    def zestaw_tablice(self):
+        """Metoda ustawia ostateczne tablice ktore zostana zwrocone jako wynik
+        z juz poprawionymi geometriami i pogrupowanymi danymi"""
+
         pass
 
 
@@ -761,7 +820,7 @@ class PobierzDane(QDialog):
         self.ui.comboBox_ident.setDisabled(True)
 
         # Jezeli jest warstwa klu, odczytaj jej dane
-        if self.lyrk:
+        if self.lyrk is not False:
             if self.lyrk.isValid():
                 self.ui.lineEdit_klu.setText(
                     self.lyrk.dataProvider().dataSourceUri().split("|")[0])
@@ -769,9 +828,9 @@ class PobierzDane(QDialog):
                 self.wczytaj_pola()
 
         # Jezeli jest warstwa dzkat, odczytaj jej dane
-        if self.lyrd:
+        if self.lyrd is not False:
             if self.lyrd.isValid():
-                self.ui.lineEdit_klu.setText(
+                self.ui.lineEdit_dzkat.setText(
                     self.lyrd.dataProvider().dataSourceUri().split("|")[0])
 
         self.ui.pushButton_klu.clicked.connect(self.pobierz_klu)
@@ -808,6 +867,7 @@ class PobierzDane(QDialog):
             self.ui.lineEdit_klu.setText(
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
             self.ui.comboBox_ident.setDisabled(False)
+            self.wczytaj_pola()
         except:  # nopep8
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
             msbx.exec_()

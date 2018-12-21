@@ -98,10 +98,15 @@ class Przetworz(object):
     def przetworz_ls_podwojne(self):
         # [ LANDID, LANDID, ...] w tablicy znajduja sie tylko ls ktore w bazie
         # wystepuja wiecej niz raz na dzialce
-        self.ls_podwojne = [y[0] for y in Counter(
-            [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
-             for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
-            if y[1] > 1]
+        try:
+            self.ls_podwojne = [y[0] for y in Counter(
+                [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
+                 for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
+                if y[1] > 1]
+            return True
+        except:  # noqa
+            self.ls_podwojne = []
+            return False
 
     @dane_z_bazy
     def przetworz_uzytki(self):
@@ -113,26 +118,41 @@ class Przetworz(object):
     @dane_z_bazy
     def przetworz_ile_uzytow_na_dzialce(self):
         # {PARCELID: 1, PARCELID: 2, ...}
-        self.sl_ile_uzytkow_na_dzialce = {x[12]: 0 for x in self.baza_uzytki}
-        for x in self.baza_uzytki:
-            self.sl_ile_uzytkow_na_dzialce[x[12]] += 1
+        try:
+            self.sl_ile_uzytkow_na_dzialce = {x[12]: 0
+                                              for x in self.baza_uzytki}
+            for x in self.baza_uzytki:
+                self.sl_ile_uzytkow_na_dzialce[x[12]] += 1
+        except:  # noqa
+            self.sl_ile_uzytkow_na_dzialce = {}
+            return False
 
     @dane_z_bazy
     def przetworz_ile_ls_na_dzialce(self):
-        # {PARCELID: ]
-        for x in self.baza_uzytki:
-            if x[9] == 'Ls':
-                if x[12] not in self.sl_ls_na_dz:
-                    self.sl_ls_na_dz[x[12]] = []
-                self.sl_ls_na_dz[x[12]].append(self.isNone(x[10]))
+        # {PARCELID: [V, VI], ...]
+        try:
+            for x in self.baza_uzytki:
+                if x[9] == 'Ls':
+                    if x[12] not in self.sl_ls_na_dz:
+                        self.sl_ls_na_dz[x[12]] = []
+                    self.sl_ls_na_dz[x[12]].append(self.isNone(x[10]))
+            return True
+        except:  # noqa
+            self.sl_ls_na_dz = {}
+            return False
 
     @dane_z_bazy
     def przetworz_sl_pow_dla_ls(self):
-        if len(self.sl_ls_na_dz.keys()) > 0:
-            for x in self.baza_uzytki:
-                if x[12] in self.sl_ls_na_dz:
-                    if len(self.sl_ls_na_dz[x[12]]) == 1:
-                        self.sl_pow_ls_dzkat[x[12]] = [x[11], x[7]]
+        try:
+            if len(self.sl_ls_na_dz.keys()) > 0:
+                for x in self.baza_uzytki:
+                    if x[12] in self.sl_ls_na_dz:
+                        if len(self.sl_ls_na_dz[x[12]]) == 1:
+                            self.sl_pow_ls_dzkat[x[12]] = [x[11], x[7]]
+            return True
+        except:  # noqa
+            self.sl_pow_ls_dzkat = {}
+            return False
 
     @dane_z_bazy
     def przetworz_dzialki(self):
