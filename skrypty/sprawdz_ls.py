@@ -415,7 +415,7 @@ class PrzetworzKlu(object):
         wybrac do usuniecia z przyszlych analiz"""
 
         self.do_usun = []  # tabela z id klu do usuniecia
-        do_spr = []  # tabela z przecieciem jako featurem do sprawdzenia
+        feat_do_spr = []  # tabela z przecieciem jako featurem do sprawdzenia
 
         landid_i = self.pid + '.' + \
             self.klus[i][self.au] + \
@@ -452,7 +452,7 @@ class PrzetworzKlu(object):
                     f = self.new_feat(
                         uw='nałożone identyczne poligony')
                     f.setGeometry(inter)
-                    do_spr.append(f)
+                    feat_do_spr.append(f)
 
         # powierzchnia jednego badz drugiego jest taka sama jak przeciecia
         elif round(self.klus[i].geometry().area(), 3) == inter.area():
@@ -464,7 +464,7 @@ class PrzetworzKlu(object):
                     f = self.new_feat(
                         uw='nałożona część poligonu, do spr')
                     f.setGeometry(inter)
-                    do_spr.append(f)
+                    feat_do_spr.append(f)
 
             # jak uzytku nie ma w bazie to do usuniecia
             else:
@@ -479,7 +479,7 @@ class PrzetworzKlu(object):
                     f = self.new_feat(
                         uw='nałożona część poligonu, do spr')
                     f.setGeometry(inter)
-                    do_spr.append(f)
+                    feat_do_spr.append(f)
 
             # jak uzytku nie ma w bazie to do usuniecia
             else:
@@ -489,9 +489,9 @@ class PrzetworzKlu(object):
             f = self.new_feat(
                 uw='nałożona część poligonu, do spr')
             f.setGeometry(inter)
-            do_spr.append(f)
+            feat_do_spr.append(f)
 
-        return self.do_usun, do_spr
+        return self.do_usun, feat_do_spr
 
     def s_czy_dz_w_bazie(self):
         if self.dz['PARCELID'] in self.p.sl_kody_wlasciceli_na_dzialce:
@@ -626,12 +626,14 @@ class PrzetworzKlu(object):
 
 
 class SprawdzMikro(object):
-    def __init__(self, tab):
+    def __init__(self, tab, baza_uz=[]):
         # tablica ze wszystkimi poprawnymi klu (duze i male razem, nieposort.)
         self.klus_popr = tab
+        # tablica z uztykami wpisanymi do bazy
+        self.baza_klu = baza_uz
 
         # tablica z przetworzonymi klu po poprawkach mikro
-        self.klus_popr_zwrot = []
+        self.feat_popr = []
 
         self.pid = ''
         if len(tab) > 0:
@@ -640,7 +642,14 @@ class SprawdzMikro(object):
         self.do_usun = []  # f.id() do usuniecia z klus_popr
         # [[f.id(), f.id()], ...] id laczonego, id bazowego
         self.do_polacz = []
-        self.do_spr = []  # feature do sprawdzenia przez uzyszkodnika
+
+        # tabele z przetworzonymi feat zwracanymi uzytkownikowi
+        self.feat_do_usun = []
+        self.feat_popr = []
+        self.feat_do_spr = []
+
+        # sl z sasiadami dla kazdego klu
+        self.sl_sasiadow = {}
 
     def is_valid(self):  # noqa
         """Metoda sprawdza mikrouzytki i o ile takie istnieją w tablicy
@@ -648,10 +657,14 @@ class SprawdzMikro(object):
 
         # sprawdz czy na dzialce sa klu mniejsze niz 21 m2 jezeli nie, pomin
         # sprawdzanie mikrouzytkow na dzialce
-        self.p_min_klu = sorted([f.area() for f in self.klus_popr
-                                 if f.area() < 21])
-        if len(self.p_min_klu) < 1:
+        self.p_min_klu_pow = sorted([f.geometry().area()
+                                     for f in self.klus_popr
+                                     if f.geometry().area() < 21])
+        if len(self.p_min_klu_pow) < 1:
             return False
+        else:
+            self.p_min_klu = [f for f in self.klus_popr
+                              if f.geometry().area() < 21]
 
         # jeżeli na dzialce jest tylko jeden uzytek, poniechaj
         if len(self.klus_popr) < 2:
@@ -683,11 +696,13 @@ class SprawdzMikro(object):
 
             if landid not in self.sl_pow_popr_klu:
                 self.sl_pow_popr_klu[landid] = 0.0
-            self.sl_pow_popr_klu[landid] += klu.area() / 10000
+            self.sl_pow_popr_klu[landid] += klu.geometry().area() / 10000
 
             if landid not in self.sl_ile_popr_klu:
                 self.sl_ile_popr_klu[landid] = 0
             self.sl_ile_popr_klu[landid] += 1
+
+            self.sl_sasiadow[klu.id()] = []
 
     def przetworz_mikro(self):
         # sprawdz sasiedztwa wszystkich malych klus na dzialce
@@ -701,12 +716,13 @@ class SprawdzMikro(object):
                 if self.sl_ile_popr_klu[landid] < 2 and \
                         self.sl_pow_popr_klu[landid] < 0.006:
                     # na dzialce jest zlokalizowany maly uzytek, olac
-                    pass
+                    self.feat_popr.append(k)
 
                 elif self.sl_ile_popr_klu[landid] > 1 and \
                         self.sl_pow_popr_klu[landid] > 0.006:
                     # jezeli mikrus jest < 5% pow calego uzytku - skasuj
-                    if (k.area()/10000)/self.sl_pow_popr_klu[landid] < 0.05:
+                    if (k.geometry().area()/10000) / \
+                            self.sl_pow_popr_klu[landid] < 0.05:
                         polacz = True
 
             # jezeli mikrusa nie ma w bazie, skasuj/polacz
@@ -724,13 +740,14 @@ class SprawdzMikro(object):
         p_area = []  # tablica z przecieciami powierzchniowymi[[id, pow], ...]
         p_line = []  # tablica z przecieciami liniowymi [[id, len], ...]
         for id in ids:
-            if id != k.id():
+            if id == k.id():
                 pass
             else:
                 geom = self.slk[id].geometry()
                 if geom.intersects(k.geometry()):
                     # informacje o przecieciu
                     inter = geom.intersection(k.geometry())
+                    self.sl_sasiadow[k.id()].append(id)
 
                     # jezeli przeciecie jest powierzchniowe i nie calkowite do
                     # sprawdzenia przez uzyszkodnika
@@ -745,17 +762,26 @@ class SprawdzMikro(object):
         # jezeli przecina sie z jednym  dolacz do niego, niezaleznie od tego
         # czy stylka sie na wiekszej dlugosci z czym innym
         if len(p_area) == 1:
+            # jezeli powierzchnia przeciecia jest taka sama jak pow
+            # sprawdzanego klu, a pow 2 przecinajacego sie uzytku jest wieksza
+            # to usun analizowany klu
+            if round(k.geometry().area(), 3) == p_area[0][1] and \
+                    round(self.slk[p_area[0][0]].geometry().area(), 3) > \
+                    p_area[0][1]:
+                self.do_usun.append(k.id())
+
             # jezeli powierzchnia jest taka sama jak innego klu tzn ze jest to
             # blad nachodzenia 2 klu na siebie - do wyjasnienia!
-            if round(self.slk[p_area[0][0]].area(), 3) != p_area[0][1]:
+            if round(self.slk[p_area[0][0]].geometry().area(), 3) >= \
+                    p_area[0][1]:
                 self.do_polacz.append([k.id(), p_area[0][0]])
             else:
-                self.do_spr.append(k)
+                self.feat_do_spr.append(k)
 
         # jezeli mikrus pokrywa sie z innymi uzytkami w 100%, usuwamy -
         # sprawdzilismy wczesniej czy aby nie jest niezbedny
         elif len(p_area) > 1:
-            if sum([x[1] for x in p_area]) == round(k.area(), 3):
+            if sum([x[1] for x in p_area]) == round(k.geometry().area(), 3):
                 self.do_usun.append(k.id())
 
         # jezeli mikrus z niczym sie nie przecina, dolacz do sasiada z ktorym
@@ -763,28 +789,45 @@ class SprawdzMikro(object):
         else:
             if len(p_line) > 0:
                 p_line = sorted(p_line, key=lambda x: x[1], reverse=True)
-                if p_line[0][0] not in self.do_usun:
-                    self.do_polacz.append([k.id(), p_line[0][0]])
-                else:
-                    if len(p_line) == 2 and p_line[1][0] not in self.do_usun:
-                        self.do_polacz.append([k.id(), p_line[1][0]])
+                znikajace = self.do_usun + [x[0] for x in self.do_polacz]
+
+                if p_line[0][0] not in znikajace:
+                    # jezeli mikrus styka sie z innym uzytkiem na obwodzie
+                    # mniejszym niz 5% usuwamy
+                    if (p_line[0][1]/k.geometry().length()) < 0.05:
+                        self.do_usun.append(k.id())
                     else:
-                        self.do_spr.append(k)
+                        self.do_polacz.append([k.id(), p_line[0][0]])
+
+                else:
+                    if len(p_line) == 2 and p_line[1][0] not in znikajace:
+                        self.do_polacz.append([k.id(), p_line[1][0]])
+                    elif len(p_line) == 1 and p_line[0][0] in znikajace:
+                        self.do_usun.append(k.id())
+                    else:
+                        self.feat_do_spr.append(k)
 
         # jezeli z niczym nie sasiaduje - usuwamy
-        if len(ids) == 0:
+        if len(ids) == 1:
             self.do_usun.append(k.id())
 
-    def s_mikro_process(self, du, dp):
+    def process(self):
         """Metoda usuwa, bądź łączy mikrouzytki z warstwy klus_popr wg podanych
         tabel (generowanych w s_mikro). """
 
+        poprawione = []
         # polacz geom featurow przeznaczonych do laczenia
         for it in self.do_polacz:
             # jezeli feature do laczenia znalazl sie jednak na liscie do
             # usuniecia przesun mikrusa na warstwe do sprawdzenia
             if it[1] in self.do_usun:
-                self.do_spr.append(self.slk[it[0]])
+                # sprawdz czy wszyscy sasiedzi sa mikro, jezeli tak, usun.
+                sas = [x for x in self.sl_sasiadow[it[0]]
+                       if x not in [y.id() for y in self.p_min_klu]]
+                if len(sas) == 0:
+                    self.do_usun.append(it[0])
+                else:
+                    self.feat_do_spr.append(self.slk[it[0]])
 
             else:
                 feat_baza = self.slk[it[1]]
@@ -798,13 +841,55 @@ class SprawdzMikro(object):
                 feat_baza.clearGeometry()
                 feat_baza.setGeometry(g_union)
 
-                self.klus_popr_zwrot.append(feat_baza)
+                self.slk[it[1]].clearGeometry()
+                self.slk[it[1]].setGeometry(g_union)
+
+                if it[1] not in poprawione:
+                    poprawione.append(it[1])
+
+                # jezeli laczonego uzytku jeszcze nia ma w usunietych dodaj
+                if it[0] not in self.do_usun:
+                    self.do_usun.append(it[0])
+
+        for id in poprawione:
+            self.feat_popr.append(self.slk[id])
 
     def zestaw_tablice(self):
         """Metoda ustawia ostateczne tablice ktore zostana zwrocone jako wynik
         z juz poprawionymi geometriami i pogrupowanymi danymi"""
 
-        pass
+        # id featurow juz dopisanych do poprawnej tabeli klu
+        obecne = [f.id() for f in self.feat_popr]
+        id_do_spr = [f.id() for f in self.feat_do_spr]
+        id_mikrusow = [f.id() for f in self.p_min_klu]
+
+        for feat in self.klus_popr:
+            # jezeli feat jest juz w obecnych lub do spr - pomin
+            if feat.id() in obecne + id_do_spr:
+                pass
+
+            elif feat.id() in self.do_usun:
+                self.feat_do_usun.append(feat)
+
+            elif feat.id() not in id_mikrusow:
+                self.feat_popr.append(feat)
+
+    def przetworz(self):
+        """ Metoda zbiorcza przetwarza wczytane klu wg poprawnej kolejnosci
+        zdarzen"""
+
+        if not self.is_valid():
+            return True
+
+        self.zbuduj_strukture()
+        self.przetworz_mikro()
+        self.process()
+        self.zestaw_tablice()
+
+    def zwroc_wyn(self):
+        """ Metoda zwraca 3 listy: poprawne klu, do sprawdzenia, i usuniete"""
+
+        return self.feat_popr, self.feat_do_spr, self.feat_do_usun
 
 
 class PobierzDane(QDialog):

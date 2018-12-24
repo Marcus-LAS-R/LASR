@@ -9,7 +9,7 @@ def poprawna_topo(poly):
     """
 
     for part in poly:
-        if len(part) > 5:
+        if len(part) > 4:
             for i, pkt in enumerate(part):
                 # sprawdzanie występowania wąsów w poligonach
                 tazym = []   # tablica azymotow
