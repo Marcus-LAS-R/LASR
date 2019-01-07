@@ -166,8 +166,8 @@ class AnalizujKlus(object):
         if not self.klu.isValid() or not self.dzkat.isValid():
             return False
 
-        if [x.name() for x in self.dzkat.dataProvider().fields()] not in \
-                self.kolumny_dz:
+        if len([x.name() for x in self.kolumny_dz
+                if x.name() in self.dzkat.dataProvider().fields()]) == 12:
             return False
 
         return True
@@ -191,14 +191,14 @@ class AnalizujKlus(object):
 
             if len(pola_dodaj) > 0:
                 self.klu.startEditing()
-                attr = self.klu.dataProvider().fields().toList()
-                self.klu.addAttributes(attr+pola_dodaj)
+                self.klu.dataProvider().addAttributes(pola_dodaj)
                 self.klu.updateFields()
                 self.klu.commitChanges()
 
             self.klu.startEditing()
-            iau = self.klu.fieldNameIndex('AU')
-            isq = self.klu.fieldNameIndex('SQ')
+            klu_fnm = self.klu.dataProvider().fieldNameMap()
+            iau = klu_fnm['AU']
+            isq = klu_fnm['SQ']
             for f in self.klu.getFeatures():
                 if f['LANDID'] in self.p.uzytki:
                     zsq = self.p.uzytki[f['LANDID']][1]
@@ -210,7 +210,7 @@ class AnalizujKlus(object):
                 self.klu.changeAttributeValue(f.id(), isq, zsq)
             self.klu.commitChanges()
 
-        self.geop_przetworz()
+        # self.geop_przetworz()
 
     def geop_przetworz(self):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
@@ -339,8 +339,8 @@ class PrzetworzKlu(object):
                               self.dz.dataProvider().fields().toList()]:
             return False
 
-        if ['PARCELID', self.sq, self.au] not in \
-                [x.name() for x in self.klus[0].fields().toList()]:
+        if len(y for y in ['PARCELID', self.sq, self.au] if y in
+                [x.name() for x in self.klus[0].fields().toList()]) != 3:
             return False
 
         # jezeli na dzialce znajduja sie uzytki z innej dzialki
@@ -680,7 +680,7 @@ class SprawdzMikro(object):
         for k in self.klus_popr:
             if k.id() not in self.slk:
                 self.slk[k.id()] = k
-                self.si.insertFeature(k)
+                self.si.addFeature(k)
             else:
                 print('---BLAD---|powtorzony id:'+self.pid+str(k.id()))
 

@@ -1,6 +1,7 @@
 import pytest
 import sys
-from qgis.core import *  # noqa
+from qgis.core import QgsGeometry, QgsPointXY, QgsApplication, QgsVectorLayer,\
+    QgsField, QgsFields, QgsFeature
 from PyQt5.QtWidgets import *  # noqa
 from PyQt5.QtCore import *  # noqa
 from PyQt5.QtGui import *  # noqa
@@ -17,8 +18,9 @@ sys.setrecursionlimit(100000)
 
 app = QApplication(sys.argv)  # noqa
 QgsApplication.setPrefixPath("/usr", True)  # noqa
-# qgs = QgsApplication([], False)
-QgsApplication.initQgis()  # noqa
+qgs = QgsApplication([], False)
+# QgsApplication.initQgis()  # noqa
+qgs.initQgis()  # noqa
 
 
 @pytest.fixture()
@@ -26,7 +28,7 @@ def przetwarzanie_wejsciowe():
     dzl = QgsVectorLayer('/home/qnox/upul/testy/grabica/shp/DZKAT.shp',
                          'dz',
                          'ogr')
-    lsl = QgsVectorLayer('/home/qnox/upul/testy/grabica/shp/KLU.shp',
+    lsl = QgsVectorLayer('/home/qnox/upul/testy/grabica/shp/KLU_wybrane.shp',
                          'klu',
                          'ogr')
     iface = 1
@@ -60,7 +62,7 @@ def mikro_data():
         8: ['Ls', 'V', ''],
         9: ['Ls', 'V', ''],
         10: ['Ls', 'II', 'Brak w bazie, '],
-        11: ['W', '', 'Brak w bazie, '],
+        11: ['W', '', ''],
     }
 
     sl_geom = {
@@ -125,7 +127,7 @@ def mikro_data():
              QgsPointXY(1, 10),
              QgsPointXY(1, 20),
              QgsPointXY(0, 20),
-            ]],
+             ]],
 
         10: [[QgsPointXY(0, 49),
               QgsPointXY(10, 49),
@@ -143,10 +145,10 @@ def mikro_data():
     }
 
     fields = QgsFields()
-    fields.append(QgsField('PARCELID', QVariant.String, len=30))
-    fields.append(QgsField('AU', QVariant.String, len=10))
-    fields.append(QgsField('SQ', QVariant.String, len=10))
-    fields.append(QgsField('UWAGI', QVariant.String, len=50))
+    fields.append(QgsField('PARCELID', QVariant.String, len=30))  # noqa
+    fields.append(QgsField('AU', QVariant.String, len=10))  # noqa
+    fields.append(QgsField('SQ', QVariant.String, len=10))  # noqa
+    fields.append(QgsField('UWAGI', QVariant.String, len=50))  # noqa
 
     for fid in range(1, 12):
         f = QgsFeature(fid)
@@ -168,7 +170,7 @@ def test_aKlu_pobrania_danych_od_uzytk(przetwarzanie_wejsciowe):
     a = przetwarzanie_wejsciowe
 
     assert a.dd.ui.lineEdit_klu.text() == \
-        '/home/qnox/upul/testy/grabica/shp/KLU.shp'
+        '/home/qnox/upul/testy/grabica/shp/KLU_wybrane.shp'
     assert a.dd.ui.lineEdit_dzkat.text() == \
         '/home/qnox/upul/testy/grabica/shp/DZKAT.shp'
     assert a.dd.ui.lineEdit_bazy.text() == \
@@ -179,12 +181,29 @@ def test_aKlu_pobrania_danych_od_uzytk(przetwarzanie_wejsciowe):
     assert a.dd.ui.comboBox_sq.isEnabled() is True
     assert a.dd.ui.comboBox_au.currentIndex() == 1
     assert a.dd.ui.comboBox_sq.currentIndex() == 2
+    assert len(a.uzytki) > 0
+    assert len(a.wlasnosci) > 0
 
 
 def test_aKlu_pobrania_danych_przetworzenie_baz(przetwarzanie_wejsciowe):
     a = przetwarzanie_wejsciowe
 
     assert len(a.bazy) > 0
+
+
+def test_aKlu_sprawdzenie_popr_warstw_wejsciowych(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+    assert a.sprawdz_warunki() is True
+
+
+def test_aKlu_sprawdzenie_przyg_do_analiz(przetwarzanie_wejsciowe):
+    a = przetwarzanie_wejsciowe
+    a.typ == 'LAN'
+    a.przygotuj_tabele()
+    a.przygotuj_do_analizy()
+
+    assert len([x.name() for x in a.klu.dataProvider().fields()
+                if x.name() in ['SQ', 'AU', ]]) == 2
 
 
 def test_aKlu_pobrania_danych_uzytki(przetwarzanie_wejsciowe):
@@ -208,8 +227,8 @@ def test_mikrusow_usun_wysepki(mikro_data):
     s.przetworz()
     popr, spr, usun = s.zwroc_wyn()
 
-    u = [x.id() for x in usun if x.id() in [5, 7, 8, 9, 6, 11]]
-    p = [1, 2]
+    # u = [x.id() for x in usun if x.id() in [5, 7, 8, 9, 6, ]]
+    p = [1, 2, 11]
 
     # assert len(s.slk) == 11
     # assert len(s.do_usun) == len(usun)
