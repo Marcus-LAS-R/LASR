@@ -184,7 +184,7 @@ class Przetworz(object):
                 else:
                     self.sl_kody_wlasciceli_na_dzialce[wyr1].append(item[2])
                     if item[2] == "OP":
-                        self.lista_OP.append([wlasciciel, wyr1])
+                        self.listaOP.append([wlasciciel, wyr1])
 
         # lista dzialek tylko z wlasnoscia OP
         self.dz_op = [k for k, val in

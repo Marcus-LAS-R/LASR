@@ -215,6 +215,7 @@ class Baza(object):
                 , F_PARCEL.COMMUNITY_CD
                 , F_PARCEL.REG_SHEET_NR2
                 , F_PARCEL.PARCEL_NR
+                ;
         '''
         return self.cur.execute(sql).fetchall()
 

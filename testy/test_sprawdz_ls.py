@@ -6,8 +6,9 @@ from PyQt5.QtWidgets import *  # noqa
 from PyQt5.QtCore import *  # noqa
 from PyQt5.QtGui import *  # noqa
 
-from skrypty.sprawdz_ls import SprawdzMikro, AnalizujKlus, PobierzDane
-# from skrypty.baza_przetworz import Przetworz
+from skrypty.sprawdz_ls import SprawdzMikro, AnalizujKlus, PobierzDane, \
+    PrzetworzKlu
+from skrypty.baza_przetworz import Przetworz
 # from skrypty import baza_wrapper
 
 sys.setrecursionlimit(100000)
@@ -45,6 +46,164 @@ def przetwarzanie_wejsciowe():
     a.przetworz()
 
     return a
+
+
+@pytest.fixture()
+def data():
+
+    # uniwersalana struktura indentyfikujace dzkat
+    dodaj_pocz = ['10', '10', '042', '0001', '', ]
+
+    # slownik uzytkow na dzialce
+    uzt = [
+         ['1', 1, 0.01, 1, 'Ls', 'V', 0.01, ],
+         ['2', 2, 0.02, 2, 'Ls', 'V', 0.01, ],
+         ['3', 3, 0.02, 3, 'Ls', 'V', 0.01, ],
+         ['3', 3, 0.02, 4, 'Ls', 'IV', 0.01, ],
+         # ['4', 4, 0.04, 5, 'Ps', 'IV', 0.02, ],
+    ]
+
+    uz = []
+    sl_int = {}
+    for u in uzt:
+        uz.append(dodaj_pocz+u+[''.join(dodaj_pocz+['.', u[0]])])
+        sl_int[u[1]] = [u[0]]
+
+    # sl wlascicieli dla poszcz dzkat
+    wlt = [
+        [1, 'a', 'OF', ],
+        [2, 'a', 'OF', ],
+        [3, 'a', 'OF', ],
+        [3, 'b', 'OP', ],
+        # [4, 'b', 'OP', ],
+    ]
+
+    wl = []
+    for w in wlt:
+        wl.append(w+dodaj_pocz+sl_int[w[0]])
+
+    # geometria dla uzytkow
+    sl_uzg = {
+        1: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(10, 10),
+             QgsPointXY(10, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        2: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(10, 10),
+             QgsPointXY(10, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        3: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(10, 10),
+             QgsPointXY(10, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        4: [[QgsPointXY(10, 0),
+             QgsPointXY(10, 10),
+             QgsPointXY(20, 10),
+             QgsPointXY(20, 0),
+             QgsPointXY(10, 0),
+             ]],
+
+        5: [[QgsPointXY(10, 0),
+             QgsPointXY(10, 10),
+             QgsPointXY(30, 10),
+             QgsPointXY(30, 0),
+             QgsPointXY(10, 0),
+             ]],
+    }
+
+    # metadane dla atrybutow uzytkow
+    sl_uzm = {
+        1: ['10100420001.1', 'Ls', 'V'],
+        2: ['10100420001.2', 'Ls', 'V'],
+        3: ['10100420001.3', 'Ls', 'V'],
+        4: ['10100420001.3', 'Ls', 'IV'],
+        5: ['10100420001.4', 'Ps', 'IV'],
+    }
+
+    # zestawienie feat uzytkow do testow
+    fds = QgsFields()
+    for f in [
+            QgsField("PARCELID", QVariant.String, len=50),  # noqa
+            QgsField("AU", QVariant.String, len=10),  # noqa
+            QgsField("SQ", QVariant.String, len=10),  # noqa
+    ]:
+        fds.append(f)
+
+    u_feats = {}
+    for i in range(1, 1+len(sl_uzg.keys())):
+        feat = QgsFeature(i)
+        feat.setFields(fds)
+        feat.setAttribute(feat.fieldNameIndex('PARCELID'), sl_uzm[i][0])
+        feat.setAttribute(feat.fieldNameIndex('AU'), sl_uzm[i][1])
+        feat.setAttribute(feat.fieldNameIndex('SQ'), sl_uzm[i][2])
+        feat.setGeometry(QgsGeometry().fromPolygonXY(sl_uzg[i]))
+
+        if sl_uzm[i][0] not in u_feats:
+            u_feats[sl_uzm[i][0]] = []
+        u_feats[sl_uzm[i][0]].append(feat)
+
+    # geometria dla dz
+    sl_dzg = {
+        1: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(10, 10),
+             QgsPointXY(10, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        2: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(20, 10),
+             QgsPointXY(20, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        3: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(20, 10),
+             QgsPointXY(20, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        4: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(30, 10),
+             QgsPointXY(30, 0),
+             QgsPointXY(0, 0),
+             ]],
+    }
+
+    # metadane dla atrybutow uzytkow
+    sl_dzm = {
+        1: ['10100420001.1', ],
+        2: ['10100420001.2', ],
+        3: ['10100420001.3', ],
+        4: ['10100420001.4', ],
+    }
+
+    # zestawienie feat uzytkow do testow
+    fdsdz = QgsFields()
+    fdsdz.append(QgsField("PARCELID", QVariant.String, len=50))  # noqa
+
+    d_feats = {}
+    for i in range(1, 1+len(sl_dzg.keys())):
+        feat = QgsFeature(i)
+        feat.setFields(fdsdz)
+        feat.setAttribute(feat.fieldNameIndex('PARCELID'), sl_dzm[i][0])
+        feat.setGeometry(QgsGeometry().fromPolygonXY(sl_dzg[i]))
+
+        d_feats[sl_dzm[i][0]] = [feat, ]
+
+    return [uz, wl, u_feats, d_feats]
 
 
 @pytest.fixture()
@@ -166,6 +325,37 @@ def mikro_data():
     return klu
 
 
+def test_poprawnosci_danych_kwer(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    assert (p.sl_ile_uzytkow_na_dzialce['10100420001.3'] == 2) and \
+        (p.sl_ls_na_dz['10100420001.3'] == ['V', 'IV'])
+    assert len(p.dzialki.keys()) == 3
+
+
+def test_poprawnosci_feat_u(data):
+    u = []
+    for us in data[2].values():
+        u += us
+    wyn = set(map(lambda x: x.isValid(), u))
+    assert wyn == set([True])
+
+
+def test_poprawnosci_feat_dz(data):
+    wyn = set(map(lambda x: x.isValid(),
+                  [x[0] for x in list(data[3].values())]))
+    assert wyn == set([True])
+
+
+def test_poprawnosci_mikrusow(mikro_data):
+    wyn = set(map(lambda x: x.isValid(), mikro_data))
+    assert wyn == set([True])
+
+
 def test_aKlu_pobrania_danych_od_uzytk(przetwarzanie_wejsciowe):
     a = przetwarzanie_wejsciowe
 
@@ -216,9 +406,116 @@ def test_aKlu_pobrania_danych_wlasnosci(przetwarzanie_wejsciowe):
     assert len(a.wlasnosci) > 2
 
 
-def test_poprawnosci_mikrusow(mikro_data):
-    wyn = set(map(lambda x: x.isValid(), mikro_data))
-    assert wyn == set([True])
+def test_pKlu_sprawdzenie_popr_feats_wejsciowych(data):
+    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                     data[2]['10100420001.3'],
+                     '')
+
+    assert p.is_valid() is True
+
+
+def test_pKlu_sprawdzenie_niepopr_feats_wejsciowych(data):
+    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                     data[2]['10100420001.3'] +
+                     data[2]['10100420001.2'],
+                     '')
+
+    assert p.is_valid() is False
+
+
+def test_pKlu_sprawdzenie_pustych_uz_wejsciowych(data):
+    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                     [],
+                     '')
+
+    assert p.is_valid() is True
+
+
+def test_pKlu_test_przetworzenia_pow_sumarycznej(data):
+    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                     data[2]['10100420001.3'],
+                     '')
+
+    p.przetworz()
+    assert len(p.sl_klus_grupy.keys()) == 2
+
+
+def test_pKlu_test_sprawdzenia_czy_dz_w_bazie(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                      data[2]['10100420001.3'],
+                      p)
+    pk.przetworz()
+
+    assert pk.s_czy_dz_w_bazie() is True
+
+
+def test_pKlu_test_sprawdzenia_czy_dz_niema_w_bazie(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.4'])[0],
+                      data[2]['10100420001.4'],
+                      p)
+    pk.przetworz()
+
+    assert pk.s_czy_dz_w_bazie() is False
+
+
+def test_pKlu_jeden_ls_na_dz_dopasowany(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.1'])[0],
+                      data[2]['10100420001.1'],
+                      p)
+    pk.przetworz()
+    pk.s_czy_ls_na_calosci()
+
+    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area()
+
+
+def test_pKlu_jeden_ls_na_dz_niedopasowany(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.2'])[0],
+                      data[2]['10100420001.2'],
+                      p)
+    pk.przetworz()
+    pk.s_czy_jeden_ls()
+
+    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area()
+
+
+def test_pKlu_brak_ls_na_dz_w_graf(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.2'])[0],
+                      [],
+                      p)
+    pk.przetworz()
+    pk.s_czy_jeden_ls()
+
+    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area()
 
 
 def test_mikrusow_usun_wysepki(mikro_data):

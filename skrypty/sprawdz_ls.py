@@ -5,7 +5,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
-    QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes
+    QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields
 from collections import Counter, namedtuple, defaultdict  # noqa
 # import processing  # import przeniesiony do metody - pytest probemy!
 from baza_wrapper import Baza
@@ -332,20 +332,23 @@ class PrzetworzKlu(object):
 
     def is_valid(self):
         if self.dz.geometry().wkbType() not in [QgsWkbTypes.Polygon,
-                                                QgsWkbTypes.Multipolygon]:
+                                                QgsWkbTypes.MultiPolygon]:
             return False
 
         if 'PARCELID' not in [x.name() for x in
-                              self.dz.dataProvider().fields().toList()]:
+                              self.dz.fields().toList()]:
             return False
 
-        if len(y for y in ['PARCELID', self.sq, self.au] if y in
-                [x.name() for x in self.klus[0].fields().toList()]) != 3:
-            return False
+        # jezeli na dzialce sa zadeklarowane klus, sprawdz poprawnosc
+        if len(self.klus) > 0:
+            if len([y for y in ['PARCELID', self.sq, self.au] if y in
+                    [x.name() for x in self.klus[0].fields().toList()]]) != 3:
+                return False
 
-        # jezeli na dzialce znajduja sie uzytki z innej dzialki
-        if set(self.dz['PARCELID']) != set([x['PARCELID'] for x in self.klus]):
-            return False
+            # jezeli na dzialce znajduja sie uzytki z innej dzialki
+            if set([self.dz['PARCELID']]) != set([x['PARCELID']
+                                                  for x in self.klus]):
+                return False
 
         return True
 
@@ -358,8 +361,7 @@ class PrzetworzKlu(object):
             self.bez_uzytkow = True
             return False
 
-        self.sl_klus_pow = {self.stworz_landid(x): 0
-                            for x in self.klus}
+        self.sl_klus_pow = {self.stworz_landid(x): 0 for x in self.klus}
         self.sl_klus_grupy = {self.stworz_landid(x): [] for x in self.klus}
         for f in self.klus:
             self.sl_klus_pow[self.stworz_landid(f)] += \
@@ -400,7 +402,7 @@ class PrzetworzKlu(object):
         """
 
         # usun z listy klus featurki sklasyfikowane jako bledy
-        self.do_usun = list(set(do_usun)).sort(reverse=True)
+        self.do_usun = sorted(list(set(do_usun)), reverse=True)
         for i in self.do_usun:
             if uw != 'OK':
                 f = self.new_feat(au=self.klus[i][self.au],
@@ -408,7 +410,8 @@ class PrzetworzKlu(object):
                                   uw='przecina się z innym')
                 f.setGeometry(self.klus[i].geometry())
                 self.klus_bledy.append(f)
-            self.klus.remove(i)
+
+            del self.klus[i]
 
     def s_topo_inter(self, i, j, inter):
         """Metoda sprawdza, ktorego z idealnie nakladajacych sie poligonow
@@ -494,7 +497,7 @@ class PrzetworzKlu(object):
         return self.do_usun, feat_do_spr
 
     def s_czy_dz_w_bazie(self):
-        if self.dz['PARCELID'] in self.p.sl_kody_wlasciceli_na_dzialce:
+        if self.pid in self.p.dzialki.keys():
             return True
 
         # jezeli brak w bazie dopisz co trzeba do klu i zostaw jako poprawne
@@ -513,7 +516,8 @@ class PrzetworzKlu(object):
         kontur dzialki"""
 
         if self.pid in self.p.sl_pow_ls_dzkat:
-            if self.p[self.pid][0] == self.p[self.pid][1]:
+            if self.p.sl_pow_ls_dzkat[self.pid][0] == \
+                    self.p.sl_pow_ls_dzkat[self.pid][1]:
                 f = self.new_feat('Ls', self.p.sl_ls_na_dz[self.pid][0])
                 f.setGeometry(self.dz.geometry())
                 self.klus_popr.append(f)
@@ -599,19 +603,22 @@ class PrzetworzKlu(object):
     def new_feat(self, au=False, sq=False, uw=False):
         f = QgsFeature(self.fid)
         self.fid += 1
-        f.setFields([
-            QgsField('PARCELID', QVariant.String, len=30),
-            QgsField('AU', QVariant.String, len=10),
-            QgsField('SQ', QVariant.String, len=10),
-            QgsField('UWAGI', QVariant.String, len=230),
-        ])
-        f.setAttribure(f.fieldNameIndex('PARCELID'), self.pid)
+        fds = QgsFields()
+        for fi in [QgsField('PARCELID', QVariant.String, len=30),
+                   QgsField('AU', QVariant.String, len=10),
+                   QgsField('SQ', QVariant.String, len=10),
+                   QgsField('UWAGI', QVariant.String, len=230),
+                   ]:
+            fds.append(fi)
+
+        f.setFields(fds)
+        f.setAttribute(f.fieldNameIndex('PARCELID'), self.pid)
         if au:
-            f.setAttribure(f.fieldNameIndex('AU'), au)
+            f.setAttribute(f.fieldNameIndex('AU'), au)
         if sq:
-            f.setAttribure(f.fieldNameIndex('SQ'), sq)
+            f.setAttribute(f.fieldNameIndex('SQ'), sq)
         if uw:
-            f.setAttribure(f.fieldNameIndex('UWAGI'), uw)
+            f.setAttribute(f.fieldNameIndex('UWAGI'), uw)
         return f
 
     def stworz_landid(self, f):
