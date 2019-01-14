@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields
-from collections import Counter, namedtuple, defaultdict  # noqa
+from collections import Counter, defaultdict
 # import processing  # import przeniesiony do metody - pytest probemy!
 from baza_wrapper import Baza
 from baza_przetworz import Przetworz
@@ -304,23 +304,30 @@ class PrzetworzKlu(object):
 
         # tablica z uwagami do raportu, grupowana wg skrotow ponizej:
         # pow - rozbieznosc powierzchni miedzy baza a grafika
-        # podmsq - podmieniony SQ w Ls, dostosowany do bazy
-        # podmau - podmieniony AU, dostosowany do bazy
-        # brakb - brak uzytku w bazie, jest w grafice
+        #       landid: [pow graf, pow bazy],
+        # podmsq - podmieniony SQ w Ls, dostosowany do bazy  OK
+        #       {landid: [sq przed, sq po], ...}
+        # podmau - podmieniony AU, dostosowany do bazy  OK
+        #       landid: [au przed, au po]
+        # brakb - brak uzytku w bazie, jest w grafice  OK
+        #       [landid, landid]
         # brakg - brak uzytku w grafice, jest w bazie
-        # brakdzb - brak dzkat w bazie, jest w grafice
-        # topo - bledy topologiczne do rozwiazania przez uzytkownika
-        # mikro - mikrolsy do usuniecia przez uzytkownika
-        # dubb - zdublowane ls, klu w bazie
-        # dubg - zdublowane ls, klu w grafice
-        # podm - ls z podmieniona grafika na kontur z dzialki (tylko przy 1 ls)
-        # op - dzialka tylko z wlasnoscia OP
-        # opif - dzialka tylko z wlasnoscia OPiF
+        #       [landid, landid]
+        # brakdzb - brak dzkat w bazie, jest w grafice  OK
+        #       True/False
+        # mikro - mikroluz do usuniecia przez uzytkownika,
+        #       generowane jako nowa warstwa z uwagami
+        #       [landid, landid, ... ]
+        # dubb - zdublowane ls, klu w bazie  OK
+        #       [landid, landid, ...]
+        # podm - ls z podmieniona grafika na kontur z dzialki   OK
+        #       (tylko przy 1 ls)
+        #       True/False
+        # op - dzialka tylko z wlasnoscia OP   OK
+        #       True/False
+        # opif - dzialka tylko z wlasnoscia OPiF   OK
+        #       True/False
         #
-        # postac zapisu:
-        # {'mikro': {landid: [0.0001], landid: [0.0021]},
-        #  'podm': {landid: [0.5894, 0.7842], ....},
-        #  }
         self.uwagi = recursivedefaultdict()
 
         # True jezeli na dzialce nie ma zadnych klu
@@ -353,6 +360,9 @@ class PrzetworzKlu(object):
         return True
 
     def przetworz(self):
+        """ Ustawia self.pid w obiekcie oraz oblicza slwoniki dla powierzchni i
+        liczby uzytkow na dzialce, wykorzystywane potem w analizie mikro oraz
+        usuwaniu niepotrzebnych urzytkow"""
         self.pid = self.dz['PARCELID']
 
         # oblicz sumaryczna powierzchnie dla uzytku na dzialce, sumujac
@@ -368,7 +378,18 @@ class PrzetworzKlu(object):
                 round(f.geometry().area()/10000, 4)
             self.sl_klus_grupy[self.stworz_landid(f)].append(f)
 
+        self.uwagi['op'] = False
+        if self.pid in self.p.dz_op:
+            self.uwagi['op'] = True
+
+        self.uwagi['opif'] = False
+        if self.pid in self.p.dz_opif:
+            self.uwagi['opif'] = True
         return True
+
+        # lista zdublowanych ls w bazie na tej dzialce
+        self.uwagi['dubb'] = [x for x in self.p.ls_podwojne
+                              if '.'.join(x.split('.')[:2]) == self.pid]
 
     def sprawdz_topologie(self):
         """Metoda sprawdza czy klu nakladaja sie na siebie, w przypadku gdy
@@ -384,14 +405,13 @@ class PrzetworzKlu(object):
         for i in range(len(self.klus)-1):
             for j in range(i+1, len(self.klus)):
                 if self.klus[i].geometry().intersects(self.klus[j].geometry()):
-                    inter = round(self.klus[i].geometry().intersection(
-                        self.klus[j].geometry()), 3)
-                    if inter.area() < 0.01:
+                    inter = self.klus[i].geometry().intersection(
+                        self.klus[j].geometry())
+                    if round(inter.area(), 3) < 0.001:
                         pass
                     else:
                         du, ds = self.s_topo_inter(i, j, inter)
-                        self.do_usun += du
-                        self.klus_do_spr.append(ds)
+                        self.klus_do_spr += ds
 
         self.s_do_usuniecia(self.do_usun)
 
@@ -407,18 +427,24 @@ class PrzetworzKlu(object):
             if uw != 'OK':
                 f = self.new_feat(au=self.klus[i][self.au],
                                   sq=self.klus[i][self.sq],
-                                  uw='przecina się z innym')
+                                  uw='nakłada się z innym')
                 f.setGeometry(self.klus[i].geometry())
                 self.klus_bledy.append(f)
 
             del self.klus[i]
 
-    def s_topo_inter(self, i, j, inter):
+    def s_topo_inter(self, i, j, inter):  # noqa
         """Metoda sprawdza, ktorego z idealnie nakladajacych sie poligonow
         wybrac do usuniecia z przyszlych analiz"""
 
-        self.do_usun = []  # tabela z id klu do usuniecia
         feat_do_spr = []  # tabela z przecieciem jako featurem do sprawdzenia
+        inter_area = round(inter.area(), 3)
+
+        # jezeli ktory z klus ma powierzchnie mniejsza niz 21 m2 zostawiamy
+        # sprawdzanie nakladan, zajmie sie tym klasa sprawdzania mikrouzytkow
+        if min([round(self.klus[i].geometry().area(), 3),
+                round(self.klus[j].geometry().area(), 3)]) < 21:
+            return
 
         landid_i = self.pid + '.' + \
             self.klus[i][self.au] + \
@@ -430,9 +456,9 @@ class PrzetworzKlu(object):
         # powierzchnia przeciecia jest taka sama jak
         # powierzchnia obu klu
         if round(self.klus[i].geometry().area(), 3) == \
-                inter.area() and \
+                inter_area and \
                 round(self.klus[j].geometry().area(), 3) == \
-                inter.area():
+                inter_area:
 
             # jezeli oba sa w bazie wybieramy nielesnego
             if landid_i in self.p.uzytki and landid_j in \
@@ -440,32 +466,37 @@ class PrzetworzKlu(object):
 
                 # jezeli tylko jeden z klu jest w bazie, to go
                 # zostawiamy
-                if self.klus[i][self.au] != 'Ls':
+                if self.klus[i][self.au] != 'Ls' and \
+                        self.klus[j][self.au] == 'Ls':
                     self.do_usun.append(i)
-                elif self.klus[j][self.au] != 'Ls':
+                elif self.klus[j][self.au] != 'Ls' and \
+                        self.klus[i][self.au] == 'Ls':
                     self.do_usun.append(j)
 
-                # jezeli oba powyzsze sa ls-ami wybierz tego
-                # ktory ma wiecej poligonow w swojej klasie
-                elif len(self.sl_klus_grupy[landid_i]) > \
-                        len(self.sl_klus_grupy[landid_j]) and \
-                        len(self.sl_klus_grupy[landid_i]) > 1:
-                    self.do_usun.append(i)
+                # jezeli oba powyzsze sa ls-ami, niech uzytkownik zdecyduje
                 else:
                     f = self.new_feat(
-                        uw='nałożone identyczne poligony')
+                        uw='nałożone poligony o tym samym kształcie')
                     f.setGeometry(inter)
                     feat_do_spr.append(f)
 
+            elif landid_i in self.p.uzytki and landid_j not in \
+                    self.p.uzytki:
+                self.do_usun.append(j)
+
+            elif landid_i not in self.p.uzytki and landid_j in \
+                    self.p.uzytki:
+                self.do_usun.append(i)
+
         # powierzchnia jednego badz drugiego jest taka sama jak przeciecia
-        elif round(self.klus[i].geometry().area(), 3) == inter.area():
+        elif round(self.klus[i].geometry().area(), 3) == inter_area:
             # jezeli uzytek jest w bazie to usuwamy albo do sprawdzenia
             if landid_i in self.p.uzytki:
                 if len(self.sl_klus_grupy[landid_i]) > 1:
                     self.do_usun.append(i)
                 else:
                     f = self.new_feat(
-                        uw='nałożona część poligonu, do spr')
+                        uw='nałożona część poligonu, na inny cały')
                     f.setGeometry(inter)
                     feat_do_spr.append(f)
 
@@ -473,14 +504,14 @@ class PrzetworzKlu(object):
             else:
                 self.do_usun.append(i)
 
-        elif round(self.klus[j].geometry().area(), 3) == inter.area():
+        elif round(self.klus[j].geometry().area(), 3) == inter_area:
             # jezeli uzytek jest w bazie to usuwamy albo do sprawdzenia
             if landid_j in self.p.uzytki:
                 if len(self.sl_klus_grupy[landid_j]) > 1:
                     self.do_usun.append(j)
                 else:
                     f = self.new_feat(
-                        uw='nałożona część poligonu, do spr')
+                        uw='nałożona część poligonu, na inny cały')
                     f.setGeometry(inter)
                     feat_do_spr.append(f)
 
@@ -488,26 +519,22 @@ class PrzetworzKlu(object):
             else:
                 self.do_usun.append(j)
 
+        # oba poligony przecinaja sie na czesci swoich powierzchni, uzytkownik
+        # musi zdecydowac ktora granica przebiegu jest właściwa
         else:
             f = self.new_feat(
-                uw='nałożona część poligonu, do spr')
+                uw='nałożona część poligonów')
             f.setGeometry(inter)
             feat_do_spr.append(f)
 
         return self.do_usun, feat_do_spr
 
     def s_czy_dz_w_bazie(self):
+        self.uwagi['brakdzb'] = True
         if self.pid in self.p.dzialki.keys():
             return True
 
-        # jezeli brak w bazie dopisz co trzeba do klu i zostaw jako poprawne
-        # self.braki_warstwa['brakb'] = {self.stworz_landid(x):
-        #                               self.p.uzytki[self.stworz_landid(x)][2]
-        #                               for x in self.klus}
-        # for x in self.klus:
-        #    f = self.new_feat(au=x[self.au], sq=x[self.sq], uw='Brak w bazie')
-        #    f.setGeometry(x.geometry())
-        #    self.klus_popr.append(f)
+        self.uwagi['brakdzb'] = False
         return False
 
     def s_czy_ls_na_calosci(self):
@@ -515,12 +542,14 @@ class PrzetworzKlu(object):
         w zbiorze uzytkow w bazie, jezeli tak to podmienia jego grafike na
         kontur dzialki"""
 
+        self.uwagi['podm'] = False
         if self.pid in self.p.sl_pow_ls_dzkat:
             if self.p.sl_pow_ls_dzkat[self.pid][0] == \
                     self.p.sl_pow_ls_dzkat[self.pid][1]:
                 f = self.new_feat('Ls', self.p.sl_ls_na_dz[self.pid][0])
                 f.setGeometry(self.dz.geometry())
                 self.klus_popr.append(f)
+                self.uwagi['podm'] = True
                 return True
         return False
 
@@ -540,8 +569,7 @@ class PrzetworzKlu(object):
             uw = ''  # uwagi do wpisania do warstwy
 
             # stworz landid poprawny i zgodny z baza
-            landid = self.pid + klu[self.au] + \
-                self.p.sl_ls_na_dz[self.pid][0]
+            landid = self.pid + 'Ls' + self.p.sl_ls_na_dz[self.pid][0]
 
             if len(set([x for x in self.sl_klus_pow.keys()
                         if x.split('.')[-1][:2] == 'Ls'])) == 1:
@@ -590,6 +618,12 @@ class PrzetworzKlu(object):
             if landid not in self.p.uzytki:
                 uw = 'Brak w bazie, '
 
+                # dopisz landid do tablicy uwag
+                if 'brakb' not in self.uwagi:
+                    self.uwagi['brakb'] = []
+                if landid not in self.uwagi['brakb']:
+                    self.uwagi['brakb'].append(landid)
+
             f = self.new_feat(self.p.uzytki[landid][0],
                               self.p.uzytki[landid][1],
                               uw=uw)
@@ -630,6 +664,73 @@ class PrzetworzKlu(object):
             return ''
         else:
             return a
+
+    def sprawdz_mikro(self):
+        """ Metoda sprawdza czy w uzupełnionej tabeli klus_popr znajdują się
+        jakieś mikroużytki a następnie sprawdza czy da się je usunąć automaty-
+        cznie. Jeżeli nie zwracana jest tabela z featurami do sprawdzenia przez
+        użytkownika.
+        """
+        d = SprawdzMikro(self.klus_popr)
+        d.przetworz()
+        popr, spr, usun = d.zwroc_wyn()
+
+        if len(popr) < len(self.klus_popr):
+            self.klus_popr = popr
+
+        self.klus_do_spr += spr
+        self.klus_bledy += usun
+
+    def zestaw_ostateczne(self):
+        """Metoda zestawia klu z tablic z poprawnymi, blednymi i do sprawdzenia
+        poligonami, łączy je na podstawie landid, uzupełnia tablice uwagi o
+        info na temat obecnosci użytków w bazie, podwojnych użytkow w bazie,
+        rozbieżności powierzchni międz bazą a grafiką, obecności mikrusów.
+        """
+        spis_klu = [self.stworz_landid(x) for x in self.klus_popr]
+        ile_klu = [x[0] for x in Counter(spis_klu).most_common() if x[1] > 1]
+
+        # tablica z poprawnymi klu połącznymi w multipoly i posiadajace juz
+        # poprawne, i niezdublowane uwagi
+        poprawne = {}
+
+        for i, y in enumerate(spis_klu):
+            if y not in poprawne:
+                poprawne[y] = self.klus_popr[i]
+            elif y in ile_klu:
+
+                # dodaj nowa geometrie do bazy
+                geom_baza = poprawne[y].geometry()
+                geom_dolacz = self.klus_popr[i].geometry()
+
+                # jezeli czesci sie stykaja - union, niestykaja - dodaj part
+                if geom_baza.intersects(geom_dolacz):
+                    new_geom = geom_baza.combine(geom_dolacz)
+                else:
+                    new_geom = geom_baza.addPart(geom_dolacz)
+
+                poprawne[y].clearGeometry()
+                poprawne[y].setGeometry(new_geom)
+
+                # sprawdz czy w tej czesci nie ma jakichs nowych uwag, jezeli
+                # sa dodaj do wczesniejszych na koncu
+                u_nowe = self.klus_popr['UWAGI'].split(', ')
+                u_stare = poprawne['UWAGI']
+
+                # sprawdz czy sa jakies nowe uwagi, jezeli tak, dodaj
+                trig_dopisz = False
+                for u in u_nowe:
+                    if u not in u_stare:
+                        u_stare += u + ', '
+                        trig_dopisz = True
+
+                if trig_dopisz:
+                    poprawne[y].setAttribute(
+                        poprawne[y].fieldNameIndex('UWAGI'),
+                        u_stare)
+
+        # TODO: dopisać sprawdzenie powierzchni uzytkow na dzialce, oraz mikro
+        # uzytkow, o ile takie sa - bez powierzchni...
 
 
 class SprawdzMikro(object):
@@ -842,21 +943,32 @@ class SprawdzMikro(object):
                 g_lacz = self.slk[it[0]].geometry()
 
                 # geometria po union
-                g_union = g_bazy.combine(g_lacz)
+                try:
+                    g_union = g_bazy.combine(g_lacz)
 
-                # wyczyść a potem ustaw nowa geometrie
-                feat_baza.clearGeometry()
-                feat_baza.setGeometry(g_union)
+                    # wyczyść a potem ustaw nowa geometrie
+                    feat_baza.clearGeometry()
+                    feat_baza.setGeometry(g_union)
 
-                self.slk[it[1]].clearGeometry()
-                self.slk[it[1]].setGeometry(g_union)
+                    self.slk[it[1]].clearGeometry()
+                    self.slk[it[1]].setGeometry(g_union)
 
-                if it[1] not in poprawione:
-                    poprawione.append(it[1])
+                    if it[1] not in poprawione:
+                        poprawione.append(it[1])
 
-                # jezeli laczonego uzytku jeszcze nia ma w usunietych dodaj
-                if it[0] not in self.do_usun:
-                    self.do_usun.append(it[0])
+                    # jezeli laczonego uzytku jeszcze nia ma w usunietych dodaj
+                    if it[0] not in self.do_usun:
+                        self.do_usun.append(it[0])
+
+                except:  # noqa
+                    # jezeli nie udało się przeprowadzić combine, zostawiamy
+                    # baze nietknieta a laczony mikrus dodajemy do sprawdzenia
+                    g_union = g_bazy
+
+                    if it[1] not in poprawione:
+                        poprawione.append(it[1])
+
+                    self.feat_do_spr.append(self.slk[it[0]])
 
         for id in poprawione:
             self.feat_popr.append(self.slk[id])
