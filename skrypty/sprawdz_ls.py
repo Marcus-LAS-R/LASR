@@ -86,7 +86,7 @@ class AnalizujKlus(object):
             QgsField("GRP", QVariant.String, len=2),
             QgsField("ARK", QVariant.String, len=12),
             QgsField("NIELES", QVariant.String, len=3),
-            QgsField("UWAGI", QVariant.String, len=150),
+            QgsField("SPRAWDZ", QVariant.String, len=150),
             QgsField("PARCEL_AR", QVariant.Double, "double", 10, 4),
             QgsField("PARCEL_POW", QVariant.Double, "double", 10, 4),
         ]
@@ -254,6 +254,28 @@ class AnalizujKlus(object):
             '__Ls_singleparts_'+self.czas+'.shp',
             'ogr')
 
+    def zaladuj_strukture(self):
+        """Metoda zestawia do słownika obiekty PrzetworzKlu dla każdej z
+        działek, podmieniając SQ na duże litery.
+        """
+
+    def przetworz_strukture(self):
+        """ Metoda przetwarza strukturę wg ścieżki dla każdej z działki
+        generując niezbędne dane do raportów oraz wynikowe klu do ostatecznych
+        warstw.
+        """
+
+    def generuj_warstwy(self):
+        """Generuje 3 ostateczne warstwy: ostateczne, do sprawdzenia, bledy i
+        dodaje je do ramki
+        """
+
+    def generuj_raport(self):
+        """Generuje raport na podstawie danych zebranych ze słowników uwagi
+        dla każdej z działek, zapisuje go na dysku i pyta użytkownika czy chce
+        go wyświetlić w jego edytorze tekstu.
+        """
+
 
 class PrzetworzKlu(object):
     def __init__(self, d, k, p):
@@ -272,6 +294,15 @@ class PrzetworzKlu(object):
         # nazwy pol przetrzymujacych uzytki
         self.sq = 'SQ'
         self.au = 'AU'
+
+        # tablica z polami, ktore maja znajdowac sie w ostatecznych danych
+        # zwracanych uzytkownikowi, dodaje sie je metodą add_fields
+        self.fields_def = [
+            QgsField('PARCELID', QVariant.String, len=30),
+            QgsField('AU', QVariant.String, len=10),
+            QgsField('SQ', QVariant.String, len=10),
+            QgsField('SPRAWDZ', QVariant.String, len=230),
+        ]
 
         # PARCELID wyciagniety z dzialki w metodzie przetworz
         self.pid = ''
@@ -303,29 +334,29 @@ class PrzetworzKlu(object):
         self.klus_id_przetworzone = []
 
         # tablica z uwagami do raportu, grupowana wg skrotow ponizej:
-        # pow - rozbieznosc powierzchni miedzy baza a grafika
+        # pow - rozbieznosc powierzchni miedzy baza a grafika   OK
         #       landid: [pow graf, pow bazy],
-        # podmsq - podmieniony SQ w Ls, dostosowany do bazy  OK
+        # podmsq - podmieniony SQ w Ls, dostosowany do bazy     OK
         #       {landid: [sq przed, sq po], ...}
-        # podmau - podmieniony AU, dostosowany do bazy  OK
+        # podmau - podmieniony AU, dostosowany do bazy          OK
         #       landid: [au przed, au po]
-        # brakb - brak uzytku w bazie, jest w grafice  OK
+        # brakb - brak uzytku w bazie, jest w grafice           OK
         #       [landid, landid]
         # brakg - brak uzytku w grafice, jest w bazie
         #       [landid, landid]
-        # brakdzb - brak dzkat w bazie, jest w grafice  OK
+        # brakdzb - brak dzkat w bazie, jest w grafice          OK
         #       True/False
-        # mikro - mikroluz do usuniecia przez uzytkownika,
+        # mikro - mikroluz do usuniecia przez uzytkownika,      OK
         #       generowane jako nowa warstwa z uwagami
         #       [landid, landid, ... ]
-        # dubb - zdublowane ls, klu w bazie  OK
+        # dubb - zdublowane ls, klu w bazie                     OK
         #       [landid, landid, ...]
         # podm - ls z podmieniona grafika na kontur z dzialki   OK
         #       (tylko przy 1 ls)
         #       True/False
-        # op - dzialka tylko z wlasnoscia OP   OK
+        # op - dzialka tylko z wlasnoscia OP                    OK
         #       True/False
-        # opif - dzialka tylko z wlasnoscia OPiF   OK
+        # opif - dzialka tylko z wlasnoscia OPiF                OK
         #       True/False
         #
         self.uwagi = recursivedefaultdict()
@@ -425,8 +456,8 @@ class PrzetworzKlu(object):
         self.do_usun = sorted(list(set(do_usun)), reverse=True)
         for i in self.do_usun:
             if uw != 'OK':
-                f = self.new_feat(au=self.klus[i][self.au],
-                                  sq=self.klus[i][self.sq],
+                f = self.new_feat(au=self.klus[i]['AU'],
+                                  sq=self.klus[i]['SQ'],
                                   uw='nakłada się z innym')
                 f.setGeometry(self.klus[i].geometry())
                 self.klus_bledy.append(f)
@@ -546,7 +577,7 @@ class PrzetworzKlu(object):
         if self.pid in self.p.sl_pow_ls_dzkat:
             if self.p.sl_pow_ls_dzkat[self.pid][0] == \
                     self.p.sl_pow_ls_dzkat[self.pid][1]:
-                f = self.new_feat('Ls', self.p.sl_ls_na_dz[self.pid][0])
+                f = self.new_feat(au='Ls', sq=self.p.sl_ls_na_dz[self.pid][0])
                 f.setGeometry(self.dz.geometry())
                 self.klus_popr.append(f)
                 self.uwagi['podm'] = True
@@ -579,10 +610,10 @@ class PrzetworzKlu(object):
                         klu[self.sq] != self.p.sl_ls_na_dz[self.pid][0]:
 
                     self.uwagi['podmsq'][landid] = [
-                        klu[self.sq],
-                        self.isNone(klu[self.sq])
+                        klu['AU'],
+                        self.isNone(klu['SQ'])
                     ]
-                    uw = 'Podmieniono SQ na zgodny z bazą, '
+                    uw = 'Podmieniono SQ na zgodny z bazą; '
 
             # jezeli na dzialce jest tylko jeden inny uzytek, podmien na
             # brakujacy ls, o ile nie jest bledem topo
@@ -591,7 +622,7 @@ class PrzetworzKlu(object):
                     klu[self.au] + self.isNone(klu[self.sq]),
                     'Ls' + self.p.sl_ls_na_dz[self.pid][0]
                 ]
-                uw = 'Podmieniono AU i SQ na zgodny z bazą, '
+                uw = 'Podmieniono AU i SQ na zgodny z bazą; '
 
             f = self.new_feat('Ls',
                               self.p.sl_ls_na_dz[self.pid][0],
@@ -611,12 +642,14 @@ class PrzetworzKlu(object):
         self.do_usun = []
         for ii, klu in enumerate(self.klus):
             landid = self.pid + '.' + \
-                self.klus[self.au] + \
-                self.isNone(self.klus[self.sq])
+                klu['AU'] + \
+                self.isNone(klu['SQ'])
 
             uw = ''
+            dop1 = klu['AU']
+            dop2 = klu['SQ']
             if landid not in self.p.uzytki:
-                uw = 'Brak w bazie, '
+                uw = 'Brak w bazie; '
 
                 # dopisz landid do tablicy uwag
                 if 'brakb' not in self.uwagi:
@@ -624,9 +657,11 @@ class PrzetworzKlu(object):
                 if landid not in self.uwagi['brakb']:
                     self.uwagi['brakb'].append(landid)
 
-            f = self.new_feat(self.p.uzytki[landid][0],
-                              self.p.uzytki[landid][1],
-                              uw=uw)
+            else:
+                dop1 = self.p.uzytki[landid][0]
+                dop2 = self.p.uzytki[landid][1]
+
+            f = self.new_feat(au=dop1, sq=dop2, uw=uw)
             f.setGeometry(klu.geometry())
             self.klus_popr.append(f)
             self.do_usun.append(ii)
@@ -634,15 +669,29 @@ class PrzetworzKlu(object):
         # usun dopisane uzytki z poli klu
         self.s_do_usuniecia(self.do_usun, 'OK')
 
+    def add_fields(self, new_fields):
+        """ Metoda dodająca pola, które mają się znaleźć w ostatecznej wersji
+        każdego feat, zwracanego użytkownikowi. Jeżeli pola nie zostaną podane
+        klasa będzie korzystała ze zdefiniowanych na początku niezbędnych pól,
+        które są wymagane do działania: [AU, SQ, PARCELID, SPRAWDZ].
+
+        Przekazywana tabela powinna wyglądać: [QgsField(), QgsField(), ...]
+        """
+        # sprawdz czy podne pola zawieraja niezbędne minimum:
+        policz_niezb = len([x.name() for x in new_fields if x.name() in
+                            [y.name() for y in self.fields_def]
+                            ])
+
+        if policz_niezb != 4:
+            return False
+
+        self.fields_def = new_fields
+
     def new_feat(self, au=False, sq=False, uw=False):
         f = QgsFeature(self.fid)
         self.fid += 1
         fds = QgsFields()
-        for fi in [QgsField('PARCELID', QVariant.String, len=30),
-                   QgsField('AU', QVariant.String, len=10),
-                   QgsField('SQ', QVariant.String, len=10),
-                   QgsField('UWAGI', QVariant.String, len=230),
-                   ]:
+        for fi in self.fields_def:
             fds.append(fi)
 
         f.setFields(fds)
@@ -652,15 +701,15 @@ class PrzetworzKlu(object):
         if sq:
             f.setAttribute(f.fieldNameIndex('SQ'), sq)
         if uw:
-            f.setAttribute(f.fieldNameIndex('UWAGI'), uw)
+            f.setAttribute(f.fieldNameIndex('SPRAWDZ'), uw)
         return f
 
     def stworz_landid(self, f):
         """metoda tworzy LANDID na podstawie danych podanego feature'a"""
-        return f['PARCELID'] + '.' + f[self.au] + self.isNone(f[self.sq])
+        return f['PARCELID'] + '.' + f['AU'] + self.isNone(f['SQ'])
 
     def isNone(self, a):
-        if a is None:
+        if a in [None, 'NULL', '', ]:
             return ''
         else:
             return a
@@ -681,7 +730,7 @@ class PrzetworzKlu(object):
         self.klus_do_spr += spr
         self.klus_bledy += usun
 
-    def zestaw_ostateczne(self):
+    def polacz_ostateczne(self):  # noqa
         """Metoda zestawia klu z tablic z poprawnymi, blednymi i do sprawdzenia
         poligonami, łączy je na podstawie landid, uzupełnia tablice uwagi o
         info na temat obecnosci użytków w bazie, podwojnych użytkow w bazie,
@@ -692,15 +741,24 @@ class PrzetworzKlu(object):
 
         # tablica z poprawnymi klu połącznymi w multipoly i posiadajace juz
         # poprawne, i niezdublowane uwagi
-        poprawne = {}
+        self.poprawne = {}
 
         for i, y in enumerate(spis_klu):
-            if y not in poprawne:
-                poprawne[y] = self.klus_popr[i]
-            elif y in ile_klu:
+            # jezeli uzytek jest mikrusem dodaj uwage do slownika
+            if self.klus_popr[i].geometry().area() < 21:
 
+                if 'mikro' not in self.uwagi:
+                    self.uwagi['mikro'] = []
+
+                if y not in self.uwagi['mikro']:
+                    self.uwagi['mikro'].append(y)
+
+            if y not in self.poprawne:
+                self.poprawne[y] = self.klus_popr[i]
+
+            elif y in ile_klu:
                 # dodaj nowa geometrie do bazy
-                geom_baza = poprawne[y].geometry()
+                geom_baza = self.poprawne[y].geometry()
                 geom_dolacz = self.klus_popr[i].geometry()
 
                 # jezeli czesci sie stykaja - union, niestykaja - dodaj part
@@ -709,28 +767,96 @@ class PrzetworzKlu(object):
                 else:
                     new_geom = geom_baza.addPart(geom_dolacz)
 
-                poprawne[y].clearGeometry()
-                poprawne[y].setGeometry(new_geom)
+                self.poprawne[y].clearGeometry()
+                self.poprawne[y].setGeometry(new_geom)
 
                 # sprawdz czy w tej czesci nie ma jakichs nowych uwag, jezeli
                 # sa dodaj do wczesniejszych na koncu
-                u_nowe = self.klus_popr['UWAGI'].split(', ')
-                u_stare = poprawne['UWAGI']
+                u_nowe = self.klus_popr['SPRAWDZ'].split('; ')
+                u_stare = self.poprawne[y]['SPRAWDZ']
 
                 # sprawdz czy sa jakies nowe uwagi, jezeli tak, dodaj
                 trig_dopisz = False
                 for u in u_nowe:
                     if u not in u_stare:
-                        u_stare += u + ', '
+                        u_stare += u + '; '
                         trig_dopisz = True
 
                 if trig_dopisz:
-                    poprawne[y].setAttribute(
-                        poprawne[y].fieldNameIndex('UWAGI'),
+                    self.poprawne[y].setAttribute(
+                        self.poprawne[y].fieldNameIndex('SPRAWDZ'),
                         u_stare)
 
-        # TODO: dopisać sprawdzenie powierzchni uzytkow na dzialce, oraz mikro
-        # uzytkow, o ile takie sa - bez powierzchni...
+    def dopisz_uwagi_pow(self):
+        """Metoda sprawdza czy połączone klu w słowniku poprawne, nie odbiegają
+        za bardzo od powierzchni rejestrowych zapisanych w bazie, oraz czy Ls
+        na działce są napewno wycięte, a nie tylko skopiowane z kontury działki
+        """
+
+        if len(self.poprawne.keys()) < 1:
+            return False
+
+        # sprawdzenie czy powierzchnie nie roznia sie za bardzo
+        for landid, item in self.poprawne.items():
+
+            # jezeli nie ma uzytku w bazie nie ma co sprawdzac
+            if landid not in self.p.uzytki():
+                continue
+
+            # jezeli obie powierzchnie sa ponizej 20 ar - pomijamy uwagi
+            if max(item.geometry().area(), self.p.uzytki[landid][2]) < 0.2:
+                continue
+
+            # sprawdzamy tylko i wyłącznie Ls
+            if item['AU'] != 'Ls':
+                continue
+
+            if abs(item.geometry().area()-self.p.uzytki[landid][2]) > 0.15:
+
+                if 'pow' not in self.uwagi:
+                    self.uwagi['pow'] = {}
+
+                if landid not in self.uwagi['pow']:
+                    self.uwagi['pow'][landid] = [item.geometry().area(),
+                                                 self.p.uzytki[landid][2]]
+                    uw = item['SPRAWDZ']
+                    item.setAttribute(
+                        item.fieldNameIndex('SPRAWDZ'),
+                        uw+'Duża rozbieżność pow. rej/graf; ')
+
+                    # sprawdz czy pow graf uz==pow graf dz, a w bazie nie
+                    if (round(self.dz.geometry().area(), 3) ==
+                        round(item.geometry().area(), 3)) and (
+                            self.p.uzytki[landid][2] <
+                            self.p.uzytki[landid][0]):
+
+                        uw = str(item['SPRAWDZ'])
+                        item.setAttribute(
+                            item.fieldNameIndex('SPRAWDZ'),
+                            uw+'Prawdopodobnie niewycięty Ls; ')
+
+            # dopisz wszystkie dane z warstwy dzialek oraz z bazy
+            for nazwa in [x.name() for x in self.dz.fields() if
+                          x.name in [y.name() for y in item.fields()]]:
+                item.setAttribute(item.fieldNameIndex(nazwa),
+                                  self.dz[nazwa])
+
+            # dopisz dane z bazy
+            item.setAttribute(item.fieldNameIndex('LANDID'), landid)
+            item.setAttribute(item.fieldNameIndex('LAND_AR'),
+                              self.p.uzytki[landid][2])
+            item.setAttribute(item.fieldNameIndex('LAND_POW'),
+                              round(item.geometry().area(), 4))
+
+    def zwroc_ostateczne(self):
+        """Metoda zwraca ostateczne wersje przetworzonych uzytków w postaci
+        jednego słownika i dwóch tabel:
+        1) poprawnych klu, (dict)
+        2) poligonów oznaczających miejsca do sprawdzenia,
+        3) blędne klu/mikro/inne, które zostały zakwalifikowane jako błędy i
+        usunięte z warstwy poprawnych klu.
+        """
+        return self.poprawne, self.klus_do_spr, self.klus_bledy
 
 
 class SprawdzMikro(object):
@@ -819,7 +945,7 @@ class SprawdzMikro(object):
             polacz = False  # flaga do polaczenia lub usuniecia
 
             # jezeli uzytek jest w bazie
-            if 'Brak w bazie, ' not in k['UWAGI']:
+            if 'Brak w bazie; ' not in k['SPRAWDZ']:
                 # jezeli uzytek ma mala pow w bazie - zostaw
                 if self.sl_ile_popr_klu[landid] < 2 and \
                         self.sl_pow_popr_klu[landid] < 0.006:
@@ -884,6 +1010,9 @@ class SprawdzMikro(object):
                     p_area[0][1]:
                 self.do_polacz.append([k.id(), p_area[0][0]])
             else:
+                uw = k['SPRAWDZ']
+                k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
+                               uw+'Mikro do spr; ')
                 self.feat_do_spr.append(k)
 
         # jezeli mikrus pokrywa sie z innymi uzytkami w 100%, usuwamy -
@@ -913,6 +1042,9 @@ class SprawdzMikro(object):
                     elif len(p_line) == 1 and p_line[0][0] in znikajace:
                         self.do_usun.append(k.id())
                     else:
+                        uw = k['SPRAWDZ']
+                        k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
+                                       uw+'Mikro do spr; ')
                         self.feat_do_spr.append(k)
 
         # jezeli z niczym nie sasiaduje - usuwamy
@@ -935,6 +1067,10 @@ class SprawdzMikro(object):
                 if len(sas) == 0:
                     self.do_usun.append(it[0])
                 else:
+                    uw = self.slk[it[0]]['SPRAWDZ']
+                    self.slk[it[0]].setAttribute(
+                        self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
+                        uw+'Mikro do spr; ')
                     self.feat_do_spr.append(self.slk[it[0]])
 
             else:
@@ -968,6 +1104,10 @@ class SprawdzMikro(object):
                     if it[1] not in poprawione:
                         poprawione.append(it[1])
 
+                    uw = self.slk[it[0]]['SPRAWDZ']
+                    self.slk[it[0]].setAttribute(
+                        self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
+                        uw+'Mikro do spr; ')
                     self.feat_do_spr.append(self.slk[it[0]])
 
         for id in poprawione:
@@ -988,6 +1128,10 @@ class SprawdzMikro(object):
                 pass
 
             elif feat.id() in self.do_usun:
+
+                uw = feat['SPRAWDZ']
+                feat.setAttribute(feat.fieldNameIndex('SPRAWDZ'),
+                                  uw+'Mikro do spr; ')
                 self.feat_do_usun.append(feat)
 
             elif feat.id() not in id_mikrusow:

@@ -368,13 +368,13 @@ def mikro_data():
         1: ['Ls', 'V', ''],
         2: ['Ls', 'VI', ''],
         3: ['Ls', 'V', ''],
-        4: ['Ps', 'V', 'Brak w bazie, '],
+        4: ['Ps', 'V', 'Brak w bazie; '],
         5: ['Ls', 'VI', ''],
         6: ['Ls', 'VI', ''],
-        7: ['Ł', 'III', 'Brak w bazie, '],
+        7: ['Ł', 'III', 'Brak w bazie; '],
         8: ['Ls', 'V', ''],
         9: ['Ls', 'V', ''],
-        10: ['Ls', 'II', 'Brak w bazie, '],
+        10: ['Ls', 'II', 'Brak w bazie; '],
         11: ['W', '', ''],
     }
 
@@ -461,7 +461,7 @@ def mikro_data():
     fields.append(QgsField('PARCELID', QVariant.String, len=30))  # noqa
     fields.append(QgsField('AU', QVariant.String, len=10))  # noqa
     fields.append(QgsField('SQ', QVariant.String, len=10))  # noqa
-    fields.append(QgsField('UWAGI', QVariant.String, len=50))  # noqa
+    fields.append(QgsField('SPRAWDZ', QVariant.String, len=50))  # noqa
 
     for fid in range(1, 12):
         f = QgsFeature(fid)
@@ -470,7 +470,7 @@ def mikro_data():
         f.setAttribute(f.fieldNameIndex('PARCELID'), '1')
         f.setAttribute(f.fieldNameIndex('AU'), sl_ops[fid][0])
         f.setAttribute(f.fieldNameIndex('SQ'), sl_ops[fid][1])
-        f.setAttribute(f.fieldNameIndex('UWAGI'), sl_ops[fid][2])
+        f.setAttribute(f.fieldNameIndex('SPRAWDZ'), sl_ops[fid][2])
 
         f.setGeometry(QgsGeometry().fromPolygonXY(sl_geom[fid]))
 
@@ -666,7 +666,8 @@ def test_pKlu_jeden_ls_na_dz_dopasowany(data):
     pk.przetworz()
     pk.s_czy_ls_na_calosci()
 
-    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area()
+    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area() and \
+        isinstance(pk.klus_popr[0]['SQ'], str)
 
 
 def test_pKlu_jeden_ls_na_dz_niedopasowany(data):
@@ -699,7 +700,8 @@ def test_pKlu_brak_ls_na_dz_w_graf(data):
     if not pk.s_czy_ls_na_calosci():
         pk.s_czy_jeden_ls()
 
-    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area()
+    assert pk.dz.geometry().area() == pk.klus_popr[0].geometry().area() and \
+        isinstance(pk.klus_popr[0]['SQ'], str)
 
 
 def test_pKlu_jeden_ls_na_dz_zly_AU(data):
@@ -734,7 +736,7 @@ def test_pKlu_jeden_ls_na_dz_zly_SQ(data):
     pk.s_czy_jeden_ls()
 
     assert len(pk.klus_popr) == 1 and pk.klus_popr[0]['AU'] == 'Ls' and \
-        pk.klus_popr[0]['UWAGI'] == 'Podmieniono SQ na zgodny z bazą, '
+        pk.klus_popr[0]['SPRAWDZ'] == 'Podmieniono SQ na zgodny z bazą; '
 
 
 def test_pKlu_spr_topo_poprawnych(data_topo):
@@ -770,7 +772,7 @@ def test_pKlu_spr_topo_1_przecinajacy_oba_w_bazie(data_topo):
 
     assert len(pk.klus_do_spr) == 1 and \
         len(pk.klus) == 2 and \
-        pk.klus_do_spr[0]['Uwagi'] == 'nałożona część poligonów' and \
+        pk.klus_do_spr[0]['SPRAWDZ'] == 'nałożona część poligonów' and \
         pk.klus_do_spr[0].geometry().area() == 10
 
 
@@ -792,7 +794,7 @@ def test_pKlu_spr_topo_1_przecinajacy_jeden_w_bazie(data_topo):
 
     assert len(pk.klus_do_spr) == 1 and \
         len(pk.klus) == 2 and \
-        pk.klus_do_spr[0]['Uwagi'] == 'nałożona część poligonów' and \
+        pk.klus_do_spr[0]['SPRAWDZ'] == 'nałożona część poligonów' and \
         pk.klus_do_spr[0].geometry().area() == 10
 
 
@@ -813,7 +815,7 @@ def test_pKlu_spr_topo_2_nakladajace_oba_w_bazie(data_topo):
     assert len(pk.klus) == 1 and \
         pk.klus[0]['AU'] == 'Ls' and \
         pk.klus_bledy[0]['AU'] == 'Ps' and \
-        pk.klus_bledy[0]['Uwagi'] == 'nakłada się z innym' and \
+        pk.klus_bledy[0]['SPRAWDZ'] == 'nakłada się z innym' and \
         len(pk.klus_bledy) == 1
 
 
@@ -836,7 +838,7 @@ def test_pKlu_spr_topo_2_nakladajace_jeden_w_bazie(data_topo):
     assert len(pk.klus) == 1 and \
         pk.klus[0]['AU'] == 'Ps' and \
         pk.klus_bledy[0]['SQ'] == 'I' and \
-        pk.klus_bledy[0]['Uwagi'] == 'nakłada się z innym' and \
+        pk.klus_bledy[0]['SPRAWDZ'] == 'nakłada się z innym' and \
         len(pk.klus_bledy) == 1
 
 
@@ -858,6 +860,27 @@ def test_pKlu_spr_topo_1_nakladajacy_oba_w_bazie(data_topo):
     pk.sprawdz_topologie()
 
     assert len(pk.klus) == 2 and \
-        pk.klus_do_spr[0]['Uwagi'] == \
+        pk.klus_do_spr[0]['SPRAWDZ'] == \
         'nałożona część poligonu, na inny cały' and \
         len(pk.klus_do_spr) == 1
+
+
+def test_pKlu_spr_polacz_ostateczne(data):
+    p = Przetworz()
+    p.dodaj_uzytki(data[0])
+    p.dodaj_wlasnosci(data[1])
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    pk = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+                      data[2]['10100420001.3'],
+                      p)
+    pk.przetworz()
+    if not pk.s_czy_ls_na_calosci():
+        pk.s_czy_jeden_ls()
+    pk.s_dopisz_uzyt()
+    pk.polacz_ostateczne()
+
+    # assert isinstance(pk.klus_popr[0]['SQ'], str)
+    # assert pk.stworz_landid(pk.klus_popr[0]) == '10100420001.3.LsV'
+    assert len(pk.poprawne.keys()) == 2 and pk.poprawne[0]['AU'] == 'Ls'
