@@ -5,7 +5,8 @@ from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
-    QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields
+    QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \
+    QgsFeatureRequest
 from collections import Counter, defaultdict
 # import processing  # import przeniesiony do metody - pytest probemy!
 from baza_wrapper import Baza
@@ -28,7 +29,8 @@ class SprawdzLs(object):
         try:
             k = self.iface.activeLayer()
         except:  # nopep8
-            QgsMessageLog.logMessage('Nie zaznaczono warstwy w TOC!', 'LasR')
+            QgsMessageLog.logMessage('Nie zaznaczono warstwy KLU w TOC!',
+                                     'LasR')
 
         for key, lyr in QgsProject.instance().mapLayers().items():
             if key[:5] == 'DZKAT':
@@ -61,7 +63,14 @@ class AnalizujKlus(object):
         self.klu = k
         self.dzkat = d
 
-        self.indeks = False
+        # slownik z obiektami PrzetworzKlu dla każdego parcelid z warswy
+        # działek, całość zestawiana jest w metodzie zaladuj_strukture
+        self.strukt = {}
+
+        # lista parcelid, dla ktorych PrzetworzKlu zwróciło False w metodzie
+        # is_valid() - raportowanie dla użytkownia, brak przetworzenia
+        self.bledne = []
+
         self.lyrw = False  # warstwa wyjsciowa
         self.bledy_topo = []  # lista feats, ktore przecinaja sie z innymi
         self.iatr = False  # indeks pól w warstwie wyjsciowej
@@ -69,7 +78,7 @@ class AnalizujKlus(object):
         self.district = ''  # kod powiatu
         self.dz_nieles = []  # lista dzialek nielesnych
 
-        self.indeks = QgsSpatialIndex()
+        # self.indeks = QgsSpatialIndex()
         self.sf = {}  # slownik z singleparts features w postaci{id: feature, }
         self.sl_sf_na_dzkat = {}  # slownik {PARCELID: [id1, id2, ..]}
 
@@ -170,6 +179,25 @@ class AnalizujKlus(object):
                 if x.name() in self.dzkat.dataProvider().fields()]) == 12:
             return False
 
+        # sprawdz czy w dzkat nie ma zdublowanych wartosci w parcelid
+        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry
+                                               ).setSubsetOfAttributes(
+                                                   ['PARCELID'],
+                                                   self.dzkat.fields()
+                                               )
+        policz = Counter([x['PARCELID'] for x in
+                          self.dzkat.getFeatures(request)]).most_common()
+        nad = [x[0] for x in policz if x[1] > 2]
+
+        if len(nad) > 0:
+            QgsMessageLog.logMessage(
+                '   Znaleziono zdublowanych działek w shp: \n' +
+                '\n'.join(nad),
+                'LasR',
+                Qgis.Critical
+            )
+            return False
+
         return True
 
     def przygotuj_do_analizy(self):
@@ -258,12 +286,53 @@ class AnalizujKlus(object):
         """Metoda zestawia do słownika obiekty PrzetworzKlu dla każdej z
         działek, podmieniając SQ na duże litery.
         """
+        sl_dzkat = {}
+        for feat in self.dzkat.getFeatures():
+            sl_dzkat[feat['PARCELID']] = feat
+
+        sl_single = {}
+        for feat in self.singleparts.getFeatures():
+            if feat['PARCELID'] not in sl_single:
+                sl_single[feat['PARCELID']] = []
+            sl_single[feat['PARCELID']].append(feat)
+
+        for key, val in sl_dzkat.items():
+            k = []
+            if key in sl_single:
+                k = sl_single[key]
+
+            self.strukt[key] = PrzetworzKlu(val, k, self.p)
 
     def przetworz_strukture(self):
         """ Metoda przetwarza strukturę wg ścieżki dla każdej z działki
         generując niezbędne dane do raportów oraz wynikowe klu do ostatecznych
         warstw.
         """
+        for val in self.strukt.values():
+            # jezeli uzytki nie sa valid - pomijamy raportujemy uzyszkodnikowi
+            if not val.is_valid():
+                self.bledne.append(val['PARCELID'])
+                continue
+
+            trig = 0  # trig, jezeli jest jeden ls na calosci, badz juz dopis.
+            val.przetworz()
+            val.sprawdz_topologie()
+            if not val.s_czy_dz_w_bazie():
+                continue
+
+            if val.s_czy_ls_na_calosci():
+                trig = 1  # jeden ls na calosci dzialki
+
+            if trig == 0:
+                if val.s_czy_jeden_ls():
+                    trig = 2  # jeden ls na calej dzialce - zlokalizowany
+
+            if trig in [0, 2]:
+                val.s_dopisz_uzyt()
+                val.sprawdz_mikro()
+
+            val.polacz_ostateczne()
+            val.dopisz_uwagi_pow()
 
     def generuj_warstwy(self):
         """Generuje 3 ostateczne warstwy: ostateczne, do sprawdzenia, bledy i
@@ -282,6 +351,7 @@ class PrzetworzKlu(object):
         # d-feature z analizowana dzialka i struktura pol zgodna ze skryptem
         # k-tablica z featurami klu na tej dzialce, wszystkie musza byc
         # przykryte przez poligon dzialki, oraz byc singlepart
+        # p - przetworzona baza przez klase Przetworz
         self.dz = d
         self.klus = k
         # wskaznik do slownikow na podstawie bazy
@@ -298,10 +368,28 @@ class PrzetworzKlu(object):
         # tablica z polami, ktore maja znajdowac sie w ostatecznych danych
         # zwracanych uzytkownikowi, dodaje sie je metodą add_fields
         self.fields_def = [
-            QgsField('PARCELID', QVariant.String, len=30),
-            QgsField('AU', QVariant.String, len=10),
-            QgsField('SQ', QVariant.String, len=10),
-            QgsField('SPRAWDZ', QVariant.String, len=230),
+            # QgsField('PARCELID', QVariant.String, len=30),
+            # QgsField('AU', QVariant.String, len=10),
+            # QgsField('SQ', QVariant.String, len=10),
+            # QgsField('SPRAWDZ', QVariant.String, len=230),
+            QgsField("COUNTY", QVariant.String, len=2),
+            QgsField("DISTRICT", QVariant.String, len=2),
+            QgsField("MUNICIP", QVariant.String, len=3),
+            QgsField("COMMUNITY", QVariant.String, len=4),
+            QgsField("PARCELNR", QVariant.String, len=20),
+            QgsField("PARCELID", QVariant.String, len=50),
+            QgsField("GRP", QVariant.String, len=2),
+            QgsField("ARK", QVariant.String, len=12),
+            QgsField("NIELES", QVariant.String, len=3),
+            QgsField("SPRAWDZ", QVariant.String, len=150),
+            QgsField("PARCEL_AR", QVariant.Double, "double", 10, 4),
+            QgsField("PARCEL_POW", QVariant.Double, "double", 10, 4),
+            QgsField("AU", QVariant.String, len=10),
+            QgsField("SQ", QVariant.String, len=10),
+            QgsField("SPRAWDZ", QVariant.String, len=150),
+            QgsField("LANDID", QVariant.String, len=50),
+            QgsField("LAND_AR", QVariant.Double, "double", 10, 4),
+            QgsField("LAND_POW", QVariant.Double, "double", 10, 4),
         ]
 
         # PARCELID wyciagniety z dzialki w metodzie przetworz
@@ -561,11 +649,10 @@ class PrzetworzKlu(object):
         return self.do_usun, feat_do_spr
 
     def s_czy_dz_w_bazie(self):
-        self.uwagi['brakdzb'] = True
+        self.uwagi['brakdzb'] = False
         if self.pid in self.p.dzialki.keys():
             return True
 
-        self.uwagi['brakdzb'] = False
         return False
 
     def s_czy_ls_na_calosci(self):
@@ -793,14 +880,11 @@ class PrzetworzKlu(object):
         na działce są napewno wycięte, a nie tylko skopiowane z kontury działki
         """
 
-        if len(self.poprawne.keys()) < 1:
-            return False
-
         # sprawdzenie czy powierzchnie nie roznia sie za bardzo
         for landid, item in self.poprawne.items():
 
             # jezeli nie ma uzytku w bazie nie ma co sprawdzac
-            if landid not in self.p.uzytki():
+            if landid not in self.p.uzytki:
                 continue
 
             # jezeli obie powierzchnie sa ponizej 20 ar - pomijamy uwagi
@@ -819,7 +903,10 @@ class PrzetworzKlu(object):
                 if landid not in self.uwagi['pow']:
                     self.uwagi['pow'][landid] = [item.geometry().area(),
                                                  self.p.uzytki[landid][2]]
-                    uw = item['SPRAWDZ']
+                    uw = str(item['SPRAWDZ'])
+                    if 'None' in uw:
+                        uw = ''
+
                     item.setAttribute(
                         item.fieldNameIndex('SPRAWDZ'),
                         uw+'Duża rozbieżność pow. rej/graf; ')

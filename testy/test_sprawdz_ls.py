@@ -60,6 +60,8 @@ def data():
          ['3', 3, 0.02, 3, 'Ls', 'V', 0.01, ],
          ['3', 3, 0.02, 4, 'Ls', 'IV', 0.01, ],
          ['4', 4, 0.04, 5, 'Ls', 'IV', 0.02, ],
+         ['5', 5, 0.04, 6, 'Ls', 'V', 0.03, ],
+         ['5', 5, 0.04, 7, 'Ls', 'IV', 0.01, ],
     ]
 
     uz = []
@@ -75,6 +77,7 @@ def data():
         [3, 'a', 'OF', ],
         [3, 'b', 'OP', ],
         [4, 'b', 'OP', ],
+        [5, 'b', 'OF', ],
     ]
 
     wl = []
@@ -118,6 +121,20 @@ def data():
              QgsPointXY(10, 0),
              ]],
 
+        6: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(10, 10),
+             QgsPointXY(10, 0),
+             QgsPointXY(0, 0),
+             ]],
+
+        7: [[QgsPointXY(10, 0),
+             QgsPointXY(10, 10),
+             QgsPointXY(20, 10),
+             QgsPointXY(20, 0),
+             QgsPointXY(10, 0),
+             ]],
+
     }
 
     # metadane dla atrybutow uzytkow
@@ -127,6 +144,8 @@ def data():
         3: ['10100420001.3', 'Ls', 'V'],
         4: ['10100420001.3', 'Ls', 'IV'],
         5: ['10100420001.4', 'Ps', 'IV'],
+        6: ['10100420001.5', 'Ls', 'V'],
+        7: ['10100420001.5', 'Ls', 'IV'],
     }
 
     # zestawienie feat uzytkow do testow
@@ -187,6 +206,14 @@ def data():
              QgsPointXY(30, 0),
              QgsPointXY(0, 0),
              ]],
+
+        6: [[QgsPointXY(0, 0),
+             QgsPointXY(0, 10),
+             QgsPointXY(30, 10),
+             QgsPointXY(30, 0),
+             QgsPointXY(0, 0),
+             ]],
+
     }
 
     # metadane dla atrybutow uzytkow
@@ -196,6 +223,7 @@ def data():
         3: ['10100420001.3', ],
         4: ['10100420001.4', ],
         5: ['10100420001.94', ],  # sprawdzenie czy dz jest w bazie
+        6: ['10100420001.5', ],  # sprawdzenie czy dopisuje odpowiednie uwagi
     }
 
     # zestawienie feat uzytkow do testow
@@ -211,7 +239,14 @@ def data():
 
         d_feats[sl_dzm[i][0]] = [feat, ]
 
-    return [uz, wl, u_feats, d_feats]
+    # przetworz tabele do juz gotowego obiektu p
+    p = Przetworz()
+    p.dodaj_uzytki(uz)
+    p.dodaj_wlasnosci(wl)
+    p.przetworz_dzialki()
+    p.przetworz_uzytkowanie()
+
+    return [p, u_feats, d_feats]
 
 
 @pytest.fixture()
@@ -480,11 +515,7 @@ def mikro_data():
 
 
 def test_poprawnosci_danych_kwer(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
     assert (p.sl_ile_uzytkow_na_dzialce['10100420001.3'] == 2) and \
         (p.sl_ls_na_dz['10100420001.3'] == ['V', 'IV'])
@@ -492,7 +523,7 @@ def test_poprawnosci_danych_kwer(data):
 
 def test_poprawnosci_feat_u(data):
     u = []
-    for us in data[2].values():
+    for us in data[1].values():
         u += us
     wyn = set(map(lambda x: x.isValid(), u))
     assert wyn == set([True])
@@ -508,7 +539,7 @@ def test_poprawnosci_feat_u_topo(data_topo):
 
 def test_poprawnosci_feat_dz(data):
     wyn = set(map(lambda x: x.isValid(),
-                  [x[0] for x in list(data[3].values())]))
+                  [x[0] for x in list(data[2].values())]))
     assert wyn == set([True])
 
 
@@ -584,24 +615,24 @@ def test_aKlu_pobrania_danych_wlasnosci(przetwarzanie_wejsciowe):
 
 
 def test_pKlu_sprawdzenie_popr_feats_wejsciowych(data):
-    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
-                     data[2]['10100420001.3'],
+    p = PrzetworzKlu(list(data[2]['10100420001.3'])[0],
+                     data[1]['10100420001.3'],
                      '')
 
     assert p.is_valid() is True
 
 
 def test_pKlu_sprawdzenie_niepopr_feats_wejsciowych(data):
-    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
-                     data[2]['10100420001.3'] +
-                     data[2]['10100420001.2'],
+    p = PrzetworzKlu(list(data[2]['10100420001.3'])[0],
+                     data[1]['10100420001.3'] +
+                     data[1]['10100420001.2'],
                      '')
 
     assert p.is_valid() is False
 
 
 def test_pKlu_sprawdzenie_pustych_uz_wejsciowych(data):
-    p = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
+    p = PrzetworzKlu(list(data[2]['10100420001.3'])[0],
                      [],
                      '')
 
@@ -609,14 +640,10 @@ def test_pKlu_sprawdzenie_pustych_uz_wejsciowych(data):
 
 
 def test_pKlu_test_przetworzenia_pow_sumarycznej(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
-                      data[2]['10100420001.3'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.3'])[0],
+                      data[1]['10100420001.3'],
                       p)
 
     pk.przetworz()
@@ -624,14 +651,10 @@ def test_pKlu_test_przetworzenia_pow_sumarycznej(data):
 
 
 def test_pKlu_test_sprawdzenia_czy_dz_w_bazie(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
-                      data[2]['10100420001.3'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.3'])[0],
+                      data[1]['10100420001.3'],
                       p)
     pk.przetworz()
 
@@ -639,13 +662,9 @@ def test_pKlu_test_sprawdzenia_czy_dz_w_bazie(data):
 
 
 def test_pKlu_test_sprawdzenia_czy_dz_niema_w_bazie(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.94'])[0],
+    pk = PrzetworzKlu(list(data[2]['10100420001.94'])[0],
                       [],
                       p)
     pk.przetworz()
@@ -654,14 +673,10 @@ def test_pKlu_test_sprawdzenia_czy_dz_niema_w_bazie(data):
 
 
 def test_pKlu_jeden_ls_na_dz_dopasowany(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.1'])[0],
-                      data[2]['10100420001.1'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.1'])[0],
+                      data[1]['10100420001.1'],
                       p)
     pk.przetworz()
     pk.s_czy_ls_na_calosci()
@@ -671,14 +686,10 @@ def test_pKlu_jeden_ls_na_dz_dopasowany(data):
 
 
 def test_pKlu_jeden_ls_na_dz_niedopasowany(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.2'])[0],
-                      data[2]['10100420001.2'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.2'])[0],
+                      data[1]['10100420001.2'],
                       p)
     pk.przetworz()
     pk.s_czy_jeden_ls()
@@ -687,13 +698,9 @@ def test_pKlu_jeden_ls_na_dz_niedopasowany(data):
 
 
 def test_pKlu_brak_ls_na_dz_w_graf(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.1'])[0],
+    pk = PrzetworzKlu(list(data[2]['10100420001.1'])[0],
                       [],
                       p)
     pk.przetworz()
@@ -705,14 +712,10 @@ def test_pKlu_brak_ls_na_dz_w_graf(data):
 
 
 def test_pKlu_jeden_ls_na_dz_zly_AU(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.4'])[0],
-                      data[2]['10100420001.4'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.4'])[0],
+                      data[1]['10100420001.4'],
                       p)
     pk.przetworz()
     pk.s_czy_jeden_ls()
@@ -721,15 +724,11 @@ def test_pKlu_jeden_ls_na_dz_zly_AU(data):
 
 
 def test_pKlu_jeden_ls_na_dz_zly_SQ(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    uz = data[2]['10100420001.2'][0]
+    uz = data[1]['10100420001.2'][0]
     uz.setAttribute(uz.fieldNameIndex('SQ'), 'I')
-    pk = PrzetworzKlu(list(data[3]['10100420001.2'])[0],
+    pk = PrzetworzKlu(list(data[2]['10100420001.2'])[0],
                       [uz],
                       p)
     pk.przetworz()
@@ -866,14 +865,10 @@ def test_pKlu_spr_topo_1_nakladajacy_oba_w_bazie(data_topo):
 
 
 def test_pKlu_spr_polacz_ostateczne(data):
-    p = Przetworz()
-    p.dodaj_uzytki(data[0])
-    p.dodaj_wlasnosci(data[1])
-    p.przetworz_dzialki()
-    p.przetworz_uzytkowanie()
+    p = data[0]
 
-    pk = PrzetworzKlu(list(data[3]['10100420001.3'])[0],
-                      data[2]['10100420001.3'],
+    pk = PrzetworzKlu(list(data[2]['10100420001.5'])[0],
+                      data[1]['10100420001.5'],
                       p)
     pk.przetworz()
     if not pk.s_czy_ls_na_calosci():
@@ -883,4 +878,23 @@ def test_pKlu_spr_polacz_ostateczne(data):
 
     # assert isinstance(pk.klus_popr[0]['SQ'], str)
     # assert pk.stworz_landid(pk.klus_popr[0]) == '10100420001.3.LsV'
-    assert len(pk.poprawne.keys()) == 2 and pk.poprawne[0]['AU'] == 'Ls'
+    assert len(pk.poprawne.keys()) == 2
+
+
+def test_pKlu_dopisz_uwagi_pow(data):
+    p = data[0]
+    pk = PrzetworzKlu(list(data[2]['10100420001.5'])[0],
+                      data[1]['10100420001.5'],
+                      p)
+    pk.przetworz()
+    if not pk.s_czy_ls_na_calosci():
+        pk.s_czy_jeden_ls()
+    pk.s_dopisz_uzyt()
+    pk.polacz_ostateczne()
+    przed_d = pk.poprawne['10100420001.5.LsV']['LAND_AR']
+    pk.dopisz_uwagi_pow()
+    po_d = pk.poprawne['10100420001.5.LsV']['LAND_AR']
+
+    assert przed_d != po_d and \
+        pk.poprawne['10100420001.5.LsV']['SPRAWDZ'] == \
+        'Duża rozbieżność pow. rej/graf; '
