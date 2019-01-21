@@ -38,6 +38,7 @@ class Przetworz(object):
         self.ls = set([])
 
         # lista lsów w bazie, które występują wiecej niz raz - blad zasobu
+        # [LANDID, LANDIID, ... ]
         self.ls_podwojne = []
 
         # Slownik ze wszystkimi uzytkami z bazy w postaci:
