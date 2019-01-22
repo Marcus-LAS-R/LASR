@@ -533,7 +533,7 @@ class PrzetworzKlu(object):
 
         # tablica z uwagami do raportu, grupowana wg skrotow ponizej:
         # pow - rozbieznosc powierzchni miedzy baza a grafika   OK
-        #       landid: [pow graf, pow bazy],
+        #      {  landid: [pow graf, pow bazy], ... }
         # podmsq - podmieniony SQ w Ls, dostosowany do bazy     OK
         #       {landid: [sq przed, sq po], ...}
         # podmau - podmieniony AU, dostosowany do bazy          OK
@@ -561,6 +561,7 @@ class PrzetworzKlu(object):
 
         # ustaw najistotniejsze tablic i wartości w uwagach
         self.uwagi['mikro'] = []
+        self.uwagi['pow'] = {}
         self.uwagi['dubb'] = []
         self.uwagi['brakdzb'] = []
         self.uwagi['brakb'] = []
@@ -1014,8 +1015,11 @@ class PrzetworzKlu(object):
                     self.uwagi['pow'] = {}
 
                 if landid not in self.uwagi['pow']:
-                    self.uwagi['pow'][landid] = [item.geometry().area(),
-                                                 self.p.uzytki[landid][2]]
+                    self.uwagi['pow'][landid] = [
+                        round(item.geometry().area(), 4),
+                        self.p.uzytki[landid][2]
+                    ]
+
                     uw = str(item['SPRAWDZ'])
                     if 'None' in uw:
                         uw = ''
@@ -1047,8 +1051,6 @@ class PrzetworzKlu(object):
                               self.p.uzytki[landid][2])
             item.setAttribute(item.fieldNameIndex('LAND_POW'),
                               round(item.geometry().area(), 4))
-            if self.pid not in self.p.dz_lesne:
-                item.setAttribute(item.fieldNameIndex('NIELES'), 'TAK')
 
     def zwroc_ostateczne(self):
         """Metoda zwraca ostateczne wersje przetworzonych uzytków w postaci
@@ -1382,16 +1384,36 @@ class GenerujRaport():
         self.brakujace_ls_w_bazie = []
         self.pow_zerowe_baza = []
         self.lista_mikro = []
+        self.lista_zm_sq = []
+        self.lista_zm_au = []
+        self.lista_bez_uzytkow = []  # lista PARCELID bez uzytkow
+        self.lista_podm_ls = []
+        self.ile_podm_ls = 0
+        self.rozb_pow = []
 
     def zestaw_dane(self):
         """Metoda zbiorcza do zestawienia wszystkich niezbednych tablic
         """
-        pass
+        self.zestaw_uzytki()
+        self.zestaw_liste_ls_w_shp()
+        self.zestaw_ile_ls_bazie()
+        self.zestaw_liste_brakujacych_ls_w_shp()
+        self.zestaw_liste_brakujacych_ls_w_bazie()
+        self.zestaw_liste_zerowych_ls_w_bazie()
+        self.zestaw_liste_mikro()
+        self.zestaw_liste_zmienionych_sq()
+        self.zestaw_liste_zmienionych_au()
+        self.policz_podm_ls()
+        self.zestaw_rozbierznosci_pow()
 
     def zestaw_uzytki(self):
         for ob in self.struk.values():
             oki, do_spr, bl = ob.zwroc_ostateczne()
             self.uzytki += oki
+
+            # uwagi pow dla wydzielen
+            self.rozb_pow += [[k, v[0], v[1]] for k, v in
+                              ob['uwagi']['pow'].items()]
 
     def zestaw_liste_ls_w_shp(self):
         if self.wl == 'OF':
@@ -1471,8 +1493,150 @@ class GenerujRaport():
             ]
 
         for xx in mikro:
-            if len(xx) > 0:
-                self.lista_mikro += xx
+            self.lista_mikro += xx
+
+    def zestaw_liste_zmienionych_sq(self):
+        if self.wl == 'OF':
+            sl = [
+                x['uwagi']['podmsq'] for x in self.struk.values()
+                if len(x['uwagi']['podmsq']) > 0 and
+                x['uwagi']['op'] is False
+            ]
+        else:
+            sl = [
+                x['uwagi']['podmsq'] for x in self.struk.values()
+                if len(x['uwagi']['podmsq']) > 0
+            ]
+        for x in sl:
+            self.lista_zm_sq += [[k, v[0], v[1]] for k, v in sl.items()]
+
+    def zestaw_liste_zmienionych_au(self):
+        if self.wl == 'OF':
+            sl = [
+                x['uwagi']['podmau'] for x in self.struk.values()
+                if len(x['uwagi']['podmau']) > 0 and
+                x['uwagi']['op'] is False
+            ]
+        else:
+            sl = [
+                x['uwagi']['podmau'] for x in self.struk.values()
+                if len(x['uwagi']['podmau']) > 0
+            ]
+        for x in sl:
+            self.lista_zm_au += [[k, v[0], v[1]] for k, v in sl.items()]
+
+    def policz_podm_ls(self):
+        if self.wl == 'OF':
+            self.lista_podm_ls = [
+                x for x in self.struk
+                if x['uwagi']['podm'] is True and x['uwagi']['op'] is False
+            ]
+            self.ile_podm_ls = len(self.lista_podm_ls)
+        else:
+            self.lista_podm_ls = [
+                x for x in self.struk if x['uwagi']['podm']
+            ]
+            self.ile_podm_ls = len(self.lista_podm_ls)
+
+    def zestaw_liste_bez_uzytkow(self):
+        if self.wl == 'OF':
+            self.lista_bez_uzytkow = [x.pid for x in self.struk
+                                      if x.bez_uzytkow and
+                                      not x['uwagi']['op']]
+        else:
+            self.lista_bez_uzytkow = [x.pid for x in self.struk
+                                      if x.bez_uzytkow]
+
+    def generuj_raport(self):  # noqa
+        """Metoda generuj raport zapisany w zmiennej self.wypis"""
+        pass
+        self.wypis += 'Ls w shp: ' + str(len(self.ls_w_shp)) + '\n'
+        self.wypis += 'Ls w bazie: ' + str(len(self.ls_w_bazie)) + '\n\n'
+
+        if len(self.p.ls_podwojne) > 0:
+            self.wypis += '-->Dzkat ze zdublowanymi Ls w bazie: ' + \
+                str(len(self.p.ls_podwojne)) + '\n'
+
+        if len(self.pow_zerowe_baza) > 0:
+            self.wypis += '-->Ls z zerową pow w bazie: ' + \
+                str(len(self.pow_zerowe_baza)) + '\n'
+
+        if len(self.lista_mikro) > 0:
+            self.wypis += 'Ls z mikro pow po rozbiciu na poligony: ' + \
+                str(len(self.lista_mikro)) + '\n'
+
+        if self.ile_podm_ls > 0:
+            self.wypis += 'Działki z zastąpionymi Ls-ami: ' + \
+                str(self.ile_podm_ls) + '\n'
+
+        if len(self.lista_bez_uzytkow) > 0:
+            self.wypis += 'Działki bez Ls-ów: ' + \
+                str(len(self.lista_bez_uzytkow)) + '\n'
+
+        self.wypis += '\nBrakujących Ls-ów w [w shp]: ' + \
+            len(self.brakujace_ls_w_shp) + '\n'
+
+        if len(self.brakujace_ls_w_bazie) > 0:
+            self.wypis += 'Brakujących Ls-ów [w bazie]: ' + \
+                len(self.brakujace_ls_w_bazie) + '\n\n'
+
+        self.wypis == '\n\n'
+
+        if len(self.brakujace_ls_w_shp) > 0:
+            self.wypis += '---BRAKUJĄCE LSy [W SHP]----------\n'
+            self.wypis += 'Brakujących Ls-ów: ' + \
+                str(len(self.brakujace_ls_w_shp)) + '\n\n'
+            self.wypis += '\n'.join(['\t'.join(x[0], str(x[1])) for x in
+                                     sorted(self.brakujace_ls_w_shp,
+                                            key=lambda x: x[0])
+                                     ])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.brakujace_ls_w_bazie) > 0:
+            self.wypis += '---BRAKUJĄCE LSy [W BAZIE]--------\n'
+            self.wypis += 'Brakujących Ls-ów: ' + \
+                str(len(self.brakujace_ls_w_bazie)) + '\n\n'
+            self.wypis += '\n'.join(['\t'.join(x[0], str(x[1])) for x in
+                                     sorted(self.brakujace_ls_w_shp,
+                                            key=lambda x: x[1])
+                                     ])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.lista_bez_uzytkow) > 0:
+            self.wypis += '---DZIALKI BEZ UŻYTKÓW------------\n'
+            self.wypis += 'Dzialki z brakujacymi Ls-ami: ' + \
+                str(len(self.lista_bez_uzytkow)) + '\n\n'
+            self.wypis += '\n'.join([x for x in
+                                     sorted(self.lista_bez_uzytkow)])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.lista_bez_uzytkow) > 0:
+            self.wypis += '---DZIALKI Z PODMIENIONYMI LSami--\n'
+            self.wypis += 'Dzialki z zastąpionymi Ls-ami: ' + \
+                str(len(self.ile_podm_ls)) + '\n\n'
+            self.wypis += '\n'.join([x for x in
+                                     sorted(self.lista_podm_ls)])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.lista_zm_sq) > 0:
+            self.wypis += '---PODMIENIONE KLASY LS [W SHP]---\n'
+            self.wypis += 'Lsy w warstwie z podmienionymi SQ: ' + \
+                str(len(self.lista_zm_sq)) + '\n\n'
+            self.wypis += '\n'.join([
+                '\t'.join(x) for x in
+                sorted(self.lista_zm_sq, key=lambda x: x[0])
+            ])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.lista_zm_sq) > 0:
+            self.wypis += '---PRZEMIANOWANE NA LS [W SHP]----\n'
+            self.wypis += 'Lsy w warstwie z podmienionymi AU/SQ: ' + \
+                str(len(self.lista_zm_au)) + '\n\n'
+            self.wypis += '\n'.join([
+                '\t'.join(x) for x in
+                sorted(self.lista_zm_sq, key=lambda x: x[0])
+            ])
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
 
 class PobierzDane(QDialog):
