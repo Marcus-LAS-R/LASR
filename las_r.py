@@ -45,6 +45,7 @@ from .skrypty import shp_sprWydzOddz
 from .skrypty import shp_przygCiecie
 from .skrypty import spr_wydzielen
 from .skrypty import naklejki
+from .skrypty import sprawdz_ls
 
 
 class LasR:
@@ -227,6 +228,12 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        self.przyg_ls = QAction(QIcon(None),
+                                u"Przygotuj Lsy",
+                                self.iface.mainWindow())
+        self.przyg_danych.addAction(self.przyg_ls)
+        self.przyg_ls.triggered.connect(self.przygotuj_ls)
+
         self.zanum = QAction(QIcon(None),
                              'Zanumeruj oddziały',
                              self.iface.mainWindow())
@@ -240,7 +247,7 @@ class LasR:
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
         self.dop_w_o = QAction(QIcon(None),
-                               'dopisz oddziały do wydzieleń',
+                               'Dopisz oddziały do wydzieleń',
                                self.iface.mainWindow())
         self.przyg_danych.addAction(self.dop_w_o)
         self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
@@ -295,7 +302,7 @@ class LasR:
 
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
-                                'dopisz metadane',
+                                'Dopisz metadane',
                                 self.iface.mainWindow())
         self.toolbar.addAction(self.dop_meta)
         self.dop_meta.triggered.connect(self.dopisanie_wydzielen)
@@ -305,25 +312,25 @@ class LasR:
         self.toolbar.addSeparator()
 
         self.rys_gat = QAction(ico_wydz_rys_gat,
-                               'rysuj gatunki',
+                               'Rysuj gatunki',
                                self.iface.mainWindow())
         self.toolbar.addAction(self.rys_gat)
         self.rys_gat.triggered.connect(self.rysuj_gatunki)
 
         self.rys_zab = QAction(ico_wydz_rys_zab,
-                               'rysuj zabiegi',
+                               'Rysuj zabiegi',
                                self.iface.mainWindow())
         self.toolbar.addAction(self.rys_zab)
         self.rys_zab.triggered.connect(self.rysuj_zabiegi)
 
         self.rys_stl = QAction(ico_wydz_rys_stl,
-                               'rysuj STL',
+                               'Rysuj STL',
                                self.iface.mainWindow())
         self.toolbar.addAction(self.rys_stl)
         self.rys_stl.triggered.connect(self.rysuj_stl)
 
         self.rys_orto = QAction(ico_wydz_rys_orto,
-                                'rysuj na orto',
+                                'Rysuj na orto',
                                 self.iface.mainWindow())
         self.toolbar.addAction(self.rys_orto)
         self.rys_orto.triggered.connect(self.rysuj_orto)
@@ -380,6 +387,16 @@ class LasR:
 
     def przygotuj_dzewid(self):
         sprawdz_dzkat.SprawdzDzKat(self.iface)
+
+    def przygotuj_ls(self):
+        spr = sprawdz_ls.SprawdzLs(self.iface)
+        if not spr.sprawdz_warstwy():
+            return
+        if not spr.wczytaj():
+            return
+        spr.sprawdz()
+        spr.przygotuj()
+        spr.przetworz()
 
     def dopisz_f_ochr(self):
         b = baza_dopisz_fochr.DopiszFO(self.iface)
