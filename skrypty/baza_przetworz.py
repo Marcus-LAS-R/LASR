@@ -30,7 +30,7 @@ class Przetworz(object):
 
         # listy działek z pogrupowanymi własnościami
         self.dz_op = []
-        self.dz_opif = []
+        self.dz_opif = []  # [PARCELID, PARCELID, ... ]
         self.dz_of = []
 
         # Zbior wszystkich ls
