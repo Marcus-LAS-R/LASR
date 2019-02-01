@@ -46,6 +46,7 @@ from .skrypty import shp_przygCiecie
 from .skrypty import spr_wydzielen
 from .skrypty import naklejki
 from .skrypty import sprawdz_ls
+from. skrypty import shp_eksport_kml
 
 
 class LasR:
@@ -264,6 +265,12 @@ class LasR:
         self.przyg_danych.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
 
+        self.eksp_kml = QAction(QIcon(None),
+                                u"Wyeksportuj do KML",
+                                self.iface.mainWindow())
+        self.przyg_danych.addAction(self.eksp_kml)
+        self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
+
         self.dop_fo = QAction(QIcon(None),
                               'Dopisz formy ochrony',
                               self.iface.mainWindow())
@@ -287,6 +294,8 @@ class LasR:
                                 self.iface.mainWindow())
         self.spr_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
+
+        self.menu.addSeparator()
 
         self.dop_wydz = QAction(ico_wydz_dopisz,
                                 'Dopisz do wydzieleń',
@@ -400,7 +409,8 @@ class LasR:
 
     def dopisz_f_ochr(self):
         b = baza_dopisz_fochr.DopiszFO(self.iface)
-        b.pobierz_dane_od_uzytkownika()
+        if not b.pobierz_dane_od_uzytkownika():
+            return
         if not b.poprawne_wydz():
             return False
         if not b.poprawne_fo():
@@ -449,6 +459,12 @@ class LasR:
 
     def sprawdz_wydz_w_oddz(self):
         shp_sprWydzOddz.SprWydzOddz(self.iface)
+
+    def eksportuj_do_KML(self):
+        s = shp_eksport_kml.EksportujKML(self.iface)
+        if s.pobierzDane():
+            s.przetworz()
+            s.zapisz_kml()
 
     def rysuj_naklejki(self):
         n = naklejki.GenerujNaklejki(self.iface)

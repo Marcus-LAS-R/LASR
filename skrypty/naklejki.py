@@ -1062,7 +1062,7 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         super(PobierzDane, self).__init__(None)
         self.setupUi(self)
         self.go_flag = False
-        self.lineEdit_sciezka.setText('/home/qnox/upul/testy/namyslow/')
+        # self.lineEdit_sciezka.setText('/home/qnox/upul/testy/namyslow/')
         self.kat = ''  # sciezka do podawania w QFileDialogu
 
         self.pushButton_wybierz.clicked.connect(self.pobierz_katalog_tpu)

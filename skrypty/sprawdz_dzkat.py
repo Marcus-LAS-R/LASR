@@ -1,15 +1,19 @@
 import os
 import re
 import glob
+import platform
 import shutil
 from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
-from qgis.core import *
+from qgis.core import QgsVectorLayer, QgsMessageLog, QgsField, \
+    QgsProject, QgsSpatialIndex, QgsCoordinateReferenceSystem, \
+    QgsVectorFileWriter, QgsFeature, Qgis
 import processing
 from collections import Counter, namedtuple
 from .baza_wrapper import Baza
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
+from .pw import PasekPostepu
 
 
 class SprawdzDzKat(object):
@@ -20,25 +24,51 @@ class SprawdzDzKat(object):
         # sprawdz czy uzyszkodnik zaznaczyl warstwe
         try:
             self.lyr = self.iface.activeLayer()
-        except:
+        except:  # noqa
             pass
 
         analizuj = AnalizujDzKat(self.lyr, self.iface)
         analizuj.pobierz_dane_od_uzytkownika()
         if not analizuj.warunki_spenione():
             return
+        self.iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Warunki początkowe nie zostały spełnione',
+            Qgis.Critical, 10
+        )
 
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Generowanie Dzkat'
+        )
         analizuj.pobierz_dane()
+        self.postep.setValue(20)
         analizuj.przetworz_dane()
+        self.postep.setValue(40)
         analizuj.przygotuj_warstwe_wyjsciowa()
 
         if not analizuj.lyrw.isValid():
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Warstwa wyjściowa nie jest poprawna, podeślij dane do autora',
+                Qgis.Critical, 10
+            )
             return
 
+        self.postep.setValue(60)
         analizuj.iteruj_dzialki()
+        self.postep.setValue(70)
         analizuj.generuj_raport()
+        self.postep.setValue(80)
         analizuj.skasuj_kolumny()
+        self.postep.setValue(90)
         analizuj.dodaj_warstwy_do_mapy()
+        self.postep.setValue(100)
+
+        self.iface.messageBar().clearWidgets()
+        self.iface.messageBar().pushMessage(
+            'OK', 'Przetworzono warstwę DZKAT!', Qgis.Success, 10
+        )
 
 
 class AnalizujDzKat(object):
@@ -53,7 +83,9 @@ class AnalizujDzKat(object):
         self.district = ''  # kod powiatu
         self.dz_nieles = []  # lista dzialek nielesnych
 
-        self.czas = datetime.now().isoformat().replace(":", "")[:-7].replace('-', '')
+        self.czas = datetime.now().isoformat().replace(":",
+                                                       "")[:-7].replace('-',
+                                                                        '')
 
         self.kolumny = [
             QgsField("COUNTY", QVariant.String, len=2),
@@ -87,9 +119,16 @@ class AnalizujDzKat(object):
 
     def pobierz_dane(self):
         self.lyr = self.dd.lyr
-        self.bazy = glob.glob(
-            os.path.join(self.dd.ui.lineEdit_bazy.text(),
-                                           '*.mdb'))
+
+        if platform.system()[:3] == 'Win':
+            self.bazy = glob.glob(
+                os.path.join(self.dd.ui.lineEdit_bazy.text(),
+                             '*.mdb'))
+        else:
+            self.bazy = glob.glob(
+                os.path.join(self.dd.ui.lineEdit_bazy.text(),
+                             '*.sqlite'))
+
         self.typ = self.dd.ui.comboBox_ident.currentText()[:3]
         self.wl = self.dd.ui.comboBox_wlas.currentText()[:2]
         self.adradm = self.dd.ui.comboBox_kol_adradm.currentText()
@@ -135,10 +174,11 @@ class AnalizujDzKat(object):
         self.wl_dict = {}
 
         QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)),
-                                 "Las-R" )
-        QgsMessageLog.logMessage("Pobrano własności: "+
+                                 "Las-R")
+        QgsMessageLog.logMessage("Pobrano własności: " +
                                  str(len(self.wlasnosci)),
-                                 "Las-R" )
+                                 "Las-R"
+                                 )
         # lista wlascicieli z kodami OP
         # [[wlasciciel, wyr1], ...]
         self.lista_OP = []
@@ -162,7 +202,8 @@ class AnalizujDzKat(object):
             if wyr1 not in self.wl_dict:
                 self.wl_dict[wyr1] = []
             if item[2] != "":
-                if re.search('NIEUSTAL', wlasciciel) or wlasciciel in ['???', ]:
+                if re.search('NIEUSTAL', wlasciciel) or \
+                        wlasciciel in ['???', ]:
                     self.wl_dict[wyr1].append("OF")
                 else:
                     self.wl_dict[wyr1].append(item[2])
@@ -184,8 +225,8 @@ class AnalizujDzKat(object):
         # sprawdz czy liczba działek z poszczególnymi własnościami zgadza się z
         # suma wszystkich działek
         suma_dz_wlasn = len(self.dz_wlasnosci_of) + \
-                        len(self.dz_wlasnosci_op) + \
-                        len(self.dz_wlasnosci_opif)
+            len(self.dz_wlasnosci_op) + \
+            len(self.dz_wlasnosci_opif)
 
         if suma_dz_wlasn != len(self.dz_dict.keys()):
             QgsMessageLog.logMessage(
@@ -201,7 +242,8 @@ class AnalizujDzKat(object):
                 "Las-R"
             )
             QgsMessageLog.logMessage(
-                "Liczba działek z współwłasnościami: "+str(len(self.dz_wlasnosci_opif)),
+                "Liczba działek z współwłasnościami: " +
+                str(len(self.dz_wlasnosci_opif)),
                 "Las-R"
             )
 
@@ -213,18 +255,19 @@ class AnalizujDzKat(object):
         self.kat = os.path.dirname(sciezka)
         if self.typ == 'PAR':
             processing.run("native:dissolve", {
-                           'INPUT': self.lyr.name(),
-                           'FIELD': "PARCELID",
-                           'OUTPUT': sciezka+'_dissolve.shp'
+                'INPUT': self.lyr.name(),
+                'FIELD': "PARCELID",
+                'OUTPUT': sciezka+'__dissolve.shp'
             })
+
             # self.lyr = QgsVectorLayer(sciezka+'_dissolve.shp', "DZKAT_robocze", "ogr")
-            shutil.copy(sciezka+"_dissolve.shp",
+            shutil.copy(sciezka+"__dissolve.shp",
                         os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
-            shutil.copy(sciezka+"_dissolve.shx",
+            shutil.copy(sciezka+"__dissolve.shx",
                         os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
-            shutil.copy(sciezka+"_dissolve.dbf",
+            shutil.copy(sciezka+"__dissolve.dbf",
                         os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
-            shutil.copy(sciezka+"_dissolve.prj",
+            shutil.copy(sciezka+"__dissolve.prj",
                         os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
         else:
             shutil.copy(sciezka+".shp",
@@ -247,7 +290,9 @@ class AnalizujDzKat(object):
 
         # dodaj brakujace kolumny do warstwy
         lista_kol = [x.name() for x in self.lyrwp.fields().toList()]
-        self.lyrwp.addAttributes([x for x in self.kolumny if x.name() not in lista_kol])
+        self.lyrwp.addAttributes(
+            [x for x in self.kolumny if x.name() not in lista_kol]
+        )
         self.lyrw.updateFields()
 
     def dodaj_warstwy_do_mapy(self):
@@ -261,10 +306,25 @@ class AnalizujDzKat(object):
             QgsMessageLog.logMessage("Brak błędów topologicznych",
                                      "Las-R")
 
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Raport')
+        message.setText('Czy wyświetlić raport z generowania działek?')
+        message.addButton(u"Zamknij", QMessageBox.ActionRole)
+        message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
+        pok_rap = message.exec_()
+
+        if pok_rap == 1:
+            if platform.system()[:3] == 'Win':
+                os.startfile(self.rap_sc)
+            else:
+                import subprocess
+                subprocess.call(['open-xdg', self.rap_sc])
+
     def generuj_warstwe_bledow(self):
         self.lyrb = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
-                                    "BLEDY_TOPO",
-                                    "memory")
+                                   "BLEDY_TOPO",
+                                   "memory")
         self.lyrb.startEditing()
         self.lyrb.dataProvider().addAttributes([
             QgsField("MUNICIP", QVariant.String, len=3),
@@ -299,10 +359,11 @@ class AnalizujDzKat(object):
                                  "Las-R")
         if error == QgsVectorFileWriter.NoError:
             QgsMessageLog.logMessage("Warstwa DZKAT_OPS zapisana!", "Las-R")
-            self.lyrb = self.iface.addVectorLayer(os.path.join(self.kat,
-                                                    "BLEDY_TOPO_"+self.czas+".shp"),
-                                       "BLEDY_TOPO",
-                                       "ogr")
+            self.lyrb = self.iface.addVectorLayer(
+                os.path.join(self.kat, "BLEDY_TOPO_"+self.czas+".shp"),
+                "BLEDY_TOPO",
+                "ogr"
+            )
 
     def zbuduj_indeks(self):
         self.indeks = QgsSpatialIndex()
@@ -342,7 +403,7 @@ class AnalizujDzKat(object):
 
         self.lyrw.commitChanges()
 
-    def uzupelnij_dzialke(self, dz):
+    def uzupelnij_dzialke(self, dz):  # noqa
         """Metoda uzupełnia pola atrybutów w warstwie ostatecznej oraz sprawdza
         zależności i zgodność z bazami taksatora"""
 
@@ -367,8 +428,8 @@ class AnalizujDzKat(object):
         elif lacznik in self.dz_wlasnosci_of:
             u = u._replace(GRP='10')
 
-        # sprawdz czy dzialka nie byla juz wczesniej sprawdzana, jesli tak oznacz jako
-        # duplikat
+        # sprawdz czy dzialka nie byla juz wczesniej sprawdzana, jesli tak
+        # oznacz jako duplikat
         if lacznik in self.dz_sprawdzone:
             uwaga += 'Dzialka zdublowana; '
         else:
@@ -377,9 +438,10 @@ class AnalizujDzKat(object):
         # dopisz parcel_id i powierzchnie rejestrowa o ile dzialka w bazie
         if lacznik in self.dz_dict:
             u = u._replace(PARCELID=u.COUNTY+u.DISTRICT+lacznik,
-                       PARCEL_AR=self.dz_dict[lacznik][3],
-                       )
-            # dodaj laczniki do odpowiednich list i oznacz dzialke jako lesna badz nie
+                           PARCEL_AR=self.dz_dict[lacznik][3],
+                           )
+            # dodaj laczniki do odpowiednich list i oznacz dzialke jako lesna
+            # badz nie
             if lacznik not in self.dz_lesne:
                 u = u._replace(NIELES='TAK')
                 self.dz_nieles.append(lacznik)
@@ -419,12 +481,11 @@ class AnalizujDzKat(object):
             return False, []
 
         ids = self.indeks.intersects(dz.geometry().boundingBox())
-        pokrywa = False
         lista = []
         for id in ids:
             f = self.wszystkie_dzkat[id]
-            if dz.geometry().buffer(-0.005, 5).intersects(f.geometry()) and dz.id() != \
-                    f.id():
+            if dz.geometry().buffer(-0.005, 5).intersects(f.geometry()) and \
+                    dz.id() != f.id():
                 lista.append(str(f.id()))
 
         # jezeli dzialka pokrywa sie z inna dodaj opis w warstwie ostatecznej
@@ -445,7 +506,8 @@ class AnalizujDzKat(object):
         # domyslnie grupa rejestrowa jest 99 (OP)
         uzup._replace(GRP=' ')
 
-        # uzupełnij pola na podstawie metody identyfikujacej jaka wybral uzytkownik
+        # uzupełnij pola na podstawie metody identyfikujacej jaka wybral
+        # uzytkownik
         ark = ' '
         county = ''
         district = ''
@@ -506,114 +568,118 @@ class AnalizujDzKat(object):
     def dz_lacznik(self, uzup):
         # stworz lacznik do danych z bazy
         if uzup.ARK not in ['', ' ']:
-            lacznik = '.'.join([uzup.MUNICIP+uzup.COMMUNITY, uzup.ARK, uzup.PARCELNR,])
+            lacznik = '.'.join([uzup.MUNICIP+uzup.COMMUNITY,
+                                uzup.ARK,
+                                uzup.PARCELNR,
+                                ]
+                               )
         else:
             lacznik = uzup.MUNICIP + uzup.COMMUNITY + "." + uzup.PARCELNR
 
         return lacznik
 
-    def generuj_raport(self):
-        """Metoda generuje raport dla uzytkownika, zapisany w katalogu z warstwa
+    def generuj_raport(self):  # noqa
+        """Metoda generuje raport dla uzytkownika, zapisany w katalogu z warst.
         wyjsciowa w postaci pliku tekstowego z data i godzina w nazwie"""
 
-        raport = 'RAPORT\r\r\n'
-        raport += 45 * '-' + '\r\r\n\r\r\n'
-        raport += 'Działek w shp: '+ str(self.ile_dzkat) + '\r\r\n'
+        raport = '---RAPORT----------------------------\n\n'
+        raport += 'Działek w shp: ' + str(self.ile_dzkat) + '\n'
         raport += 'Działek leśnych w bazie: ' + str(len(
             [x for x in self.dz_lesne if x not in self.tylko_op]
-        )) + '\r\r\n'
+        )) + '\n'
 
-        brakujace_dz_les = [x for x in list(self.dz_lesne) if x not in self.dz_les_spr]
+        brakujace_dz_les = [x for x in list(self.dz_lesne)
+                            if x not in self.dz_les_spr]
         raport += 'Brakujące działki leśne: ' + str(len(
             [x for x in brakujace_dz_les if x not in self.tylko_op]
-        )) + '\r\r\n\r\r\n'
+        )) + '\n\n'
 
-        raport += 'Działek leśnych w shp: ' + str(len(self.dz_les_spr)) + '\r\r\n'
-        raport += 'Działek nieleśnych w shp: ' + str(len(self.dzkat_nieles)) + '\r\r\n'
+        raport += 'Działek leśnych w shp: ' + str(len(self.dz_les_spr)) + '\n'
+        raport += 'Działek nieleśnych w shp: ' + str(len(self.dzkat_nieles)) + '\n'
 
         duble = [x[0] for x in Counter(self.dz_les_spr+self.dzkat_nieles).most_common()
                  if x[1] > 1]
-        raport += 'Działki Zdublowane: ' + str(len(duble)) + '\r\r\n\r\r\n'
+        raport += 'Działki Zdublowane: ' + str(len(duble)) + '\n\n'
 
         if len(self.bledy_topo) > 0:
             raport += 'Działki z błędami topologicznymi: ' + str(len(self.bledy_topo)) \
-                      + '\r\n\r\n\r\n'
+                      + '\n\n\n'
 
         if len(self.dzkat_les_pow_zero) > 0:
             raport += 'Działek z zerowymi powierzchniami w bazie: ' + str(len(
-                self.dzkat_les_pow_zero)) + '\r\n'
+                self.dzkat_les_pow_zero)) + '\n'
 
-        if len(self.dzkat_brak)> 0:
-            raport += 'Działek z brakiem opisu w bazie: ' + str(len(self.dzkat_brak)) + '\r\n'
+        if len(self.dzkat_brak) > 0:
+            raport += 'Działek z brakiem opisu w bazie: ' + str(len(self.dzkat_brak)) + '\n'
 
         # wypisz do logu podstawowy raport
         QgsMessageLog.logMessage(raport, 'Las-R')
 
         if len(self.dzkat_brak) > 0:
-            raport += '\r\n\r\n---BRAKUJACE DZIALKI LESNE--------------' + '\r\n'
-            raport += 'Brakujace dzialki lesne w shp: ' + str(len(self.dzkat_brak)) + \
-                      '\r\n\r\n'
-            raport += '\r\n'.join([
+            raport += '\n\n---BRAKUJACE DZIALKI LESNE--------------' + '\n'
+            raport += 'Brakujace dzialki lesne w shp: ' + \
+                str(len(self.dzkat_brak)) + '\n\n'
+            raport += '\n'.join([
                 '\t'.join([self.county+self.district+x,
-                            str(self.wypiszPow(x, self.dz_dict))])
-                 for x in sorted(brakujace_dz_les) if x not in self.tylko_op
+                           str(self.wypiszPow(x, self.dz_dict))])
+                for x in sorted(brakujace_dz_les) if x not in self.tylko_op
             ])
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         if len(self.dzkat_nieles) > 0:
-            raport += "---DZIALKI NIELESNE--------------------------\r\n"
-            raport += "Dzialek nielesnych w shp: " + str(len(self.dzkat_nieles)) + '\r\n\r\n'
+            raport += "---DZIALKI NIELESNE--------------------------\n"
+            raport += "Dzialek nielesnych w shp: " + str(len(self.dzkat_nieles)) + '\n\n'
             if len(self.dzkat_nieles) < 200:
-                raport += '\r\n'.join([self.county + self.district + x
+                raport += '\n'.join([self.county + self.district + x
                                     for x in sorted(self.dzkat_nieles)])
             else:
                 raport += 'Liste dzialek pominieto'
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         # sprawdz brakujace dzialki
         if len(self.dzkat_brak) > 0:
-            raport += "---DZIALKI BEZ OPISU-------------------------\r\n"
+            raport += "---DZIALKI BEZ OPISU-------------------------\n"
             raport += "Dzialki z brakiem opisu w bazie: " + str(
-                len(self.dzkat_brak)) + '\r\n\r\n'
+                len(self.dzkat_brak)) + '\n\n'
             if len(self.dzkat_brak) < 200:
-                raport += '\r\n'.join(
+                raport += '\n'.join(
                     [self.county + self.district + x for x in sorted(self.dzkat_brak)])
             else:
                 raport += 'liste dzialek pominieto'
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         # sprawdz zdublowane dzialki i wypisz tylko w lesnych
         if len(duble) > 0:
-            raport += "-----DZIALKI ZDUBLOWANE------------------------\r\n"
-            raport += "Dzialki zdublowane: " + str(len(duble)) + '\r\n\r\n'
-            raport += '\r\n'.join([self.county + self.district + x for x in sorted(duble)])
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += "-----DZIALKI ZDUBLOWANE------------------------\n"
+            raport += "Dzialki zdublowane: " + str(len(duble)) + '\n\n'
+            raport += '\n'.join([self.county + self.district + x for x in sorted(duble)])
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         if len(self.dzkat_les_pow_zero) > 0:
-            raport += "--DZIALKI Z ZEROWA POWIERZCHNIA----------------\r\n"
+            raport += "--DZIALKI Z ZEROWA POWIERZCHNIA----------------\n"
             raport += "Dzialki z zerowa powierzchnia: "
-            raport += str(len(self.dzkat_les_pow_zero)) + '\r\n\r\n'
-            raport += '\r\n'.join([self.county + self.district + x for x in
+            raport += str(len(self.dzkat_les_pow_zero)) + '\n\n'
+            raport += '\n'.join([self.county + self.district + x for x in
                                 sorted(self.dzkat_les_pow_zero)])
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         if len(self.dzkat_les_pow) > 0:
-            raport += "--DZIALKI ZE ZNACZNA ROZNICA POWIERZCHNI-------\r\n"
+            raport += "--DZIALKI ZE ZNACZNA ROZNICA POWIERZCHNI-------\n"
             raport += "Dzialki z duza rozbieznoscia powierzchni: " + str(
-                len(self.dzkat_les_pow)) + '\r\n\r\n'
-            raport += "Adres adm dzialki\tpow_graf\tpow_rej\troznica" + '\r\n'
+                len(self.dzkat_les_pow)) + '\n\n'
+            raport += "Adres adm dzialki\tpow_graf\tpow_rej\troznica" + '\n'
             rr = sorted([[self.county + self.district + x[0], x[1], x[2],
                           round(abs(x[1] - x[2]), 4)]
                          for x in self.dzkat_les_pow],
                         key=lambda s: s[3], reverse=True)
-            raport += '\r\n'.join(["\t".join(map(str, x)) for x in rr])
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n'.join(["\t".join(map(str, x)) for x in rr])
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
         if len(self.lista_OP) > 0:
-            raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\r\n"
+            raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\n"
             raport += "Liczba wlascicieli z kodem OP: " + str(len(set(
                 [x[0] for x in self.lista_OP
-                 if x[1] not in self.tylko_op and x[1] in self.dz_lesne]))) + '\r\n\r\n'
+                 if x[1] not in self.tylko_op and x[1] in self.dz_lesne]))) + '\n\n'
 
             sl_temp = {}
             for x in self.lista_OP:
@@ -624,17 +690,15 @@ class AnalizujDzKat(object):
                         sl_temp[x[0]] = []
                     sl_temp[x[0]].append(x[1])
 
-            raport += '\r\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat" for x in
+            raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat" for x in
                                 sorted(list(sl_temp.keys()))])
-            raport += '\r\n' + 45 * '-' + '\r\n\r\n\r\n'
+            raport += '\n' + 45 * '-' + '\n\n\n'
 
-        raport += "KONIEC RAPORTU\r\n----------------------------------------------------"
+        raport += "---KONIEC RAPORTU----------------------------------"
 
         # zapisz raport do pliku
-        # QgsMessageLog.logMessage(raport, 'Las-R')
-        open(os.path.join(self.kat,
-                          'dzkat_raport_'+self.czas+'.txt'),
-             'wb').write(raport.encode('cp1250'))
+        self.rap_sc = os.path.join(self.kat, 'dzkat_raport_'+self.czas+'.txt')
+        open(self.rap_sc, 'wb').write(raport.encode('cp1250'))
 
     def wypiszPow(self, x, sl):
         if x in sl:
@@ -710,7 +774,7 @@ class PobierzDane(QDialog):
             self.ui.lineEdit_warstwa.setText(
                 self.lyr.dataProvider().dataSourceUri().split("|")[0])
             self.ui.comboBox_ident.setDisabled(False)
-        except:
+        except:  # nopep8
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
             msbx.exec_()
             self.lyr = False
@@ -720,13 +784,18 @@ class PobierzDane(QDialog):
         """Metoda pobiera wskazany przez użytkownika katalog"""
         kat = ""
         if self.lyr:
-            kat = os.path.dirname(self.lyr.dataProvider().dataSourceUri().split("|")[0])
-        bazy_kat = QFileDialog().getExistingDirectory(self,
-                                                      "Katalog z bazami danych",
-                                                      kat)
+            kat = os.path.dirname(
+                self.lyr.dataProvider().dataSourceUri().split("|")[0]
+            )
+        bazy_kat = QFileDialog().getExistingDirectory(
+            self,
+            "Katalog z bazami danych",
+            kat
+        )
         self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
         if self.ile_baz > 0:
-            self.ui.label_bazy_wynik.setText("Znalazałem baz: "+str(self.ile_baz))
+            self.ui.label_bazy_wynik.setText("Znalazałem baz: " +
+                                             str(self.ile_baz))
             self.ui.lineEdit_bazy.setText(bazy_kat)
 
         else:
@@ -754,4 +823,3 @@ class PobierzDane(QDialog):
             else:
                 self.ui.pushButton_ok.setDisabled(True)
             self.ui.groupBox_kol.setDisabled(True)
-

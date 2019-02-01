@@ -281,6 +281,7 @@ class PobierzDane(QDialog):
         # self.ui.lineEdit_wydz.setText(r'e:\UPUL\__szablon\RDOS\WYDZ_POL.shp')
 
     def porzuc(self):
+        self.porzucone = True
         self.hide()
 
     def sprawdz_ok(self):

@@ -2,16 +2,20 @@ import os
 import glob
 import platform
 from datetime import datetime
+from collections import Counter, defaultdict
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \
     QgsFeatureRequest, QgsVectorFileWriter, QgsCoordinateReferenceSystem
-from collections import Counter, defaultdict
-# import processing  # import przeniesiony do metody - pytest probemy!
+
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_ls import Ui_Dialog
+from .pw import PasekPostepu
+# import processing  # import przeniesiony do metody - pytest probemy!
+# import subprocess  # import niezbedny przy wysietleniu raportu na maszynach
+#                      bez windowsa
 
 
 class recursivedefaultdict(defaultdict):
@@ -26,12 +30,16 @@ class SprawdzLs(object):
     def sprawdz_warstwy(self):
         k = False  # klasouzytki - warstwa
         d = False  # dzialki - warstwa
-        # sprawdz czy uzyszkodnik zaznaczyl warstwe
+
+        QgsMessageLog.logMessage(
+            '\n-----[ SPRAWDZENIE LS ]-----', 'Las-R', Qgis.Info
+        )
+
         try:
             k = self.iface.activeLayer()
             if not k.isValid():
                 QgsMessageLog.logMessage('Nie zaznaczono warstwy KLU w TOC!',
-                                         'LasR')
+                                         'Las-R', Qgis.Critical)
                 self.iface.messageBar().pushMessage(
                     'BRAK WARSTW',
                     'Nie znaleziono warstwy KLU w TOC!',
@@ -42,12 +50,15 @@ class SprawdzLs(object):
 
         except:  # nopep8
             QgsMessageLog.logMessage('Nie zaznaczono warstwy KLU w TOC!',
-                                     'LasR')
+                                     'Las-R', Qgis.Critical)
             self.iface.messageBar().pushMessage(
                 'BRAK WARSTW',
                 'Nie znaleziono warstwy KLU w TOC!',
                 Qgis.Critical,
                 15
+            )
+            QgsMessageLog.logMessage(
+                '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
             )
             return False
 
@@ -67,6 +78,9 @@ class SprawdzLs(object):
                 Qgis.Critical,
                 15
             )
+            QgsMessageLog.logMessage(
+                '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
+            )
             return False
 
         self.a = AnalizujKlus(self.iface, k, d)
@@ -75,7 +89,9 @@ class SprawdzLs(object):
     def wczytaj(self):
         if not self.a.pobierz_dane_od_uzytkownika():
             return False
+        self.postep = PasekPostepu(self.iface).stworz_pasek('Generowanie Ls')
         self.a.przetworz()
+        self.postep.setValue(5)
         return True
 
     def sprawdz(self):
@@ -83,22 +99,45 @@ class SprawdzLs(object):
             return False
 
     def przygotuj(self):
+        self.postep.setValue(10)
         self.a.przygotuj_tabele()
         self.a.przygotuj_do_analizy()
         self.a.geop_przetworz()
         self.a.zaladuj_strukture()
+        self.postep.setValue(15)
 
     def przetworz(self):
         self.a.przetworz_strukture()
+        self.postep.setValue(70)
         self.a.generuj_warstwy()
+        self.postep.setValue(80)
         self.a.generuj_raport()
+        self.postep.setValue(100)
+
+        self.iface.messageBar().clearWidgets()
 
         self.iface.messageBar().pushMessage(
-            'OK',
-            'Przetworzono warstwę KLU!',
-            Qgis.Success,
-            10
+            'OK', 'Przetworzono warstwę KLU!', Qgis.Success, 10
         )
+
+        QgsMessageLog.logMessage(
+            '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
+        )
+
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Raport')
+        message.setText('Czy wyświetlić raport z generowania Ls-ów?')
+        message.addButton(u"Zamknij", QMessageBox.ActionRole)
+        message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
+        pok_rap = message.exec_()
+
+        if pok_rap == 1:
+            if platform.system()[:3] == 'Win':
+                os.startfile(self.a.rap_sc)
+            else:
+                import subprocess
+                subprocess.call(['open-xdg', self.a.rap_sc])
 
 
 class AnalizujKlus(object):
@@ -161,9 +200,9 @@ class AnalizujKlus(object):
         self.dd = PobierzDane(self.klu, self.dzkat)
         self.dd.exec_()
 
-        if self.dd.lyrk is False or self.dd.lyrd is False:
-            return False
-        return True
+        if self.dd.kontynuuj:
+            return True
+        return False
 
     def przetworz(self):
         if not self.klu.isValid():
@@ -195,7 +234,8 @@ class AnalizujKlus(object):
 
         QgsMessageLog.logMessage(
             'Znaleziono bazy: '+', '.join(self.bazy),
-            "Las-R"
+            "Las-R",
+            Qgis.Info
         )
         for baza in self.bazy:
             b = Baza(baza)
@@ -216,6 +256,9 @@ class AnalizujKlus(object):
                 )
 
     def przygotuj_tabele(self):
+        QgsMessageLog.logMessage(
+            'Przetwarzam dane z bazy danych...', 'Las-R', Qgis.Info
+        )
         self.p = Przetworz()
         self.p.dodaj_uzytki(self.uzytki)
         self.p.dodaj_wlasnosci(self.wlasnosci)
@@ -257,40 +300,43 @@ class AnalizujKlus(object):
         LANDID. W drugim przypadku dodajemy brakujace pola sq i au,
         uzupelniamy je ze slownika i kontynuujemy sciezke programu"""
 
+        pola = [x.name() for x in self.klu.dataProvider().fields()]
+        pola_dodaj = []
+        if 'SQ' not in pola:
+            pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
+        if 'AU' not in pola:
+            pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+
+        if len(pola_dodaj) > 0:
+            self.klu.startEditing()
+            self.klu.dataProvider().addAttributes(pola_dodaj)
+            self.klu.updateFields()
+            self.klu.commitChanges()
+
         # jezeli wybrano LANDID
         if self.typ == 'LAN':
-            pola = [x.name() for x in self.klu.dataProvider().fields()]
-            pola_dodaj = []
-            if 'SQ' not in pola:
-                pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
-            if 'AU' not in pola:
-                pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
-
             self.sq = 'SQ'
             self.au = 'AU'
 
-            if len(pola_dodaj) > 0:
-                self.klu.startEditing()
-                self.klu.dataProvider().addAttributes(pola_dodaj)
-                self.klu.updateFields()
-                self.klu.commitChanges()
+        klu_fnm = self.klu.dataProvider().fieldNameMap()
+        iau = klu_fnm['AU']
+        isq = klu_fnm['SQ']
 
-            self.klu.startEditing()
-            klu_fnm = self.klu.dataProvider().fieldNameMap()
-            iau = klu_fnm['AU']
-            isq = klu_fnm['SQ']
-            for f in self.klu.getFeatures():
+        for f in self.klu.getFeatures():
+            zau, zsq = '', ''
+            if self.typ == 'LAN':
                 if f['LANDID'] in self.p.uzytki:
                     zsq = self.p.uzytki[f['LANDID']][1]
                     zau = self.p.uzytki[f['LANDID']][0]
                 else:
                     zsq = 'xxx'
                     zau = 'xxx'
-                self.klu.changeAttributeValue(f.id(), iau, zau)
-                self.klu.changeAttributeValue(f.id(), isq, zsq)
-            self.klu.commitChanges()
+            else:
+                zsq = f[self.sq]
+                zau = f[self.au]
 
-        # self.geop_przetworz()
+            attr = {iau: zau, isq: zsq}
+            self.klu.dataProvider().changeAttributeValues({f.id(): attr})
 
     def geop_przetworz(self):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
@@ -305,33 +351,42 @@ class AnalizujKlus(object):
 
         sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
+        self.tempkat = os.path.join(self.kat, 'temp')
+        if not os.path.isdir(self.tempkat):
+            os.mkdir(self.tempkat)
+
         processing.run("native:dissolve", {
                         'INPUT': sciezka+'.shp',
                         'FIELD': ['AU', 'SQ'],
-                        'OUTPUT': os.path.join(self.kat, '__klu_dissolve.shp')
+                        'OUTPUT': os.path.join(self.tempkat,
+                                               '__klu_dissolve_' +
+                                               self.czas + '.shp')
         })
 
         processing.run("native:intersection", {
-                        'INPUT': os.path.join(self.kat, '__klu_dissolve.shp'),
+                        'INPUT': os.path.join(self.tempkat,
+                                              '__klu_dissolve_' +
+                                              self.czas + '.shp'),
                         'OVERLAY': self.dzkat,
                         'INPUT_FIELDS': "",
                         'OVERLAY_FILEDS': "",
                         'OUTPUT': os.path.join(
-                            self.kat, '__LS_multiparts_'+self.czas+'.shp'
+                            self.tempkat, '__LS_multiparts_'+self.czas+'.shp'
                         )
         })
 
         processing.run("native:multiparttosingleparts", {
                         'OUTPUT': os.path.join(
-                            self.kat, '__LS_singleparts_'+self.czas+'.shp'),
+                            self.tempkat,
+                            '__LS_singleparts_'+self.czas+'.shp'),
                         'INPUT': os.path.join(
-                            self.kat, '__LS_multiparts_'+self.czas+'.shp')
+                            self.tempkat, '__LS_multiparts_'+self.czas+'.shp')
                         })
 
         # Rozbij uzytki na single parts
         self.singleparts = QgsVectorLayer(os.path.join(
-            self.kat, 'LS_singleparts'+self.czas+'.shp'),
-            '__Ls_singleparts_'+self.czas+'.shp',
+            self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+            '__LS_singleparts_'+self.czas+'.shp',
             'ogr')
 
     def zaladuj_strukture(self):
@@ -360,10 +415,10 @@ class AnalizujKlus(object):
         generując niezbędne dane do raportów oraz wynikowe klu do ostatecznych
         warstw.
         """
-        for val in self.strukt.values():
+        for key, val in self.strukt.items():
             # jezeli uzytki nie sa valid - pomijamy raportujemy uzyszkodnikowi
             if not val.is_valid():
-                self.bledne.append(val['PARCELID'])
+                self.bledne.append(key)
                 continue
 
             trig = 0  # trig, jezeli jest jeden ls na calosci, badz juz dopis.
@@ -436,7 +491,13 @@ class AnalizujKlus(object):
             p, s, b = sit.zwroc_ostateczne()
             poprawne += [x for x in p.values()]
             bledne += b
-            do_spr = s
+            do_spr += s
+
+        # oblicz powierzchnie poly w warstwach bledów i do_spr
+        for x in bledne:
+            x['LAND_POW'] = round(x.geometry().area() / 10000, 4)
+        for x in do_spr:
+            x['LAND_POW'] = round(x.geometry().area() / 10000, 4)
 
         # dodaj do warstw
         self.lyrbl.dataProvider().addFeatures(bledne)
@@ -444,63 +505,80 @@ class AnalizujKlus(object):
         self.lyrls.dataProvider().addFeatures(poprawne)
 
         # zapisz zmiany do warstw w pamieci
+        self.lyrls.commitChanges()
         self.lyrbl.commitChanges()
         self.lyrspr.commitChanges()
-        self.lyrls.commitChanges()
 
+        # usun zbedne kolumny z warstwy z bledami i feat do spr
+        self.lyrspr.startEditing()
+        self.lyrbl.startEditing()
+
+        do_usun = [k for k, v in enumerate(self.kolumny_dz + self.kolumny_ls)
+                   if v.name() not in [
+                       'SQ', 'AU', 'PARCELID', 'SPRAWDZ', 'LAND_POW', ]
+                   ]
+        self.lyrspr.dataProvider().deleteAttributes(do_usun)
+        self.lyrbl.dataProvider().deleteAttributes(do_usun)
+
+        self.lyrbl.commitChanges()
+        self.lyrspr.commitChanges()
+
+        # zapisz dane w warstwach na dysku
         crs = QgsCoordinateReferenceSystem("epsg:2180")
 
-        error = QgsVectorFileWriter.writeAsVectorFormat(
+        QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrbl,
             os.path.join(self.kat, "BLEDY_"+self.czas+".shp"),
             "UTF-8",
             crs,
             "ESRI Shapefile")
 
-        if error == QgsVectorFileWriter.NoError:
-            QgsMessageLog.logMessage("Warstwa błędów ls zapisana!", "Las-R")
-            self.lyrbl = self.iface.addVectorLayer(
-                os.path.join(self.kat,
-                             "BLEDY_"+self.czas+".shp"),
-                "BLEDY_"+self.czas,
-                "ogr"
-            )
+        QgsMessageLog.logMessage("Warstwa błędów ls zapisana!", "Las-R",
+                                 Qgis.Info)
+        self.lyrbl = self.iface.addVectorLayer(
+            os.path.join(self.kat,
+                         "BLEDY_"+self.czas+".shp"),
+            "BLEDY_"+self.czas,
+            "ogr"
+        )
 
-        error = QgsVectorFileWriter.writeAsVectorFormat(
+        QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrspr,
             os.path.join(self.kat, "DO_SPRAWDZENIA_"+self.czas+".shp"),
             "UTF-8",
             crs,
             "ESRI Shapefile")
 
-        if error == QgsVectorFileWriter.NoError:
-            QgsMessageLog.logMessage("Warstwa do sprawdzenia zapisana!",
-                                     "Las-R")
-            self.lyrspr = self.iface.addVectorLayer(
-                os.path.join(self.kat,
-                             "DO_SPRAWDZENIA_"+self.czas+".shp"),
-                "DO_SPRAWDZENIA_"+self.czas,
-                "ogr"
-            )
+        QgsMessageLog.logMessage("Warstwa do sprawdzenia zapisana!",
+                                 "Las-R",
+                                 Qgis.Info)
+        self.lyrspr = self.iface.addVectorLayer(
+            os.path.join(self.kat, "DO_SPRAWDZENIA_"+self.czas+".shp"),
+            "DO_SPRAWDZENIA_"+self.czas,
+            "ogr"
+        )
 
-        error = QgsVectorFileWriter.writeAsVectorFormat(
+        QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrls,
             os.path.join(self.kat, "LS_"+self.czas+".shp"),
             "UTF-8",
             crs,
             "ESRI Shapefile")
 
-        if error == QgsVectorFileWriter.NoError:
-            QgsMessageLog.logMessage("Warstwa Ls zapisana!",
-                                     "Las-R")
+        self.lyrls = QgsVectorLayer(
+            os.path.join(self.kat, "LS_"+self.czas+".shp"),
+            "LS_"+self.czas,
+            "ogr"
+        )
 
-            self.lyrls = QgsVectorLayer(
-                os.path.join(self.kat,
-                             "LS_"+self.czas+".shp"),
-                "LS_"+self.czas,
-                "ogr"
-            )
-            QgsProject.instance().addMapLayer(self.lyrls)
+        # dodaj warstwy do ramki
+        QgsProject.instance().addMapLayer(self.lyrbl)
+        QgsProject.instance().addMapLayer(self.lyrls)
+        QgsProject.instance().addMapLayer(self.lyrspr)
+
+        QgsMessageLog.logMessage("Warstwa Ls zapisana!",
+                                 "Las-R",
+                                 Qgis.Info)
 
     def generuj_raport(self):
         """Generuje raport na podstawie danych zebranych ze słowników uwagi
@@ -511,9 +589,10 @@ class AnalizujKlus(object):
         raport.zestaw_dane()
         rap_out = raport.generuj_raport()
 
-        open(os.path.join(self.kat, "raport_ls_"+self.czas+".txt"),
-             'w',
-             encoding='cp1250').write(rap_out)
+        self.rap_sc = os.path.join(
+            self.kat, "raport_ls_"+self.czas+".txt")
+
+        open(self.rap_sc, 'w', encoding='cp1250').write(rap_out)
 
 
 class PrzetworzKlu(object):
@@ -527,6 +606,7 @@ class PrzetworzKlu(object):
         self.klus = k
         # wskaznik do slownikow na podstawie bazy
         self.p = p
+        self.wl = wl
 
         # kolejnosc id w poszczegolnych warstwach w celu zapewnienia spojnosci
         # danych, wymagane przy tworzeniu nowych featurow
@@ -577,9 +657,12 @@ class PrzetworzKlu(object):
         self.sl_klus_grupy = {}
 
         # poprawne klu
-        self.klus_popr = []
+        self.klus_popr = []  # KLU, wstępnie przetworzone, sprawdzone mikro,
+        #                      dopisane z bazy
         self.klus_bledy = []  # tabel z featurami sklasyfikowanymi jako bledy
         self.klus_do_spr = []  # lista z featurami do sprawdzenia
+        self.poprawne = {}  # ostateczne poprawne/przetworzone KLU do zwrotu
+        #                     w postaci slownika { LANDID: feat, ...}
 
         # tabela z rozbieznosciam powierzchniowymi, w postaci [LANDID, LANDID]
         self.rozb_pow = []
@@ -660,7 +743,7 @@ class PrzetworzKlu(object):
         return True
 
     def przetworz(self):
-        """ Ustawia self.pid w obiekcie oraz oblicza slwoniki dla powierzchni i
+        """ Ustawia self.pid w obiekcie oraz oblicza slowniki dla powierzchni i
         liczby uzytkow na dzialce, wykorzystywane potem w analizie mikro oraz
         usuwaniu niepotrzebnych urzytkow"""
         self.pid = self.dz['PARCELID']
@@ -683,11 +766,12 @@ class PrzetworzKlu(object):
 
         if self.pid in self.p.dz_opif:
             self.uwagi['opif'] = True
-        return True
 
         # lista zdublowanych ls w bazie na tej dzialce
         self.uwagi['dubb'] = [x for x in self.p.ls_podwojne
                               if '.'.join(x.split('.')[:2]) == self.pid]
+
+        return True
 
     def sprawdz_topologie(self):
         """Metoda sprawdza czy klu nakladaja sie na siebie, w przypadku gdy
@@ -705,11 +789,17 @@ class PrzetworzKlu(object):
                 if self.klus[i].geometry().intersects(self.klus[j].geometry()):
                     inter = self.klus[i].geometry().intersection(
                         self.klus[j].geometry())
-                    if round(inter.area(), 3) < 0.001:
+                    if round(inter.area(), 3) < 0.1:
                         pass
                     else:
-                        du, ds = self.s_topo_inter(i, j, inter)
-                        self.klus_do_spr += ds
+                        try:
+                            du, ds = self.s_topo_inter(i, j, inter)
+                            self.klus_do_spr += ds
+                        except:  # nopep8
+                            QgsMessageLog.logMessage(
+                                'Nieudane sprawdzenie topo: ' + self.pid,
+                                'Las-R'
+                            )
 
         self.s_do_usuniecia(self.do_usun)
 
@@ -724,7 +814,7 @@ class PrzetworzKlu(object):
         for i in self.do_usun:
             if uw != 'OK':
                 f = self.new_feat(au=self.klus[i]['AU'],
-                                  sq=self.klus[i]['SQ'],
+                                  sq=self.isNone(self.klus[i]['SQ']),
                                   uw='nakłada się z innym')
                 f.setGeometry(self.klus[i].geometry())
                 self.klus_bledy.append(f)
@@ -847,6 +937,7 @@ class PrzetworzKlu(object):
                 f.setGeometry(self.dz.geometry())
                 self.klus_popr.append(f)
                 self.uwagi['podm'] = True
+                self.klus = []
                 return True
         return False
 
@@ -857,47 +948,60 @@ class PrzetworzKlu(object):
         if len(self.p.sl_ls_na_dz[self.pid]) > 1:
             return False
 
-        # jeżeli na dzialce jest wiecej niz jedna klasa uzytkow w graf
-        if len(self.sl_klus_grupy.keys()) > 1:
+        # jeżeli na dzialce jest wiecej niz jedna klasa uzytkow w graf, ale
+        # jeden ls - w ktorym sprawdzimy sq czy jest zgodny z baza
+        if len(self.sl_klus_grupy.keys()) > 1 and \
+                len(set([x.split('.')[-1] for x in self.sl_klus_grupy.keys()
+                         if x.split('.')[-1][:2] == 'Ls'])) == 1:
+            pass
+        # jezeli na dzialce w graf jest jeden uzytek - niekoniecznie ls -
+        # sprawdzimy czy przypadkiem nie jest to nieprzemianowany Ls
+        elif len(self.sl_klus_grupy.keys()) == 1:
+            pass
+        else:
             return False
 
         self.do_usun = []
         for ii, klu in enumerate(self.klus):
             uw = ''  # uwagi do wpisania do warstwy
+            trig = False  # czy dodać uzupelniony Ls
 
             # stworz landid poprawny i zgodny z baza
-            landid = self.pid + 'Ls' + self.p.sl_ls_na_dz[self.pid][0]
+            landid = self.pid + '.Ls' + self.p.sl_ls_na_dz[self.pid][0]
 
             if len(set([x for x in self.sl_klus_pow.keys()
                         if x.split('.')[-1][:2] == 'Ls'])) == 1:
                 # jezeli jest Ls ale ma inna klase - podmien SQ i dodaj do
                 # raportu rozbieznosci
-                if klu[self.au] == 'Ls' and \
-                        klu[self.sq] != self.p.sl_ls_na_dz[self.pid][0]:
+                if klu['AU'] == 'Ls' and \
+                        klu['SQ'] != self.p.sl_ls_na_dz[self.pid][0]:
 
                     self.uwagi['podmsq'][landid] = [
-                        klu['SQ'],
+                        self.isNone(klu['SQ']),
                         self.isNone(self.p.sl_ls_na_dz[self.pid][0])
                     ]
                     uw = 'Podmieniono SQ na zgodny z bazą; '
+                    trig = True
 
             # jezeli na dzialce jest tylko jeden inny uzytek, podmien na
             # brakujacy ls, o ile nie jest bledem topo
             elif len(set([x for x in self.sl_klus_pow.keys()])) == 1:
                 self.uwagi['podmau'][landid] = [
-                    klu[self.au] + self.isNone(klu[self.sq]),
+                    klu['AU'] + self.isNone(klu['SQ']),
                     'Ls' + self.p.sl_ls_na_dz[self.pid][0]
                 ]
                 uw = 'Podmieniono AU i SQ na zgodny z bazą; '
+                trig = True
 
-            f = self.new_feat('Ls',
-                              self.p.sl_ls_na_dz[self.pid][0],
-                              uw=uw)
-            f.setGeometry(klu.geometry())
-            self.klus_popr.append(f)
-            self.do_usun.append(ii)
+            if trig:
+                f = self.new_feat('Ls',
+                                  self.p.sl_ls_na_dz[self.pid][0],
+                                  uw=uw)
+                f.setGeometry(klu.geometry())
+                self.klus_popr.append(f)
+                self.do_usun.append(ii)
 
-        self.s_do_usuniecia(self.do_usun)
+        self.s_do_usuniecia(self.do_usun, 'OK')
         return True
 
     def s_dopisz_uzyt(self):
@@ -912,8 +1016,8 @@ class PrzetworzKlu(object):
                 self.isNone(klu['SQ'])
 
             uw = ''
-            dop1 = klu['AU']
-            dop2 = klu['SQ']
+            dop1 = klu[self.au]
+            dop2 = klu[self.sq]
             if landid not in self.p.uzytki:
                 uw = 'Brak w bazie; '
 
@@ -932,7 +1036,7 @@ class PrzetworzKlu(object):
             self.klus_popr.append(f)
             self.do_usun.append(ii)
 
-        # usun dopisane uzytki z poli klu
+        # usun dopisane uzytki z puli klu
         self.s_do_usuniecia(self.do_usun, 'OK')
 
     def add_fields(self, new_fields):
@@ -948,7 +1052,7 @@ class PrzetworzKlu(object):
                             [y.name() for y in self.fields_def]
                             ])
 
-        if policz_niezb != 4:
+        if policz_niezb != len(self.fields_def):
             return False
 
         self.fields_def = new_fields
@@ -977,6 +1081,9 @@ class PrzetworzKlu(object):
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
             return ''
+        elif isinstance(a, QVariant):
+            if a.isNull():
+                return ''
         else:
             return a
 
@@ -986,15 +1093,19 @@ class PrzetworzKlu(object):
         cznie. Jeżeli nie zwracana jest tabela z featurami do sprawdzenia przez
         użytkownika.
         """
+        if len(self.klus_popr) < 1:
+            return
+
         d = SprawdzMikro(self.klus_popr)
-        d.przetworz()
-        popr, spr, usun = d.zwroc_wyn()
 
-        if len(popr) < len(self.klus_popr):
-            self.klus_popr = popr
+        if d.przetworz():
+            popr, spr, usun = d.zwroc_wyn()
 
-        self.klus_do_spr += spr
-        self.klus_bledy += usun
+            if len(popr) < len(self.klus_popr):
+                self.klus_popr = popr
+
+            self.klus_do_spr += spr
+            self.klus_bledy += usun
 
     def polacz_ostateczne(self):  # noqa
         """Metoda zestawia klu z tablic z poprawnymi, blednymi i do sprawdzenia
@@ -1028,15 +1139,22 @@ class PrzetworzKlu(object):
                 if geom_baza.intersects(geom_dolacz):
                     new_geom = geom_baza.combine(geom_dolacz)
                 else:
-                    new_geom = geom_baza.addPart(geom_dolacz)
+                    result = geom_baza.addPartGeometry(geom_dolacz)  # noqa
+                    new_geom = geom_baza
+                    # TODO: Obczaić kody do tych resultów
+                    # QgsMessageLog.logMessage(str(result), 'Las-R')
 
                 self.poprawne[y].clearGeometry()
                 self.poprawne[y].setGeometry(new_geom)
 
                 # sprawdz czy w tej czesci nie ma jakichs nowych uwag, jezeli
                 # sa dodaj do wczesniejszych na koncu
-                u_nowe = self.klus_popr['SPRAWDZ'].split('; ')
-                u_stare = self.poprawne[y]['SPRAWDZ']
+                u_nowe = []
+                u_stare = ''
+                if isinstance(self.klus_popr[i]['SPRAWDZ'], str):
+                    u_nowe = self.klus_popr[i]['SPRAWDZ'].split('; ')
+                if isinstance(self.poprawne[y]['SPRAWDZ'], str):
+                    u_stare = self.poprawne[y]['SPRAWDZ']
 
                 # sprawdz czy sa jakies nowe uwagi, jezeli tak, dodaj
                 trig_dopisz = False
@@ -1059,9 +1177,28 @@ class PrzetworzKlu(object):
         # sprawdzenie czy powierzchnie nie roznia sie za bardzo
         for landid, item in self.poprawne.items():
 
+            # dopisz landid i informacje wyciagniete z dzialki
+            item.setAttribute(item.fieldNameIndex('LANDID'), landid)
+            item.setAttribute(item.fieldNameIndex('COUNTY'), landid[:2])
+            item.setAttribute(item.fieldNameIndex('DISTRICT'), landid[2:4])
+            item.setAttribute(item.fieldNameIndex('MUNICIP'), landid[4:7])
+            item.setAttribute(item.fieldNameIndex('COMMUNITY'), landid[7:11])
+
+            for x in ['PARCELNR', 'PARCELID', 'GRP', 'ARK', 'NIELES', 'UWAGI',
+                      'PARCEL_AR', 'PARCEL_POW']:
+                item.setAttribute(item.fieldNameIndex(x), self.dz[x])
+
+            # pow graf uzytku
+            item.setAttribute(item.fieldNameIndex('LAND_POW'),
+                              round(item.geometry().area()/10000, 4))
+
             # jezeli nie ma uzytku w bazie nie ma co sprawdzac
             if landid not in self.p.uzytki.keys():
                 continue
+
+            # dopisz dane z bazy
+            item.setAttribute(item.fieldNameIndex('LAND_AR'),
+                              self.p.uzytki[landid][2])
 
             # jezeli obie powierzchnie sa ponizej 20 ar - pomijamy uwagi
             if max(item.geometry().area(), self.p.uzytki[landid][2]) < 0.2:
@@ -1083,44 +1220,18 @@ class PrzetworzKlu(object):
                         self.p.uzytki[landid][2]
                     ]
 
-                    uw = str(item['SPRAWDZ'])
-                    if 'None' in uw:
-                        uw = ''
+                    uw = self.isNone(item['SPRAWDZ'])
 
-                    item.setAttribute(
-                        item.fieldNameIndex('SPRAWDZ'),
-                        uw+'Duża rozbieżność pow. rej/graf; ')
+                    uw += 'Duża rozbieżność pow. rej/graf; '
 
                     # sprawdz czy pow graf uz==pow graf dz, a w bazie nie
-                    try:
-                        if (round(self.dz.geometry().area(), 3) ==
-                            round(item.geometry().area(), 3)) and (
-                                self.p.uzytki[landid][2] <
-                                self.p.uzytki[landid][0]):
+                    if round(self.dz.geometry().area(), 3) == \
+                            round(item.geometry().area(), 3):
+                        powi = self.p.uzytki[landid]
+                        if powi[2] < self.dz['PARCEL_AR']:
+                            uw += 'Prawdopodobnie niewycięty Ls; '
 
-                            uw = str(item['SPRAWDZ'])
-                            item.setAttribute(
-                                item.fieldNameIndex('SPRAWDZ'),
-                                uw+'Prawdopodobnie niewycięty Ls; ')
-                    except:  # nopep8
-                        QgsMessageLog.logMessage(
-                            'BRAK LANDID: ' + str(landid),
-                            'LAS-R',
-                            Qgis.Critical,
-                        )
-
-            # dopisz wszystkie dane z warstwy dzialek oraz z bazy
-            for nazwa in [x.name() for x in self.dz.fields() if
-                          x.name in [y.name() for y in item.fields()]]:
-                item.setAttribute(item.fieldNameIndex(nazwa),
-                                  self.dz[nazwa])
-
-            # dopisz dane z bazy
-            item.setAttribute(item.fieldNameIndex('LANDID'), landid)
-            item.setAttribute(item.fieldNameIndex('LAND_AR'),
-                              self.p.uzytki[landid][2])
-            item.setAttribute(item.fieldNameIndex('LAND_POW'),
-                              round(item.geometry().area()/10000, 4))
+                    item.setAttribute(item.fieldNameIndex('SPRAWDZ'), uw)
 
     def zwroc_ostateczne(self):
         """Metoda zwraca ostateczne wersje przetworzonych uzytków w postaci
@@ -1200,7 +1311,7 @@ class SprawdzMikro(object):
         self.sl_ile_popr_klu = {}
 
         for klu in self.klus_popr:
-            landid = self.pid + '.' + klu['AU'] + klu['SQ']
+            landid = self.pid + '.' + klu['AU'] + self.isNone(klu['SQ'])
 
             if landid not in self.sl_pow_popr_klu:
                 self.sl_pow_popr_klu[landid] = 0.0
@@ -1212,14 +1323,23 @@ class SprawdzMikro(object):
 
             self.sl_sasiadow[klu.id()] = []
 
+    def isNone(self, a):
+        if a in [None, 'NULL', '', ]:
+            return ''
+        elif isinstance(a, QVariant):
+            if a.isNull():
+                return ''
+        else:
+            return a
+
     def przetworz_mikro(self):
         # sprawdz sasiedztwa wszystkich malych klus na dzialce
         for k in self.p_min_klu:
-            landid = self.pid + '.' + k['AU'] + k['SQ']
+            landid = self.pid + '.' + k['AU'] + self.isNone(k['SQ'])
             polacz = False  # flaga do polaczenia lub usuniecia
 
             # jezeli uzytek jest w bazie
-            if 'Brak w bazie; ' not in k['SPRAWDZ']:
+            if 'Brak w bazie; ' not in self.isNone(k['SPRAWDZ']):
                 # jezeli uzytek ma mala pow w bazie - zostaw
                 if self.sl_ile_popr_klu[landid] < 2 and \
                         self.sl_pow_popr_klu[landid] < 0.006:
@@ -1284,7 +1404,7 @@ class SprawdzMikro(object):
                     p_area[0][1]:
                 self.do_polacz.append([k.id(), p_area[0][0]])
             else:
-                uw = k['SPRAWDZ']
+                uw = self.isNone(k['SPRAWDZ'])
                 k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
                                uw+'Mikro do spr; ')
                 self.feat_do_spr.append(k)
@@ -1316,7 +1436,7 @@ class SprawdzMikro(object):
                     elif len(p_line) == 1 and p_line[0][0] in znikajace:
                         self.do_usun.append(k.id())
                     else:
-                        uw = k['SPRAWDZ']
+                        uw = self.isNone(k['SPRAWDZ'])
                         k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
                                        uw+'Mikro do spr; ')
                         self.feat_do_spr.append(k)
@@ -1341,7 +1461,7 @@ class SprawdzMikro(object):
                 if len(sas) == 0:
                     self.do_usun.append(it[0])
                 else:
-                    uw = self.slk[it[0]]['SPRAWDZ']
+                    uw = self.isNone(self.slk[it[0]]['SPRAWDZ'])
                     self.slk[it[0]].setAttribute(
                         self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
                         uw+'Mikro do spr; ')
@@ -1378,7 +1498,7 @@ class SprawdzMikro(object):
                     if it[1] not in poprawione:
                         poprawione.append(it[1])
 
-                    uw = self.slk[it[0]]['SPRAWDZ']
+                    uw = self.isNone(self.slk[it[0]]['SPRAWDZ'])
                     self.slk[it[0]].setAttribute(
                         self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
                         uw+'Mikro do spr; ')
@@ -1403,10 +1523,17 @@ class SprawdzMikro(object):
 
             elif feat.id() in self.do_usun:
 
-                uw = feat['SPRAWDZ']
+                uw = self.isNone(feat['SPRAWDZ'])
                 feat.setAttribute(feat.fieldNameIndex('SPRAWDZ'),
                                   uw+'Mikro do spr; ')
-                self.feat_do_usun.append(feat)
+                # jezeli feat ma pow wiecej niz 1 m2, może okazać sie że jest
+                # poprawną resztką Ls - użyszkodnik sprawdzi
+                if feat.geometry().area() > 1:
+                    if feat.id() not in id_do_spr:
+                        self.feat_do_spr.append(feat)
+                        id_do_spr.append(feat.id())
+                else:
+                    self.feat_do_usun.append(feat)
 
             elif feat.id() not in id_mikrusow:
                 self.feat_popr.append(feat)
@@ -1416,12 +1543,13 @@ class SprawdzMikro(object):
         zdarzen"""
 
         if not self.is_valid():
-            return True
+            return False
 
         self.zbuduj_strukture()
         self.przetworz_mikro()
         self.process()
         self.zestaw_tablice()
+        return True
 
     def zwroc_wyn(self):
         """ Metoda zwraca 3 listy: poprawne klu, do sprawdzenia, i usuniete"""
@@ -1500,9 +1628,8 @@ class GenerujRaport():
         if self.wl == 'OF':
             self.ls_w_bazie = len(
                 [k for k in self.p.ls
-                 if self.p.uzytki[k][0] == 'Ls' and
-                 self.p.uzytki[k][3] not in self.p.dz_op]
-            )
+                 if self.p.uzytki[k][3] not in self.p.dz_op]
+            ) + len(self.p.ls_podwojne)
 
         else:
             self.ls_w_bazie = len(self.p.ls) + len(self.p.ls_podwojne)
@@ -1577,7 +1704,7 @@ class GenerujRaport():
                 if len(x.uwagi['podmsq']) > 0
             ]
         for x in sl:
-            self.lista_zm_sq += [[k, v[0], v[1]] for k, v in sl.items()]
+            self.lista_zm_sq += [[k, v[0], v[1]] for k, v in x.items()]
 
     def zestaw_liste_zmienionych_au(self):
         if self.wl == 'OF':
@@ -1591,8 +1718,9 @@ class GenerujRaport():
                 x.uwagi['podmau'] for x in self.s.values()
                 if len(x.uwagi['podmau']) > 0
             ]
+
         for x in sl:
-            self.lista_zm_au += [[k, v[0], v[1]] for k, v in sl.items()]
+            self.lista_zm_au += [[k, v[0], v[1]] for k, v in x.items()]
 
     def policz_podm_ls(self):
         if self.wl == 'OF':
@@ -1665,8 +1793,8 @@ class GenerujRaport():
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_bazie)) + '\n\n'
             self.wypis += '\n'.join(['\t'.join([x[0], str(x[1])]) for x in
-                                     sorted(self.brakujace_ls_w_shp,
-                                            key=lambda x: x[1])
+                                     sorted(self.brakujace_ls_w_bazie,
+                                            key=lambda x: x[0])
                                      ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -1745,6 +1873,7 @@ class PobierzDane(QDialog):
     def __init__(self, k=False, d=False):
         super(PobierzDane, self).__init__()
 
+        self.kontynuuj = False
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
         self.lyrk = k
@@ -1771,6 +1900,10 @@ class PobierzDane(QDialog):
         self.ui.pushButton_dzkat.clicked.connect(self.pobierz_dzkat)
         self.ui.pushButton_bazy.clicked.connect(self.pobierz_bazy)
         self.ui.comboBox_ident.currentTextChanged.connect(self.identyfikuj)
+        self.ui.pushButton_ok.clicked.connect(self.zatwierdz)
+
+    def zatwierdz(self):
+        self.kontynuuj = True
 
     def wczytaj_pola(self):
         """Metoda uzupelnia comboboxy na podstawie podanej warstwy"""
