@@ -44,6 +44,7 @@ from .skrypty import shp_numeruj
 from .skrypty import shp_sprWydzOddz
 from .skrypty import shp_przygCiecie
 from .skrypty import spr_wydzielen
+from .skrypty import shp_wyszukaj_lz
 from .skrypty import naklejki
 from .skrypty import sprawdz_ls
 from. skrypty import shp_eksport_kml
@@ -235,17 +236,26 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
-        self.zanum = QAction(QIcon(None),
-                             'Zanumeruj oddziały',
-                             self.iface.mainWindow())
-        self.przyg_danych.addAction(self.zanum)
-        self.zanum.triggered.connect(self.zanumeruj)
+        self.wyz_lz = QAction(QIcon(None),
+                              'LZ - wyznacz potencjalne',
+                              self.iface.mainWindow())
+        self.przyg_danych.addAction(self.wyz_lz)
+        self.wyz_lz.triggered.connect(self.wyszukaj_lz)
 
         self.przyg_ciec = QAction(QIcon(None),
                                   u"Przygotuj wydzielenia do cięcia",
                                   self.iface.mainWindow())
         self.przyg_danych.addAction(self.przyg_ciec)
+
+        self.przyg_danych.addSeparator()
+
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
+
+        self.zanum = QAction(QIcon(None),
+                             'Zanumeruj oddziały',
+                             self.iface.mainWindow())
+        self.przyg_danych.addAction(self.zanum)
+        self.zanum.triggered.connect(self.zanumeruj)
 
         self.dop_w_o = QAction(QIcon(None),
                                'Dopisz oddziały do wydzieleń',
@@ -264,6 +274,8 @@ class LasR:
                                   self.iface.mainWindow())
         self.przyg_danych.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
+
+        self.przyg_danych.addSeparator()
 
         self.eksp_kml = QAction(QIcon(None),
                                 u"Wyeksportuj do KML",
@@ -465,6 +477,13 @@ class LasR:
         if s.pobierzDane():
             s.przetworz()
             s.zapisz_kml()
+
+    def wyszukaj_lz(self):
+        lz = shp_wyszukaj_lz.WyszukajLz(self.iface)
+        if lz.pobierz_dane():
+            lz.zabuduj_strukt()
+            lz.wybierz_potencjalne_lz()
+            lz.stworz_warstwe_lz()
 
     def rysuj_naklejki(self):
         n = naklejki.GenerujNaklejki(self.iface)
