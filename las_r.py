@@ -432,7 +432,7 @@ class LasR:
             b.dopisz_do_bazy()
 
     def sprawdz_topologie(self):
-        b = sprawdzenia_topo.SprawdzTopo(self.iface.activeLayer())
+        b = sprawdzenia_topo.SprawdzTopo(self.iface)
         b.pobierz_feat()
         b.spr_wstepne()
         b.spr_styki()

@@ -20,6 +20,7 @@ class SprawdzWydzielenia():
             self.spr_crs,
             self.spr_wydz_baza,
             self.spr_wydz_duble,
+            self.spr_wydz_na_nielasach,
         ]
 
         komunikaty = [
@@ -28,7 +29,8 @@ class SprawdzWydzielenia():
             'Sprawdzenie obecności niezbędnych kolumn: OK',
             'Sprawdzenie układu wspł. (EPSG:2180) : OK',
             'Porównanie wydzieleń w warstwie z bazą: OK',
-            'Sprawdzenie zdublowanych wydzieleń w warstwie: OK'
+            'Sprawdzenie zdublowanych wydzieleń w warstwie: OK',
+            'Sprawdzanie wydz innych niż D-STAN, na użytkach nieleśnych: OK',
         ]
 
         for i, s in enumerate(spr):
@@ -199,4 +201,23 @@ class SprawdzWydzielenia():
                 'LasR'
             )
             return False
+        return True
+
+    def spr_wydz_na_nielasach(self):
+        tab = self.baza.pobierz_wydz_na_innych_uz()
+
+        if len(tab) > 0:
+            self.iface.messageBar().pushMessage(
+                'WYDZIELENIA NIELEŚNE',
+                'Odnaleziono wydzielenia nieleśne na użytkach nieleśnych',
+                Qgis.Critical,
+                10)
+
+            QgsMessageLog.logMessage(
+                '\nWydzielenia nieleśne na nielasach:\n' +
+                '\n'.join('  '.join(y) for y in tab),
+                'LasR'
+            )
+            return False
+
         return True

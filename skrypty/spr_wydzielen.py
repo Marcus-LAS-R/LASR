@@ -195,6 +195,12 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 Qgis.Info
             )
 
+        self.iface.messageBar().pushMessage(
+            'OK',
+            'Zakończono sprawdzanie wydzieleń',
+            Qgis.Success,
+            10)
+
         QgsMessageLog.logMessage(
                 '\n\n--- KONIEC ---\n',
                 'LasR',
