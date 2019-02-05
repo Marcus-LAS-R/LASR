@@ -134,7 +134,7 @@ class GenerujNaklejki:
                         u'zdublowany rekord obrębu, '
                         '(2 bazy z tego samego obiektu?): ' +
                         nobr,
-                        "LasR",
+                        "Las-R",
                         Qgis.Warning)
 
             if self.typ == 'ISL' and self.polacz:
@@ -155,7 +155,7 @@ class GenerujNaklejki:
                 QgsMessageLog.logMessage('Opracowań z wieloma tomami: ' +
                                          str(len(zloz)) + '\n   ' +
                                          '\n   '.join(zloz),
-                                         "LasR",
+                                         "Las-R",
                                          Qgis.Info)
         else:
             self.tomy_sl = tomy_gui.sl
@@ -166,7 +166,7 @@ class GenerujNaklejki:
                 'Daty ważności geodezji zapisane w bazach:\n   ' +
                 '\n   '.join(['('+k+') '+self.sl_gminy[k] + ' - ' + v
                               for k, v in self.geod.items()]),
-                "LasR",
+                "Las-R",
                 Qgis.Info)
 
             # jezeli w gmin jest wiecej niż baz powiel na podstawie jednej
@@ -184,13 +184,13 @@ class GenerujNaklejki:
 
                 QgsMessageLog.logMessage(
                     wyps,
-                    "LasR",
+                    "Las-R",
                     Qgis.Info)
 
         else:
             QgsMessageLog.logMessage(
                 'Brak dat ważności geodezji w bazie - tabela F_PARAMETER',
-                "LasR",
+                "Las-R",
                 Qgis.Warning)
             self.iface.messageBar().clearWidgets()
             return False
@@ -210,7 +210,7 @@ class GenerujNaklejki:
             if len(self.bazy) > 0:
                 QgsMessageLog.logMessage(u'Odnalazłem baz: ' +
                                          str(len(self.bazy)),
-                                         "LasR",
+                                         "Las-R",
                                          Qgis.Info)
                 return True
             return False
@@ -245,14 +245,14 @@ class GenerujNaklejki:
                 except:  # nopep8
                     QgsMessageLog.logMessage(
                         'Nie udało się przetworzyć bazy: '+b,
-                        'LasR',
+                        'Las-R',
                         Qgis.Warning
                     )
 
         else:
             QgsMessageLog.logMessage(
                 'Nie udało się odnaleźć baz',
-                'LasR',
+                'Las-R',
                 Qgis.Critical
             )
             return False
@@ -321,7 +321,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             '\n--- KONIEC ---',
-            "LasR",
+            "Las-R",
             Qgis.Info)
 
     def gen_okladke(self):  # noqa
@@ -330,7 +330,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuj okładkę na płytkę',
-            "LasR",
+            "Las-R",
             Qgis.Info)
 
         sl = {
@@ -634,7 +634,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuję naklejkę na płytkę',
-            "LasR",
+            "Las-R",
             Qgis.Info)
         lay = QgsPrintLayout(QgsProject.instance())
         lay.initializeDefaults()
@@ -729,7 +729,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuję naklejki na operaty',
-            "LasR",
+            "Las-R",
             Qgis.Info)
         lay = QgsPrintLayout(QgsProject.instance())
         lay.initializeDefaults()
@@ -801,7 +801,7 @@ class GenerujNaklejki:
             # jezeli mamy powierzchnie dla tego obrebu rysuj naklejki
             for site in range(1, val+1):
                 # QgsMessageLog.logMessage('|'.join(map(str, t)),
-                #    'LasR'
+                #    'Las-R'
                 # )
 
                 if si > 0:

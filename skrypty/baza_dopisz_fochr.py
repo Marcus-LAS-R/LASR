@@ -23,7 +23,7 @@ class DopiszFO(SprawdzWydzielenia):
 
         QgsMessageLog.logMessage(
                 '\n\n---[  Dopisanie form ochrony przyrody do bazy  ]---\n',
-                'LasR',
+                'Las-R',
                 Qgis.Info
         )
 
@@ -63,12 +63,12 @@ class DopiszFO(SprawdzWydzielenia):
                     self.baza.zamknij()
                 QgsMessageLog.logMessage(
                         'Nic nie dopisano do bazy\n---[   Koniec   ]---\n\n\n',
-                        'LasR')
+                        'Las-R')
                 return False
 
         QgsMessageLog.logMessage(
             'Dane w warstwie i w bazie są zgodne, dopisuję!',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
         return True
@@ -171,7 +171,7 @@ class DopiszFO(SprawdzWydzielenia):
             QgsMessageLog.logMessage(
                 'Niedopisane wydzielenia w formach ochrony: \n'
                 '\n'.join(niedop_wydz),
-                'LasR',
+                'Las-R',
                 Qgis.Warning
             )
 
@@ -185,7 +185,7 @@ class DopiszFO(SprawdzWydzielenia):
             '\nDopisano form ochrony: ' + str(num_fo+1) + '\n'
             'Dopisano wydzieleń z formami ochrony: ' + str(set_int) +
             '\n---[ KONIEC ]---',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 

@@ -7,19 +7,19 @@ def Numeruj(iface):  # noqa
 
     QgsMessageLog.logMessage(
         '------ NUMERUJ ODDZIAŁY --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
 
     if not lyr.isValid():
         QgsMessageLog.logMessage(
             'Brak zaznaczonej poprawnej warstwy',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         QgsMessageLog.logMessage(
             '------ KONIEC -------- \n',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -103,12 +103,12 @@ def Numeruj(iface):  # noqa
     if znumerowane > 0:
         QgsMessageLog.logMessage(
             'Pominięto zanumerowanych oddziałów: ' + str(znumerowane),
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )

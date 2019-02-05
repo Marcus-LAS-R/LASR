@@ -69,7 +69,7 @@ class SprawdzLs(object):
         if d is False:
             QgsMessageLog.logMessage(
                     'Nie znaleziono warstwy działek w TOC!',
-                    'LasR',
+                    'Las-R',
                     Qgis.Warning
                 )
             self.iface.messageBar().pushMessage(
@@ -288,7 +288,7 @@ class AnalizujKlus(object):
             QgsMessageLog.logMessage(
                 '   Znaleziono zdublowanych działek w shp: \n' +
                 '\n'.join(nad),
-                'LasR',
+                'Las-R',
                 Qgis.Critical
             )
             return False

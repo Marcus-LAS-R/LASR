@@ -12,7 +12,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
 
         QgsMessageLog.logMessage(
                 '\n\n--- SPRAWDZENIE WYDZIELEŃ ---\n',
-                'LasR',
+                'Las-R',
                 Qgis.Info
         )
 
@@ -132,7 +132,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 '\nWydzielenia z przekroczonymi odległościami: \n\t' +
                 '\n\t'.join([x[0]+' - '+str(round(x[1], 1))+' m'
                              for x in self.wydz_odl_przekrocz]),
-                'LasR',
+                'Las-R',
                 Qgis.Warning
             )
 
@@ -147,7 +147,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 'Wydzielenia z największymi odległościami: \n' +
                 '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
                            for x in wydruk]),
-                'LasR',
+                'Las-R',
                 Qgis.Info
             )
 
@@ -182,7 +182,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
             QgsMessageLog.logMessage(
                 '\nLz z za bliskimi odległościami do wydzieleń: ' +
                 str(len(self.lz_odl_przekrocz)),
-                'LasR',
+                'Las-R',
                 Qgis.Warning
             )
 
@@ -191,7 +191,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         else:
             QgsMessageLog.logMessage(
                 'Odległości Lz od wydzieleń: OK',
-                'LasR',
+                'Las-R',
                 Qgis.Info
             )
 
@@ -203,6 +203,6 @@ class KontrolaWydzielen(SprawdzWydzielenia):
 
         QgsMessageLog.logMessage(
                 '\n\n--- KONIEC ---\n',
-                'LasR',
+                'Las-R',
                 Qgis.Info
         )

@@ -32,22 +32,11 @@ from PyQt5.QtWidgets import QAction, QMenu
 # from .las_r_dialog import LasRDialog
 import os.path
 
-from .skrypty import sprawdz_dzkat
-from .skrypty import shp_dopOddzWydz
-from .skrypty import sprawdzenia_topo
-from .skrypty import baza_dopisz_fochr
-from .skrypty import shp_dopisz_kody
-from .skrypty import shp_symbolizacja
-from .skrypty import shp_adr_les
-from .skrypty import shp_literkuj
-from .skrypty import shp_numeruj
-from .skrypty import shp_sprWydzOddz
-from .skrypty import shp_przygCiecie
-from .skrypty import spr_wydzielen
-from .skrypty import shp_wyszukaj_lz
-from .skrypty import naklejki
-from .skrypty import sprawdz_ls
-from. skrypty import shp_eksport_kml
+from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
+    baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
+    shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
+    spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
+    baza_rozlicz_pow_wydz
 
 
 class LasR:
@@ -283,6 +272,12 @@ class LasR:
         self.przyg_danych.addAction(self.eksp_kml)
         self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
 
+        self.rozlicz_wydz = QAction(QIcon(None),
+                                    'Rozlicz powierzchnię wydz.',
+                                    self.iface.mainWindow())
+        self.baza_taks.addAction(self.rozlicz_wydz)
+        self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
+
         self.dop_fo = QAction(QIcon(None),
                               'Dopisz formy ochrony',
                               self.iface.mainWindow())
@@ -430,6 +425,16 @@ class LasR:
         if b.wybierz_fo():
             b.wybierz_wydz()
             b.dopisz_do_bazy()
+
+    def rozlicz_pow_wydzielen(self):
+        b = baza_rozlicz_pow_wydz.RozliczPowierzchnieWydz(self.iface)
+        if not b.sprawdz_dane():
+            return
+        b.przetnij_wydz_ls()
+        if b.zbuduj_strukture():
+            b.zestaw_rozliczenie()
+            b.skasuj_robocze()
+            b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)

@@ -7,7 +7,7 @@ import processing
 def przygotujDoCiecia(iface):  # noqa
     QgsMessageLog.logMessage(
         '------ PYRZGOTUJ LS DO CIECIA --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
 
@@ -52,7 +52,7 @@ def przygotujDoCiecia(iface):  # noqa
     if len(brakikol) > 0:
         QgsMessageLog.logMessage(
             'W warstwie brakuje kolumn: ' + ', '.join(brakikol),
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         iface.messageBar().pushMessage(
@@ -163,6 +163,6 @@ def przygotujDoCiecia(iface):  # noqa
 
     QgsMessageLog.logMessage(
         '------ KONIEC --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
