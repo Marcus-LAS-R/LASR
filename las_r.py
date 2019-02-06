@@ -32,20 +32,11 @@ from PyQt5.QtWidgets import QAction, QMenu
 # from .las_r_dialog import LasRDialog
 import os.path
 
-from .skrypty import sprawdz_dzkat
-from .skrypty import shp_dopOddzWydz
-from .skrypty import sprawdzenia_topo
-from .skrypty import baza_dopisz_fochr
-from .skrypty import shp_dopisz_kody
-from .skrypty import shp_symbolizacja
-from .skrypty import shp_adr_les
-from .skrypty import shp_literkuj
-from .skrypty import shp_numeruj
-from .skrypty import shp_sprWydzOddz
-from .skrypty import shp_przygCiecie
-from .skrypty import spr_wydzielen
-from .skrypty import naklejki
-from .skrypty import sprawdz_ls
+from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
+    baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
+    shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
+    spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
+    baza_rozlicz_pow_wydz
 
 
 class LasR:
@@ -234,17 +225,26 @@ class LasR:
         self.przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
-        self.zanum = QAction(QIcon(None),
-                             'Zanumeruj oddziały',
-                             self.iface.mainWindow())
-        self.przyg_danych.addAction(self.zanum)
-        self.zanum.triggered.connect(self.zanumeruj)
+        self.wyz_lz = QAction(QIcon(None),
+                              'LZ - wyznacz potencjalne',
+                              self.iface.mainWindow())
+        self.przyg_danych.addAction(self.wyz_lz)
+        self.wyz_lz.triggered.connect(self.wyszukaj_lz)
 
         self.przyg_ciec = QAction(QIcon(None),
                                   u"Przygotuj wydzielenia do cięcia",
                                   self.iface.mainWindow())
         self.przyg_danych.addAction(self.przyg_ciec)
+
+        self.przyg_danych.addSeparator()
+
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
+
+        self.zanum = QAction(QIcon(None),
+                             'Zanumeruj oddziały',
+                             self.iface.mainWindow())
+        self.przyg_danych.addAction(self.zanum)
+        self.zanum.triggered.connect(self.zanumeruj)
 
         self.dop_w_o = QAction(QIcon(None),
                                'Dopisz oddziały do wydzieleń',
@@ -263,6 +263,20 @@ class LasR:
                                   self.iface.mainWindow())
         self.przyg_danych.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
+
+        self.przyg_danych.addSeparator()
+
+        self.eksp_kml = QAction(QIcon(None),
+                                u"Wyeksportuj do KML",
+                                self.iface.mainWindow())
+        self.przyg_danych.addAction(self.eksp_kml)
+        self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
+
+        self.rozlicz_wydz = QAction(QIcon(None),
+                                    'Rozlicz powierzchnię wydz.',
+                                    self.iface.mainWindow())
+        self.baza_taks.addAction(self.rozlicz_wydz)
+        self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
         self.dop_fo = QAction(QIcon(None),
                               'Dopisz formy ochrony',
@@ -287,6 +301,8 @@ class LasR:
                                 self.iface.mainWindow())
         self.spr_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
+
+        self.menu.addSeparator()
 
         self.dop_wydz = QAction(ico_wydz_dopisz,
                                 'Dopisz do wydzieleń',
@@ -400,7 +416,8 @@ class LasR:
 
     def dopisz_f_ochr(self):
         b = baza_dopisz_fochr.DopiszFO(self.iface)
-        b.pobierz_dane_od_uzytkownika()
+        if not b.pobierz_dane_od_uzytkownika():
+            return
         if not b.poprawne_wydz():
             return False
         if not b.poprawne_fo():
@@ -409,8 +426,23 @@ class LasR:
             b.wybierz_wydz()
             b.dopisz_do_bazy()
 
+    def rozlicz_pow_wydzielen(self):
+        b = baza_rozlicz_pow_wydz.RozliczPowierzchnieWydz(self.iface)
+        if not b.sprawdz_dane():
+            return
+        b.przetnij_wydz_ls()
+        if b.zbuduj_strukture():
+            b.sprawdz_rozlicz_graf()
+            b.zestaw_rozliczenie()
+            b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
+            if not b.dopisz_rozliczenie():
+                return
+            else:
+                b.sprawdz_rozlicz_rej()
+                b.skasuj_robocze()
+
     def sprawdz_topologie(self):
-        b = sprawdzenia_topo.SprawdzTopo(self.iface.activeLayer())
+        b = sprawdzenia_topo.SprawdzTopo(self.iface)
         b.pobierz_feat()
         b.spr_wstepne()
         b.spr_styki()
@@ -449,6 +481,19 @@ class LasR:
 
     def sprawdz_wydz_w_oddz(self):
         shp_sprWydzOddz.SprWydzOddz(self.iface)
+
+    def eksportuj_do_KML(self):
+        s = shp_eksport_kml.EksportujKML(self.iface)
+        if s.pobierzDane():
+            s.przetworz()
+            s.zapisz_kml()
+
+    def wyszukaj_lz(self):
+        lz = shp_wyszukaj_lz.WyszukajLz(self.iface)
+        if lz.pobierz_dane():
+            lz.zabuduj_strukt()
+            lz.wybierz_potencjalne_lz()
+            lz.stworz_warstwe_lz()
 
     def rysuj_naklejki(self):
         n = naklejki.GenerujNaklejki(self.iface)

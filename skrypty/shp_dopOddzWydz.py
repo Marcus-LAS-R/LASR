@@ -8,7 +8,7 @@ from PyQt5.QtCore import QVariant
 def dopOddzWydz(iface):  # noqa
     QgsMessageLog.logMessage(
         '------ DOPISZ WYDZIELENIA DO ODDZIAŁÓW --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
 
@@ -28,7 +28,7 @@ def dopOddzWydz(iface):  # noqa
     if not go:
         QgsMessageLog.logMessage(
             'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         iface.messageBar().pushMessage(
@@ -41,7 +41,7 @@ def dopOddzWydz(iface):  # noqa
     if iface.activeLayer().name() == 'ODDZ':
         QgsMessageLog.logMessage(
             'Aktywną warstwą powinny być wydzielenia',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         iface.messageBar().pushMessage(
@@ -73,13 +73,13 @@ def dopOddzWydz(iface):  # noqa
             QgsMessageLog.logMessage(
                 'W warstwie ' + brak_pola[0][i] +
                 ' brakuje kolumn: ' + ', '.join(brak_pola[1][i]),
-                'LasR',
+                'Las-R',
                 Qgis.Critical
             )
 
         iface.messageBar().pushMessage(
             'BRAK KOLUMN',
-            '(Sprawdź log LasR)',
+            '(Sprawdź log Las-R)',
             Qgis.Critical,
             10)
         return
@@ -171,6 +171,6 @@ def dopOddzWydz(iface):  # noqa
 
     QgsMessageLog.logMessage(
         '------ KONIEC --------- \n',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )

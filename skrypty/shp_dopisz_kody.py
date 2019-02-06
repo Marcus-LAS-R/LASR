@@ -19,7 +19,7 @@ class DopiszKody(SprawdzWydzielenia):
 
         QgsMessageLog.logMessage(
             '--- DOPISZ METADANE DO WYDZIELEŃ ---',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -48,7 +48,7 @@ class DopiszKody(SprawdzWydzielenia):
     def koniec(self):
         QgsMessageLog.logMessage(
             '\n\n--- KONIEC ---',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -98,7 +98,7 @@ class DopiszKody(SprawdzWydzielenia):
                            'WB', 'OS', 'JW', 'LP']:
             QgsMessageLog.logMessage(
                 'Nierozpoznany gatunek, traktuję jako Klon: '+gat,
-                'LasR',
+                'Las-R',
                 Qgis.Warning
             )
             gat = 'KL'
@@ -265,7 +265,7 @@ class DopiszKody(SprawdzWydzielenia):
 
             QgsMessageLog.logMessage(
                 'Przetworzyłem dane z bazy!',
-                'LasR',
+                'Las-R',
                 Qgis.Info
             )
 
@@ -273,7 +273,7 @@ class DopiszKody(SprawdzWydzielenia):
 
         QgsMessageLog.logMessage(
             'Nie udało się przetworzyć bazy i przygotować danych do dopisania',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
 
@@ -470,7 +470,7 @@ class DopiszKody(SprawdzWydzielenia):
                             except:  # nopep8
                                 QgsMessageLog.logMessage(
                                     'Niedopisane zabiegi w wydz: '+adr,
-                                    'LasR',
+                                    'Las-R',
                                     Qgis.Warning
                                 )
 

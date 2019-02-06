@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
 from qgis.core import QgsVectorLayer, QgsGeometry, QgsPointXY, QgsProject, \
-    QgsFeature, QgsSpatialIndex, QgsField
+    QgsFeature, QgsSpatialIndex, QgsField, Qgis
 from PyQt5.QtCore import QVariant
 from collections import defaultdict
 
 from .funkcje import poprawna_topo
+from .pw import PasekPostepu
 
 
 class recursivedefaultdict(defaultdict):
@@ -14,8 +15,9 @@ class recursivedefaultdict(defaultdict):
 
 
 class SprawdzTopo():
-    def __init__(self, lyr):
-        self.lyr = lyr
+    def __init__(self, iface):
+        self.iface = iface
+        self.lyr = self.iface.activeLayer()
         self.slf = {}  # slownik feat z warstwy
         self.slfi = QgsSpatialIndex()  # SI z featurow warstwy
         self.bl_pkt = {}  # sl z bledami pktowymi id: [X, Y, typ]
@@ -29,12 +31,17 @@ class SprawdzTopo():
         self.slpkt = recursivedefaultdict()
 
         self.trig_spr_wst = False
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Sprawdzanie topologii'
+        )
 
     def pobierz_feat(self):
         for f in self.lyr.getFeatures():
             self.slf[f.id()] = f
 
         self.slfi = QgsSpatialIndex(self.lyr.getFeatures())
+
+        self.postep.setValue(5)
 
     def spr_wstepne(self):
         self.pkt_c = 0
@@ -73,6 +80,7 @@ class SprawdzTopo():
 
         # trig do dalszych analiz
         self.trig_spr_wst = True
+        self.postep.setValue(25)
 
     def spr_styki(self):
         """Metoda sprawdza czy stykajace sie poligony na wspolnym odc maja
@@ -102,7 +110,7 @@ class SprawdzTopo():
                     self.bl_pkt[self.pkt_c] = [x, y, 'Blad stykania']
                     self.pkt_c += 1
 
-        print('skonczylem sprawdzac styki')
+        self.postep.setValue(50)
 
     def spr_wasy(self):
         """Metoda sprawdza czy w poligonie nie występują tzw "wąsy", które są
@@ -113,6 +121,8 @@ class SprawdzTopo():
                 if not poprawna_topo(poly):
                     self.bl_poly.append([feat.geometry(), '"was"'])
                     break
+
+        self.postep.setValue(75)
 
     def spr_nakladanie(self):
         """Metoda sprawdza czy poligony w warstwie się na siebie nie nakładają,
@@ -126,9 +136,14 @@ class SprawdzTopo():
                         print('nalozenie: '+str(inter.area()))
                         self.bl_poly.append([inter, 'nakladanie'])
 
+        self.postep.setValue(95)
+
     def dodaj_warstwy(self):
         plug_dir = os.path.dirname(__file__)
+        str_problemy = []
+
         if len(list(self.bl_pkt.keys())) > 0:
+            str_problemy.append('punktowe')
             pktlyr = QgsVectorLayer(
                     "Point?crs=epsg:2180",
                     "TOPO_bledy_pkt",
@@ -167,6 +182,7 @@ class SprawdzTopo():
             QgsProject.instance().addMapLayer(pktlyr)
 
         if len(self.bl_poly) > 0:
+            str_problemy.append('poligonowe')
             polyLyr = QgsVectorLayer(
                     "MultiPolygon?crs=epsg:2180",
                     "TOPO_bledy_poly",
@@ -193,19 +209,18 @@ class SprawdzTopo():
             polylyr_dp.addFeatures(fs)
             polyLyr.commitChanges()
 
-            # pyqgis3
             polyLyr.loadNamedStyle(os.path.join(plug_dir,
                                                 '..',
                                                 'qml',
                                                 'TOPO_poly.qml'))
             QgsProject.instance().addMapLayer(polyLyr)
 
+        self.postep.setValue(100)
+        self.iface.messageBar().clearWidgets()
 
-# if __name__ == '__console__':
-    # b = SprawdzTopo(iface.activeLayer())  # nopep8
-    # b.pobierz_feat()
-    # b.spr_wstepne()
-    # b.spr_styki()
-    # b.spr_wasy()
-    # b.spr_nakladanie()
-    # b.dodaj_warstwy()
+        dodatek = 'Sprawdzono topologię! '
+        if len(str_problemy) > 0:
+            dodatek += ' Znaleziono problemy '
+            dodatek += ' i '.join(str_problemy) + '.'
+
+        self.iface.messageBar().pushMessage('OK', dodatek, Qgis.Success, 10)

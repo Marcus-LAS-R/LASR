@@ -17,19 +17,19 @@ def Literkuj(iface):  # noqa
 
     QgsMessageLog.logMessage(
         '------ LITERKUJ WYDZIELENIA --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
 
     if not lyr.isValid():
         QgsMessageLog.logMessage(
             'Brak zaznaczonej poprawnej warstwy',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         QgsMessageLog.logMessage(
             '------ KONIEC -------- \n',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -101,20 +101,20 @@ def Literkuj(iface):  # noqa
                         iface.messageBar().pushMessage(
                             'LICZBA WYDZIELEŃ',
                             'Przekroczono liczbę wydzieleń obsługiwaną w '
-                            'jednym oddziale, (Patrz log LasR)',
+                            'jednym oddziale, (Patrz log Las-R)',
                             Qgis.Warning,
                             10)
 
                         QgsMessageLog.logMessage(
                             'Lista wydzielen z błędnymi kodami:',
-                            'LasR',
+                            'Las-R',
                             Qgis.Warning
                         )
                     message_trig += 1
 
                     QgsMessageLog.logMessage(
                         ' '.join([it[5], it[6], it[3], 'xxx']),
-                        'LasR',
+                        'Las-R',
                         Qgis.Warning
                     )
                 sl[it[0]] = {fnm['WYDZ']: wpis}
@@ -135,6 +135,6 @@ def Literkuj(iface):  # noqa
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )

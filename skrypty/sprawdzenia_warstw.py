@@ -20,6 +20,7 @@ class SprawdzWydzielenia():
             self.spr_crs,
             self.spr_wydz_baza,
             self.spr_wydz_duble,
+            self.spr_wydz_na_nielasach,
         ]
 
         komunikaty = [
@@ -28,7 +29,8 @@ class SprawdzWydzielenia():
             'Sprawdzenie obecności niezbędnych kolumn: OK',
             'Sprawdzenie układu wspł. (EPSG:2180) : OK',
             'Porównanie wydzieleń w warstwie z bazą: OK',
-            'Sprawdzenie zdublowanych wydzieleń w warstwie: OK'
+            'Sprawdzenie zdublowanych wydzieleń w warstwie: OK',
+            'Sprawdzanie wydz innych niż D-STAN, na użytkach nieleśnych: OK',
         ]
 
         for i, s in enumerate(spr):
@@ -55,7 +57,7 @@ class SprawdzWydzielenia():
             else:
                 QgsMessageLog.logMessage(
                     komunikaty[i],
-                    'LasR',
+                    'Las-R',
                     Qgis.Info
                 )
 
@@ -66,7 +68,7 @@ class SprawdzWydzielenia():
             self.baza.zamknij()
         QgsMessageLog.logMessage(
             'Warstwa wydzieleń niepoprawna!',
-            'LasR')
+            'Las-R')
 
     def spr_baza_polacz(self):
         if not self.baza.polacz():
@@ -77,7 +79,7 @@ class SprawdzWydzielenia():
                 10)
             QgsMessageLog.logMessage(
                         'Brak dostepu do bazy',
-                        'LasR')
+                        'Las-R')
             return False
         return True
 
@@ -129,17 +131,17 @@ class SprawdzWydzielenia():
 
         QgsMessageLog.logMessage(
             '   Znaleziono poligonów w shp: ' + str(len(adr_w)),
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
         QgsMessageLog.logMessage(
             '   Znaleziono wydzieleń w shp: ' + str(len(set(adr_w))),
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
         QgsMessageLog.logMessage(
             '   Znaleziono wydzieleń w bazie: ' + str(len(adr_b)),
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -147,29 +149,29 @@ class SprawdzWydzielenia():
             self.iface.messageBar().pushMessage(
                 'BAZA',
                 'W shp znajdują się wydzielenia, które nie są dopisane do ' +
-                'Bazy! Patrz log LasR',
+                'Bazy! Patrz log Las-R',
                 Qgis.Critical,
                 10)
 
             QgsMessageLog.logMessage('Brakujące wydzielenia w bazie:',
-                                     'LasR',
+                                     'Las-R',
                                      Qgis.Critical)
             for b in brakiw:
-                QgsMessageLog.logMessage(b, 'LasR', Qgis.Critical)
+                QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
 
         if len(brakib) > 0:
             self.iface.messageBar().pushMessage(
                 'BAZA',
                 'W bazie znajdują się wydzielenia, które nie są dopisane do ' +
-                'warstwy! Patrz log LasR',
+                'warstwy! Patrz log Las-R',
                 Qgis.Critical,
                 10)
 
             QgsMessageLog.logMessage('Brakujące wydzielenia w warstwie:',
-                                     'LasR',
+                                     'Las-R',
                                      Qgis.Critical)
             for b in brakib:
-                QgsMessageLog.logMessage(b, 'LasR', Qgis.Critical)
+                QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
 
         if len(brakib) > 0 or len(brakiw) > 0:
             return False
@@ -196,7 +198,26 @@ class SprawdzWydzielenia():
                 '\nNiepołączone wydzielenia: \n' + '\n'.join(
                     [y[0] + '   (x' + str(y[1]) + ')'
                      for y in Counter(adr_w).most_common() if y[1] > 1]),
-                'LasR'
+                'Las-R'
             )
             return False
+        return True
+
+    def spr_wydz_na_nielasach(self):
+        tab = self.baza.pobierz_wydz_na_innych_uz()
+
+        if len(tab) > 0:
+            self.iface.messageBar().pushMessage(
+                'WYDZIELENIA NIELEŚNE',
+                'Odnaleziono wydzielenia nieleśne na użytkach nieleśnych',
+                Qgis.Critical,
+                10)
+
+            QgsMessageLog.logMessage(
+                '\nWydzielenia nieleśne na nielasach:\n' +
+                '\n'.join('  '.join(y) for y in tab),
+                'Las-R'
+            )
+            return False
+
         return True

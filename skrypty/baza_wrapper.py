@@ -4,13 +4,18 @@ import platform
 import pypyodbc as pyodbc
 import sqlite3
 from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtCore import QVariant
 from qgis.core import Qgis
 from datetime import datetime
 from shutil import copyfile
 
 
-def znajdz_baze_do_wydz(iface):
-    wydz = iface.activeLayer()
+def znajdz_baze_do_wydz(iface, wydzlyr=False):
+    if wydzlyr is not False:
+        wydz = wydzlyr
+    else:
+        wydz = iface.activeLayer()
+
     wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
     kat = os.path.dirname(wydz_sc)
 
@@ -85,15 +90,22 @@ class Baza(object):
         return False
 
     def zamknij(self):
-        self.cur.close()
-        self.con.close()
-        self.con = False
-        self.cur = False
+        try:
+            self.cur.close()
+            self.con.close()
+            self.con = False
+            self.cur = False
+        except:  # nopep8
+            pass
 
     def wpisz(self, sql):
         """Metoda dopisuje do bazy podanego sql"""
-        self.cur.execute(sql)
-        self.con.commit()
+        try:
+            self.cur.execute(sql)
+            self.con.commit()
+        except:  # nopep8
+            return False
+        return True
 
     def utworz_kopie(self, wpis=''):
         """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
@@ -101,21 +113,26 @@ class Baza(object):
         katalog, plik = os.path.split(self.baza)
         plikn = plik[:-4] + \
             '_' + wpis + '_' + \
-            datetime.now().isoformat().replace(':', '')[:-7] + \
-            '.mdb'
+            datetime.now().isoformat().replace(':', '')[:-7]
+
+        if platform.system()[:3] == 'Win':
+            plikn += '.mdb'
+        else:
+            plikn += '.sqlite'
+
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        # self.baza = plikn
+        self.baza = os.path.join(katalog, plikn)
 
-    def isNone(self, x, typ='i'):
-        if x is None:
-            if typ == "s":
-                return " "
-            if typ == "i":
-                return 0
+    def isNone(self, a):
+        if a in [None, 'NULL', '', ]:
+            return ''
+        elif isinstance(a, QVariant):
+            if a.isNull():
+                return ''
         else:
-            return x
+            return a
 
     def uzytki(self):
         # kwer1
@@ -505,3 +522,68 @@ class Baza(object):
             from F_PARAMETER;
         """
         return self.cur.execute(sql).fetchall()
+
+    def pobierz_wydz_na_innych_uz(self):
+        """Metoda pobiera z bazy adresy les z wydzielen które nie są D-STANami
+        a występują na użytkacj innych niż Ls.
+        Zwracana tabela ma kształt :
+            adr_les,
+            area_type_cd,
+            land_use_cd,
+
+        """
+
+        sql = """
+        SELECT
+            F_ARODES.ADRESS_FOREST,
+            F_SUBAREA.AREA_TYPE_CD,
+            F_PARCEL_LAND_USE.AREA_USE_CD,
+            F_PARCEL_LAND_USE.LAND_USE_AREA
+        FROM F_PARCEL_LAND_USE
+        INNER JOIN ((F_ARODES
+                    INNER JOIN F_SUBAREA ON
+                        F_ARODES.ARODES_INT_NUM = F_SUBAREA.ARODES_INT_NUM)
+                    INNER JOIN F_AROD_LAND_USE ON
+                    F_ARODES.ARODES_INT_NUM = F_AROD_LAND_USE.ARODES_INT_NUM)
+            ON (F_PARCEL_LAND_USE.SHAPE_NR = F_AROD_LAND_USE.SHAPE_NR)
+        AND (F_PARCEL_LAND_USE.PARCEL_INT_NUM = F_AROD_LAND_USE.PARCEL_INT_NUM)
+        WHERE (((F_PARCEL_LAND_USE.AREA_USE_CD) NOT LIKE "Ls")
+            AND ((F_SUBAREA.AREA_TYPE_CD) NOT LIKE "D-STAN"));
+
+        """
+
+        return self.cur.execute(sql).fetchall()
+
+    def pobierz_rozliczenie_wydz(self):
+        """Metoda pobiera zawartość tabeli F_ARDOD_LAND_USE i zwraca tabele
+        """
+        sql = """
+            select
+                arodes_int_num,
+                parcel_int_num,
+                shape_nr,
+                arod_land_use_area
+            from F_AROD_LAND_USE;
+        """
+        return self.cur.execute(sql).fetchall()
+
+    def wpisz_rozliczenie_wydz(self, tab):
+        """ Metoda wpisuje do tabeli F_AROD_LAND_USE  podany wiersz i zwraca
+        True/False w zależności od powodzenia"""
+
+        try:
+            self.cur.execute(
+                "insert into F_AROD_LAND_USE " +
+                "(PARCEL_INT_NUM, SHAPE_NR, "
+                "ARODES_INT_NUM, "
+                "AROD_LAND_USE_AREA, "
+                "LARGE_TIMBER_VALUE) values(" +
+                str(tab[0]) + ", " +
+                str(tab[1]) + ", " +
+                str(tab[2]) + ", " +
+                str(tab[3]) + ", 0);"
+            )
+            self.con.commit()
+            return True
+        except:  # nopep8
+            return False

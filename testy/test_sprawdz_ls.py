@@ -39,7 +39,7 @@ def przetwarzanie_wejsciowe():
     # a.dd.ui.lineEdit_klu.setText('/home/qnox/upul/testy/shp/KLU.shp')
     # a.dd.ui.lineEdit_dzkat.setText('/home/qnox/upul/testy/shp/DZKAT.shp')
     a.dd.ui.lineEdit_bazy.setText('/home/qnox/upul/testy/grabica')
-    a.dd.ui.comboBox_ident.setCurrentIndex(2)
+    a.dd.ui.comboBox_ident.setCurrentIndex(1)
     a.dd.ui.comboBox_au.setCurrentIndex(1)
     a.dd.ui.comboBox_sq.setCurrentIndex(2)
 
@@ -60,8 +60,8 @@ def data():
          ['3', 3, 0.02, 3, 'Ls', 'V', 0.01, ],
          ['3', 3, 0.02, 4, 'Ls', 'IV', 0.01, ],
          ['4', 4, 0.04, 5, 'Ls', 'IV', 0.02, ],
-         ['5', 5, 0.04, 6, 'Ls', 'V', 0.03, ],
-         ['5', 5, 0.04, 7, 'Ls', 'IV', 0.01, ],
+         ['5', 5, 0.34, 6, 'Ls', 'V', 0.33, ],
+         ['5', 5, 0.34, 7, 'Ls', 'IV', 0.33, ],
     ]
 
     uz = []
@@ -574,7 +574,7 @@ def test_aKlu_pobrania_danych_od_uzytk(przetwarzanie_wejsciowe):
     assert a.dd.ui.lineEdit_bazy.text() == \
         '/home/qnox/upul/testy/grabica'
     assert a.dd.ui.comboBox_ident.isEnabled() is True
-    assert a.dd.ui.comboBox_ident.currentIndex() == 2
+    assert a.dd.ui.comboBox_ident.currentIndex() == 1
     assert a.dd.ui.comboBox_au.isEnabled() is True
     assert a.dd.ui.comboBox_sq.isEnabled() is True
     assert a.dd.ui.comboBox_au.currentIndex() == 1

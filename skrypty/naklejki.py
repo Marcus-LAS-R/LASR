@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem, QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 
+from .pw import PasekPostepu
 from .baza_wrapper import Baza
 
 from .ui.ui_naklejki_dialog import Ui_DialogNaklejki
@@ -85,6 +86,11 @@ class GenerujNaklejki:
                 return True
             return False
 
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Generowanie wybranych raportów'
+        )
+        self.postep.setValue(5)
+
     def pobierz_dane(self):  # noqa
         """Metoda pobiera od uzytkownika sciezke do baz, oraz informacje o
         rodzaju opracowania i tomach"""
@@ -128,7 +134,7 @@ class GenerujNaklejki:
                         u'zdublowany rekord obrębu, '
                         '(2 bazy z tego samego obiektu?): ' +
                         nobr,
-                        "LasR",
+                        "Las-R",
                         Qgis.Warning)
 
             if self.typ == 'ISL' and self.polacz:
@@ -149,7 +155,7 @@ class GenerujNaklejki:
                 QgsMessageLog.logMessage('Opracowań z wieloma tomami: ' +
                                          str(len(zloz)) + '\n   ' +
                                          '\n   '.join(zloz),
-                                         "LasR",
+                                         "Las-R",
                                          Qgis.Info)
         else:
             self.tomy_sl = tomy_gui.sl
@@ -160,7 +166,7 @@ class GenerujNaklejki:
                 'Daty ważności geodezji zapisane w bazach:\n   ' +
                 '\n   '.join(['('+k+') '+self.sl_gminy[k] + ' - ' + v
                               for k, v in self.geod.items()]),
-                "LasR",
+                "Las-R",
                 Qgis.Info)
 
             # jezeli w gmin jest wiecej niż baz powiel na podstawie jednej
@@ -178,16 +184,18 @@ class GenerujNaklejki:
 
                 QgsMessageLog.logMessage(
                     wyps,
-                    "LasR",
+                    "Las-R",
                     Qgis.Info)
 
         else:
             QgsMessageLog.logMessage(
                 'Brak dat ważności geodezji w bazie - tabela F_PARAMETER',
-                "LasR",
+                "Las-R",
                 Qgis.Warning)
+            self.iface.messageBar().clearWidgets()
             return False
 
+        self.postep.setValue(15)
         return True
 
     def znajdz_bazy(self):
@@ -202,7 +210,7 @@ class GenerujNaklejki:
             if len(self.bazy) > 0:
                 QgsMessageLog.logMessage(u'Odnalazłem baz: ' +
                                          str(len(self.bazy)),
-                                         "LasR",
+                                         "Las-R",
                                          Qgis.Info)
                 return True
             return False
@@ -237,14 +245,14 @@ class GenerujNaklejki:
                 except:  # nopep8
                     QgsMessageLog.logMessage(
                         'Nie udało się przetworzyć bazy: '+b,
-                        'LasR',
+                        'Las-R',
                         Qgis.Warning
                     )
 
         else:
             QgsMessageLog.logMessage(
                 'Nie udało się odnaleźć baz',
-                'LasR',
+                'Las-R',
                 Qgis.Critical
             )
             return False
@@ -261,49 +269,39 @@ class GenerujNaklejki:
     def generuj_all(self):
         """Metoda zbiorcza do generowania naklejek"""
 
-        self.iface.messageBar().pushMessage(
-            'Generowanie naklejek',
-            'to potrwa kilka minut, uzbrój się w cierpliwość',
-            Qgis.Info,
-            5
-        )
-
+        bledy = []  # tabela z opisami ew. błędów
+        self.postep.setValue(45)
         _ok = True
         try:
             if self.plyta:
                 self.gen_plytke()
         except:  # nopep8
             _ok = False
-            self.iface.messageBar().pushMessage(
-                'BŁĄD',
-                'Coś poszło nie tak przy generowaniu naklejki na plytkę',
-                Qgis.Warning,
-                5
+            bledy.append(
+                'Coś poszło nie tak przy generowaniu naklejki na plytkę'
             )
 
+        self.postep.setValue(50)
         try:
             if self.naklejki:
                 self.gen_naklejki()
         except:  # nopep8
             _ok = False
-            self.iface.messageBar().pushMessage(
-                'BŁĄD',
-                'Coś poszło nie tak przy generowaniu naklejek na operaty',
-                Qgis.Warning,
-                5
+            bledy.append(
+                'Coś poszło nie tak przy generowaniu naklejek na operaty'
             )
 
+        self.postep.setValue(90)
         try:
             if self.okladka:
                 self.gen_okladke()
         except:  # nopep8
             _ok = False
-            self.iface.messageBar().pushMessage(
-                'BŁĄD',
-                'Coś poszło nie tak przy generowaniu okładki na plytkę',
-                Qgis.Warning,
-                5
+            bledy.append(
+                'Coś poszło nie tak przy generowaniu okładki na plytkę'
             )
+        self.postep.setValue(100)
+        self.iface.messageBar().clearWidgets()
 
         if _ok:
             self.iface.messageBar().pushMessage(
@@ -312,10 +310,18 @@ class GenerujNaklejki:
                 Qgis.Success,
                 5
             )
+        else:
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Coś poszło nie tak, sprawdź log,  ' +
+                ', '.join(bledy),
+                Qgis.Warning,
+                15
+            )
 
         QgsMessageLog.logMessage(
             '\n--- KONIEC ---',
-            "LasR",
+            "Las-R",
             Qgis.Info)
 
     def gen_okladke(self):  # noqa
@@ -324,7 +330,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuj okładkę na płytkę',
-            "LasR",
+            "Las-R",
             Qgis.Info)
 
         sl = {
@@ -628,7 +634,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuję naklejkę na płytkę',
-            "LasR",
+            "Las-R",
             Qgis.Info)
         lay = QgsPrintLayout(QgsProject.instance())
         lay.initializeDefaults()
@@ -723,7 +729,7 @@ class GenerujNaklejki:
 
         QgsMessageLog.logMessage(
             u'Generuję naklejki na operaty',
-            "LasR",
+            "Las-R",
             Qgis.Info)
         lay = QgsPrintLayout(QgsProject.instance())
         lay.initializeDefaults()
@@ -795,7 +801,7 @@ class GenerujNaklejki:
             # jezeli mamy powierzchnie dla tego obrebu rysuj naklejki
             for site in range(1, val+1):
                 # QgsMessageLog.logMessage('|'.join(map(str, t)),
-                #    'LasR'
+                #    'Las-R'
                 # )
 
                 if si > 0:
@@ -1062,7 +1068,7 @@ class PobierzDane(QDialog, Ui_DialogNaklejki):
         super(PobierzDane, self).__init__(None)
         self.setupUi(self)
         self.go_flag = False
-        self.lineEdit_sciezka.setText('/home/qnox/upul/testy/namyslow/')
+        # self.lineEdit_sciezka.setText('/home/qnox/upul/testy/namyslow/')
         self.kat = ''  # sciezka do podawania w QFileDialogu
 
         self.pushButton_wybierz.clicked.connect(self.pobierz_katalog_tpu)
