@@ -148,7 +148,13 @@ class Baza(object):
                 , F_PARCEL.PARCEL_AREA
                 , F_PARCEL_LAND_USE.SHAPE_NR
                 , F_PARCEL_LAND_USE.AREA_USE_CD
-                , UPPER(F_PARCEL_LAND_USE.SOIL_QUALITY_CD)
+        '''
+        if self.baza[-6:] == 'sqlite':
+            sql += ''', UPPER(F_PARCEL_LAND_USE.SOIL_QUALITY_CD) '''
+        else:
+            sql += ''', UCASE(F_PARCEL_LAND_USE.SOIL_QUALITY_CD) '''
+
+        sql += '''
                 , F_PARCEL_LAND_USE.LAND_USE_AREA
         '''
         if self.baza[-6:] == 'sqlite':

@@ -1,4 +1,5 @@
 import os
+import platform
 import glob
 from qgis.core import QgsVectorLayer, QgsMessageLog, QgsProject, Qgis
 # import processing  # import przeniesiony do metody - ulatwienie testowania
@@ -111,7 +112,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             )
 
         self.ls = ls[0]
-        # self.ls.dataProvider().setEncoding('UTF-8')
+        self.ls.dataProvider().setEncoding('UTF-8')
         self.wydz = wydz[0]
         # self.wydz.dataProvider().setEncoding('UTF-8')
 
@@ -197,6 +198,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             'interek',
             'ogr'
         )
+
+        if platform.system()[:3] == 'Win':
+            self.inter.dataProvider().setEncoding('cp1250')
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
@@ -588,8 +592,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             'Rozliczono użytków:\n'
             'Nieleśnych: ' + str(len(self.sl_rozl_rej_nielas.keys())) +
             '\nLeśnych: ' + str(len(self.sl_rozl_rej_of) +
-                                 len(self.sl_rozl_rej_op) +
-                                 len(self.sl_rozl_rej_opif)) +
+                                len(self.sl_rozl_rej_op) +
+                                len(self.sl_rozl_rej_opif)) +
             '\n__w tym:\n____OF: ' + str(len(self.sl_rozl_rej_of)) +
             '\n____OPiF: ' + str(len(self.sl_rozl_rej_opif)) +
             '\n____OP: ' + str(len(self.sl_rozl_rej_op)),
