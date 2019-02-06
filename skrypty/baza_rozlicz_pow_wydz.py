@@ -7,6 +7,7 @@ from collections import defaultdict
 
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
+from .baza_przetworz import Przetworz
 
 
 class recursivedefaultdict(defaultdict):
@@ -49,6 +50,33 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         #           AROD_LAND_USE_AREA,
         #           ], ... ]
         self.rozlicz = {}
+
+        # sl z pow graficzna dla wydzielen - na koncu jest sprawdzenie czy cala
+        # powierzchnia zostala rozliczona. Ma znaczenie gdy uzytki albo ls maja
+        # błedy topologiczne i qgis pominie jakies  poligony. Poniższa tablica
+        # umożliwi wyświetlenie zlokalizowanych błędów rozliczeń
+        # {adr_les: pow_graf }
+        self.sl_wydz_graf = {}
+        self.sl_wydz_diff = {}  # od sl odejmujemy pow kazdego uzytku do zera
+
+        # tab z ADR_LES nierozliczonych w całości wydzieleń, GRAFIKA
+        self.wydz_nierozliczone = []
+
+        # tab z błędami podczas dopisywania do bazy taksatora
+        self.bledy_rozliczania_baza = []
+
+        # slowniki rozliczonych ls z podzialem na wl każdy w postaci:
+        # {LANDID: [pow rozlicz z F_AROD_LAND_USE, pow uz z F_PARCEL_LAND_USE]}
+        self.sl_rozl_rej_op = {}
+        self.sl_rozl_rej_of = {}
+        self.sl_rozl_rej_opif = {}
+        self.sl_rozl_rej_nielas = {}
+
+        # tablice z bledami rozliczeniowymi w postaci:
+        # [[LANDID, POW_ROZL, POW_REJ], ]
+        self.op_bl = []
+        self.of_bl = []
+        self.opif_bl = []
 
         QgsMessageLog.logMessage(
             '\n-----[ ROZLICZENIE POW WYDZIELEŃ ]-----', 'Las-R', Qgis.Info
@@ -196,7 +224,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         braki_uzytkow = []  # tablica z uzytkami nie wystepujacymi w bazie
         for uz in self.ls.getFeatures():
             if uz['LANDID'] not in self.sl_uz_baza.keys():
-                braki_uzytkow.append(uz['LANDID'])
+                braki_uzytkow.append(self.isNone(uz['LANDID']))
             else:
                 self.sl_uz_baza[uz['LANDID']].append(
                     round(uz.geometry().area() / 10000, 4)
@@ -212,17 +240,27 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 15
             )
             QgsMessageLog.logMessage(
-                'Użytki nie występujące w bazie:\n'
-                '\n'.join(braki_uzytkow),
+                'Użytki nie występujące w bazie:\n' +
+                '\n'.join(braki_uzytkow) +
+                '\n-----[ KONIEC ]-----',
                 'Las-R'
             )
-            return False
+            # return False
+
+        # przygotuj pow graficzna dla wszystkich wydz, wiemy ze sa poprawne bo
+        # przeszły sprawdzanie na samym początku
+        for wydz in self.wydz.getFeatures():
+            self.sl_wydz_graf[wydz['ADR_LES']] = wydz.geometry().area() / 10000
+            self.sl_wydz_diff[wydz['ADR_LES']] = wydz.geometry().area() / 10000
 
         # stworz slownik pow wydzielen w uzytkach
         for uz in self.inter.getFeatures():
             # Jeżeli przecięcie ma powi mniejszą od 1 m2 pomijamy
             if uz.geometry().area() < 1:
                 continue
+
+            self.sl_wydz_diff[uz['ADR_LES']] -= \
+                round(uz.geometry().area() / 10000, 4)
 
             if uz['LANDID'] not in self.sl_uz_shp:
                 self.sl_uz_shp[uz['LANDID']][uz['ADR_LES']] = \
@@ -234,12 +272,44 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 else:
                     poprzedni = self.sl_uz_shp[uz['LANDID']][uz['ADR_LES']]
                     self.sl_uz_shp[uz['LANDID']][uz['ADR_LES']] = \
-                        poprzedni + round(uz.geometry().area() / 10000, 4)
+                        round(poprzedni + uz.geometry().area() / 10000, 4)
 
         # pobierz sl wydzielen
         self.adr_les = self.baza.pobierz_wydzielenia()
 
         return True
+
+    def sprawdz_rozlicz_graf(self):
+        """ Metoda sprawdza czy pow wydz przed i po intersect nie odbiega od
+        siebie o wiecej niż o metr. Jeżeli tak, zaraportuj użyszkodnikowi, że
+        coś nie gra
+        """
+
+        # sprawdz czy pow graf interu jest taka sama jak pow graf wydzielen,
+        # jeżeli nie przygotuj raport czego brakuje
+        for key in self.sl_wydz_graf.keys():
+            if self.sl_wydz_diff[key] > 1.0:
+                self.wydz_nierozliczone.append(key)
+
+        if len(self.wydz_nierozliczone) > 0:
+            QgsMessageLog.logMessage(
+                'Wydzielenia z nierozliczoną częścią pow. \n'
+                '(Błędy najprawdopodobniej wynikają z błędów topologicznych)\n'
+                'ADR_LES  \tpow graf nierozliczona/pow graf wydz\n' +
+                '\n'.join([' '.join(
+                    [x,
+                     str(round(self.sl_wydz_diff[x], 4)),
+                     str(round(self.sl_wydz_graf[x], 4))])
+                    for x in self.wydz_nierozliczone]),
+                'Las-R',
+                Qgis.Warning
+            )
+        else:
+            QgsMessageLog.logMessage(
+                '\nSprawdenie pow graf wydzeleń przed i po intersect - OK',
+                'Las-R',
+                Qgis.Info
+            )
 
     def skasuj_robocze(self):
         """ Metoda kasuje robocze warstwy katalogu temp """
@@ -253,14 +323,15 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             os.remove(ll)
 
         QgsMessageLog.logMessage(
-            '\n\nRozliczono uzytków: ' +
+            '\nINFORMACJE LICZBOWE O ROZLICZENIU'
+            '\nRozliczono uzytków: ' +
             str(len(self.uz_cale+self.uz_czesciowe)) + '\n'
             '   z pełnym pokryciem przez wydzielenia: ' +
             str(len(self.uz_cale)) +
-            '\n   (w tym Ls-ów: ' +
-            str(len([x for x in self.uz_cale if 'Ls' in x])) +
+            '\n       (w tym Ls-ów: ' +
+            str(len([x for x in self.uz_cale if 'Ls' in x])) + ')'
             '\n   z częściowym pokryciem przez wydz: ' +
-            str(len(self.uz_czesciowe)) + '\n\n',
+            str(len(self.uz_czesciowe)) + '\n',
             'Las-R',
             Qgis.Info
         )
@@ -269,13 +340,14 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         try:
             os.removedirs(self.tempkat)
             QgsMessageLog.logMessage(
-                'Sprzątam po skrypcie... OK\n-----[ KONIEC ]-----',
+                '\nSprzątam po skrypcie... OK\n-----[ KONIEC ]-----',
                 'Las-R',
                 Qgis.Info
             )
         except:  # nopep8
             QgsMessageLog.logMessage(
-                'Nie udało się posprzątać po skrypcie, zostawiam temp_pow'
+                '\nNie udało się posprzątać po skrypcie, '
+                'zostawiam katalog temp'
                 '\n-----[ KONIEC ]-----',
                 'Las-R',
                 Qgis.Info
@@ -333,7 +405,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         temp_pow = self.o_tabele_pow_rej(uz, pow_uz_rej, pow_uz_graf)
 
         # oblicz poprawkę jaką trzeba dodać aby pow się zgadzała z rej. w bazie
-        if pow_uz_rej != sum([x[1] for x in temp_pow]):
+        if round(pow_uz_rej, 4) != round(sum([x[1] for x in temp_pow]), 4):
             poprawka = round(pow_uz_rej - sum([x[1] for x in temp_pow]), 4)
 
             # dodaj do największego wydzielenia na uzytku
@@ -344,7 +416,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
     def o_czy_caly_uz(self, key, uz):
         # suma wszystkich uzytkow na pow - GRAFICZNA
-        suma_graf = sum([x for x in uz.values()])
+        suma_graf = round(sum([x for x in uz.values()]), 4)
         # pow rej calego uzytku
         pow_uz_rej = self.sl_uz_baza[key][2]
         pow_uz_graf = self.sl_uz_baza[key][3]
@@ -352,8 +424,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # jezeli pow graf intersecta i calego uzytku nie zgadza sie w 99%,
         # , przelicz pow rej z proporcji na
         # część wspólną i na jej podstawie licz pow rej
-        if abs(suma_graf - self.sl_uz_baza[key][3]) < 1:
-            self.uz_cale.append(key)
+        if abs(suma_graf - self.sl_uz_baza[key][3]) > 1:
+            self.uz_czesciowe.append(key)
 
             pow_uz_graf = suma_graf
             pow_uz_rej = round(
@@ -362,7 +434,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             )
 
         else:
-            self.uz_czesciowe.append(key)
+            self.uz_cale.append(key)
 
         self.sl_uz_baza[key] += [pow_uz_rej, pow_uz_graf]
         return pow_uz_rej, pow_uz_graf
@@ -385,6 +457,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         return temp_pow
 
     def zapisz_rozliczenie(self):
+        """ Metoda wypisuje rozliczenie do pliku w celu porównania z rozlicz.
+        wykonanym przez człowiek """
+
         wypis = ''
         for v in self.rozlicz.values():
             wypis += '\n'.join(['\t'.join(map(str, x)) for x in v]) + '\n'
@@ -392,3 +467,172 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         plik = open(os.path.join(self.kat, 'wypis_do_spr.csv'), 'w')
         plik.write(wypis)
         plik.close()
+
+    def dopisz_rozliczenie(self):
+        """Metoda tworzy kopie zapasową bazy danych a następnie
+        dopisuje do bazy wygenerowane rozliczenie """
+
+        if len(self.baza.pobierz_rozliczenie_wydz()) > 0:
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Proszę skasować wszystkie rekordy w tabeli F_AROD_LAND_USE',
+                Qgis.Critical,
+                10
+            )
+            return False
+
+        self.baza.zamknij()
+        self.baza.utworz_kopie('rozliczeniePow')
+        self.baza.polacz()
+
+        # sl tworzony w petli, sumuje pow uz dla wydzielen - wymagane do
+        # wpisania wartosci do tabeli F_SUBAREA
+        rozlicz_wydz = {}
+
+        # slownik odwrotny F_AROD_INT_NUM: ADR_LES
+        odwr_wydz = {v: k for k, v in self.adr_les.items()}
+
+        for key, val in self.rozlicz.items():
+            for v in val:
+
+                if v[2] not in rozlicz_wydz:
+                    rozlicz_wydz[v[2]] = v[3]
+                else:
+                    rozlicz_wydz[v[2]] += v[3]
+
+                if not self.baza.wpisz_rozliczenie_wydz(v):
+                    self.bledy_rozliczania_baza.append([key] + v)
+
+        for k, v in rozlicz_wydz.items():
+            sql = "update f_subarea set sub_area = " + str(v) + \
+                " where arodes_int_num = " + str(k) + ";"
+            if not self.baza.wpisz(sql):
+                QgsMessageLog.logMessage(
+                    'Błąd wpisania pow w F_SUBAREA dla wydzielenia: ' +
+                    odwr_wydz[k] + ', ' + str(v),
+                    'Las-R',
+                )
+
+        if len(self.bledy_rozliczania_baza) > 0:
+            QgsMessageLog.logMessage(
+                'Nie udało się dopisać wszystkich wygenerowanych pow. rej. '
+                'do bazy taksatora!\nPominięte wartości:\n' +
+                '\n'.join([' '.join([
+                    line[0]+'('+str(line[1])+':'+str(line[2])+')',  # landid
+                    odwr_wydz[line[3]]+'('+str(line[3])+')'
+                ]) for line in self.bledy_rozliczania_baza]),
+                'Las-R'
+            )
+
+        # nie że dobrze, tylko doszliśmy do końca, ale dobrze w sumie też
+        return True
+
+    def sprawdz_rozlicz_rej(self):  # noqa
+        """Metoda sprawdza czy wszystkie ls z baza zostały rozliczone,
+        uwzględniając podział na własności OP, OPiF, OF. W tym sprawdzeniu
+        pomiajane sa lasy pozaewidencyjne, których powierzchnia nie jest
+        możliwa do sprawdzenia...
+        Ta metoda pownna być uruchamiana po dopisaniu rozliczenia do bazy
+        """
+        p = Przetworz()
+        p.dodaj_uzytki(self.baza.uzytki())
+        p.dodaj_wlasnosci(self.baza.wlasnosci())
+        p.przetworz_dzialki()
+        p.przetworz_uzytkowanie()
+
+        rozliczenie = self.baza.pobierz_rozliczenie_wydz()
+        _uz_rozl = recursivedefaultdict()
+        for r in rozliczenie:
+            if r[1] not in _uz_rozl:
+                _uz_rozl[r[1]][r[2]] = r[3]
+            else:
+                if r[2] not in _uz_rozl[r[1]]:
+                    _uz_rozl[r[1]][r[2]] = r[3]
+                else:
+                    poprzed = _uz_rozl[r[1]][r[2]]
+                    _uz_rozl[r[1]][r[2]] = round(poprzed + r[3], 4)
+
+        # zbuduj slownik dla uzytkow w postaci :
+        # sl[PACEL_ID][SHAPE_NR] = [PARCELID, LAND_USE_AREA, AU+SQ]
+        _uz_sl = recursivedefaultdict()
+        for u in self.baza.uzytki():
+            _uz_sl[u[6]][u[8]] = [u[12], u[11], u[9]+self.isNone(u[10])]
+
+        # przygotuj slownik ze sprawdzeniem rozliczenia powierzchni
+        for dzid in _uz_rozl.keys():
+            for shpnr in _uz_rozl[dzid].keys():
+                landid = '.'.join(_uz_sl[dzid][shpnr][0:3:2])
+                wp = False
+
+                if 'Ls' not in landid:
+                    wp = self.sl_rozl_rej_nielas
+                else:
+                    if _uz_sl[dzid][shpnr][0][4:] in p.dz_of:
+                        wp = self.sl_rozl_rej_of
+                    elif _uz_sl[dzid][shpnr][0][4:] in p.dz_op:
+                        wp = self.sl_rozl_rej_op
+                    elif _uz_sl[dzid][shpnr][0][4:] in p.dz_opif:
+                        wp = self.sl_rozl_rej_opif
+
+                if wp is not False:
+                    if landid in wp:
+                        wp[landid][0] += _uz_rozl[dzid][shpnr]
+                    else:
+                        wp[landid] = [
+                            _uz_rozl[dzid][shpnr],
+                            _uz_sl[dzid][shpnr][1]
+                        ]
+
+        QgsMessageLog.logMessage(
+            '\nSPRAWDZENIE ROZLICZENIA wg REJESTRU\n'
+            'Rozliczono użytków:\n'
+            'Nieleśnych: ' + str(len(self.sl_rozl_rej_nielas.keys())) +
+            '\nLeśnych: ' + str(len(self.sl_rozl_rej_of) +
+                                 len(self.sl_rozl_rej_op) +
+                                 len(self.sl_rozl_rej_opif)) +
+            '\n__w tym:\n____OF: ' + str(len(self.sl_rozl_rej_of)) +
+            '\n____OPiF: ' + str(len(self.sl_rozl_rej_opif)) +
+            '\n____OP: ' + str(len(self.sl_rozl_rej_op)),
+            'Las-R',
+            Qgis.Info
+        )
+
+        # wyszukaj bledy rozliczenia
+        self.op_bl = [[k]+v for k, v in self.sl_rozl_rej_op.items()
+                      if round(v[0], 4) != round(v[1], 4)]
+        self.of_bl = [[k]+v for k, v in self.sl_rozl_rej_of.items()
+                      if round(v[0], 4) != round(v[1], 4)]
+        self.opif_bl = [[k]+v for k, v in self.sl_rozl_rej_opif.items()
+                        if round(v[0], 4) != round(v[1], 4)]
+
+        ttt = [
+            [self.of_bl, 'Błędy rozliczenia Ls w włas OF: '],
+            [self.opif_bl, 'Błędy rozliczenia Ls w włas OPiF: '],
+            [self.op_bl, 'Błędy rozliczenia Ls w włas OP: '],
+        ]
+        bbledow = True
+
+        for t in ttt:
+            if len(t[0]) > 0:
+                bbledow = False
+                QgsMessageLog.logMessage(
+                    '\n' + t[1] + str(len(t[0])) + '\n' +
+                    '\n'.join([' '.join([line[0], str(line[1]), str(line[2])])
+                               for line in t[0]]),
+                    'Las-R',
+                    Qgis.Warning
+                )
+
+        if bbledow:
+            QgsMessageLog.logMessage(
+                '\nNie odnaleziono rozbiezności w rozliczeniu i rejestrze... '
+                'OK\nPamiętaj, że pozaewidencyjnych nie mam jak sprawdzić...',
+                'Las-R',
+                Qgis.Info
+            )
+
+    def zapisz_raport(self):
+        """ Metoda zbiera dane z kolejnych sprawdzeń i zapisuje je do pliku,
+        tekstowego w katalogu z bazą.
+        """
+        pass

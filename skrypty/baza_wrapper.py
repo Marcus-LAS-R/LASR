@@ -90,15 +90,22 @@ class Baza(object):
         return False
 
     def zamknij(self):
-        self.cur.close()
-        self.con.close()
-        self.con = False
-        self.cur = False
+        try:
+            self.cur.close()
+            self.con.close()
+            self.con = False
+            self.cur = False
+        except:  # nopep8
+            pass
 
     def wpisz(self, sql):
         """Metoda dopisuje do bazy podanego sql"""
-        self.cur.execute(sql)
-        self.con.commit()
+        try:
+            self.cur.execute(sql)
+            self.con.commit()
+        except:  # nopep8
+            return False
+        return True
 
     def utworz_kopie(self, wpis=''):
         """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
@@ -106,12 +113,17 @@ class Baza(object):
         katalog, plik = os.path.split(self.baza)
         plikn = plik[:-4] + \
             '_' + wpis + '_' + \
-            datetime.now().isoformat().replace(':', '')[:-7] + \
-            '.mdb'
+            datetime.now().isoformat().replace(':', '')[:-7]
+
+        if platform.system()[:3] == 'Win':
+            plikn += '.mdb'
+        else:
+            plikn += '.sqlite'
+
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        # self.baza = plikn
+        self.baza = os.path.join(katalog, plikn)
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
@@ -541,3 +553,37 @@ class Baza(object):
         """
 
         return self.cur.execute(sql).fetchall()
+
+    def pobierz_rozliczenie_wydz(self):
+        """Metoda pobiera zawartość tabeli F_ARDOD_LAND_USE i zwraca tabele
+        """
+        sql = """
+            select
+                arodes_int_num,
+                parcel_int_num,
+                shape_nr,
+                arod_land_use_area
+            from F_AROD_LAND_USE;
+        """
+        return self.cur.execute(sql).fetchall()
+
+    def wpisz_rozliczenie_wydz(self, tab):
+        """ Metoda wpisuje do tabeli F_AROD_LAND_USE  podany wiersz i zwraca
+        True/False w zależności od powodzenia"""
+
+        try:
+            self.cur.execute(
+                "insert into F_AROD_LAND_USE " +
+                "(PARCEL_INT_NUM, SHAPE_NR, "
+                "ARODES_INT_NUM, "
+                "AROD_LAND_USE_AREA, "
+                "LARGE_TIMBER_VALUE) values(" +
+                str(tab[0]) + ", " +
+                str(tab[1]) + ", " +
+                str(tab[2]) + ", " +
+                str(tab[3]) + ", 0);"
+            )
+            self.con.commit()
+            return True
+        except:  # nopep8
+            return False

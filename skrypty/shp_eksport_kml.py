@@ -7,6 +7,7 @@ from .ui.ui_eksport_kml import Ui_Dialog
 import processing
 
 
+# TODO: rozbić featurki poly/line na warstwy < 2000 poligonów
 class EksportujKML():
     def __init__(self, iface):
         self.iface = iface

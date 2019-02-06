@@ -432,9 +432,14 @@ class LasR:
             return
         b.przetnij_wydz_ls()
         if b.zbuduj_strukture():
+            b.sprawdz_rozlicz_graf()
             b.zestaw_rozliczenie()
-            b.skasuj_robocze()
             b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
+            if not b.dopisz_rozliczenie():
+                return
+            else:
+                b.sprawdz_rozlicz_rej()
+                b.skasuj_robocze()
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
