@@ -20,7 +20,7 @@ class SprawdzWydzielenia():
             self.spr_crs,
             self.spr_wydz_baza,
             self.spr_wydz_duble,
-            # self.spr_wydz_na_nielasach,
+            self.spr_wydz_na_nielasach,
         ]
 
         komunikaty = [

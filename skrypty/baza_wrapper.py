@@ -553,9 +553,8 @@ class Baza(object):
                     F_ARODES.ARODES_INT_NUM = F_AROD_LAND_USE.ARODES_INT_NUM)
             ON (F_PARCEL_LAND_USE.SHAPE_NR = F_AROD_LAND_USE.SHAPE_NR)
         AND (F_PARCEL_LAND_USE.PARCEL_INT_NUM = F_AROD_LAND_USE.PARCEL_INT_NUM)
-        WHERE (((F_PARCEL_LAND_USE.AREA_USE_CD) NOT LIKE "Ls")
-            AND ((F_SUBAREA.AREA_TYPE_CD) NOT LIKE "D-STAN"));
-
+        WHERE (((F_PARCEL_LAND_USE.AREA_USE_CD) NOT LIKE 'Ls')
+            AND ((F_SUBAREA.AREA_TYPE_CD) NOT LIKE 'D-STAN'));
         """
 
         return self.cur.execute(sql).fetchall()
