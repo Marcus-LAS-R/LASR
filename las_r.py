@@ -439,7 +439,7 @@ class LasR:
                 return
             else:
                 b.sprawdz_rozlicz_rej()
-                b.skasuj_robocze()
+                # b.skasuj_robocze()
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
@@ -452,10 +452,11 @@ class LasR:
 
     def sprawdzenie_wydzielen(self):
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
-        if k.poprawne_wydz():
-            k.sprawdz_odl_wydz()
-            k.sprawdz_odl_lz()
-            k.pokaz_bledy()
+        if k.wczytaj_baze():
+            if k.poprawne_wydz():
+                k.sprawdz_odl_wydz()
+                k.sprawdz_odl_lz()
+                k.pokaz_bledy()
 
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)

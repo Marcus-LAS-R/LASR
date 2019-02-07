@@ -204,6 +204,10 @@ class SprawdzWydzielenia():
         return True
 
     def spr_wydz_na_nielasach(self):
+        rozl = self.baza.pobierz_rozliczenie_wydz()
+        if len(rozl) == 0:
+            return True
+
         tab = self.baza.pobierz_wydz_na_innych_uz()
 
         if len(tab) > 0:
@@ -215,7 +219,7 @@ class SprawdzWydzielenia():
 
             QgsMessageLog.logMessage(
                 '\nWydzielenia nieleśne na nielasach:\n' +
-                '\n'.join('  '.join(y) for y in tab),
+                '\n'.join('  '.join(map(str, y)) for y in tab),
                 'Las-R'
             )
             return False

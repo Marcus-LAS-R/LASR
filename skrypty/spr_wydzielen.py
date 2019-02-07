@@ -30,9 +30,18 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 self.sl_lz[f.id()] = f
 
         self.wydz = self.iface.activeLayer()
+
+    def wczytaj_baze(self):
         baza_sc = znajdz_baze_do_wydz(self.iface)
         if baza_sc:
             self.baza = Baza(baza_sc)
+            return True
+        return False
+        self.iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Nie znalazłem bazy z wydzieleniami!',
+            Qgis.Critical,
+            10)
 
     def sprawdz_odl_wydz(self):
         """Metoda sprawdza czy w multipoligonach wydzieleń nie ma większych

@@ -171,27 +171,27 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                         'INPUT': self.wydz
                         })
 
-    #   processing.run(
-    #       "saga:intersect",
-    #       {
-    #           'A': os.path.join(self.tempkat, '__WYDZ_singleparts.shp'),
-    #           'B': self.ls,
-    #           'SPLIT': False,
-    #           'RESULT': os.path.join(self.tempkat,
-    #                                  '__ls_wydz_inter.shp')
-    #       }
-    #   )
+        processing.run(
+            "saga:intersect",
+            {
+                'A': os.path.join(self.tempkat, '__WYDZ_singleparts.shp'),
+                'B': self.ls,
+                'SPLIT': False,
+                'RESULT': os.path.join(self.tempkat,
+                                       '__ls_wydz_inter.shp')
+            }
+        )
 
-        processing.run("native:intersection", {
-                        'INPUT': os.path.join(self.tempkat,
-                                              '__WYDZ_singleparts.shp'),
-                        'OVERLAY': self.ls,
-                        'INPUT_FIELDS': "",
-                        'OVERLAY_FILEDS': "",
-                        'OUTPUT': os.path.join(
-                            self.tempkat, '__ls_wydz_inter.shp'
-                        )
-        })
+        # processing.run("native:intersection", {
+                        # 'INPUT': os.path.join(self.tempkat,
+                                              # '__WYDZ_singleparts.shp'),
+                        # 'OVERLAY': self.ls,
+                        # 'INPUT_FIELDS': "",
+                        # 'OVERLAY_FILEDS': "",
+                        # 'OUTPUT': os.path.join(
+                            # self.tempkat, '__ls_wydz_inter.shp'
+                        # )
+        # })
 
         self.inter = QgsVectorLayer(
             os.path.join(self.tempkat, '__ls_wydz_inter.shp'),
@@ -245,8 +245,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             )
             QgsMessageLog.logMessage(
                 'Użytki nie występujące w bazie:\n' +
-                '\n'.join(braki_uzytkow) +
-                '\n-----[ KONIEC ]-----',
+                '\n'.join(braki_uzytkow),
                 'Las-R'
             )
             # return False
@@ -254,8 +253,10 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # przygotuj pow graficzna dla wszystkich wydz, wiemy ze sa poprawne bo
         # przeszły sprawdzanie na samym początku
         for wydz in self.wydz.getFeatures():
-            self.sl_wydz_graf[wydz['ADR_LES']] = wydz.geometry().area() / 10000
-            self.sl_wydz_diff[wydz['ADR_LES']] = wydz.geometry().area() / 10000
+            self.sl_wydz_graf[wydz['ADR_LES']] = \
+                round(wydz.geometry().area() / 10000, 4)
+            self.sl_wydz_diff[wydz['ADR_LES']] = \
+                round(wydz.geometry().area() / 10000, 4)
 
         # stworz slownik pow wydzielen w uzytkach
         for uz in self.inter.getFeatures():
@@ -263,8 +264,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             if uz.geometry().area() < 1:
                 continue
 
-            self.sl_wydz_diff[uz['ADR_LES']] -= \
-                round(uz.geometry().area() / 10000, 4)
+            pp = round(self.sl_wydz_diff[uz['ADR_LES']] -
+                       uz.geometry().area() / 10000, 4)
+            self.sl_wydz_diff[uz['ADR_LES']] = pp
 
             if uz['LANDID'] not in self.sl_uz_shp:
                 self.sl_uz_shp[uz['LANDID']][uz['ADR_LES']] = \
@@ -289,10 +291,14 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         coś nie gra
         """
 
+        # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+        # pyqtRemoveInputHook()
+        # pdb.set_trace()
+
         # sprawdz czy pow graf interu jest taka sama jak pow graf wydzielen,
         # jeżeli nie przygotuj raport czego brakuje
         for key in self.sl_wydz_graf.keys():
-            if self.sl_wydz_diff[key] > 1.0:
+            if self.sl_wydz_diff[key] > 0.0005:
                 self.wydz_nierozliczone.append(key)
 
         if len(self.wydz_nierozliczone) > 0:
@@ -300,11 +306,18 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 'Wydzielenia z nierozliczoną częścią pow. \n'
                 '(Błędy najprawdopodobniej wynikają z błędów topologicznych)\n'
                 'ADR_LES  \tpow graf nierozliczona/pow graf wydz\n' +
-                '\n'.join([' '.join(
-                    [x,
-                     str(round(self.sl_wydz_diff[x], 4)),
-                     str(round(self.sl_wydz_graf[x], 4))])
-                    for x in self.wydz_nierozliczone]),
+                '\n'.join(
+                    [' '.join(
+                        [x,
+                         str(round(self.sl_wydz_diff[x], 4)),
+                         str(round(self.sl_wydz_graf[x], 4))
+                         ])
+                        for x in sorted(self.wydz_nierozliczone,
+                                        reverse=True,
+                                        key=lambda x: x[1]
+                                        )
+                     ]
+                ),
                 'Las-R',
                 Qgis.Warning
             )
@@ -591,9 +604,11 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             '\nSPRAWDZENIE ROZLICZENIA wg REJESTRU\n'
             'Rozliczono użytków:\n'
             'Nieleśnych: ' + str(len(self.sl_rozl_rej_nielas.keys())) +
-            '\nLeśnych: ' + str(len(self.sl_rozl_rej_of) +
-                                len(self.sl_rozl_rej_op) +
-                                len(self.sl_rozl_rej_opif)) +
+            '\nLeśnych: ' + str(
+                len(self.sl_rozl_rej_of) +
+                len(self.sl_rozl_rej_op) +
+                len(self.sl_rozl_rej_opif)
+            ) +
             '\n__w tym:\n____OF: ' + str(len(self.sl_rozl_rej_of)) +
             '\n____OPiF: ' + str(len(self.sl_rozl_rej_opif)) +
             '\n____OP: ' + str(len(self.sl_rozl_rej_op)),
