@@ -21,7 +21,7 @@ class PasekPostepu():
         self.iface.messageBar().pushWidget(
             self.progressMessageBarItem,
             Qgis.Info,
-            99
+            0
         )
 
         return self.progressBar

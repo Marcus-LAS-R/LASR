@@ -1,13 +1,10 @@
-from qgis.core import QgsProject, QgsVectorLayer, Qgis, QgsVectorFileWriter, \
-    QgsCoordinateReferenceSystem
+from qgis.core import QgsVectorLayer, Qgis, QgsVectorFileWriter, \
+    QgsCoordinateReferenceSystem, QgsMessageLog
 import os
 import glob
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
-from .ui.ui_eksport_kml import Ui_Dialog
 import processing
 
 
-# TODO: rozbić featurki poly/line na warstwy < 2000 poligonów
 class EksportujKML():
     def __init__(self, iface):
         self.iface = iface
@@ -17,47 +14,24 @@ class EksportujKML():
         """Metoda wyświetla dialog dla użytkownika a następnie przepisuje
         podane dane"""
 
-        d = False
         k = self.iface.activeLayer()
         try:
             if not k.isValid():
-                k = False
+                self.ls = False
+                return False
+            else:
+                self.ls = k
         except:  # nopep8
             pass
 
-        for key, lyr in QgsProject.instance().mapLayers().items():
-            if key[:5] == 'DZKAT':
-                d = lyr
+        # nazwa warstwy
+        self.nazwa = self.ls.name()
 
-        self.dd = PobierzDane(k, d)
-        self.dd.exec_()
+        lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
+        self.kat = os.path.dirname(lsc)
+        return True
 
-        if self.dd.poprawne:
-            self.ls = QgsVectorLayer(self.dd.ui.ls_sc.text(), 'ls', 'ogr')
-            if not self.ls.isValid():
-                self.iface.messageBar().pushMessage(
-                    'LS',
-                    'Niepoprawna warstwa Ls-ów',
-                    Qgis.Critical,
-                    15
-                )
-                return False
-
-            self.dz = QgsVectorLayer(self.dd.ui.dz_sc.text(), 'dz', 'ogr')
-            if not self.dz.isValid():
-                self.iface.messageBar().pushMessage(
-                    'LS',
-                    'Niepoprawna warstwa DZKAT-ów',
-                    Qgis.Critical,
-                    15
-                )
-                return False
-
-            lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
-            self.kat = os.path.dirname(lsc)
-            return True
-
-        return self.dd.poprawne
+        # return self.dd.poprawne
 
     def przetworz(self):
         """ Metoda przetwarza warstwy poly na linie przy uzyciu algorytmu z
@@ -71,140 +45,152 @@ class EksportujKML():
         processing.run(
             'saga:convertpolygonstolines',
             {'POLYGONS': self.ls,
-             'LINES': os.path.join(self.tempkat, '__ls_lines.shp')
+             'LINES': os.path.join(self.tempkat, '__'+self.nazwa+'_lines.shp')
              }
         )
 
         self.ls_lines = QgsVectorLayer(
-            os.path.join(self.tempkat, '__ls_lines.shp'),
+            os.path.join(self.tempkat, '__'+self.nazwa+'_lines.shp'),
             'ls_lines',
             'ogr'
         )
 
         processing.run(
-            'saga:convertpolygonstolines',
-            {'POLYGONS': self.dz,
-             'LINES': os.path.join(self.tempkat, '__dz_lines.shp')
+            'saga:polygondissolveallpolygons',
+            {'POLYGONS': self.ls,
+             'BND_KEEP': False,
+             'DISSOLVED': os.path.join(self.tempkat,
+                                       '__'+self.nazwa+'_diss.shp')
              }
         )
 
-        self.dz_lines = QgsVectorLayer(
-            os.path.join(self.tempkat, '__dz_lines.shp'),
-            'dz_lines',
+        self.ls_diss = QgsVectorLayer(
+            os.path.join(self.tempkat, '__'+self.nazwa+'_diss.shp'),
+            'ls_diss',
             'ogr'
         )
+
+        processing.run(
+            'saga:convertpolygonstolines',
+            {'POLYGONS': os.path.join(self.tempkat,
+                                      '__'+self.nazwa+'_diss.shp'),
+             'LINES': os.path.join(self.tempkat,
+                                   '__'+self.nazwa+'_diss_lines.shp')
+             }
+        )
+
+        self.ls_diss_lines = QgsVectorLayer(
+            os.path.join(self.tempkat, '__'+self.nazwa+'_diss_lines.shp'),
+            'ls_diss_lines',
+            'ogr'
+        )
+
+        self.warstwy = [
+            self.ls,
+            self.ls_diss,
+            self.ls_lines,
+            self.ls_diss_lines,
+        ]
 
     def zapisz_kml(self):
         """Metoda zapisuje przetworzone warstwy do plików KML"""
 
-        crs = QgsCoordinateReferenceSystem("epsg:4326")
+        # nazwy warstw
+        war = [
+            self.nazwa + '_poly',
+            self.nazwa + '_poly_diss',
+            self.nazwa + '_lines',
+            self.nazwa + '_lines_diss',
+        ]
 
-        try:
-            for war in [[self.ls, 'LS_POL.kml'],
-                        [self.dz, 'DZ_POL.kml'],
-                        [self.ls_lines, 'LS_LIN.kml'],
-                        [self.dz_lines, 'DZ_LIN.kml'],
-                        ]:
-                QgsVectorFileWriter.writeAsVectorFormat(
-                    war[0],
-                    os.path.join(self.kat, war[1]),
-                    "UTF-8",
-                    crs,
-                    "KML")
+        for ilyr, lyr in enumerate(self.warstwy):
+            if ilyr < 2:
+                definicja = "Polygon?crs=epsg:2180&index=yes"
+            else:
+                definicja = "LineString?crs=epsg:2180&index=yes"
 
-            self.iface.messageBar().pushMessage(
-                'OK',
-                'Warstwy zapisanow w katalogu z Ls-ami',
-                Qgis.Success,
-                15
-            )
-        except:  # noqa
-            self.messageBar().pushMessage(
-                'BŁĄD',
-                'Nie udało się zapisać KMLi, za dużo baboli...',
-                Qgis.Critical,
-                10
-            )
+            tab = []
+            for feat in lyr.getFeatures():
+                tab.append(feat)
+
+            # posortuj po LANDID o ile istnieje
+            if 'LANDID' in [x.name() for x in
+                            lyr.dataProvider().fields().toList()]:
+                tab = sorted(tab, key=lambda x: x['LANDID'])
+
+            czesc = 1
+            feats = []
+            licz = 0
+            for feat in tab:
+                feats.append(feat)
+                licz += 1
+
+                if licz == 2000:
+                    nazwa = war[ilyr] + '_' + str(czesc) + '.kml'
+                    self.zapisz_cz([feats, czesc, nazwa, definicja, lyr])
+                    czesc += 1
+                    licz = 0
+                    feats = []
+
+            # koncowka
+            if licz > 0:
+                nazwa = war[ilyr] + '_' + str(czesc) + '.kml'
+                self.zapisz_cz([feats, czesc, nazwa, definicja, lyr])
 
         self.sprzatnij()
 
+    def zapisz_cz(self, dane):
+        """ Metoda zapisuje dane do kml, dane wsadowe to tablica:
+            [ [feats], czesc, nazwa pliku, lyr ]
+        """
+        crs = QgsCoordinateReferenceSystem("epsg:4326")
+
+        feats = dane[0]
+        nazwa = dane[2]
+        definicja = dane[3]
+        lyr = dane[4]
+
+        lyrb = QgsVectorLayer(definicja, "lyr", "memory")
+
+        lyrb.startEditing()
+        lyrb.dataProvider().addAttributes(
+            lyr.dataProvider().fields().toList()
+        )
+        lyrb.updateFields()
+        lyrb.dataProvider().addFeatures(feats)
+        lyrb.commitChanges()
+
+        try:
+            QgsVectorFileWriter.writeAsVectorFormat(
+                lyrb,
+                os.path.join(self.kat, nazwa),
+                "UTF-8",
+                crs,
+                "KML")
+        except:  # nopep8
+            QgsMessageLog.logMessage(
+                'Nie udało się zapisać ' + nazwa,
+                "Las-R"
+            )
+
     def sprzatnij(self):
         """ Metoda kasuje pliki tymczasowe i proboje skasowac katalog """
-        del self.dz
-        del self.ls
+        del self.ls_diss, self.ls_lines, self.ls_diss_lines
 
-        if self.nowy_temp:
-            lista = glob.glob(os.path.join(self.tempkat, '*.*'))
-        else:
-            lista = glob.glob(os.path.join(self.tempkat, '__ls_lines.*'))
-            lista += glob.glob(os.path.join(self.tempkat, '__dz_lines.*'))
+        lista = glob.glob(os.path.join(self.tempkat, '*.*'))
 
         for ll in lista:
             os.remove(ll)
 
         # skasuj jeżeli katalog jest pusty
-        os.removedirs(self.tempkat)
-
-
-class PobierzDane(QDialog):
-    def __init__(self, ls=False, dz=False):
-        super(PobierzDane, self).__init__()
-        self.poprawne = False
-        self.kat = ''
-        self.ui = Ui_Dialog()
-        self.ui.setupUi(self)
-
-        if ls:
-            lsc = ls.dataProvider().dataSourceUri().split("|")[0]
-            self.kat = os.path.dirname(lsc)
-            self.ui.ls_sc.setText(lsc)
-        if dz:
-            dzsc = dz.dataProvider().dataSourceUri().split("|")[0]
-            self.kat = os.path.dirname(dzsc)
-            self.ui.dz_sc.setText(dzsc)
-
-        self.ui.pushButton_dz.clicked.connect(self.pobierz_dzkat)
-        self.ui.pushButton_ls.clicked.connect(self.pobierz_ls)
-        self.ui.ok.clicked.connect(self.zatwierdz)
-        self.ui.pushButton_porzuc.clicked.connect(self.porzuc)
-
-    def zatwierdz(self):
-        self.poprawne = True
-        self.hide()
-
-    def porzuc(self):
-        self.hide()
-
-    def pobierz_dzkat(self):
-        """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
-        warstwa = QFileDialog().getOpenFileName(self,
-                                                'Wskaż warstwę DZKAT',
-                                                self.kat,
-                                                "ESRI shp (*.shp)")[0]
         try:
-            dz = QgsVectorLayer(warstwa, "dz", "ogr")
-            self.kat = os.path.dirname(
-                dz.dataProvider().dataSourceUri().split("|")[0]
-            )
-            self.ui.dz_sc.setText(
-                dz.dataProvider().dataSourceUri().split("|")[0])
+            os.removedirs(self.tempkat)
         except:  # nopep8
-            msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec_()
+            pass
 
-    def pobierz_ls(self):
-        """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
-        warstwa = QFileDialog().getOpenFileName(self,
-                                                'Wskaż warstwę Ls',
-                                                self.kat,
-                                                "ESRI shp (*.shp)")[0]
-        try:
-            ls = QgsVectorLayer(warstwa, "ls", "ogr")
-            self.kat = os.path.dirname(
-                ls.dataProvider().dataSourceUri().split("|")[0]
-            )
-            self.ui.ls_sc.setText(
-                ls.dataProvider().dataSourceUri().split("|")[0])
-        except:  # nopep8
-            msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec_()
+        self.iface.messageBar().pushMessage(
+            'OK',
+            'Warstwy zapisanow w katalogu z warstwą',
+            Qgis.Success,
+            15
+        )

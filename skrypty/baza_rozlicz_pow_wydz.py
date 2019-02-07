@@ -415,6 +415,10 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         """ Oblicza rozliczenie rejestrowe dla wszystkich wydzielenie na
         wskazanym uzytku """
 
+        # jezeli nie ma uzytku w bazie uz, pomijamy.
+        if key not in self.sl_uz_baza:
+            return []
+
         # oblicz pow graf i rej uzytku, czy caly jest brany do rozliczenia czy
         # tylko fragment (np dodano kawałek wydz na Ps)
         pow_uz_rej, pow_uz_graf = self.o_czy_caly_uz(key, uz)
