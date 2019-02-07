@@ -59,6 +59,9 @@ class Baza(object):
         self.ok = False
         self.baza = b
 
+        self.czas = \
+            datetime.now().isoformat().replace(':', '')[:-7]
+
         # sprawdź czy baza jest poprawna i mozna sie do niej podlaczyc
         # self.polacz(b)
 
@@ -112,8 +115,7 @@ class Baza(object):
         znacznikiem czasu oraz ew podanym wpisem"""
         katalog, plik = os.path.split(self.baza)
         plikn = plik[:-4] + \
-            '_' + wpis + '_' + \
-            datetime.now().isoformat().replace(':', '')[:-7]
+            '_' + wpis + '_' + self.czas
 
         if platform.system()[:3] == 'Win':
             plikn += '.mdb'
@@ -123,7 +125,7 @@ class Baza(object):
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        self.baza = os.path.join(katalog, plikn)
+        # self.baza = os.path.join(katalog, plikn)
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:

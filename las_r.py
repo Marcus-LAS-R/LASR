@@ -434,12 +434,13 @@ class LasR:
         if b.zbuduj_strukture():
             b.sprawdz_rozlicz_graf()
             b.zestaw_rozliczenie()
-            b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
+            # b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
             if not b.dopisz_rozliczenie():
                 return
             else:
                 b.sprawdz_rozlicz_rej()
-                # b.skasuj_robocze()
+            b.skasuj_robocze()
+            b.zapisz_raport()
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
