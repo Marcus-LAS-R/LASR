@@ -200,7 +200,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         )
 
         if platform.system()[:3] == 'Win':
-            self.inter.dataProvider().setEncoding('cp1250')
+            self.inter.dataProvider().setEncoding('UTF-8')
+            # self.inter.dataProvider().setEncoding('cp1250')
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
