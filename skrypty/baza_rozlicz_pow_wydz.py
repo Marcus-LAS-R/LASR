@@ -10,6 +10,7 @@ from collections import defaultdict
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
+from .pw import PasekPostepu
 
 
 class recursivedefaultdict(defaultdict):
@@ -25,6 +26,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         self.tempkat = ''  # katalog temp w katalogu z warstwa wydz - dane temp
         self.uz_cale = []  # tablica z LANDID, ktorych pow cala poszla do rozl.
         self.uz_czesciowe = []  # tab z LANDID, z pow częściową w rozliczeniu
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Rozliczanie powierzchni wydzieleń'
+        )
 
         # tekst który będzie wypisany do pliku raportu w katalogu z bazą
         self.wypis = ''
@@ -153,7 +157,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         self.baza = Baza(baza_sc)
 
-        self.wypis += 'Baza do wpisywania:\n' + baza_sc
+        self.wypis += 'Baza do wpisywania:\n' + baza_sc + '\n\n'
 
         # sprawdz poprawnosc wydz, uklad, polaczenie z baza itp
         if not self.poprawne_wydz():
@@ -166,6 +170,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         if not os.path.isdir(self.tempkat):
             os.mkdir(self.tempkat)
 
+        self.postep.setValue(15)
         return True
 
     def przetnij_wydz_ls(self):
@@ -215,6 +220,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         if platform.system()[:3] == 'Win':
             self.inter.dataProvider().setEncoding('UTF-8')
             # self.inter.dataProvider().setEncoding('cp1250')
+
+        self.postep.setValue(35)
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
@@ -304,6 +311,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # pobierz sl wydzielen
         self.adr_les = self.baza.pobierz_wydzielenia()
 
+        self.postep.setValue(45)
         return True
 
     def sprawdz_rozlicz_graf(self):
@@ -367,6 +375,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             )
             self.wypis += \
                 'Sprawdzenie pow graf wydzeleń przed i po intersect - OK\n\n\n'
+
+        self.postep.setValue(55)
 
     def skasuj_robocze(self):
         """ Metoda kasuje robocze warstwy katalogu temp """
@@ -455,7 +465,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                     '??? - tak może być??? błąd nieznany :/  "PNR"): ' + \
                     key + '\n'
 
-        self.wypis += '----[ koniec logu z rozliczania ]----\n\n\n\n'
+        self.wypis += '----[ koniec logu z rozliczania ]----\n\n'
+        self.postep.setValue(65)
 
     def oblicz_rozl_uzytku(self, key, uz):
         """ Oblicza rozliczenie rejestrowe dla wszystkich wydzielenie na
@@ -479,7 +490,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             # dodaj do największego wydzielenia na uzytku
             temp_pow[0][1] = round(temp_pow[0][1] + poprawka, 4)
 
-            if poprawka > 0.01:
+            if -0.01 > poprawka or poprawka > 0.01:
                 self.wypis += key + ' wyliczona poprawka to:\t' + \
                     str(poprawka) + '\n'
 
@@ -618,6 +629,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         self.wypis += '\n----[ koniec logu z wpisywania rozl do bazy ]----\n\n'
 
         # nie że dobrze, tylko doszliśmy do końca, ale dobrze w sumie też
+        self.postep.setValue(75)
         return True
 
     def sprawdz_rozlicz_rej(self):  # noqa
@@ -680,6 +692,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                             _uz_sl[dzid][shpnr][1]
                         ]
 
+        self.postep.setValue(85)
         rozlicz_uz = sum([
             len(self.sl_rozl_rej_nielas.keys()),
             len(self.sl_rozl_rej_of),
@@ -731,27 +744,59 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         self.sum_nielas_pow_ = round(sum([x[0] for x in self.nielas_pow]), 4)
         self.sum_nielas_pow_b = round(sum([x[1] for x in self.nielas_pow]), 4)
 
+        suma_cala_roz = round(
+            self.sum_of_pow_ +
+            self.sum_op_pow_ +
+            self.sum_opif_pow_ +
+            self.sum_nielas_pow_,
+            4)
+        suma_cala_rej = round(
+            self.sum_of_pow_b +
+            self.sum_op_pow_b +
+            self.sum_opif_pow_b +
+            self.sum_nielas_pow_b,
+            4)
+
         self.wypis += 'Zestawienie powierzchniowe:\n' + \
-            'Całkowita pow: ' + str(round(
-                self.sum_of_pow_ +
-                self.sum_op_pow_ +
-                self.sum_opif_pow_ +
-                self.sum_nielas_pow_,
-                4)) + '  /  ' + str(round(
-                    self.sum_of_pow_b +
-                    self.sum_op_pow_b +
-                    self.sum_opif_pow_b +
-                    self.sum_nielas_pow_b,
-                    4)) + '  [ha]\n'
-        self.wypis += '  OF: ' + str(self.sum_of_pow_) + ' / ' + \
-            str(self.sum_of_pow_b) + ' [ha]\n'
-        self.wypis += '  OPiF: ' + str(self.sum_opif_pow_) + ' / ' + \
-            str(self.sum_opif_pow_b) + ' [ha]\n'
-        self.wypis += '  OP: ' + str(self.sum_op_pow_) + ' / ' + \
-            str(self.sum_op_pow_b) + ' [ha]\n'
-        self.wypis += '  nielas: ' + str(self.sum_nielas_pow_) + ' / ' + \
+            'Całkowita pow:\t' + str(suma_cala_roz) + '  /  ' + \
+            str(suma_cala_rej) + '  [ha]\t\t'
+
+        if suma_cala_roz - suma_cala_rej != 0:
+            self.wypis += '[ ' + str(round(suma_cala_roz - suma_cala_rej, 4)
+                                     ) + ' ]\n'
+        else:
+            self.wypis += '\n'
+
+        self.wypis += '  OF:\t' + str(self.sum_of_pow_) + ' / ' + \
+            str(self.sum_of_pow_b) + ' [ha]\t\t'
+
+        if self.sum_of_pow_ - self.sum_of_pow_b != 0:
+            self.wypis += '[ ' + str(
+                round(self.sum_of_pow_-self.sum_of_pow_b, 4)) + ' ]\n'
+        else:
+            self.wypis += '\n'
+
+        self.wypis += '  OPiF:\t' + str(self.sum_opif_pow_) + ' / ' + \
+            str(self.sum_opif_pow_b) + ' [ha]\t\t'
+
+        if self.sum_opif_pow_ - self.sum_opif_pow_b != 0:
+            self.wypis += '[ ' + str(
+                round(self.sum_opif_pow_-self.sum_opif_pow_b, 4)) + ' ]\n'
+        else:
+            self.wypis += '\n'
+
+        self.wypis += '  OP:\t' + str(self.sum_op_pow_) + ' / ' + \
+            str(self.sum_op_pow_b) + ' [ha]\t\t'
+
+        if self.sum_op_pow_ - self.sum_op_pow_b != 0:
+            self.wypis += '[ ' + str(
+                round(self.sum_op_pow_-self.sum_op_pow_b), 4) + ' ]\n'
+        else:
+            self.wypis += '\n'
+
+        self.wypis += '  nielas:\t' + str(self.sum_nielas_pow_) + ' / ' + \
             str(self.sum_nielas_pow_b) + \
-            ' [ha] \n\n(przy pozaewidencyjnych , ' + \
+            ' [ha] \n\n(przy pozaewidencyjnych, ' + \
             'powierzchnie mogą się nie zgadzać)\n\n'
 
         # wyszukaj bledy rozliczenia
@@ -774,7 +819,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 bbledow = False
                 QgsMessageLog.logMessage(
                     '\n' + t[1] + str(len(t[0])) + '\n' +
-                    '\n'.join([' '.join([line[0], str(line[1]), str(line[2])])
+                    '\n'.join(['\t'.join([line[0], str(line[1]), str(line[2])])
                                for line in t[0]]),
                     'Las-R',
                     Qgis.Warning
@@ -796,6 +841,10 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 '\nNie odnaleziono rozbiezności w rozliczeniu i rejestrze-' +\
                 'OK\nPamiętaj, że pozaewidencyjnych nie mam jak sprawdzić...'
 
+        self.wypis += '\n----[ KONIEC SPRAWDZENIA ROZLICZENIA wg REJESTRU ' + \
+            ']----\n\n'
+        self.postep.setValue(95)
+
     def zapisz_raport(self):
         """ Metoda zbiera dane z kolejnych sprawdzeń i zapisuje je do pliku,
         tekstowego w katalogu z bazą.
@@ -805,18 +854,26 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         plik = open(sc, 'w')
 
+        self.iface.messageBar().clearWidgets()
+
         self.wypis += '\n\n----[ KONIEC RAPORTU ]----'
         plik.write(self.wypis)
         plik.close()
 
-        m = QMessageBox()
-        m.setText('Czy pokazać raport z rozliczenia powierzchni?')
-        m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        m.exec_()
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Raport')
+        message.setText('Czy pokazać raport z rozliczenia powierzchni?')
+        message.addButton(u"Zamknij", QMessageBox.ActionRole)
+        message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
+        pok_rap = message.exec_()
 
-        if m == QMessageBox.Yes:
+        if pok_rap == 1:
             if platform.system()[:3] == 'Win':
                 os.startfile(sc)
             else:
                 import subprocess
                 subprocess.call(['open-xdg', sc])
+
+        self.iface.messageBar().pushMessage(
+            'OK', 'Rozliczenie powierzchni zakończone!', Qgis.Success, 10)

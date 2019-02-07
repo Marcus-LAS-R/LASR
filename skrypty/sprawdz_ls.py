@@ -124,12 +124,15 @@ class SprawdzLs(object):
             '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
         )
 
-        m = QMessageBox()
-        m.setText('Czy wyświetlić raport z generowania Ls-ów?')
-        m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        m.exec_()
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Raport')
+        message.setText('Czy wyświetlić raport z generowania Ls-ów?')
+        message.addButton(u"Zamknij", QMessageBox.ActionRole)
+        message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
+        pok_rap = message.exec_()
 
-        if m == QMessageBox.Yes:
+        if pok_rap == 1:
             if platform.system()[:3] == 'Win':
                 os.startfile(self.a.rap_sc)
             else:
