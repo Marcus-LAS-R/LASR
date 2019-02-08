@@ -125,7 +125,7 @@ class EksportujKML():
                 feats.append(feat)
                 licz += 1
 
-                if licz == 2000:
+                if licz == 1999:
                     nazwa = war[ilyr] + '_' + str(czesc) + '.kml'
                     self.zapisz_cz([feats, czesc, nazwa, definicja, lyr])
                     czesc += 1

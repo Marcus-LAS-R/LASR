@@ -72,6 +72,10 @@ def test_sprawdzenia_kodow_wlasnosci(wczytaj):
     assert set(kody).issubset(set(['OP', 'OF']))
 
 
+def test_sprawdzenia_kodow_w_op(wczytaj):
+    assert len(wczytaj.dz_op[0].split('.')[0]) == 7
+
+
 def test_przetworzenia_listy_lsow(wczytaj):
     assert len(wczytaj.ls) > 2
 

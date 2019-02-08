@@ -35,7 +35,7 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
         baza = Baza(bTemp[0])
         if baza.polacz():
             baza.zamknij()
-            return bTemp[0]
+            return os.path.abspath(bTemp[0])
         else:
             iface.messageBar().pushMessage(
                 'Baza',
