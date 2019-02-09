@@ -36,7 +36,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
-    baza_rozlicz_pow_wydz
+    baza_rozlicz_pow_wydz, baza_sprawdz_rozl
 
 
 class LasR:
@@ -278,6 +278,13 @@ class LasR:
         self.baza_taks.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
+        self.spr_rozlicz_wydz = QAction(
+            QIcon(None),
+            'Sprawdz rozliczenie powierzchni wydz.',
+            self.iface.mainWindow())
+        self.baza_taks.addAction(self.spr_rozlicz_wydz)
+        self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
+
         self.dop_fo = QAction(QIcon(None),
                               'Dopisz formy ochrony',
                               self.iface.mainWindow())
@@ -442,6 +449,9 @@ class LasR:
             b.skasuj_robocze()
             b.zapisz_raport()
 
+    def sprawdz_pow_wydzielen(self):
+        baza_sprawdz_rozl.sprawdz_rozliczenie_bazy(self.iface)
+
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
         b.pobierz_feat()
@@ -453,11 +463,14 @@ class LasR:
 
     def sprawdzenie_wydzielen(self):
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
-        if k.wczytaj_baze():
-            if k.poprawne_wydz():
-                k.sprawdz_odl_wydz()
-                k.sprawdz_odl_lz()
-                k.pokaz_bledy()
+        if not k.wczytaj_baze():
+            return
+        if k.podst_spr():
+            k.kontrola_odl()
+            k.spr_oddz()
+            k.spr_pnsw()
+            k.spr_line()
+        k.zapisz_raport()
 
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)
@@ -482,7 +495,7 @@ class LasR:
         shp_numeruj.Numeruj(self.iface)
 
     def sprawdz_wydz_w_oddz(self):
-        shp_sprWydzOddz.SprWydzOddz(self.iface)
+        shp_sprWydzOddz.spr_wydz_oddz(self.iface)
 
     def eksportuj_do_KML(self):
         s = shp_eksport_kml.EksportujKML(self.iface)

@@ -1,6 +1,8 @@
-from qgis.core import Qgis, QgsMessageLog, QgsFeatureRequest
+from qgis.core import Qgis, QgsMessageLog, QgsFeatureRequest,  QgsGeometry, \
+    QgsSpatialIndex, QgsField, QgsFeature, QgsVectorLayer, QgsProject
 from collections import Counter
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import QVariant
 
 
 class SprawdzWydzielenia():
@@ -23,6 +25,8 @@ class SprawdzWydzielenia():
             self.spr_wydz_na_nielasach,
         ]
 
+        self.wypis_sprawdzenia_wydz = ''
+
         komunikaty = [
             'Połączenie z bazą: OK',
             'Sprawdzenie poprawności warstwy wydz: OK',
@@ -39,15 +43,20 @@ class SprawdzWydzielenia():
                 # jeżeli są rozbieżności między bazą a warstwą zapytaj czy
                 # użytkownik chce kontynuować procedurę
                 if i == 4:
-                    m = QMessageBox()
-                    m.setText(
+                    message = QMessageBox()
+                    message.setIcon(QMessageBox.Information)
+                    message.setWindowTitle('Błąd')
+                    message.setText(
                         'W bazie lub w warstwie są niełączące się wydzielenia'
                         ', kontynuować?')
-                    m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                    m.exec_()
+                    message.addButton('Przerwij', QMessageBox.ActionRole)
+                    message.addButton('Kontynuuj', QMessageBox.ActionRole)
+                    pok_rap = message.exec_()
 
-                    if m == QMessageBox.No:
-                        self.przerwij()
+                    if pok_rap == 1:
+                        self.wypis_sprawdzenia_wydz += \
+                            '[BŁĄD] w bazie lub warstwie są niepołączone ' + \
+                            'wydzielenia!\n'
                         return False
 
                 # jeżeli są inne rozbieżności, kończymy
@@ -60,7 +69,7 @@ class SprawdzWydzielenia():
                     'Las-R',
                     Qgis.Info
                 )
-
+                self.wypis_sprawdzenia_wydz += komunikaty[i] + '\n'
         return True
 
     def przerwij(self):
@@ -134,16 +143,22 @@ class SprawdzWydzielenia():
             'Las-R',
             Qgis.Info
         )
+        self.wypis_sprawdzenia_wydz +=  \
+            '\n   Znaleziono poligonów w shp: ' + str(len(adr_w))
         QgsMessageLog.logMessage(
             '   Znaleziono wydzieleń w shp: ' + str(len(set(adr_w))),
             'Las-R',
             Qgis.Info
         )
+        self.wypis_sprawdzenia_wydz +=  \
+            '\n   Znaleziono wydzieleń w shp: ' + str(len(set(adr_w)))
         QgsMessageLog.logMessage(
             '   Znaleziono wydzieleń w bazie: ' + str(len(adr_b)),
             'Las-R',
             Qgis.Info
         )
+        self.wypis_sprawdzenia_wydz +=  \
+            '\n   Znaleziono wydzieleń w bazie: ' + str(len(adr_b)) + '\n\n'
 
         if len(brakiw) > 0:
             self.iface.messageBar().pushMessage(
@@ -153,11 +168,16 @@ class SprawdzWydzielenia():
                 Qgis.Critical,
                 10)
 
+            self.wypis_sprawdzenia_wydz +=  \
+                '\nW shp znajdują się wydzielenia, które nie są dopisane do ' +\
+                'Bazy! Patrz log Las-R\n'
             QgsMessageLog.logMessage('Brakujące wydzielenia w bazie:',
                                      'Las-R',
                                      Qgis.Critical)
+            self.wypis_sprawdzenia_wydz +=  'Brakujące wydzielenia w bazie:\n'
             for b in brakiw:
                 QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
+            self.wypis_sprawdzenia_wydz += b + '\n'
 
         if len(brakib) > 0:
             self.iface.messageBar().pushMessage(
@@ -225,3 +245,328 @@ class SprawdzWydzielenia():
             return False
 
         return True
+
+
+def sprawdz_odl_wydz(iface, wydz):
+    """Funkcja sprawdza czy w multipoligonach wydzieleń nie ma większych
+    odległości między najbliższymi częsciami niż 30m. Jeżeli takie
+    występują zostają zaraportowane użytkownikowi. Pomijane są sprawdzenia
+    w Lz.
+    INPUT:
+        iface,
+        wskaznik do warstwy wydz z wydz wielopolignowymi
+        """
+    # zmienna z wypisem do raportu
+    wyps = '\n\n----[ SPRAWDZENIE ODLEGŁOŚCI W WYDZIELENIACH]----\n'
+
+    sl_wydz = {}  # sl z wydz w postaci {id: feat}
+    for f in wydz.getFeatures():
+        sl_wydz[f.id()] = f
+
+    odl_wydz = {}
+    f_przek_odl = []
+    for f in sl_wydz.values():
+        if len(f.geometry().asMultiPolygon()) > 1 and f['WYDZ'] != 'Lz':
+            # dopisz poszczegolne czesci do tabeli jako pojedyncze poly
+            tab = [QgsGeometry.fromPolygonXY(g) for g in
+                   f.geometry().asMultiPolygon()]
+
+            # sprawdz odległości pomiędzy wszystkimi poligonami
+            odl = []
+            for i in range(len(tab)-1):
+                odli = []
+                for j in range(len(tab)):
+                    if i != j:
+                        odli.append(tab[i].shortestLine(tab[j]).length())
+                odl.append(min(odli))
+
+            odl_wydz[f['ADR_LES']] = max(odl)
+
+            if max(odl) > 29.999:
+                f_przek_odl.append(f)
+
+    # tabela z odległościami wiekszymi niz 30 m w wydzieleniach
+    wydz_odl_przekrocz = sorted([[k, v] for k, v in
+                                 odl_wydz.items()
+                                 if v > 29.999],
+                                reverse=True,
+                                key=lambda x: x[0])
+
+    if len(wydz_odl_przekrocz) > 0:
+        wydz_bodl = QgsVectorLayer(
+                "Polygon?crs=epsg:2180",
+                "WYDZ_błędy_odległości",
+                "memory")
+
+        wydz_bodl.startEditing()
+        wydz_bodl.dataProvider().addAttributes([
+            QgsField("ID", QVariant.Int),
+            QgsField("ADR_LES", QVariant.String, len=25),
+            QgsField("ODLEGŁOŚCI", QVariant.Double, 'double', 10, 1),
+        ])
+        wydz_bodl.updateFields()
+
+        fs = []
+        for i, it in enumerate(f_przek_odl):
+            feat = QgsFeature()
+            feat.setGeometry(it.geometry())
+            feat.setFields(wydz_bodl.fields())
+            feat['ID'] = i
+            feat['ADR_LES'] = it['ADR_LES']
+            try:
+                feat['ODLEGŁOŚCI'] = odl_wydz[it['ADR_LES']]
+            except:  # nopep8
+                feat['ODLEGŁOŚCI'] = 999
+            fs.append(feat)
+
+        wydz_bodl.dataProvider().addFeatures(fs)
+        wydz_bodl.commitChanges()
+
+        QgsMessageLog.logMessage(
+            '\nWydzielenia z przekroczonymi odległościami: \n\t' +
+            '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
+                         for x in wydz_odl_przekrocz]),
+            'Las-R',
+            Qgis.Warning
+        )
+
+        QgsProject.instance().addMapLayer(wydz_bodl)
+
+        wyps += '\nWydzielenia z przekroczonymi odległościami: \n' + \
+            '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
+                         for x in wydz_odl_przekrocz])
+
+    else:
+        wydruk = sorted([[k, v] for k, v in odl_wydz.items()],
+                        reverse=True,
+                        key=lambda x: x[1])[:10]
+
+        QgsMessageLog.logMessage(
+            'Wydzielenia z największymi odległościami: \n' +
+            '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
+                       for x in wydruk]),
+            'Las-R',
+            Qgis.Info
+        )
+        wyps += 'Wydzielenia z największymi odległościami: \n' + \
+            '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
+                       for x in wydruk])
+
+    wyps += '\n----[ KONIEC ]----\n'
+    return len(wydz_odl_przekrocz), wyps
+
+
+def sprawdz_odl_lz(iface, wydz):
+    """Funkcja sprawdza odległości poszczególnych Lz od wydzieleń w warstwie
+    Jeżeli są mniejsze od 30m raportuje bledy
+    INPUT:
+    iface,
+    wskaznik do warstwy wydz
+        """
+
+    sl_wydz = {}  # sl z wydz w postaci {id: feat}
+    sl_lz = {}  # slownik z lz dla calego obiektu
+    # zmienna z wypisem do raportuj
+    wyps = '\n\n----[ SPRAWDZENIE ODLEGŁOŚCI LZ OD WYDZIELEŃ ]----\n'
+
+    si = QgsSpatialIndex()
+    for f in wydz.getFeatures():
+        si.insertFeature(f)
+        sl_wydz[f.id()] = f
+        if f['WYDZ'] == 'Lz':
+            sl_lz[f.id()] = f
+
+    lz_odl_przekrocz = []  # tablica z bliskimi odległościami do
+    # wydzieleń w postaci : [[geometry, odl], [geometry, odl]]
+
+    # sprawdz po kolei wszystkie Lz czy spełniają kryterium odległościowe
+    for idik, feat in sl_lz.items():
+        for part in feat.geometry().asMultiPolygon():
+            geom = QgsGeometry.fromPolygonXY(part)
+            ids = si.intersects(geom.boundingBox())
+            for id in ids:
+                short_line = geom.shortestLine(
+                    sl_wydz[id].geometry()).length()
+                if short_line < 30 and idik != id:
+                    lz_odl_przekrocz.append(
+                        [geom, short_line, feat['ADR_LES']]
+                    )
+
+    lz_odl_przekrocz = sorted(lz_odl_przekrocz,
+                              reverse=True,
+                              key=lambda x: x[1]
+                              )
+
+    if len(lz_odl_przekrocz) > 0:
+        lz_bodl = QgsVectorLayer(
+                "Polygon?crs=epsg:2180",
+                "Lz_blisko_wydzieleń",
+                "memory")
+
+        lz_bodl.startEditing()
+        lz_bodl.dataProvider().addAttributes([
+            QgsField("ID", QVariant.Int),
+            QgsField("ODLEGŁOŚCI", QVariant.Double, 'double', 10, 1),
+        ])
+        lz_bodl.updateFields()
+
+        fs = []
+        for i, it in enumerate(lz_odl_przekrocz):
+            feat = QgsFeature()
+            feat.setGeometry(it[0])
+            feat.setFields(lz_bodl.fields())
+            feat['ID'] = i
+            try:
+                feat['ODLEGŁOŚCI'] = it[1]
+            except:  # nopep8
+                feat['ODLEGŁOŚCI'] = 999
+            fs.append(feat)
+
+        lz_bodl.dataProvider().addFeatures(fs)
+        lz_bodl.commitChanges()
+
+        QgsMessageLog.logMessage(
+            '\nLz z za bliskimi odległościami do wydzieleń: ' +
+            str(len(lz_odl_przekrocz)),
+            'Las-R',
+            Qgis.Warning
+        )
+        wyps += '\nLz z za bliskimi odległościami do wydzieleń: ' + \
+            str(len(lz_odl_przekrocz)),
+        wyps += '\n'.join([x[2]+'\t'+str(x[1]) for x in lz_odl_przekrocz])
+
+        QgsProject.instance().addMapLayer(lz_bodl)
+
+    else:
+        QgsMessageLog.logMessage(
+            'Odległości Lz od wydzieleń: OK',
+            'Las-R',
+            Qgis.Info
+        )
+        wyps += 'Lz w odległości większej niż 30 m od wydzieleń - OK'
+
+    wyps += '\n----[ KONIEC ]----\n'
+
+    return len(lz_odl_przekrocz), wyps
+
+
+def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
+    """ Funkcja sprawdza czy warstwa pnsw zawiera sie w wydz """
+
+    wyps = '----[ SPRAWDZENIE WARSTWY PNSW ]----\n'
+    bezbledow = True
+
+    crs_ok = True
+    if pnsw.crs().authid() != 'EPSG:2180':
+        wyps += 'WARSTWA NIE JEST W UKŁADZIE PUWG-92!!!\n'
+        wyps += '(Pomijam sprawdzanie zawierania się PNSW w wydzieleniach, ' +\
+            'oraz dopisanie ADR_LES do warstwy PNSW)\n'
+        crs_ok = False
+
+    if 3 != len([x.name() for x in pnsw.dataProvider().fields().toList()
+                 if x.name() in ['NR_PNSW', 'ADR_BDL', 'KOD_PNSW', ]]):
+        wyps += 'BRAK NIEZBĘDNYCH KOLUMN: KOD_PNSW, NR_PNSW, ADR_BDL' +\
+            '\n----[ KONIEC ]----\n\n'
+        return False, wyps
+
+    if crs_ok:
+        # zbuduj indeks przestrzenny dla wydz
+        si = QgsSpatialIndex()
+        sl_w = {}  # slownik z feat wydz {id: wydz feat, ... }
+
+        # slownik z poprawionymi adr_les i nr pnsw z shp do sprawdzenia z baza
+        # {adr_les:nr_pnws: kod_pnsw_b, }
+        sl_pnsw = {}
+
+        fmi = pnsw.dataProvider().fieldNameMap()
+        for wfeat in wydz.getFeatures():
+            si.insertFeature(wfeat)
+            sl_w[wfeat.id()] = wfeat
+
+        pnsw.startEditing()
+        podm_adr = 0
+        for feat in pnsw.getFeatures():
+            ids = si.intersects(feat.geometry().boundingBox())
+            for id in ids:
+                if feat.geometry().intersects(sl_w[id].geometry()):
+                    inter = feat.geometry().intersection(sl_w[id].geometry())
+                    # jeżeli pnsw lezy w wiekszosci na tym wydz dopisz adr_les
+                    if (inter.area()/feat.geometry().area()) > 0.6:
+                        pnsw.dataProvider().changeAttributeValues(
+                            {feat.id(): {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
+                             )
+                        podm_adr += 1
+
+                    if 0.1 < (inter.area()/feat.geometry().area()) < 0.98999:
+                        wyps += sl_w[id]['ADR_LES'] + \
+                            ' PNSW nie zawiera sie w wydzieleniu\n'
+
+            # zbuduj slownik ze struktura porownawcza dla bazy
+            sl_pnsw[feat['ADR_BDL']+':'+str(feat['NR_PNSW'])] = \
+                feat['KOD_PNSW']
+
+        pnsw.commitChanges()
+
+        if podm_adr > 0:
+            wyps += '\nPodmieniono ADR_LES: ' + str(podm_adr) + '\n'
+            wyps += \
+                'Pamiętaj, że zmiany dotyczą tylko i wyłącznie warstwy!!!\n\n'
+
+    if baza is not False:
+
+        bpnsw = baza.pobierz_pnsw()
+        bwydz_org = baza.pobierz_wydzielenia()
+        bwydz = {v: k for k, v in bwydz_org.items()}
+
+        pnsw_b = {bwydz[x[0]]+':'+str(x[1]): x[2] for x in bpnsw}
+        braki_baza = [k+' - '+v for k, v in sl_pnsw.items() if k not in pnsw_b]
+        braki_shp = [k+' - '+v for k, v in pnsw_b.items() if k not in sl_pnsw]
+
+        if len(braki_baza) > 0:
+            wyps += 'PNSW niedopisane do bazy:\n'
+            wyps += '\n'.join(braki_baza) + '\n\n'
+
+        if len(braki_shp) > 0:
+            wyps += 'PNSW niedodane do shp:\n'
+            wyps += '\n'.join(braki_shp) + '\n\n'
+
+    if crs_ok and bezbledow and len(braki_baza+braki_shp) == 0:
+        wyps += 'Wastwa uzupełniona poprawnie - OK\n'
+
+    wyps += '\n----[ KONIEC ]----\n\n'
+    return True, wyps
+
+
+def isNone(a):
+    if a in [None, 'NULL', '', ]:
+        return ''
+    elif isinstance(a, QVariant):
+        if a.isNull():
+            return ''
+    else:
+        return a
+
+
+def sprawdz_linie(linie):
+    """ Funkcja sprawdza czy warstwa ma odpowiednie kolumny oraz czy są one
+    wypełnione a nie puste"""
+
+    wyps = '----[ SPRAWDZENIE WARSTWY LINI ]----\n'
+
+    if linie.crs().authid() != 'EPSG:2180':
+        wyps += 'WARSTWA NIE JEST W UKŁADZIE PUWG-92!!!\n'
+
+    if 2 != len([x.name() for x in linie.dataProvider().fields().toList()
+                 if x.name() in ['KOD', 'SZER', ]]):
+        wyps += 'BRAK NIEZBĘDNYCH KOLUMN: KOD, SZER\n----[ KONIEC ]----\n\n'
+        return False, wyps
+
+    for feat in linie.getFeatures():
+        if isNone(feat['KOD']) == '':
+            wyps += 'Brak wpisanych kodów lub szerokości\n' + \
+                '\n\n WARSTWA NIEPOPRAWNA!!!\n\n' + \
+                '----[ KONIEC ]----\n\n'
+            return False, wyps
+
+    wyps += 'Wastwa uzupełniona poprawnie - OK\n----[ KONIEC ]----\n\n'
+    return True, wyps

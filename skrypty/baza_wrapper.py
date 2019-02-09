@@ -16,20 +16,32 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
     else:
         wydz = iface.activeLayer()
 
-    wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
-    kat = os.path.dirname(wydz_sc)
+    bTemp = []
+    kat = ''
+    if wydz is not None:
+        wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
+        kat = os.path.dirname(wydz_sc)
 
-    if platform.system()[:3] == 'Win':
-        bTemp = glob.glob(os.path.join(kat, "..", "*.mdb"))
-    else:
-        bTemp = glob.glob(os.path.join(kat, "..", "*.sqlite"))
+        try:
+            if platform.system()[:3] == 'Win':
+                bTemp = glob.glob(os.path.join(kat, "..", "*.mdb"))
+            else:
+                bTemp = glob.glob(os.path.join(kat, "..", "*.sqlite"))
+        except:  # nopep8
+            iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie udało się odnaleźć bazy',
+                Qgis.Critical,
+                10)
+            return False
 
     if len(bTemp) != 1:
-        bTemp = [QFileDialog().getOpenFileName(iface.mainWindow(),
-                                               'Wskaż baze Taksatora',
-                                               kat,
-                                               "Access MDB (*.mdb)")[0]
-                 ]
+        bTemp = [QFileDialog().getOpenFileName(
+            iface.mainWindow(),
+            'Wskaż baze Taksatora',
+            kat,
+            "Access MDB (*.mdb);;SQLite (*.sqlite)")[0]
+        ]
 
     if len(bTemp) == 1:
         baza = Baza(bTemp[0])
@@ -463,6 +475,18 @@ class Baza(object):
                 F_AROD_CUE INNER JOIN F_ARODES
                 ON F_AROD_CUE.ARODES_INT_NUM=F_ARODES.ARODES_INT_NUM
                 ORDER BY F_ARODES.ADRESS_FOREST, F_AROD_CUE.CUE_RANK_ORDER;
+        """
+        return self.cur.execute(sql).fetchall()
+
+    def pobierz_pnsw(self):
+        """ Metoda pobiera tabele z pnsw """
+        sql = """
+            SELECT
+                ARODES_INT_NUM,
+                AROD_SPAREA_ORDER,
+                SPECIAL_AREA_CD
+            FROM
+                F_AROD_SPEC_AREA;
         """
         return self.cur.execute(sql).fetchall()
 

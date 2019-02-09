@@ -4,7 +4,7 @@ from collections import Counter
 from PyQt5.QtCore import QVariant
 
 
-def SprWydzOddz(iface):  # noqa
+def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
 
     QgsMessageLog.logMessage(
         '------ SPRAWDŹ WYDZIELENIA W ODDZIAŁACH --------- ',
@@ -12,46 +12,49 @@ def SprWydzOddz(iface):  # noqa
         Qgis.Info
     )
 
-    spis_warstw = [x.name() for x in
-                   QgsProject.instance().mapLayers().values()]
+    # jezeli nie podajemy warstw to sprawdzamy TOC
+    if wydz is False and oddz is False:
+        spis_warstw = [x.name() for x in
+                       QgsProject.instance().mapLayers().values()]
 
-    # SPRAWDZ WARUNKI POCZATKOWE ----------------------
-    # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
-    go = False
-    policz_warstwy = Counter(spis_warstw)
-    if 'ODDZ' in policz_warstwy:
-        if policz_warstwy['ODDZ'] == 1:
-            go = True
-            oddz = [x for x in QgsProject.instance().mapLayers().values()
-                    if x.name() == 'ODDZ'][0]
+        # SPRAWDZ WARUNKI POCZATKOWE ----------------------
+        # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
+        go = False
+        policz_warstwy = Counter(spis_warstw)
+        if 'ODDZ' in policz_warstwy:
+            if policz_warstwy['ODDZ'] == 1:
+                go = True
+                oddz = [x for x in QgsProject.instance().mapLayers().values()
+                        if x.name() == 'ODDZ'][0]
 
-    if not go:
-        QgsMessageLog.logMessage(
-            'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
-            'Las-R',
-            Qgis.Critical
-        )
-        iface.messageBar().pushMessage(
-            'ODDZ',
-            'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
-            Qgis.Critical,
-            10)
-        return
+        if not go:
+            QgsMessageLog.logMessage(
+                'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
+                'Las-R',
+                Qgis.Critical
+            )
+            iface.messageBar().pushMessage(
+                'ODDZ',
+                'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
+                Qgis.Critical,
+                10)
+            return False, -1, -1
 
-    if iface.activeLayer().name() == 'ODDZ':
-        QgsMessageLog.logMessage(
-            'Aktywną warstwą powinny być wydzielenia',
-            'Las-R',
-            Qgis.Critical
-        )
-        iface.messageBar().pushMessage(
-            'Aktywna warstwa',
-            'jako aktywna warstwa powinny być zaznaczone wydzielenia',
-            Qgis.Critical,
-            10)
-        return
+        if iface.activeLayer().name() == 'ODDZ':
+            QgsMessageLog.logMessage(
+                'Aktywną warstwą powinny być wydzielenia',
+                'Las-R',
+                Qgis.Critical
+            )
+            iface.messageBar().pushMessage(
+                'Aktywna warstwa',
+                'jako aktywna warstwa powinny być zaznaczone wydzielenia',
+                Qgis.Critical,
+                10)
+            return False, -1, -1
 
-    wydz = iface.activeLayer()
+        wydz = iface.activeLayer()
+
     pola_w = [x.name() for x in wydz.fields()]
     pola_o = [x.name() for x in oddz.fields()]
     brak_pola = [[], []]
@@ -79,10 +82,11 @@ def SprWydzOddz(iface):  # noqa
 
         iface.messageBar().pushMessage(
             'BRAK KOLUMN',
-            '(Sprawdź log Las-R)',
+            'W warstwie ' + brak_pola[0][i] +
+            ' brakuje kolumn: ' + ', '.join(brak_pola[1][i]),
             Qgis.Critical,
             10)
-        return
+        return False, -1, -1
 
     # ------ KONIEC WARUNKOW POCZATKOWYCH ---------------
 
@@ -204,3 +208,5 @@ def SprWydzOddz(iface):  # noqa
         'Las-R',
         Qgis.Info
     )
+
+    return True, len(f_przec), len(f_niezg)
