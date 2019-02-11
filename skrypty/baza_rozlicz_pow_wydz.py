@@ -887,7 +887,7 @@ class SprawdzRozliczenie():
 
         if self.sum_op_pow_ - self.sum_op_pow_b != 0:
             self.wypis += '[ ' + str(
-                round(self.sum_op_pow_-self.sum_op_pow_b), 4) + ' ]\n'
+                round(self.sum_op_pow_-self.sum_op_pow_b, 4)) + ' ]\n'
         else:
             self.wypis += '\n'
 

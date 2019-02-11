@@ -414,6 +414,10 @@ class PobierzDane(QDialog):
                                                 "ESRI shp (*.shp)")[0]
 
         self.oddz = QgsVectorLayer(warstwa, "oddz_pgllp", "ogr")
+
+        if not self.oddz.isValid():
+            return
+
         QgsMessageLog.logMessage(
             'Wybrano warstwę oddziałów: ' + warstwa, 'Las-R', Qgis.Info
         )

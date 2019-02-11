@@ -209,6 +209,8 @@ class AnalizujKlus(object):
             self.klu = QgsVectorLayer(self.dd.lineEdit_klu, 'klu', 'ogr')
         if not self.dzkat.isValid():
             self.dzkat = QgsVectorLayer(self.dd.lineEdit_dz, 'dz', 'ogr')
+
+        self.klu.dataProvider().setEncoding('UTF-8')
         # sprawdzenie czy warstwy sa poprawne znajduje sie w metodzie
         # sprawdz_warunki ponizej, ktora powinna byc uruchomiona po tej.
 
@@ -325,9 +327,9 @@ class AnalizujKlus(object):
         for f in self.klu.getFeatures():
             zau, zsq = '', ''
             if self.typ == 'LAN':
-                if f['LANDID'] in self.p.uzytki:
-                    zsq = self.p.uzytki[f['LANDID']][1]
-                    zau = self.p.uzytki[f['LANDID']][0]
+                if f[self.landid] in self.p.uzytki:
+                    zsq = self.p.uzytki[f[self.landid]][1]
+                    zau = self.p.uzytki[f[self.landid]][0]
                 else:
                     zsq = 'xxx'
                     zau = 'xxx'
@@ -363,10 +365,14 @@ class AnalizujKlus(object):
                                                self.czas + '.shp')
         })
 
+        templyr = QgsVectorLayer(
+            os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
+            'templyr_diss',
+            'ogr')
+        templyr.dataProvider().setEncoding('ISO-8859-2')
+
         processing.run("native:intersection", {
-                        'INPUT': os.path.join(self.tempkat,
-                                              '__klu_dissolve_' +
-                                              self.czas + '.shp'),
+                        'INPUT': templyr,
                         'OVERLAY': self.dzkat,
                         'INPUT_FIELDS': "",
                         'OVERLAY_FILEDS': "",
@@ -375,12 +381,17 @@ class AnalizujKlus(object):
                         )
         })
 
+        templyr = QgsVectorLayer(
+            os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+            'templyr_multi',
+            'ogr')
+        templyr.dataProvider().setEncoding('ISO-8859-2')
+
         processing.run("native:multiparttosingleparts", {
                         'OUTPUT': os.path.join(
                             self.tempkat,
                             '__LS_singleparts_'+self.czas+'.shp'),
-                        'INPUT': os.path.join(
-                            self.tempkat, '__LS_multiparts_'+self.czas+'.shp')
+                        'INPUT': templyr
                         })
 
         # Rozbij uzytki na single parts
@@ -388,6 +399,7 @@ class AnalizujKlus(object):
             self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
             '__LS_singleparts_'+self.czas+'.shp',
             'ogr')
+        self.singleparts.dataProvider().setEncoding('ISO-8859-2')
 
     def zaladuj_strukture(self):
         """Metoda zestawia do słownika obiekty PrzetworzKlu dla każdej z

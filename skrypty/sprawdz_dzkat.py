@@ -708,9 +708,10 @@ class AnalizujDzKat(object):
 
     def skasuj_kolumny(self):
         self.lyrw.startEditing()
-        nadmiarowe = sorted([self.lyrw.fieldNameIndex(x.name())
+        nadmiarowe = sorted([self.lyrw.dataProvider().fieldNameIndex(x.name())
                              for x in self.lyrw.fields().toList()
-                             if x.name() not in [y.name() for y in self.kolumny]],
+                             if x.name() not in
+                             [y.name() for y in self.kolumny]],
                             reverse=True)
         self.lyrw.dataProvider().deleteAttributes(nadmiarowe)
         self.lyrw.updateFields()

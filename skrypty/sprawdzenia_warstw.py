@@ -169,12 +169,12 @@ class SprawdzWydzielenia():
                 10)
 
             self.wypis_sprawdzenia_wydz +=  \
-                '\nW shp znajdują się wydzielenia, które nie są dopisane do ' +\
-                'Bazy! Patrz log Las-R\n'
+                '\nW shp znajdują się wydzielenia, które nie są ' + \
+                'dopisane do Bazy! Patrz log Las-R\n'
             QgsMessageLog.logMessage('Brakujące wydzielenia w bazie:',
                                      'Las-R',
                                      Qgis.Critical)
-            self.wypis_sprawdzenia_wydz +=  'Brakujące wydzielenia w bazie:\n'
+            self.wypis_sprawdzenia_wydz += 'Brakujące wydzielenia w bazie:\n'
             for b in brakiw:
                 QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
             self.wypis_sprawdzenia_wydz += b + '\n'
@@ -190,8 +190,12 @@ class SprawdzWydzielenia():
             QgsMessageLog.logMessage('Brakujące wydzielenia w warstwie:',
                                      'Las-R',
                                      Qgis.Critical)
+
+            self.wypis_sprawdzenia_wydz += \
+                'Brakujące wydzielenia w warstwie:\n'
             for b in brakib:
                 QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
+                self.wypis_sprawdzenia_wydz += b + '\n'
 
         if len(brakib) > 0 or len(brakiw) > 0:
             return False
@@ -214,12 +218,19 @@ class SprawdzWydzielenia():
                 Qgis.Critical,
                 10)
 
+            self.wypis_sprawdzenia_wydz += \
+                'Połącz wydzielenia w multipoligony:\n'
             QgsMessageLog.logMessage(
                 '\nNiepołączone wydzielenia: \n' + '\n'.join(
                     [y[0] + '   (x' + str(y[1]) + ')'
                      for y in Counter(adr_w).most_common() if y[1] > 1]),
                 'Las-R'
             )
+            self.wypis_sprawdzenia_wydz += '\n'.join([
+                y[0] + '   (x' + str(y[1]) + ')'
+                for y in Counter(adr_w).most_common() if y[1] > 1
+            ])
+
             return False
         return True
 
@@ -236,12 +247,16 @@ class SprawdzWydzielenia():
                 'Odnaleziono wydzielenia nieleśne na użytkach nieleśnych',
                 Qgis.Critical,
                 10)
+            self.wypis_sprawdzenia_wydz += \
+                'Odnaleziono wydzielenia nieleśne na użytkach nieleśnych\n'
 
             QgsMessageLog.logMessage(
                 '\nWydzielenia nieleśne na nielasach:\n' +
                 '\n'.join('  '.join(map(str, y)) for y in tab),
                 'Las-R'
             )
+            self.wypis_sprawdzenia_wydz += \
+                '\n'.join('  '.join(map(str, y)) for y in tab)
             return False
 
         return True
@@ -325,7 +340,7 @@ def sprawdz_odl_wydz(iface, wydz):
         QgsMessageLog.logMessage(
             '\nWydzielenia z przekroczonymi odległościami: \n\t' +
             '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
-                         for x in wydz_odl_przekrocz]),
+                       for x in wydz_odl_przekrocz]),
             'Las-R',
             Qgis.Warning
         )
@@ -334,7 +349,7 @@ def sprawdz_odl_wydz(iface, wydz):
 
         wyps += '\nWydzielenia z przekroczonymi odległościami: \n' + \
             '\n'.join([x[0]+' - '+str(round(x[1], 1))+' m'
-                         for x in wydz_odl_przekrocz])
+                       for x in wydz_odl_przekrocz])
 
     else:
         wydruk = sorted([[k, v] for k, v in odl_wydz.items()],
@@ -432,8 +447,9 @@ def sprawdz_odl_lz(iface, wydz):
             Qgis.Warning
         )
         wyps += '\nLz z za bliskimi odległościami do wydzieleń: ' + \
-            str(len(lz_odl_przekrocz)),
-        wyps += '\n'.join([x[2]+'\t'+str(x[1]) for x in lz_odl_przekrocz])
+            str(len(lz_odl_przekrocz)) + '\n'
+        wyps += '\n'.join([x[2]+'\t'+str(round(x[1], 1))
+                           for x in lz_odl_przekrocz])
 
         QgsProject.instance().addMapLayer(lz_bodl)
 
@@ -492,20 +508,23 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
                     inter = feat.geometry().intersection(sl_w[id].geometry())
                     # jeżeli pnsw lezy w wiekszosci na tym wydz dopisz adr_les
                     if (inter.area()/feat.geometry().area()) > 0.6:
-                        pnsw.dataProvider().changeAttributeValues(
-                            {feat.id(): {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
+                        if sl_w[id]['ADR_LES'] != feat['ADR_BDL']:
+                            pnsw.dataProvider().changeAttributeValues(
+                                {feat.id():
+                                 {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
                              )
-                        podm_adr += 1
+                            podm_adr += 1
 
                     if 0.1 < (inter.area()/feat.geometry().area()) < 0.98999:
                         wyps += sl_w[id]['ADR_LES'] + \
                             ' PNSW nie zawiera sie w wydzieleniu\n'
 
+        pnsw.commitChanges()
+
+        for feat in pnsw.getFeatures():
             # zbuduj slownik ze struktura porownawcza dla bazy
             sl_pnsw[feat['ADR_BDL']+':'+str(feat['NR_PNSW'])] = \
                 feat['KOD_PNSW']
-
-        pnsw.commitChanges()
 
         if podm_adr > 0:
             wyps += '\nPodmieniono ADR_LES: ' + str(podm_adr) + '\n'

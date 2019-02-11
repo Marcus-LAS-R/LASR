@@ -93,6 +93,10 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         if self.poprawne_wydz():
             self.wypis += self.wypis_sprawdzenia_wydz + '\n\n'
             return True
+
+        self.wypis += self.wypis_sprawdzenia_wydz + '\n\n'
+        self.wypis += '\n\n\nPrzerwano sprawdzanie wydzieleń, napraw ' + \
+            'powyższe niedoskonałości!'
         return False
 
     def kontrola_odl(self):
