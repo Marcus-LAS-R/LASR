@@ -1128,6 +1128,10 @@ class PrzetworzKlu(object):
         spis_klu = [self.stworz_landid(x) for x in self.klus_popr]
         ile_klu = [x[0] for x in Counter(spis_klu).most_common() if x[1] > 1]
 
+        # zmienna z uwagą do spradzenia geometrii, gdy przy laczeniu cos
+        # pojdzie nie tak jak trzeba i nie dostaniemy kodu 0
+        blad_lacz = \
+            'geometria do sprawdzenia z w warstwą orginalną; '
         # tablica z poprawnymi klu połącznymi w multipoly i posiadajace juz
         # poprawne, i niezdublowane uwagi
         self.poprawne = {}
@@ -1153,8 +1157,14 @@ class PrzetworzKlu(object):
                 else:
                     result = geom_baza.addPartGeometry(geom_dolacz)  # noqa
                     new_geom = geom_baza
-                    # TODO: Obczaić kody do tych resultów
-                    # QgsMessageLog.logMessage(str(result), 'Las-R')
+                    # TODO: Obczaić kody do tych resultów, z tym że raczej nie
+                    # występują, jeszcze się nie spotkałem...
+                    QgsMessageLog.logMessage(y['PARCELID']+'  '+str(result),
+                                             'Las-R')
+
+                    # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+                    # pyqtRemoveInputHook()
+                    # pdb.set_trace()
 
                 self.poprawne[y].clearGeometry()
                 self.poprawne[y].setGeometry(new_geom)
@@ -1167,6 +1177,9 @@ class PrzetworzKlu(object):
                     u_nowe = self.klus_popr[i]['SPRAWDZ'].split('; ')
                 if isinstance(self.poprawne[y]['SPRAWDZ'], str):
                     u_stare = self.poprawne[y]['SPRAWDZ']
+
+                if result != 0:
+                    u_nowe.appedn(blad_lacz)
 
                 # sprawdz czy sa jakies nowe uwagi, jezeli tak, dodaj
                 trig_dopisz = False

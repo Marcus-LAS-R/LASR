@@ -64,8 +64,19 @@ class EksportujKML():
              }
         )
 
+        processing.run(
+            'saga:polygonpartstoseparatepolygons',
+            {
+                'POLYGONS': os.path.join(self.tempkat,
+                                         '__'+self.nazwa+'_diss.shp'),
+                'LAKES': True,
+                'PARTS': os.path.join(self.tempkat,
+                                      '__'+self.nazwa+'_diss_single.shp')
+            }
+        )
+
         self.ls_diss = QgsVectorLayer(
-            os.path.join(self.tempkat, '__'+self.nazwa+'_diss.shp'),
+            os.path.join(self.tempkat, '__'+self.nazwa+'_diss_single.shp'),
             'ls_diss',
             'ogr'
         )
@@ -73,14 +84,15 @@ class EksportujKML():
         processing.run(
             'saga:convertpolygonstolines',
             {'POLYGONS': os.path.join(self.tempkat,
-                                      '__'+self.nazwa+'_diss.shp'),
+                                      '__'+self.nazwa+'_diss_single.shp'),
              'LINES': os.path.join(self.tempkat,
-                                   '__'+self.nazwa+'_diss_lines.shp')
+                                   '__'+self.nazwa+'_diss_single_lines.shp')
              }
         )
 
         self.ls_diss_lines = QgsVectorLayer(
-            os.path.join(self.tempkat, '__'+self.nazwa+'_diss_lines.shp'),
+            os.path.join(self.tempkat,
+                         '__'+self.nazwa+'_diss_single_lines.shp'),
             'ls_diss_lines',
             'ogr'
         )
@@ -179,11 +191,10 @@ class EksportujKML():
 
         lista = glob.glob(os.path.join(self.tempkat, '*.*'))
 
-        for ll in lista:
-            os.remove(ll)
-
         # skasuj jeżeli katalog jest pusty
         try:
+            for ll in lista:
+                os.remove(ll)
             os.removedirs(self.tempkat)
         except:  # nopep8
             pass
