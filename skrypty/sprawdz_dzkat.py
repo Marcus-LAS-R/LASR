@@ -616,7 +616,7 @@ class AnalizujDzKat(object):
         QgsMessageLog.logMessage(raport, 'Las-R')
 
         if len(self.dzkat_brak) > 0:
-            raport += '\n\n---BRAKUJACE DZIALKI LESNE--------------' + '\n'
+            raport += '\n\n---BRAKUJACE DZIALKI LEŚNE--------------' + '\n'
             raport += 'Brakujace dzialki lesne w shp: ' + \
                 str(len(self.dzkat_brak)) + '\n\n'
             raport += '\n'.join([
@@ -698,7 +698,7 @@ class AnalizujDzKat(object):
 
         # zapisz raport do pliku
         self.rap_sc = os.path.join(self.kat, 'dzkat_raport_'+self.czas+'.txt')
-        open(self.rap_sc, 'wb').write(raport.encode('cp1250'))
+        open(self.rap_sc, 'wb', encoding='cp1250').write(raport)
 
     def wypiszPow(self, x, sl):
         if x in sl:

@@ -65,6 +65,8 @@ class SprawdzLs(object):
         for key, lyr in QgsProject.instance().mapLayers().items():
             if key[:5] == 'DZKAT':
                 d = lyr
+            if key[:3] == 'KLU':
+                k = lyr
 
         if d is False:
             QgsMessageLog.logMessage(
@@ -370,13 +372,18 @@ class AnalizujKlus(object):
             'templyr_diss',
             'ogr')
         templyr.dataProvider().setEncoding('ISO-8859-2')
+        do_usun = [k for k, v in
+                   enumerate(templyr.dataProvider().fields().toList())
+                   if v.name() not in ['SQ', 'AU', ]]
+        templyr.startEditing()
+        templyr.dataProvider().deleteAttributes(do_usun)
+        templyr.commitChanges()
 
-        processing.run("native:intersection", {
-                        'INPUT': templyr,
-                        'OVERLAY': self.dzkat,
-                        'INPUT_FIELDS': "",
-                        'OVERLAY_FILEDS': "",
-                        'OUTPUT': os.path.join(
+        processing.run("saga:intersect", {
+                        'A': templyr,
+                        'B': self.dzkat,
+                        'SPLIT': False,
+                        'RESULT': os.path.join(
                             self.tempkat, '__LS_multiparts_'+self.czas+'.shp'
                         )
         })
@@ -479,7 +486,7 @@ class AnalizujKlus(object):
 
         # przygotuj warstwe do_spr
         self.lyrspr = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
-                                     "DO_SPRAWDZENIA__"+self.czas,
+                                     "LS_DO_SPRAWDZENIA__"+self.czas,
                                      "memory"
                                      )
         self.lyrspr.startEditing()
@@ -490,7 +497,7 @@ class AnalizujKlus(object):
 
         # przygotuj warstwe bledow
         self.lyrbl = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
-                                    "BLEDY_"+self.czas,
+                                    "LS_BLEDY_"+self.czas,
                                     "memory"
                                     )
         self.lyrbl.startEditing()
@@ -540,7 +547,7 @@ class AnalizujKlus(object):
 
         QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrbl,
-            os.path.join(self.kat, "BLEDY_"+self.czas+".shp"),
+            os.path.join(self.kat, "LS_BLEDY_"+self.czas+".shp"),
             "UTF-8",
             crs,
             "ESRI Shapefile")
@@ -549,14 +556,14 @@ class AnalizujKlus(object):
                                  Qgis.Info)
         self.lyrbl = self.iface.addVectorLayer(
             os.path.join(self.kat,
-                         "BLEDY_"+self.czas+".shp"),
-            "BLEDY_"+self.czas,
+                         "LS_BLEDY_"+self.czas+".shp"),
+            "LS_BLEDY_"+self.czas,
             "ogr"
         )
 
         QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrspr,
-            os.path.join(self.kat, "DO_SPRAWDZENIA_"+self.czas+".shp"),
+            os.path.join(self.kat, "LS_DO_SPRAWDZENIA_"+self.czas+".shp"),
             "UTF-8",
             crs,
             "ESRI Shapefile")
@@ -565,8 +572,8 @@ class AnalizujKlus(object):
                                  "Las-R",
                                  Qgis.Info)
         self.lyrspr = self.iface.addVectorLayer(
-            os.path.join(self.kat, "DO_SPRAWDZENIA_"+self.czas+".shp"),
-            "DO_SPRAWDZENIA_"+self.czas,
+            os.path.join(self.kat, "LS_DO_SPRAWDZENIA_"+self.czas+".shp"),
+            "LS_DO_SPRAWDZENIA_"+self.czas,
             "ogr"
         )
 
@@ -957,6 +964,8 @@ class PrzetworzKlu(object):
         """Metoda sprawdza czy w bazie jest jeden ls, jezeli tak, sprawdza czy
         na dzialce znajduje sie jeden ls o tej samej klasie"""
         # sprawdz czy w bazie znajduje sie tylko jeden ls na dzewid
+        if self.pid not in self.p.sl_ls_na_dz:
+            return False
         if len(self.p.sl_ls_na_dz[self.pid]) > 1:
             return False
 
@@ -1131,20 +1140,24 @@ class PrzetworzKlu(object):
         # zmienna z uwagą do spradzenia geometrii, gdy przy laczeniu cos
         # pojdzie nie tak jak trzeba i nie dostaniemy kodu 0
         blad_lacz = \
-            'geometria do sprawdzenia z w warstwą orginalną; '
+            'geometria do sprawdzenia z w warstwą orginalną'
         # tablica z poprawnymi klu połącznymi w multipoly i posiadajace juz
         # poprawne, i niezdublowane uwagi
         self.poprawne = {}
 
         for i, y in enumerate(spis_klu):
-            # jezeli uzytek jest mikrusem dodaj uwage do slownika
-            if self.klus_popr[i].geometry().area() < 21:
-
-                if y not in self.uwagi['mikro']:
-                    self.uwagi['mikro'].append(y)
-
             if y not in self.poprawne:
                 self.poprawne[y] = self.klus_popr[i]
+
+            # jezeli uzytek jest mikrusem dodaj uwage do slownika, ale jeżeli
+            # nie jest jedynym poligonem z tego klu
+            if self.klus_popr[i].geometry().area() < 21 and y in ile_klu:
+                if y not in self.uwagi['mikro']:
+                    self.uwagi['mikro'].append(y)
+                    try:
+                        self.poprawne[y]['SPRAWDZ'] += 'Mikroużytek do spr.; '
+                    except:  # nopep8
+                        self.poprawne[y]['SPRAWDZ'] = 'Mikroużytek do spr.; '
 
             elif y in ile_klu:
                 # dodaj nowa geometrie do bazy
@@ -1152,6 +1165,7 @@ class PrzetworzKlu(object):
                 geom_dolacz = self.klus_popr[i].geometry()
 
                 # jezeli czesci sie stykaja - union, niestykaja - dodaj part
+                result = ''
                 if geom_baza.intersects(geom_dolacz):
                     new_geom = geom_baza.combine(geom_dolacz)
                 else:
@@ -1159,8 +1173,11 @@ class PrzetworzKlu(object):
                     new_geom = geom_baza
                     # TODO: Obczaić kody do tych resultów, z tym że raczej nie
                     # występują, jeszcze się nie spotkałem...
-                    QgsMessageLog.logMessage(y['PARCELID']+'  '+str(result),
-                                             'Las-R')
+
+                    # OK Spotkałem się, wygląda na to, że łaczenie jest
+                    # poprawne, ale potem generuje geometrię która nie
+                    # przechodzi kontroli geom.
+                    # Dodałęm informację dla usera o sprawdzeniu geometrii
 
                     # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
                     # pyqtRemoveInputHook()
@@ -1179,7 +1196,12 @@ class PrzetworzKlu(object):
                     u_stare = self.poprawne[y]['SPRAWDZ']
 
                 if result != 0:
-                    u_nowe.appedn(blad_lacz)
+                    u_nowe.append(blad_lacz)
+                    QgsMessageLog.logMessage(
+                        self.isNone(self.poprawne[y]['PARCELID']) +
+                        ' - GEOMETRIA DO SPRAWDZENIA!',
+                        'Las-R'
+                    )
 
                 # sprawdz czy sa jakies nowe uwagi, jezeli tak, dodaj
                 trig_dopisz = False
@@ -1189,9 +1211,7 @@ class PrzetworzKlu(object):
                         trig_dopisz = True
 
                 if trig_dopisz:
-                    self.poprawne[y].setAttribute(
-                        self.poprawne[y].fieldNameIndex('SPRAWDZ'),
-                        u_stare)
+                    self.poprawne[y]['SPRAWDZ'] = u_stare
 
     def dopisz_uwagi_pow(self):  # noqa
         """Metoda sprawdza czy połączone klu w słowniku poprawne, nie odbiegają
@@ -1950,9 +1970,13 @@ class PobierzDane(QDialog):
 
     def pobierz_klu(self):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
+        if self.lyrd:
+            kat = os.path.dirname(
+                self.lyrd.dataProvider().dataSourceUri().split("|")[0])
+
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                '',
+                                                kat,
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrk = QgsVectorLayer(warstwa, "klu", "ogr")
@@ -1977,7 +2001,7 @@ class PobierzDane(QDialog):
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrd = QgsVectorLayer(warstwa, "dz", "ogr")
-            self.ui.lineEdit_dz.setText(
+            self.ui.lineEdit_dzkat.setText(
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
         except:  # nopep8
             msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
