@@ -90,16 +90,16 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         ls = [x for x in lyrs if x.name()[:2].upper() == 'LS']
         wydz = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
 
-        self.ls = ls[0]
-        self.ls.dataProvider().setEncoding('UTF-8')
         try:
+            self.ls = ls[0]
+            self.ls.dataProvider().setEncoding('UTF-8')
             ls_sc = self.ls.dataProvider().dataSourceUri().split("|")[0]
         except:  # nopep8
             ls_sc = False
 
-        self.wydz = wydz[0]
-        # self.wydz.dataProvider().setEncoding('UTF-8')
         try:
+            self.wydz = wydz[0]
+            # self.wydz.dataProvider().setEncoding('UTF-8')
             wydz_sc = self.wydz.dataProvider().dataSourceUri().split("|")[0]
 
             # znajdz bazę do danych jeżeli wydzielenia są ok

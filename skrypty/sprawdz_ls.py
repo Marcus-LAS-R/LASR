@@ -7,10 +7,12 @@ from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \
-    QgsFeatureRequest, QgsVectorFileWriter, QgsCoordinateReferenceSystem
+    QgsFeatureRequest, QgsVectorFileWriter, QgsCoordinateReferenceSystem, \
+    QgsGeometry
 
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
+from .funkcje import usun_wasy
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
 # import processing  # import przeniesiony do metody - pytest probemy!
@@ -35,55 +37,11 @@ class SprawdzLs(object):
             '\n-----[ SPRAWDZENIE LS ]-----', 'Las-R', Qgis.Info
         )
 
-        try:
-            k = self.iface.activeLayer()
-            if not k.isValid():
-                QgsMessageLog.logMessage('Nie zaznaczono warstwy KLU w TOC!',
-                                         'Las-R', Qgis.Critical)
-                self.iface.messageBar().pushMessage(
-                    'BRAK WARSTW',
-                    'Nie znaleziono warstwy KLU w TOC!',
-                    Qgis.Warning,
-                    15
-                )
-                return False
-
-        except:  # nopep8
-            QgsMessageLog.logMessage('Nie zaznaczono warstwy KLU w TOC!',
-                                     'Las-R', Qgis.Critical)
-            self.iface.messageBar().pushMessage(
-                'BRAK WARSTW',
-                'Nie znaleziono warstwy KLU w TOC!',
-                Qgis.Critical,
-                15
-            )
-            QgsMessageLog.logMessage(
-                '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
-            )
-            return False
-
         for key, lyr in QgsProject.instance().mapLayers().items():
             if key[:5] == 'DZKAT':
                 d = lyr
             if key[:3] == 'KLU':
                 k = lyr
-
-        if d is False:
-            QgsMessageLog.logMessage(
-                    'Nie znaleziono warstwy działek w TOC!',
-                    'Las-R',
-                    Qgis.Warning
-                )
-            self.iface.messageBar().pushMessage(
-                'BRAK WARSTW',
-                'Nie znaleziono warstwy DZKAT w TOC!',
-                Qgis.Critical,
-                15
-            )
-            QgsMessageLog.logMessage(
-                '\n-----[ KONIEC ]-----', 'Las-R', Qgis.Info
-            )
-            return False
 
         self.a = AnalizujKlus(self.iface, k, d)
         return True
@@ -139,7 +97,7 @@ class SprawdzLs(object):
                 os.startfile(self.a.rap_sc)
             else:
                 import subprocess
-                subprocess.call(['open-xdg', self.a.rap_sc])
+                subprocess.call(['kate', self.a.rap_sc])
 
 
 class AnalizujKlus(object):
@@ -371,7 +329,10 @@ class AnalizujKlus(object):
             os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
             'templyr_diss',
             'ogr')
-        templyr.dataProvider().setEncoding('ISO-8859-2')
+
+        if platform.system()[:3] == 'Win':
+            templyr.dataProvider().setEncoding('ISO-8859-2')
+
         do_usun = [k for k, v in
                    enumerate(templyr.dataProvider().fields().toList())
                    if v.name() not in ['SQ', 'AU', ]]
@@ -392,25 +353,97 @@ class AnalizujKlus(object):
             os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
             'templyr_multi',
             'ogr')
-        templyr.dataProvider().setEncoding('ISO-8859-2')
 
+        if platform.system()[:3] == 'Win':
+            templyr.dataProvider().setEncoding('ISO-8859-2')
+
+        # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
+        # uwzględnia samoprzecinających się poligonów i przez to generuj
+        # problemy
         processing.run("native:multiparttosingleparts", {
-                        'OUTPUT': os.path.join(
-                            self.tempkat,
-                            '__LS_singleparts_'+self.czas+'.shp'),
-                        'INPUT': templyr
-                        })
+                       'OUTPUT': os.path.join(
+                           self.tempkat,
+                           '__LS_singleparts_'+self.czas+'.shp'),
+                       'INPUT': templyr
+                       })
 
         # Rozbij uzytki na single parts
-        self.singleparts = QgsVectorLayer(os.path.join(
-            self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-            '__LS_singleparts_'+self.czas+'.shp',
+        self.singleparts = QgsVectorLayer(
+            'Polygon?crs=epsg:2180&index=yes'
+            '__LS_singleparts_'+self.czas,
             'ogr')
-        self.singleparts.dataProvider().setEncoding('ISO-8859-2')
+
+        self.singleparts = QgsVectorLayer(
+            os.path.join(self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+            'Ls_singleparts',
+            'ogr')
+
+        self.singleparts.startEditing()
+        feats = []
+        nrf = self.singleparts.featureCount() + 100000
+        print(nrf)
+        fnm = self.singleparts.dataProvider().fieldNameMap()
+        for f in self.singleparts.getFeatures():
+            # rozbij poligony z selfintersect na multipoligony za potem zapisz
+            # jako pojedyncze featurki
+            ng = f.geometry().buffer(0, 0)
+            ng.convertToMultiType()
+
+            # sprawdz wasy w pierwszej czesci poligonu
+            geom_ok = usun_wasy(
+                QgsGeometry().fromMultiPolygonXY(
+                    [ng.asMultiPolygon()[0]]
+                )
+            )
+            self.singleparts.changeAttributeValues(
+                {f.id(): {fnm['SQ']: f['SQ'].upper()}}
+            )
+
+            if len(ng.asMultiPolygon()) > 1:
+                # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+                # pyqtRemoveInputHook()
+                # pdb.set_trace()
+                print('Zmina feat z id: ' + str(nrf))
+                self.singleparts.changeGeometry(f.id(), geom_ok)
+
+                for i, part in enumerate(ng.asMultiPolygon()[1:]):
+                    # nf = QgsFeature(nrf)
+                    # nf.setFields(
+                        # self.singleparts.dataProvider().fields()
+                    # )
+                    nf = f
+                    nf['SQ'] = f['SQ'].upper()
+                    geom_n = QgsGeometry().fromMultiPolygonXY([part])
+                    geom_n.convertToMultiType()
+                    geom_ok = usun_wasy(geom_n)
+
+                    nf.clearGeometry()
+                    nf.setGeometry(geom_ok)
+                    nf.setId(nrf)
+                    feats.append(nf)
+                    nrf += 1
+
+            elif len(ng.asMultiPolygon()) == 1:
+                self.singleparts.changeGeometry(f.id(), geom_ok)
+
+        self.singleparts.addFeatures(feats)
+        self.singleparts.commitChanges()
+
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            self.singleparts,
+            os.path.join(
+                self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+
+        # if platform.system()[:3] == 'Win':
+        #     self.singleparts.dataProvider().setEncoding('ISO-8859-2')
 
     def zaladuj_strukture(self):
         """Metoda zestawia do słownika obiekty PrzetworzKlu dla każdej z
-        działek, podmieniając SQ na duże litery.
+        działek
         """
         sl_dzkat = {}
         for feat in self.dzkat.getFeatures():
@@ -511,6 +544,11 @@ class AnalizujKlus(object):
             poprawne += [x for x in p.values()]
             bledne += b
             do_spr += s
+
+        # TODO: poprawne do przeczyszczenia na obecność zdublowanych
+        # wierzchołków oraz zerowych wąsów, sprawdzenie zerowej grafiki oraz
+        # ogólnego braku grafiki... (zdarzają się rozbieżności w warstwie i
+        # raporcie!!!)
 
         # oblicz powierzchnie poly w warstwach bledów i do_spr
         for x in bledne:
@@ -1176,12 +1214,16 @@ class PrzetworzKlu(object):
 
                     # OK Spotkałem się, wygląda na to, że łaczenie jest
                     # poprawne, ale potem generuje geometrię która nie
-                    # przechodzi kontroli geom.
-                    # Dodałęm informację dla usera o sprawdzeniu geometrii
+                    # przechodzi kontroli geos.
+                    # Dodałem informację dla usera o sprawdzeniu geometrii
 
                     # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
                     # pyqtRemoveInputHook()
                     # pdb.set_trace()
+
+                trig = 0
+                while new_geom.removeDuplicateNodes(0.001) and trig < 20:
+                    trig += 1
 
                 self.poprawne[y].clearGeometry()
                 self.poprawne[y].setGeometry(new_geom)
@@ -1409,6 +1451,10 @@ class SprawdzMikro(object):
     def polacz_klu(self, k):  # noqa
         ids = self.si.intersects(k.geometry().boundingBox())
 
+        # jezeli powierzchnia jest za mala, pomijamy - generuje bledy
+        if k.geometry().area() < 0.0001:
+            self.do_usun.append(k.id())
+
         # znajdz sasiadow z ktorymi dzieli najwiecej miejsca
         p_area = []  # tablica z przecieciami powierzchniowymi[[id, pow], ...]
         p_line = []  # tablica z przecieciami liniowymi [[id, len], ...]
@@ -1438,7 +1484,7 @@ class SprawdzMikro(object):
             # jezeli powierzchnia przeciecia jest taka sama jak pow
             # sprawdzanego klu, a pow 2 przecinajacego sie uzytku jest wieksza
             # to usun analizowany klu
-            if round(k.geometry().area(), 3) == p_area[0][1] and \
+            if round(k.geometry().area(), 3) == round(p_area[0][1], 3) and \
                     round(self.slk[p_area[0][0]].geometry().area(), 3) > \
                     p_area[0][1]:
                 self.do_usun.append(k.id())
@@ -1446,12 +1492,13 @@ class SprawdzMikro(object):
             # jezeli powierzchnia jest taka sama jak innego klu tzn ze jest to
             # blad nachodzenia 2 klu na siebie - do wyjasnienia!
             if round(self.slk[p_area[0][0]].geometry().area(), 3) >= \
-                    p_area[0][1]:
+                    round(p_area[0][1], 3):
+                    # round(k.geometry().area(), 3) == round(p_area[0][1], 3):
                 self.do_polacz.append([k.id(), p_area[0][0]])
             else:
                 uw = self.isNone(k['SPRAWDZ'])
                 k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
-                               uw+'Mikro do spr; ')
+                               uw+'Mikro do spr (wystaje poza jeden); ')
                 self.feat_do_spr.append(k)
 
         # jezeli mikrus pokrywa sie z innymi uzytkami w 100%, usuwamy -
@@ -1483,8 +1530,11 @@ class SprawdzMikro(object):
                     else:
                         uw = self.isNone(k['SPRAWDZ'])
                         k.setAttribute(k.fieldNameIndex('SPRAWDZ'),
-                                       uw+'Mikro do spr; ')
+                                       uw+'Mikro do spr(stykanie liniowe); ')
                         self.feat_do_spr.append(k)
+
+            else:
+                self.do_usun.append(k.id())
 
         # jezeli z niczym nie sasiaduje - usuwamy
         if len(ids) == 1:
@@ -1509,7 +1559,7 @@ class SprawdzMikro(object):
                     uw = self.isNone(self.slk[it[0]]['SPRAWDZ'])
                     self.slk[it[0]].setAttribute(
                         self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
-                        uw+'Mikro do spr; ')
+                        uw+'Mikro do spr (łączenie/usuwanie); ')
                     self.feat_do_spr.append(self.slk[it[0]])
 
             else:
@@ -1521,19 +1571,33 @@ class SprawdzMikro(object):
                 try:
                     g_union = g_bazy.combine(g_lacz)
 
-                    # wyczyść a potem ustaw nowa geometrie
-                    feat_baza.clearGeometry()
-                    feat_baza.setGeometry(g_union)
+                    zabezp = 0
+                    while g_union.removeDuplicateNodes(0.001) or zabezp < 20:
+                        zabezp += 1
 
-                    self.slk[it[1]].clearGeometry()
-                    self.slk[it[1]].setGeometry(g_union)
+                    if g_union.isGeosValid():
 
-                    if it[1] not in poprawione:
-                        poprawione.append(it[1])
+                        # wyczyść a potem ustaw nowa geometrie
+                        feat_baza.clearGeometry()
+                        feat_baza.setGeometry(g_union)
 
-                    # jezeli laczonego uzytku jeszcze nia ma w usunietych dodaj
-                    if it[0] not in self.do_usun:
-                        self.do_usun.append(it[0])
+                        self.slk[it[1]].clearGeometry()
+                        self.slk[it[1]].setGeometry(g_union)
+
+                        if it[1] not in poprawione:
+                            poprawione.append(it[1])
+
+                        # jezeli laczonego uzytku jeszcze nia ma w usunietych
+                        # dodaj do usuniecia
+                        if it[0] not in self.do_usun:
+                            self.do_usun.append(it[0])
+
+                    else:
+                        uw = self.isNone(self.slk[it[0]]['SPRAWDZ'])
+                        self.slk[it[0]].setAttribute(
+                            self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
+                            uw+'Mikro do spr (niepopr geom po polaczeniu); ')
+                        self.feat_do_spr.append(self.slk[it[0]])
 
                 except:  # noqa
                     # jezeli nie udało się przeprowadzić combine, zostawiamy
@@ -1546,7 +1610,7 @@ class SprawdzMikro(object):
                     uw = self.isNone(self.slk[it[0]]['SPRAWDZ'])
                     self.slk[it[0]].setAttribute(
                         self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
-                        uw+'Mikro do spr; ')
+                        uw+'Mikro do spr (błąd przy łączeniu); ')
                     self.feat_do_spr.append(self.slk[it[0]])
 
         for id in poprawione:
@@ -1662,7 +1726,7 @@ class GenerujRaport():
             # ile ls w shp
             self.ls_w_shp = [x for x in self.uzytki
                              if x['AU'] == 'Ls' and
-                             x['PARCELID'] not in self.p.dz_op]
+                             x['PARCELID'][4:] not in self.p.dz_op]
 
         else:
             # ile ls w shp
@@ -1673,7 +1737,7 @@ class GenerujRaport():
         if self.wl == 'OF':
             self.ls_w_bazie = len(
                 [k for k in self.p.ls
-                 if self.p.uzytki[k][3] not in self.p.dz_op]
+                 if self.p.uzytki[k][3][4:] not in self.p.dz_op]
             ) + len(self.p.ls_podwojne)
 
         else:
@@ -1684,7 +1748,7 @@ class GenerujRaport():
             self.brakujace_ls_w_shp = [
                 [k, self.p.uzytki[k][2]] for k in self.p.ls
                 if k not in [x['LANDID'] for x in self.ls_w_shp] and
-                self.p.uzytki[k][3] not in self.p.dz_op
+                self.p.uzytki[k][3][4:] not in self.p.dz_op
             ]
         else:
             self.brakujace_ls_w_shp = [
@@ -1698,7 +1762,7 @@ class GenerujRaport():
                 [x['LANDID'], str(round(x.geometry().area()/10000, 4))]
                 for x in self.ls_w_shp
                 if x['LANDID'] not in self.p.ls and
-                x['PARCELID'] not in self.p.dz_op
+                x['PARCELID'][4:] not in self.p.dz_op
             ]
 
         else:
@@ -1713,7 +1777,8 @@ class GenerujRaport():
             # zestaw liste landid z powierzchniami zerowymi w bazie
             self.pow_zerowe_baza = [k for k in self.p.ls
                                     if self.p.uzytki[k][2] < 0.0001 and
-                                    self.p.uzytki[k][3] not in self.p.dz_op]
+                                    self.p.uzytki[k][3][4:]
+                                    not in self.p.dz_op]
 
         else:
             # zestaw liste landid z powierzchniami zerowymi w bazie

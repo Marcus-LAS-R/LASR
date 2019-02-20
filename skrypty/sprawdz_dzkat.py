@@ -12,6 +12,7 @@ from qgis.core import QgsVectorLayer, QgsMessageLog, QgsField, \
 import processing
 from collections import Counter, namedtuple
 from .baza_wrapper import Baza
+from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
 
@@ -83,9 +84,10 @@ class AnalizujDzKat(object):
         self.district = ''  # kod powiatu
         self.dz_nieles = []  # lista dzialek nielesnych
 
-        self.czas = datetime.now().isoformat().replace(":",
-                                                       "")[:-7].replace('-',
-                                                                        '')
+        self.p = Przetworz()
+
+        self.czas = datetime.now().isoformat().replace(
+            ":", "")[:-7].replace('-', '')
 
         self.kolumny = [
             QgsField("COUNTY", QVariant.String, len=2),
@@ -163,7 +165,9 @@ class AnalizujDzKat(object):
         self.dz_lesne = set([x[-1][4:] for x in self.uzytki if x[9] == "Ls"])
         # slownik z informacjami o uzytkach na dzialce
         # {GGOOOONRDZ: [WOJ, POWIAT, WYR1, PARCEL_AREA, PARCEL_INT_NUM]}
-        self.dz_dict = {x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]] for x in self.uzytki}
+        self.dz_dict = {
+            x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
+            for x in self.uzytki}
 
         # dopisz kody woj i powiatu
         self.county = self.dz_dict[list(self.dz_dict.keys())[0]][0]
@@ -622,7 +626,7 @@ class AnalizujDzKat(object):
             raport += '\n'.join([
                 '\t'.join([self.county+self.district+x,
                            str(self.wypiszPow(x, self.dz_dict))])
-                for x in sorted(brakujace_dz_les) if x not in self.tylko_op
+                for x in sorted(brakujace_dz_les) if x[4:] not in self.tylko_op
             ])
             raport += '\n' + 45 * '-' + '\n\n\n'
 

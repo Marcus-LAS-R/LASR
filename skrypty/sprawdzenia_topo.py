@@ -51,8 +51,8 @@ class SprawdzTopo():
                 if len(feat) > 0:
                     for part in feat:
                         for i, pkt_raw in enumerate(part):
-                            pkt = [round(pkt_raw[0], 3),
-                                   round(pkt_raw[1], 3)]
+                            pkt = [round(pkt_raw[0], 4),
+                                   round(pkt_raw[1], 4)]
                             if i < len(part) - 1:
                                 blad = False
 
@@ -201,7 +201,7 @@ class SprawdzTopo():
                 feat = QgsFeature()
                 geom = it[0]
                 feat.setGeometry(geom)
-                feat.setFields(pktlyr.fields())
+                feat.setFields(polyLyr.fields())
                 feat['TYP'] = it[1]
                 feat['ID'] = i
                 fs.append(feat)

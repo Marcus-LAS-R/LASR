@@ -1,4 +1,5 @@
 from collections import Counter
+from PyQt5.QtCore import QVariant
 import re
 
 
@@ -192,7 +193,7 @@ class Przetworz(object):
                       self.sl_kody_wlasciceli_na_dzialce.items()
                       if set(['OP']) == set(val)]
 
-        # lista dzialek ze wlasnosciami
+        # lista dzialek z wlasnosciami
         self.dz_opif = [k for k, val in
                         self.sl_kody_wlasciceli_na_dzialce.items()
                         if set(['OP', 'OF']) == set(val)]
@@ -203,7 +204,10 @@ class Przetworz(object):
                       if set(['OF']) == set(val)]
 
     def isNone(self, a):
-        if a is None:
+        if a in [None, 'NULL', '', ]:
             return ''
+        elif isinstance(a, QVariant):
+            if a.isNull():
+                return ''
         else:
             return a
