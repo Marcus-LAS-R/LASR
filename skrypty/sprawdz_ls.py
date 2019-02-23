@@ -12,7 +12,7 @@ from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
 
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
-from .funkcje import usun_wasy
+from .funkcje import usun_wasy, isNone
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
 # import processing  # import przeniesiony do metody - pytest probemy!
@@ -165,10 +165,9 @@ class AnalizujKlus(object):
         return False
 
     def przetworz(self):
-        if not self.klu.isValid():
-            self.klu = QgsVectorLayer(self.dd.lineEdit_klu, 'klu', 'ogr')
-        if not self.dzkat.isValid():
-            self.dzkat = QgsVectorLayer(self.dd.lineEdit_dz, 'dz', 'ogr')
+        self.klu = QgsVectorLayer(self.dd.ui.lineEdit_klu.text(), 'klu', 'ogr')
+        self.dzkat = QgsVectorLayer(self.dd.ui.lineEdit_dzkat.text(),
+                                    'dz', 'ogr')
 
         self.klu.dataProvider().setEncoding('UTF-8')
         # sprawdzenie czy warstwy sa poprawne znajduje sie w metodzie
@@ -367,11 +366,11 @@ class AnalizujKlus(object):
                        'INPUT': templyr
                        })
 
-        # Rozbij uzytki na single parts
-        self.singleparts = QgsVectorLayer(
-            'Polygon?crs=epsg:2180&index=yes'
-            '__LS_singleparts_'+self.czas,
-            'ogr')
+        # # Rozbij uzytki na single parts
+        # self.singleparts = QgsVectorLayer(
+        #    'Polygon?crs=epsg:2180&index=yes'
+        #    '__LS_singleparts_'+self.czas,
+        #    'ogr')
 
         self.singleparts = QgsVectorLayer(
             os.path.join(self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
@@ -395,8 +394,8 @@ class AnalizujKlus(object):
                     [ng.asMultiPolygon()[0]]
                 )
             )
-            self.singleparts.changeAttributeValues(
-                {f.id(): {fnm['SQ']: f['SQ'].upper()}}
+            self.singleparts.dataProvider().changeAttributeValues(
+                {f.id(): {fnm['SQ']: isNone(f['SQ']).upper()}}
             )
 
             if len(ng.asMultiPolygon()) > 1:
@@ -499,6 +498,7 @@ class AnalizujKlus(object):
         """
         sciezka = self.dzkat.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
 
         # tablice z odpowiednimi featurami
         poprawne = []
@@ -506,7 +506,7 @@ class AnalizujKlus(object):
         bledne = []
 
         # przygotuj warstwe poprawnych LS
-        self.lyrls = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
+        self.lyrls = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
                                     "LS_"+self.czas,
                                     "memory"
                                     )
@@ -518,7 +518,7 @@ class AnalizujKlus(object):
         self.lyrls.updateFields()
 
         # przygotuj warstwe do_spr
-        self.lyrspr = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
+        self.lyrspr = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
                                      "LS_DO_SPRAWDZENIA__"+self.czas,
                                      "memory"
                                      )
@@ -529,7 +529,7 @@ class AnalizujKlus(object):
         self.lyrspr.updateFields()
 
         # przygotuj warstwe bledow
-        self.lyrbl = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
+        self.lyrbl = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
                                     "LS_BLEDY_"+self.czas,
                                     "memory"
                                     )
@@ -544,11 +544,6 @@ class AnalizujKlus(object):
             poprawne += [x for x in p.values()]
             bledne += b
             do_spr += s
-
-        # TODO: poprawne do przeczyszczenia na obecność zdublowanych
-        # wierzchołków oraz zerowych wąsów, sprawdzenie zerowej grafiki oraz
-        # ogólnego braku grafiki... (zdarzają się rozbieżności w warstwie i
-        # raporcie!!!)
 
         # oblicz powierzchnie poly w warstwach bledów i do_spr
         for x in bledne:
@@ -566,6 +561,90 @@ class AnalizujKlus(object):
         self.lyrbl.commitChanges()
         self.lyrspr.commitChanges()
 
+        QgsVectorFileWriter.writeAsVectorFormat(
+            self.lyrls,
+            os.path.join(self.kat, "LS_"+self.czas+".shp"),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+
+        self.lyrls = QgsVectorLayer(
+            os.path.join(self.kat, "LS_"+self.czas+".shp"),
+            "LS_"+self.czas,
+            "ogr"
+        )
+
+        # sprawdz czy zapisaly się nam wszystkie featurki
+        if self.lyrls.featureCount() == len(poprawne):
+            QgsMessageLog.logMessage(
+                "Warstwa  ls zapisana! "
+                "(i nawet nic nie oszukałem na brakujących Featurach)",
+                "Las-R",
+                Qgis.Info)
+        else:
+            QgsMessageLog.logMessage(
+                "Warstwa  ls zapisana! "
+                "(QGIS naciął użyszkodnika na "+str(abs(
+                    self.lyrls.featureCount()-len(poprawne))) +
+                ' Featury) - dodaję do ostatecznej warstwy'
+                '\nPamiętaj, że pominięte mogą zostać poligony z xx w AU i SQ',
+                "Las-R",
+                Qgis.Warning)
+
+            # request = QgsFeatureRequest().setFlags(
+            #     QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+            #         ['LANDID'],
+            #         self.lyrls.fields()
+            #     )
+
+            # spróbuj dopisać do warstwy brakujące featurki
+            trig = 0
+            while self.lyrls.featureCount() < len(poprawne) or trig < 3:
+                wpisane = [
+                    x['LANDID'] for x in self.lyrls.getFeatures()
+                ]
+                braki = [x for x in poprawne if x['LANDID'] not in wpisane]
+
+                # for x in braki:
+                #    p = x.geometry().boundingBox().asPolygon()
+                #    box = [
+                #        QgsPointXY(float(x.split(' ')[-2]),
+                #                   float(x.split(' ')[-1]))
+                #        for x in p.split(',')
+                #    ]
+                #    x.setGeometry(QgsGeometry().fromMultiPolygonXY([[box]]))
+
+                if len(braki) > 0:
+                    self.lyrls.startEditing()
+                    self.lyrls.dataProvider().addFeatures(braki)
+                    self.lyrls.commitChanges()
+                    if trig > 1:
+                        QgsMessageLog.logMessage(
+                            "Numer iteracji do zapisania: " + str(trig),
+                            "Las-R",
+                            Qgis.Info)
+                    trig += 1
+                else:
+                    trig = 999
+
+            if 10 > trig > 0:
+                QgsMessageLog.logMessage(
+                    "Niepoprawne wydzielenia: " +
+                    '\n'.join([x.name() for x in braki]),
+                    "Las-R",
+                    Qgis.Critical)
+
+        # Przelicz powierzchnie graficzna - zmienia sie ze wzg na uklad wsp
+        self.lyrls.startEditing()
+        pow_ind = self.lyrls.dataProvider().fieldNameIndex('LAND_POW')
+        for feat in self.lyrls.getFeatures():
+            self.lyrls.dataProvider().changeAttributeValues(
+                {feat.id(): {pow_ind: feat.geometry().area()/10000}}
+            )
+            # gpopr = usun_wasy(gtemp)
+            # self.lyrls.changeGeometry(feat.id(), gpopr)
+        self.lyrls.commitChanges()
+
         # usun zbedne kolumny z warstwy z bledami i feat do spr
         self.lyrspr.startEditing()
         self.lyrbl.startEditing()
@@ -580,9 +659,6 @@ class AnalizujKlus(object):
         self.lyrbl.commitChanges()
         self.lyrspr.commitChanges()
 
-        # zapisz dane w warstwach na dysku
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-
         QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrbl,
             os.path.join(self.kat, "LS_BLEDY_"+self.czas+".shp"),
@@ -590,6 +666,7 @@ class AnalizujKlus(object):
             crs,
             "ESRI Shapefile")
 
+        print("Warstwa błędów ls zapisana!")
         QgsMessageLog.logMessage("Warstwa błędów ls zapisana!", "Las-R",
                                  Qgis.Info)
         self.lyrbl = self.iface.addVectorLayer(
@@ -606,6 +683,7 @@ class AnalizujKlus(object):
             crs,
             "ESRI Shapefile")
 
+        print("Warstwa do sprawdzenia zapisana!")
         QgsMessageLog.logMessage("Warstwa do sprawdzenia zapisana!",
                                  "Las-R",
                                  Qgis.Info)
@@ -615,24 +693,12 @@ class AnalizujKlus(object):
             "ogr"
         )
 
-        QgsVectorFileWriter.writeAsVectorFormat(
-            self.lyrls,
-            os.path.join(self.kat, "LS_"+self.czas+".shp"),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
-
-        self.lyrls = QgsVectorLayer(
-            os.path.join(self.kat, "LS_"+self.czas+".shp"),
-            "LS_"+self.czas,
-            "ogr"
-        )
-
         # dodaj warstwy do ramki
         QgsProject.instance().addMapLayer(self.lyrbl)
         QgsProject.instance().addMapLayer(self.lyrls)
         QgsProject.instance().addMapLayer(self.lyrspr)
 
+        print("Warstwa Ls zapisana!")
         QgsMessageLog.logMessage("Warstwa Ls zapisana!",
                                  "Las-R",
                                  Qgis.Info)
@@ -1186,6 +1252,12 @@ class PrzetworzKlu(object):
         for i, y in enumerate(spis_klu):
             if y not in self.poprawne:
                 self.poprawne[y] = self.klus_popr[i]
+                continue
+
+            # if y == '24171420001.16224/1.LsIV':
+                # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+                # pyqtRemoveInputHook()
+                # pdb.set_trace()
 
             # jezeli uzytek jest mikrusem dodaj uwage do slownika, ale jeżeli
             # nie jest jedynym poligonem z tego klu
@@ -1217,16 +1289,12 @@ class PrzetworzKlu(object):
                     # przechodzi kontroli geos.
                     # Dodałem informację dla usera o sprawdzeniu geometrii
 
-                    # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
-                    # pyqtRemoveInputHook()
-                    # pdb.set_trace()
+                new_geom.convertToMultiType()
+                gpopr = usun_wasy(new_geom)
 
-                trig = 0
-                while new_geom.removeDuplicateNodes(0.001) and trig < 20:
-                    trig += 1
-
+                # usun powtarzajace sie wierzcholki i mikrowasy
                 self.poprawne[y].clearGeometry()
-                self.poprawne[y].setGeometry(new_geom)
+                self.poprawne[y].setGeometry(gpopr)
 
                 # sprawdz czy w tej czesci nie ma jakichs nowych uwag, jezeli
                 # sa dodaj do wczesniejszych na koncu
@@ -1237,7 +1305,7 @@ class PrzetworzKlu(object):
                 if isinstance(self.poprawne[y]['SPRAWDZ'], str):
                     u_stare = self.poprawne[y]['SPRAWDZ']
 
-                if result != 0:
+                if result not in ['', 0]:
                     u_nowe.append(blad_lacz)
                     QgsMessageLog.logMessage(
                         self.isNone(self.poprawne[y]['PARCELID']) +
@@ -1572,7 +1640,7 @@ class SprawdzMikro(object):
                     g_union = g_bazy.combine(g_lacz)
 
                     zabezp = 0
-                    while g_union.removeDuplicateNodes(0.001) or zabezp < 20:
+                    while g_union.removeDuplicateNodes(0.001) and zabezp < 20:
                         zabezp += 1
 
                     if g_union.isGeosValid():
@@ -1583,9 +1651,6 @@ class SprawdzMikro(object):
 
                         self.slk[it[1]].clearGeometry()
                         self.slk[it[1]].setGeometry(g_union)
-
-                        if it[1] not in poprawione:
-                            poprawione.append(it[1])
 
                         # jezeli laczonego uzytku jeszcze nia ma w usunietych
                         # dodaj do usuniecia
@@ -1598,6 +1663,9 @@ class SprawdzMikro(object):
                             self.slk[it[0]].fieldNameIndex('SPRAWDZ'),
                             uw+'Mikro do spr (niepopr geom po polaczeniu); ')
                         self.feat_do_spr.append(self.slk[it[0]])
+
+                    if it[1] not in poprawione:
+                        poprawione.append(it[1])
 
                 except:  # noqa
                     # jezeli nie udało się przeprowadzić combine, zostawiamy
@@ -1892,20 +1960,22 @@ class GenerujRaport():
             self.wypis += '---BRAKUJĄCE LSy [W SHP]----------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_shp)) + '\n\n'
-            self.wypis += '\n'.join(['\t'.join([x[0], str(x[1])]) for x in
-                                     sorted(self.brakujace_ls_w_shp,
-                                            key=lambda x: x[0])
-                                     ])
+            sort_temp = sorted(self.brakujace_ls_w_shp, key=lambda x: x[0])
+            self.wypis += '\n'.join([
+                '\t'.join([x[0], str(x[1])]) for x in
+                sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+            ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if len(self.brakujace_ls_w_bazie) > 0:
             self.wypis += '---BRAKUJĄCE LSy [W BAZIE]--------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_bazie)) + '\n\n'
-            self.wypis += '\n'.join(['\t'.join([x[0], str(x[1])]) for x in
-                                     sorted(self.brakujace_ls_w_bazie,
-                                            key=lambda x: x[0])
-                                     ])
+            sort_temp = sorted(self.brakujace_ls_w_bazie, key=lambda x: x[0])
+            self.wypis += '\n'.join([
+                '\t'.join([x[0], str(x[1])]) for x in
+                sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+            ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if len(self.lista_bez_uzytkow) > 0:

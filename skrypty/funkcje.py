@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from qgis.core import QgsVectorLayer, QgsGeometry, QgsProject
+from qgis.core import QgsVectorLayer, QgsGeometry, QgsProject, Qgis
+from PyQt5.QtCore import QVariant
 
 
 def poprawna_topo(poly):
@@ -77,29 +78,27 @@ def oblicz_azymut(A, B):
         return 90 + abs(kat)
 
 
-def usun_wasy(geom):
+def usun_wasy(geom):  # noqa
     """ Funkcja sprawdza czy w przekazanej geom mulitpoligonu
     znajdują się jakieś wąsy i ewentualne powtórzone pkt.
     Jeżeli tak, zostają pominięte w zwracanej nowej geom.
     """
     pg = []  # tablica z poprawnym multi
 
-    o1 = False  # ostatni pkt
-    o2 = False  # pkt przedprzedostatni
-    was = 0
     for k, poly in enumerate(geom.asMultiPolygon()):
         pg.append([])
         for j, part in enumerate(poly):
             pp = []
-
-            # jezeli was < 0 to znaczy ze mamy zerowy was w z wierzcholkami w
-            # różnych pktach, zostawiamy pierwszy i ostatni z analizowanych pkt
-            # czyli pomijamy śrokowy - właśnie ten
-            if was < 0:
-                was = 0
-                continue
-
+            o1 = False  # ostatni pkt
+            o2 = False  # pkt przedprzedostatni
+            was = 0
             for i, pkt in enumerate(part):
+                # jezeli was < 0 to znaczy ze mamy zerowy was w z
+                # wierzcholkami w różnych pktach, zostawiamy pierwszy i ostatni
+                # z analizowanych pkt czyli pomijamy śrokowy - właśnie ten
+                if was < 0:
+                    was = 0
+                    continue
 
                 if i < len(part) - 2:
                     o1 = part[i+1]
@@ -111,19 +110,24 @@ def usun_wasy(geom):
                     pass
 
                 was = czy_was(pkt, o1, o2)
-                if was > 0:
+                if was > 0 and i < len(part) - 2:
                     was -= 1
                     continue
 
                 # pomiń zdublowane wierzchołki
-                if i == 0:
+                if len(pp) == 0:
                     pp.append(pkt)
                 elif round(pkt.x(), 5) != round(pp[-1].x(), 5) and \
                         round(pkt.y(), 5) != round(pp[-1].y(), 5):
                     pp.append(pkt)
 
-            # dodaj poprawne pkt do tabeli
-            pg[k].append(pp)
+            # jezeli całość poligonu jest większa od 3 dodaj
+            if len(pp) > 3:
+                # dodaj poprawne pkt do tabeli
+                # sprawdz czy pierwszy i ostatni pkt jest w tym samym miejscu
+                if pp[0] != pp[-1]:
+                    pp.append(pp[0])
+                pg[k].append(pp)
 
     return QgsGeometry().fromMultiPolygonXY(pg)
 
@@ -136,8 +140,7 @@ def czy_was(p1, p2, p3):
     azym2 = 180 + oblicz_azymut(p2, p3)
     if azym2 >= 360:
         azym2 -= 360
-
-    if abs(oblicz_azymut(p1, p2)-azym2) < 2:
+    if abs(oblicz_azymut(p1, p2)-azym2) < 1:
         return -1
 
     return 0
@@ -172,3 +175,25 @@ def zaokraglij_wsp(warstwa):
     virt.commitChanges()
 
     QgsProject.instance().addMapLayer(virt)
+
+
+def isNone(a):
+    if a in [None, 'NULL', '', ]:
+        return ''
+    elif isinstance(a, QVariant):
+        if a.isNull():
+            return ''
+    else:
+        return a
+
+
+def ustaw_utf8(iface):
+    # metoda ustawia kodowanie utf aktywnej warstwy
+    try:
+        iface.activeLayer().dataProvider().setEncoding('UTF-8')
+        iface.messageBar().pushMessage(
+            'OK', 'Ustawiono kodowanie UTF-8', Qgis.Success)
+    except:  # nopep8
+        iface.messageBar().pushMessage(
+            'BŁĄD', 'Nie udało się ustawić kodowaniu UTF-8 dla warstwy',
+            Qgis.Critical)

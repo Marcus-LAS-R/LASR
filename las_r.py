@@ -31,12 +31,14 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
+from qgis.core import QgsProject
+from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
-    baza_rozlicz_pow_wydz, baza_sprawdz_rozl
+    baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje
 
 
 class LasR:
@@ -77,6 +79,9 @@ class LasR:
         # # TODO: We are going to let the user set this up in a future iteratio
         self.toolbar = self.iface.addToolBar(u'LAS-R')
         self.toolbar.setObjectName(u'LasR')
+
+        self.toolbar_skr = self.iface.addToolBar(u'LAS-R skróty')
+        self.toolbar_skr.setObjectName(u'LasR_skrrroty')
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -195,6 +200,9 @@ class LasR:
         ico_wydz_spr = QIcon(os.path.join(self.plugin_dir,
                                           'ico',
                                           'wydz_sprawdz.png'))
+        ico_utf8 = QIcon(os.path.join(self.plugin_dir,
+                                      'ico',
+                                      'utf-8.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -372,6 +380,38 @@ class LasR:
                                ]
         # toolbar koniec ---------------------
 
+        # toolbar ze skrotami -----------------------
+        self.spr_geom = QAction(ico_utf8,
+                                'Sprawdź geometrię',
+                                self.iface.mainWindow())
+        self.toolbar_skr.addAction(self.spr_geom)
+        self.spr_geom.triggered.connect(self.sprawdz_geom)
+
+        self.uutf8 = QAction(ico_utf8,
+                             'ustaw kodowanie UTF-8',
+                             self.iface.mainWindow())
+        self.toolbar_skr.addAction(self.uutf8)
+        self.uutf8.triggered.connect(self.ustaw_utf8)
+
+        self.toolbar_skr.addAction(self.iface.actionSplitFeatures())
+
+        if 'DigitizingTools' in plugins:
+            ico_split = QIcon(":/MultiToSingle.png")
+            self.msplit = QAction(ico_split,
+                                  'Rozbij multipoligony',
+                                  self.iface.mainWindow())
+            self.toolbar_skr.addAction(self.msplit)
+            self.msplit.triggered.connect(self.multipart_split)
+
+        self.toolbar_skr.addAction(self.iface.actionAddRing())
+        self.toolbar_skr.addAction(self.iface.actionAddFeature())
+        self.toolbar_skr.addAction(self.iface.actionSelectRectangle())
+        self.odzn = QAction(QIcon(":/Deselectfeatures.png"),
+                            'Unselect All',
+                            self.iface.mainWindow())
+        self.toolbar_skr.addAction(self.odzn)
+        self.odzn.triggered.connect(self.odznacz)
+
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
         # self.add_action(
@@ -532,3 +572,20 @@ class LasR:
 
     def rysuj_stl(self):
         shp_symbolizacja.rysuj(self.iface, 'stl')
+
+    def ustaw_utf8(self):
+        funkcje.ustaw_utf8(self.iface)
+
+    def multipart_split(self):
+        plugins['DigitizingTools'].multiPartSplitter.process()
+
+    def odznacz(self):
+        for key, lyr in QgsProject.instance().mapLayers().items():
+            lyr.removeSelection()
+
+    def sprawdz_geom(self):
+        m = self.iface.vectorMenu()
+        menus = [x for x in m.children() if isinstance(x, QMenu)]
+        gmenu = [x for x in menus if x.title() == 'G&eometry Tools'][0]
+        y = [x for x in gmenu.actions() if "Check Validity" in x.text()][0]
+        y.trigger()

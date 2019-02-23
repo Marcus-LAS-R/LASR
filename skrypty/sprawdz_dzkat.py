@@ -31,12 +31,12 @@ class SprawdzDzKat(object):
         analizuj = AnalizujDzKat(self.lyr, self.iface)
         analizuj.pobierz_dane_od_uzytkownika()
         if not analizuj.warunki_spenione():
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Warunki początkowe nie zostały spełnione',
+                Qgis.Critical, 10
+            )
             return
-        self.iface.messageBar().pushMessage(
-            'BŁĄD',
-            'Warunki początkowe nie zostały spełnione',
-            Qgis.Critical, 10
-        )
 
         self.postep = PasekPostepu(self.iface).stworz_pasek(
             'Generowanie Dzkat'
@@ -323,7 +323,7 @@ class AnalizujDzKat(object):
                 os.startfile(self.rap_sc)
             else:
                 import subprocess
-                subprocess.call(['open-xdg', self.rap_sc])
+                subprocess.call(['kate', self.rap_sc])
 
     def generuj_warstwe_bledow(self):
         self.lyrb = QgsVectorLayer("Polygon?crs=epsg:2180&index=yes",
@@ -702,7 +702,7 @@ class AnalizujDzKat(object):
 
         # zapisz raport do pliku
         self.rap_sc = os.path.join(self.kat, 'dzkat_raport_'+self.czas+'.txt')
-        open(self.rap_sc, 'wb', encoding='cp1250').write(raport)
+        open(self.rap_sc, 'w', encoding='cp1250').write(raport)
 
     def wypiszPow(self, x, sl):
         if x in sl:
