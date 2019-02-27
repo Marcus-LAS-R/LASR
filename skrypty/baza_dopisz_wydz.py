@@ -57,7 +57,8 @@ class DopiszWydzielenia():
             self.iface.messageBar().pushMessage(
                 'Przetwarzam',
                 'Dodaje dane do bazy, proszę czekać...',
-                Qgis.Info
+                Qgis.Info,
+                5
             )
             self.baza = Baza(baza_sc)
             self.baza.polacz()
