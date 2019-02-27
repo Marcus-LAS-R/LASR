@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from qgis.core import QgsVectorLayer, QgsGeometry, QgsProject, Qgis
+from qgis.core import QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField
 from PyQt5.QtCore import QVariant
 
 
@@ -197,3 +197,89 @@ def ustaw_utf8(iface):
         iface.messageBar().pushMessage(
             'BŁĄD', 'Nie udało się ustawić kodowaniu UTF-8 dla warstwy',
             Qgis.Critical)
+
+
+def oblicz_pow_graf(iface):
+    """ Funkcja sprawdza czy w aktywnej warstwie są pola trzymające pow graf
+    takie jak PARCEL_POW, LAND_POW, jeżeli tak oblicza w nich pow graf.
+    Jeżeli nie ma powyższych pól, dodaje nowe POW_GRAF i w nim oblicza pow.
+    Powierzchnia obliczana jest na podstawie układu wspł z ramki.
+    """
+
+    if iface.activeLayer().wkbType() not in [3, 6]:
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Warstwa musi mieć geometrię powierzchniową!',
+            Qgis.Critical
+        )
+        return False
+
+    try:
+        if not iface.activeLayer().isValid():
+            iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Warstwa niepoprawna!',
+                Qgis.Critical
+            )
+            return False
+
+    except:  # nopep8
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Warstwa niepoprawna!',
+            Qgis.Critical
+        )
+        return False
+
+    # ustal pole w którym będziemy oblczać pow graf
+    fnm = iface.activeLayer().dataProvider().fieldNameMap()
+    ind = -1
+    nazwa_pola = 'POW_GRAF'
+    if 'PARCEL_POW' in fnm:
+        ind = fnm['PARCEL_POW']
+        nazwa_pola = 'PARCEL_POW'
+    elif 'LAND_POW' in fnm:
+        ind = fnm['LAND_POW']
+        nazwa_pola = 'LAND_POW'
+    elif 'POW_GRAF' in [k.upper() for k in fnm.keys()]:
+        ind = [v for k, v in fnm.items() if k.upper() == 'POW_GRAF'][0]
+    else:
+        pole = QgsField("POW_GRAF", QVariant.Double, "double", 10, 4)
+
+        iface.activeLayer().startEditing()
+        iface.activeLayer().dataProvider().addAttributes([pole])
+        iface.activeLayer().updateFields()
+        iface.activeLayer().commitChanges()
+
+        fnm = iface.activeLayer().dataProvider().fieldNameMap()
+        ind = fnm['POW_GRAF']
+
+    bledy = 0
+    print('obliczam pow')
+    for feat in iface.activeLayer().getFeatures():
+        if feat.geometry().isGeosValid():
+            iface.activeLayer().dataProvider().changeAttributeValues({
+                feat.id(): {ind: feat.geometry().area()/10000}
+            })
+        else:
+            iface.activeLayer().dataProvider().changeAttributeValues({
+                feat.id(): {ind: -1}
+            })
+            bledy += 1
+
+    if bledy == 0:
+        wyps_gl = 'OK'
+        wyps = \
+            'Powierzchnia graficzna obliczona i zapisana w polu [' + \
+            nazwa_pola + ']'
+        typ = Qgis.Success
+    else:
+        wyps_gl = 'BŁĘDY'
+        wyps = \
+            'Powierzchnia graficzna obliczona i zapisana w polu [' + \
+            nazwa_pola + \
+            '] -->  Znaleziono poligony z błędną geometrią (GEOS): ' + \
+            str(bledy)
+        typ = Qgis.Warning
+
+    iface.messageBar().pushMessage(wyps_gl, wyps, typ)

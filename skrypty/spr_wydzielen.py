@@ -28,6 +28,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         self.sl_adr = {}  # sl z adr_les oraz id (adr_les: id)
         self.sl_lz = {}  # slownik z lz dla calego obiektu
         self.wydz_przek_odl = []  # lista z featurami z przekr odl w wydz
+        self.baza = False  # zmienna z bazą
 
         self.wypis = '--- SPRAWDZENIE WYDZIELEŃ ---\n\n'
 
@@ -40,6 +41,18 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 Qgis.Critical,
                 10)
             return False
+
+        if len([x.name() for x in self.wydz.dataProvider().fields().toList()
+                if x.name() in ['ADR_LES', 'WYDZ', 'ODDZ', ]]) != 3:
+
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie odnaleziono wymaganych pól w warstwie wydzieleń'
+                '   [ADR_LES, ODDZ, WYDZ]',
+                Qgis.Critical,
+                10)
+            return False
+        return True
 
     def wczytaj_baze(self):
         baza_sc = znajdz_baze_do_wydz(self.iface)
@@ -54,13 +67,19 @@ class KontrolaWydzielen(SprawdzWydzielenia):
             10)
         return False
 
-    def zapisz_raport(self):
+    def zapisz_raport(self, prefix=''):
         """ Zapisuje raport do katalogu z wydzieleniami i daje uzytkownikow
         możliwość natychmiastowego jego otwarcia
         """
+        if prefix == '':
+            prefix = 'raport_spr_wydzielen_'
+
+        czas = ''
+        if self.baza is not False:
+            czas = self.baza.czas
 
         sc = os.path.join(
-            self.kat, 'raport_spr_wydzielen'+self.baza.czas+'.txt')
+            self.kat, prefix+czas+'.txt')
         plik = open(sc, 'w')
         plik.write(str(self.wypis))
         plik.close()

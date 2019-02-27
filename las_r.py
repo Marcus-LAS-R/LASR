@@ -38,7 +38,8 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
-    baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje
+    baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
+    baza_dopisz_wydz
 
 
 class LasR:
@@ -203,6 +204,15 @@ class LasR:
         ico_utf8 = QIcon(os.path.join(self.plugin_dir,
                                       'ico',
                                       'utf-8.png'))
+        ico_desel_all = QIcon(os.path.join(self.plugin_dir,
+                                           'ico',
+                                           'deselect_all.png'))
+        ico_check = QIcon(os.path.join(self.plugin_dir,
+                                       'ico',
+                                       'check_geom.png'))
+        ico_pow_graf = QIcon(os.path.join(self.plugin_dir,
+                                          'ico',
+                                          'pow_graf.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -280,6 +290,12 @@ class LasR:
         self.przyg_danych.addAction(self.eksp_kml)
         self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
 
+        self.dopisz_wydz = QAction(QIcon(None),
+                                   'Dopisz/uzupełnij wydzielenia w bazie',
+                                   self.iface.mainWindow())
+        self.baza_taks.addAction(self.dopisz_wydz)
+        self.dopisz_wydz.triggered.connect(self.dopisz_wydzielenia)
+
         self.rozlicz_wydz = QAction(QIcon(None),
                                     'Rozlicz powierzchnię wydz.',
                                     self.iface.mainWindow())
@@ -298,6 +314,18 @@ class LasR:
                               self.iface.mainWindow())
         self.baza_taks.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
+
+        self.spr_odl_wydz = QAction(QIcon(None),
+                                    'Sprawdź odległości w wydzieleniach',
+                                    self.iface.mainWindow())
+        self.spr_danych.addAction(self.spr_odl_wydz)
+        self.spr_odl_wydz.triggered.connect(self.sprawdzenie_odl_w_wydz)
+
+        self.spr_wl_wydz = QAction(QIcon(None),
+                                   'Sprawdź własności w wydzieleniach',
+                                   self.iface.mainWindow())
+        self.spr_danych.addAction(self.spr_wl_wydz)
+        self.spr_wl_wydz.triggered.connect(self.sprawdzenie_wlasnosci_wydz)
 
         self.spr_w_o = QAction(QIcon(None),
                                'Sprawdź wydzielenia w oddziałach',
@@ -381,7 +409,7 @@ class LasR:
         # toolbar koniec ---------------------
 
         # toolbar ze skrotami -----------------------
-        self.spr_geom = QAction(ico_utf8,
+        self.spr_geom = QAction(ico_check,
                                 'Sprawdź geometrię',
                                 self.iface.mainWindow())
         self.toolbar_skr.addAction(self.spr_geom)
@@ -406,11 +434,19 @@ class LasR:
         self.toolbar_skr.addAction(self.iface.actionAddRing())
         self.toolbar_skr.addAction(self.iface.actionAddFeature())
         self.toolbar_skr.addAction(self.iface.actionSelectRectangle())
-        self.odzn = QAction(QIcon(":/Deselectfeatures.png"),
+        self.odzn = QAction(ico_desel_all,
                             'Unselect All',
                             self.iface.mainWindow())
         self.toolbar_skr.addAction(self.odzn)
         self.odzn.triggered.connect(self.odznacz)
+
+        self.toolbar_skr.addAction(self.iface.actionVertexTool())
+
+        self.pg = QAction(ico_pow_graf,
+                          'oblicz powierzchnię graficzną',
+                          self.iface.mainWindow())
+        self.toolbar_skr.addAction(self.pg)
+        self.pg.triggered.connect(self.powierzchnia_graf)
 
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
@@ -473,6 +509,14 @@ class LasR:
             b.wybierz_wydz()
             b.dopisz_do_bazy()
 
+    def dopisz_wydzielenia(self):
+        w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)
+        if w.sprawdz_dane():
+            w.wczytaj_wydz_shp()
+            w.wczytaj_wydz_baza()
+            w.dopisz_wydz()
+            w.wyswietl_info()
+
     def rozlicz_pow_wydzielen(self):
         b = baza_rozlicz_pow_wydz.RozliczPowierzchnieWydz(self.iface)
         if not b.sprawdz_dane():
@@ -511,6 +555,18 @@ class LasR:
             k.spr_pnsw()
             k.spr_line()
         k.zapisz_raport()
+
+    def sprawdzenie_odl_w_wydz(self):
+        k = spr_wydzielen.KontrolaWydzielen(self.iface)
+        if k.wczytaj_wydz():
+            k.kontrola_odl()
+            k.zapisz_raport('raport_odl_w_wydz')
+
+    def sprawdzenie_wlasnosci_wydz(self):
+        w = shp_spr_wlasn_wydz.SprawdzWlasnosciWydzielen(self.iface)
+        if w.pobierz_warstwy():
+            w.sprawdz_wlasnosci()
+            w.wyswietl_info()
 
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)
@@ -589,3 +645,7 @@ class LasR:
         gmenu = [x for x in menus if x.title() == 'G&eometry Tools'][0]
         y = [x for x in gmenu.actions() if "Check Validity" in x.text()][0]
         y.trigger()
+
+    def powierzchnia_graf(self):
+        print('start obliczam pow')
+        funkcje.oblicz_pow_graf(self.iface)

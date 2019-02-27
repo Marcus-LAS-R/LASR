@@ -122,6 +122,13 @@ class Baza(object):
             return False
         return True
 
+    def pobierz(self, sql):
+        """Metoda pobiera z bazy podanego sql"""
+        try:
+            return self.cur.execute(sql).fetchall()
+        except:  # nopep8
+            return False
+
     def utworz_kopie(self, wpis=''):
         """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
         znacznikiem czasu oraz ew podanym wpisem"""
