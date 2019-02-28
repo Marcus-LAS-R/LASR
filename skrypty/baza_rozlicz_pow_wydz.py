@@ -509,10 +509,13 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             self.uz_czesciowe.append(key)
 
             pow_uz_graf = suma_graf
-            pow_uz_rej = round(
-                (pow_uz_rej*suma_graf) / self.sl_uz_baza[key][3],
-                4
-            )
+            if self.sl_uz_baza[key][3] > 0:
+                pow_uz_rej = round(
+                    (pow_uz_rej*suma_graf) / self.sl_uz_baza[key][3],
+                    4
+                )
+            else:
+                pow_uz_rej = 0.0001
 
         else:
             self.uz_cale.append(key)
