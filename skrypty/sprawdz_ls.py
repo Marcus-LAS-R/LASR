@@ -1643,7 +1643,8 @@ class SprawdzMikro(object):
                     g_union = g_bazy.combine(g_lacz)
 
                     zabezp = 0
-                    while g_union.removeDuplicateNodes(0.001) and zabezp < 20:
+                    while g_union.removeDuplicateNodes(0.00001) and \
+                            zabezp < 20:
                         zabezp += 1
 
                     if g_union.isGeosValid():
