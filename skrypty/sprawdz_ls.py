@@ -377,6 +377,9 @@ class AnalizujKlus(object):
             'Ls_singleparts',
             'ogr')
 
+        if platform.system()[:3] == 'Win':
+            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
+
         self.singleparts.startEditing()
         feats = []
         nrf = self.singleparts.featureCount() + 100000
