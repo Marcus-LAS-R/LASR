@@ -128,8 +128,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                              self.wydz.dataProvider().fields().toList()]:
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
-                'Brak kolumny ADR_LES w warstwie WYDZ - '
-                'piłeś coś dzisiaj, drogi użytkowniku?',
+                'Brak kolumny ADR_LES w warstwie WYDZ - ',
                 Qgis.Critical,
                 0
             )
@@ -153,9 +152,21 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 ['LANDID'],
                 self.ls.fields()
             )
-        duble = Counter([x['LANDID'] for x in
-                         self.ls.getFeatures(request)]).most_common()
-        duble = [str(x[0])+'('+str(x[1])+')' for x in duble if x[1] > 1]
+        duble_raw = Counter([self.isNone(x['LANDID']) for x in
+                             self.ls.getFeatures(request)])
+        duble = [str(x[0])+'('+str(x[1])+')' for x in duble_raw.most_common()
+                 if x[1] > 1]
+
+        if '' in duble_raw:
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'W warstwie LS, kolumna LANDID nie powinna być pusta',
+                Qgis.Critical,
+                0
+            )
+            return False
+
         if len(duble) > 1:
             self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(

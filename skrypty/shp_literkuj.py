@@ -2,8 +2,9 @@ from qgis.core import Qgis, QgsMessageLog
 from operator import itemgetter
 
 
-def Literkuj(iface):  # noqa
-    lyr = iface.activeLayer()
+def Literkuj(iface, lyr=False):  # noqa
+    if lyr is False:
+        lyr = iface.activeLayer()
 
     lit = [
         "a", "b", "c", "d", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",

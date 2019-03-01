@@ -39,7 +39,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
-    baza_dopisz_wydz
+    baza_dopisz_wydz, baza_przeliterkuj
 
 
 class LasR:
@@ -180,39 +180,28 @@ class LasR:
         # koniec akcji ----------------------
 
         # ikony -----------------------------
-        ico_wydz_dopisz = QIcon(os.path.join(self.plugin_dir,
-                                             'ico',
-                                             'wydz_dopisz.png'))
-        ico_wydz_rys_zab = QIcon(os.path.join(self.plugin_dir,
-                                              'ico',
-                                              'wydz_rys_zab.png'))
-        ico_wydz_rys_gat = QIcon(os.path.join(self.plugin_dir,
-                                              'ico',
-                                              'wydz_rys_gat.png'))
-        ico_wydz_rys_orto = QIcon(os.path.join(self.plugin_dir,
-                                               'ico',
-                                               'wydz_rys_orto.png'))
-        ico_wydz_rys_stl = QIcon(os.path.join(self.plugin_dir,
-                                              'ico',
-                                              'wydz_rys_stl.png'))
-        ico_topo = QIcon(os.path.join(self.plugin_dir,
-                                      'ico',
-                                      'spr_topo.png'))
-        ico_wydz_spr = QIcon(os.path.join(self.plugin_dir,
-                                          'ico',
-                                          'wydz_sprawdz.png'))
-        ico_utf8 = QIcon(os.path.join(self.plugin_dir,
-                                      'ico',
-                                      'utf-8.png'))
-        ico_desel_all = QIcon(os.path.join(self.plugin_dir,
-                                           'ico',
-                                           'deselect_all.png'))
-        ico_check = QIcon(os.path.join(self.plugin_dir,
-                                       'ico',
-                                       'check_geom.png'))
-        ico_pow_graf = QIcon(os.path.join(self.plugin_dir,
-                                          'ico',
-                                          'pow_graf.png'))
+        ico_wydz_dopisz = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_dopisz.png'))
+        ico_wydz_rys_zab = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_zab.png'))
+        ico_wydz_rys_gat = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_gat.png'))
+        ico_wydz_rys_orto = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_orto.png'))
+        ico_wydz_rys_stl = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_stl.png'))
+        ico_topo = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'spr_topo.png'))
+        ico_wydz_spr = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wydz_sprawdz.png'))
+        ico_utf8 = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'utf-8.png'))
+        ico_desel_all = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'deselect_all.png'))
+        ico_check = QIcon(os.path.join(
+            self.plugin_dir, 'ico', 'check_geom.png'))
+        ico_pow_graf = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'pow_graf.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -223,132 +212,133 @@ class LasR:
         menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(),
                            self.menu)
 
-        self.baza_taks = QMenu(u'Baza Taksatora', self.menu)
-        self.przyg_danych = QMenu(u'Przygotowanie danych', self.menu)
-        self.spr_danych = QMenu(u'Sprawdzenie danych', self.menu)
+        self.m_przyg_danych = QMenu(u'Przygotowanie danych', self.menu)
+        self.m_rozlicz_pow = QMenu(u'Rozliczenie powierzchni', self.menu)
+        self.m_kontrola_danych = QMenu(u'Kontrola danych', self.menu)
 
-        self.menu.addMenu(self.baza_taks)
-        self.menu.addMenu(self.przyg_danych)
-        self.menu.addMenu(self.spr_danych)
+        self.menu.addMenu(self.m_przyg_danych)
+        self.menu.addMenu(self.m_rozlicz_pow)
+        self.menu.addMenu(self.m_kontrola_danych)
 
         self.przyg_dzewid = QAction(QIcon(None),
                                     u"Przygotuj działki ewidencyjne",
                                     self.iface.mainWindow())
-        self.przyg_danych.addAction(self.przyg_dzewid)
+        self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
-        self.przyg_ls = QAction(QIcon(None),
-                                u"Przygotuj Lsy",
-                                self.iface.mainWindow())
-        self.przyg_danych.addAction(self.przyg_ls)
+        self.przyg_ls = QAction(
+            QIcon(None), u"Przygotuj Lsy", self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
         self.wyz_lz = QAction(QIcon(None),
                               'LZ - wyznacz potencjalne',
                               self.iface.mainWindow())
-        self.przyg_danych.addAction(self.wyz_lz)
+        self.m_przyg_danych.addAction(self.wyz_lz)
         self.wyz_lz.triggered.connect(self.wyszukaj_lz)
-
-        self.przyg_ciec = QAction(QIcon(None),
-                                  u"Przygotuj wydzielenia do cięcia",
-                                  self.iface.mainWindow())
-        self.przyg_danych.addAction(self.przyg_ciec)
-
-        self.przyg_danych.addSeparator()
-
-        self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
-
-        self.zanum = QAction(QIcon(None),
-                             'Zanumeruj oddziały',
-                             self.iface.mainWindow())
-        self.przyg_danych.addAction(self.zanum)
-        self.zanum.triggered.connect(self.zanumeruj)
-
-        self.dop_w_o = QAction(QIcon(None),
-                               'Dopisz oddziały do wydzieleń',
-                               self.iface.mainWindow())
-        self.przyg_danych.addAction(self.dop_w_o)
-        self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
-
-        self.zalit = QAction(QIcon(None),
-                             'Zaliterkuj wydzielenia',
-                             self.iface.mainWindow())
-        self.przyg_danych.addAction(self.zalit)
-        self.zalit.triggered.connect(self.zaliterkuj)
-
-        self.dop_adrles = QAction(QIcon(None),
-                                  'Zaadresuj [ADR_LES]',
-                                  self.iface.mainWindow())
-        self.przyg_danych.addAction(self.dop_adrles)
-        self.dop_adrles.triggered.connect(self.dopisz_adrles)
-
-        self.przyg_danych.addSeparator()
 
         self.eksp_kml = QAction(QIcon(None),
                                 u"Wyeksportuj do KML",
                                 self.iface.mainWindow())
-        self.przyg_danych.addAction(self.eksp_kml)
+        self.m_przyg_danych.addAction(self.eksp_kml)
         self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
+
+        # -----------------------------------------
+
+        self.przyg_ciec = QAction(QIcon(None),
+                                  u"Przygotuj wydzielenia do cięcia",
+                                  self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.przyg_ciec)
+        self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
+
+        self.zanum = QAction(
+            QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.zanum)
+        self.zanum.triggered.connect(self.zanumeruj)
+
+        self.dop_w_o = QAction(
+            QIcon(None), 'Dopisz oddziały do wydzieleń',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.dop_w_o)
+        self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
+
+        self.zalit = QAction(
+            QIcon(None), 'Zaliterkuj wydzielenia', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.zalit)
+        self.zalit.triggered.connect(self.zaliterkuj)
+
+        self.dop_adrles = QAction(
+            QIcon(None), 'Zaadresuj [ADR_LES]', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.dop_adrles)
+        self.dop_adrles.triggered.connect(self.dopisz_adrles)
 
         self.dopisz_wydz = QAction(QIcon(None),
                                    'Dopisz/uzupełnij wydzielenia w bazie',
                                    self.iface.mainWindow())
-        self.baza_taks.addAction(self.dopisz_wydz)
+        self.m_rozlicz_pow.addAction(self.dopisz_wydz)
         self.dopisz_wydz.triggered.connect(self.dopisz_wydzielenia)
 
         self.rozlicz_wydz = QAction(QIcon(None),
                                     'Rozlicz powierzchnię wydz.',
                                     self.iface.mainWindow())
-        self.baza_taks.addAction(self.rozlicz_wydz)
+        self.m_rozlicz_pow.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
         self.spr_rozlicz_wydz = QAction(
             QIcon(None),
             'Sprawdz rozliczenie powierzchni wydz.',
             self.iface.mainWindow())
-        self.baza_taks.addAction(self.spr_rozlicz_wydz)
+        self.m_rozlicz_pow.addAction(self.spr_rozlicz_wydz)
         self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
 
-        self.dop_fo = QAction(QIcon(None),
-                              'Dopisz formy ochrony',
-                              self.iface.mainWindow())
-        self.baza_taks.addAction(self.dop_fo)
+        self.m_rozlicz_pow.addSeparator()
+
+        self.dop_fo = QAction(
+            QIcon(None), 'Dopisz formy ochrony', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
+
+        self.przelit = QAction(
+            QIcon(None), 'Przeliterkuj (Całość)', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.przelit)
+        self.przelit.triggered.connect(self.przeliterkuj)
+
+        # ----------------------------------------
 
         self.spr_odl_wydz = QAction(QIcon(None),
                                     'Sprawdź odległości w wydzieleniach',
                                     self.iface.mainWindow())
-        self.spr_danych.addAction(self.spr_odl_wydz)
+        self.m_kontrola_danych.addAction(self.spr_odl_wydz)
         self.spr_odl_wydz.triggered.connect(self.sprawdzenie_odl_w_wydz)
 
         self.spr_wl_wydz = QAction(QIcon(None),
                                    'Sprawdź własności w wydzieleniach',
                                    self.iface.mainWindow())
-        self.spr_danych.addAction(self.spr_wl_wydz)
+        self.m_kontrola_danych.addAction(self.spr_wl_wydz)
         self.spr_wl_wydz.triggered.connect(self.sprawdzenie_wlasnosci_wydz)
 
         self.spr_w_o = QAction(QIcon(None),
                                'Sprawdź wydzielenia w oddziałach',
                                self.iface.mainWindow())
-        self.spr_danych.addAction(self.spr_w_o)
+        self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
-        self.spr_wydz = QAction(ico_wydz_spr,
-                                'Sprawdź wydzielenia',
-                                self.iface.mainWindow())
-        self.spr_danych.addAction(self.spr_wydz)
+        self.spr_wydz = QAction(
+            ico_wydz_spr, 'Sprawdź wydzielenia', self.iface.mainWindow())
+        self.m_kontrola_danych.addAction(self.spr_wydz)
         self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
 
-        self.spr_topo = QAction(ico_topo,
-                                'Sprawdź topologię',
-                                self.iface.mainWindow())
-        self.spr_danych.addAction(self.spr_topo)
+        self.spr_topo = QAction(
+            ico_topo, 'Sprawdź topologię', self.iface.mainWindow())
+        self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
+
+        # ------------------------------------
 
         self.menu.addSeparator()
 
         self.dop_wydz = QAction(ico_wydz_dopisz,
-                                'Dopisz do wydzieleń',
+                                'Dopisz atrybuty do wydzieleń',
                                 self.iface.mainWindow())
         self.menu.addAction(self.dop_wydz)
         self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
@@ -576,7 +566,7 @@ class LasR:
                     d.dopisz_kody()
 
     def dopisz_adrles(self):
-        shp_adr_les.zaadresuj(self.iface)
+        shp_adr_les.Zaadresuj(self.iface)
 
     def dopisz_wydz_w_oddz(self):
         shp_dopOddzWydz.dopOddzWydz(self.iface)
@@ -586,6 +576,16 @@ class LasR:
 
     def zaliterkuj(self):
         shp_literkuj.Literkuj(self.iface)
+
+    def przeliterkuj(self):
+        p = baza_przeliterkuj.Przeliterkuj(self.iface)
+        if not p.sprawdz_warstwe():
+            return
+        p.przygotuj_literkacje()
+        p.zaliterkuj()
+        p.wygeneruj_adrles()
+        p.dopisz_do_bazy()
+        p.wyswietl_info()
 
     def zanumeruj(self):
         shp_numeruj.Numeruj(self.iface)

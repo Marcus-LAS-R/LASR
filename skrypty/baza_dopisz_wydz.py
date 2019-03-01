@@ -170,7 +170,8 @@ class DopiszWydzielenia():
             wpis = 'Wpisano poprawnie: 0 wydzieleń, tak powinno być??'
 
         if self.obecne > 0:
-            wpis += ', w bazie wpisane było: ' + str(self.obecne) + 'wydzieleń'
+            wpis += ', w bazie wpisane było: ' + str(self.obecne) + \
+                ' wydzieleń'
 
         self.iface.messageBar().pushMessage(
             "OK",

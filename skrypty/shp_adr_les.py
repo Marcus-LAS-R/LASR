@@ -1,24 +1,25 @@
 from qgis.core import Qgis, QgsFeatureRequest, QgsMessageLog
 
 
-def zaadresuj(iface):
-    lyr = iface.activeLayer()
+def Zaadresuj(iface, lyr=False):
+    if lyr is False:
+        lyr = iface.activeLayer()
 
     QgsMessageLog.logMessage(
         '------ DOPISANIE ARESU LEŚNEGO --------- ',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
 
     if not lyr.isValid():
         QgsMessageLog.logMessage(
             'Brak zaznaczonej poprawnej warstwy',
-            'LasR',
+            'Las-R',
             Qgis.Critical
         )
         QgsMessageLog.logMessage(
             '------ KONIEC -------- \n',
-            'LasR',
+            'Las-R',
             Qgis.Info
         )
 
@@ -72,14 +73,14 @@ def zaadresuj(iface):
                 iface.messageBar().pushMessage(
                     'ADRES LEŚNY',
                     'Prawdopodobnie nie wszystkie kolumny składowe są '
-                    'poprawnie uzupełnione, (Patrz log LasR)',
+                    'poprawnie uzupełnione, (Patrz log Las-R)',
                     Qgis.Warning,
                     10)
             message_trig += 1
 
             QgsMessageLog.logMessage(
                 list(adr.values())[0],
-                'LasR',
+                'Las-R',
                 Qgis.Warning
             )
 
@@ -95,6 +96,6 @@ def zaadresuj(iface):
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
-        'LasR',
+        'Las-R',
         Qgis.Info
     )
