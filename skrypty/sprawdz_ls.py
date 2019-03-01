@@ -1523,7 +1523,7 @@ class SprawdzMikro(object):
         ids = self.si.intersects(k.geometry().boundingBox())
 
         # jezeli powierzchnia jest za mala, pomijamy - generuje bledy
-        if k.geometry().area() < 0.0001:
+        if k.geometry().area() < 0.0000001:
             self.do_usun.append(k.id())
 
         # znajdz sasiadow z ktorymi dzieli najwiecej miejsca
@@ -1643,7 +1643,7 @@ class SprawdzMikro(object):
                     g_union = g_bazy.combine(g_lacz)
 
                     zabezp = 0
-                    while g_union.removeDuplicateNodes(0.00001) and \
+                    while g_union.removeDuplicateNodes(0.0000001) and \
                             zabezp < 20:
                         zabezp += 1
 
@@ -1975,10 +1975,11 @@ class GenerujRaport():
             self.wypis += '---BRAKUJĄCE LSy [W BAZIE]--------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_bazie)) + '\n\n'
-            sort_temp = sorted(self.brakujace_ls_w_bazie, key=lambda x: x[0])
+            # sort_temp = sorted(self.brakujace_ls_w_bazie, key=lambda x: x[0])
             self.wypis += '\n'.join([
                 '\t'.join([x[0], str(x[1])]) for x in
-                sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+                # sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+                self.brakujace_ls_w_bazie
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 

@@ -117,8 +117,8 @@ def usun_wasy(geom):  # noqa
                 # pomiń zdublowane wierzchołki
                 if len(pp) == 0:
                     pp.append(pkt)
-                elif round(pkt.x(), 5) != round(pp[-1].x(), 5) and \
-                        round(pkt.y(), 5) != round(pp[-1].y(), 5):
+                elif round(pkt.x(), 7) != round(pp[-1].x(), 7) and \
+                        round(pkt.y(), 7) != round(pp[-1].y(), 7):
                     pp.append(pkt)
 
             # jezeli całość poligonu jest większa od 3 dodaj
@@ -133,8 +133,8 @@ def usun_wasy(geom):  # noqa
 
 
 def czy_was(p1, p2, p3):
-    if round(p1.x(), 5) == round(p3.x(), 5) and \
-            round(p1.y(), 5) == round(p3.y(), 5):
+    if round(p1.x(), 7) == round(p3.x(), 7) and \
+            round(p1.y(), 7) == round(p3.y(), 7):
         return 2
 
     azym2 = 180 + oblicz_azymut(p2, p3)
@@ -165,8 +165,12 @@ def zaokraglij_wsp(warstwa):
 
     feats = []
     for fe in warstwa.getFeatures():
-        gtemp = fe.geometry().asWkt(4)
+        gtemp = fe.geometry().asWkt(3)
         new_geom = QgsGeometry().fromWkt(gtemp)
+        zabezp = 0
+        while new_geom.removeDuplicateNodes(0.0001) and zabezp < 10:
+            zabezp += 1
+
         fe.clearGeometry()
         fe.setGeometry(new_geom)
         feats.append(fe)

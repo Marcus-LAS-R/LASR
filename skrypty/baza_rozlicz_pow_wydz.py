@@ -1,7 +1,9 @@
 import os
 import platform
 import glob
-from qgis.core import QgsVectorLayer, QgsMessageLog, QgsProject, Qgis
+from collections import Counter
+from qgis.core import QgsVectorLayer, QgsMessageLog, QgsProject, Qgis, \
+    QgsFeatureRequest
 # import processing  # import przeniesiony do metody - ulatwienie testowania
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QMessageBox, QFileDialog, QDialog
@@ -141,6 +143,25 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                 "BŁĄD",
                 'W warstwie LS brakuje którejś z kolumn: LANDID, LAND_AR,'
                 ' LAND_POW. Odnaleziono: ['+', '.join(ls_niez_pola)+']',
+                Qgis.Critical,
+                0
+            )
+            return False
+
+        request = QgsFeatureRequest().setFlags(
+            QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                ['LANDID'],
+                self.ls.fields()
+            )
+        duble = Counter([x['LANDID'] for x in
+                         self.ls.getFeatures(request)]).most_common()
+        duble = [str(x[0])+'('+str(x[1])+')' for x in duble if x[1] > 1]
+        if len(duble) > 1:
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'W warstwie LS znajdują się zdublowane użytki: [' +
+                ', '.join(duble)+']',
                 Qgis.Critical,
                 0
             )
@@ -509,10 +530,15 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             self.uz_czesciowe.append(key)
 
             pow_uz_graf = suma_graf
-            pow_uz_rej = round(
-                (pow_uz_rej*suma_graf) / self.sl_uz_baza[key][3],
-                4
-            )
+            if self.sl_uz_baza[key][3] > 0:
+                pow_uz_rej = round(
+                    (pow_uz_rej*suma_graf) / self.sl_uz_baza[key][3],
+                    4
+                )
+            else:
+                QgsMessageLog.logMessage('---> SPRAWDŹ: '+key, 'Las-R')
+                self.wypis += '---> DO SPRAWDZENIA: ' + key + '\n'
+                pow_uz_rej = 0.0
 
         else:
             self.uz_cale.append(key)
