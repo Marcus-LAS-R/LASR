@@ -17,9 +17,11 @@ def rysuj(iface, co):
         'orto': ['ADR_LES', 'WYDZ_ORTO.qml'],
         'stl': ['STL', 'WYDZ_STL.qml'],
         'zab': ['ZABIEG', 'WYDZ_ZAB.qml'],
+        'dzkat': ['PARCELNR', 'DZKAT.qml'],
+        'ls': ['AU', 'KLU.qml'],
     }
 
-    if sl[co][0] in [x.name() for x in lyr.fields()]:
+    if sl[co][0] in [x.name() for x in lyr.fields()] or sl[co][0] == 'dzkat':
         plugin_dir = os.path.dirname(__file__)
         lyr.loadNamedStyle(os.path.join(plugin_dir, '..', 'qml',
                                         sl[co][1]))

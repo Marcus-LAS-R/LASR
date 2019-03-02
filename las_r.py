@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject
+from qgis.core import QgsProject, Qgis
 from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
@@ -202,6 +202,12 @@ class LasR:
             self.plugin_dir, 'ico', 'check_geom.png'))
         ico_pow_graf = QIcon(
             os.path.join(self.plugin_dir, 'ico', 'pow_graf.png'))
+        ico_dzkat = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'dzkat.png'))
+        ico_klu = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'klu.png'))
+        ico_wezelki = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'wezelki.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -215,10 +221,12 @@ class LasR:
         self.m_przyg_danych = QMenu(u'Przygotowanie danych', self.menu)
         self.m_rozlicz_pow = QMenu(u'Rozliczenie powierzchni', self.menu)
         self.m_kontrola_danych = QMenu(u'Kontrola danych', self.menu)
+        self.m_style = QMenu(u'Style warstw', self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_kontrola_danych)
+        self.menu.addMenu(self.m_style)
 
         self.przyg_dzewid = QAction(QIcon(None),
                                     u"Przygotuj działki ewidencyjne",
@@ -354,6 +362,44 @@ class LasR:
         self.menu.addAction(self.nakl)
         self.nakl.triggered.connect(self.rysuj_naklejki)
 
+        # -------------------------------------
+
+        self.rys_gat = QAction(ico_wydz_rys_gat,
+                               'Rysuj gatunki',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_gat)
+        self.rys_gat.triggered.connect(self.rysuj_gatunki)
+
+        self.rys_zab = QAction(ico_wydz_rys_zab,
+                               'Rysuj zabiegi',
+                               self.iface.mainWindow())
+        self.m_style.addAction(self.rys_zab)
+        self.rys_zab.triggered.connect(self.rysuj_zabiegi)
+
+        self.rys_stl = QAction(ico_wydz_rys_stl,
+                               'Rysuj STL',
+                               self.iface.mainWindow())
+        self.m_style.addAction(self.rys_stl)
+        self.rys_stl.triggered.connect(self.rysuj_stl)
+
+        self.rys_orto = QAction(ico_wydz_rys_orto,
+                                'Rysuj na orto',
+                                self.iface.mainWindow())
+        self.m_style.addAction(self.rys_orto)
+        self.rys_orto.triggered.connect(self.rysuj_orto)
+
+        self.rys_dz = QAction(ico_dzkat,
+                              'Rysuj Działki',
+                              self.iface.mainWindow())
+        self.m_style.addAction(self.rys_dz)
+        self.rys_dz.triggered.connect(self.rysuj_dzkat)
+
+        self.rys_klu = QAction(ico_klu,
+                               'Rysuj KLU',
+                               self.iface.mainWindow())
+        self.m_style.addAction(self.rys_klu)
+        self.rys_klu.triggered.connect(self.rysuj_klu)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
                                 'Dopisz metadane',
@@ -365,29 +411,16 @@ class LasR:
 
         self.toolbar.addSeparator()
 
-        self.rys_gat = QAction(ico_wydz_rys_gat,
-                               'Rysuj gatunki',
-                               self.iface.mainWindow())
         self.toolbar.addAction(self.rys_gat)
-        self.rys_gat.triggered.connect(self.rysuj_gatunki)
+        self.toolbar.addAction(self.rys_dz)
+        self.toolbar.addAction(self.rys_klu)
 
-        self.rys_zab = QAction(ico_wydz_rys_zab,
-                               'Rysuj zabiegi',
+        self.rys_wez = QAction(ico_wezelki,
+                               'Pokaż węzełki',
                                self.iface.mainWindow())
-        self.toolbar.addAction(self.rys_zab)
-        self.rys_zab.triggered.connect(self.rysuj_zabiegi)
-
-        self.rys_stl = QAction(ico_wydz_rys_stl,
-                               'Rysuj STL',
-                               self.iface.mainWindow())
-        self.toolbar.addAction(self.rys_stl)
-        self.rys_stl.triggered.connect(self.rysuj_stl)
-
-        self.rys_orto = QAction(ico_wydz_rys_orto,
-                                'Rysuj na orto',
-                                self.iface.mainWindow())
-        self.toolbar.addAction(self.rys_orto)
-        self.rys_orto.triggered.connect(self.rysuj_orto)
+        self.m_style.addAction(self.rys_wez)
+        self.toolbar.addAction(self.rys_wez)
+        self.rys_wez.triggered.connect(self.rysuj_wezelki)
 
         self.toolbar.addSeparator()
 
@@ -643,6 +676,17 @@ class LasR:
 
     def rysuj_stl(self):
         shp_symbolizacja.rysuj(self.iface, 'stl')
+
+    def rysuj_dzkat(self):
+        shp_symbolizacja.rysuj(self.iface, 'dzkat')
+
+    def rysuj_klu(self):
+        shp_symbolizacja.rysuj(self.iface, 'ls')
+
+    def rysuj_wezelki(self):
+        # shp_symbolizacja.rysuj(self.iface, 'ls')
+        self.iface.messageBar().pushMessage(
+            'BĘDZIE!', 'W niedalekiej przyszłości ;)', Qgis.Success, 10)
 
     def ustaw_utf8(self):
         funkcje.ustaw_utf8(self.iface)
