@@ -39,7 +39,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
-    baza_dopisz_wydz, baza_przeliterkuj
+    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw
 
 
 class LasR:
@@ -290,6 +290,11 @@ class LasR:
             self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.spr_rozlicz_wydz)
         self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
+
+        self.dop_pnsw = QAction(
+            QIcon(None), 'Dopisz PNSW', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.dop_pnsw)
+        self.dop_pnsw.triggered.connect(self.dopisz_pnsw)
 
         self.m_rozlicz_pow.addSeparator()
 
@@ -584,6 +589,16 @@ class LasR:
         p.przygotuj_literkacje()
         p.zaliterkuj()
         p.wygeneruj_adrles()
+        p.dopisz_do_bazy()
+        p.wyswietl_info()
+
+    def dopisz_pnsw(self):
+        p = baza_dopisz_pnsw.DopiszPnsw(self.iface)
+        if not p.wczytaj_dane():
+            return
+        if not p.sprawdz_pnsw():
+            return
+        p.przygotuj_wpis()
         p.dopisz_do_bazy()
         p.wyswietl_info()
 

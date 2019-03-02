@@ -114,6 +114,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         self.pobierz_dane.exec_()
 
         if self.pobierz_dane.porzucone:
+            self.iface.messageBar().clearWidgets()
             return False
 
         self.wydz = QgsVectorLayer(self.pobierz_dane.ui.lineEdit_wydz.text(),
@@ -126,6 +127,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # sprawdz niezbedne pola w poszczegolnych warstwach
         if 'ADR_LES' not in [x.name() for x in
                              self.wydz.dataProvider().fields().toList()]:
+            self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
                 'Brak kolumny ADR_LES w warstwie WYDZ - ',
@@ -138,6 +140,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                         self.ls.dataProvider().fields().toList()
                         if x.name() in ['LANDID', 'LAND_AR', 'LAND_POW', ]]
         if 3 != len(ls_niez_pola):
+            self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
                 'W warstwie LS brakuje którejś z kolumn: LANDID, LAND_AR,'

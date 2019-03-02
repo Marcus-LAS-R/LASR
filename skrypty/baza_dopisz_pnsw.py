@@ -4,11 +4,12 @@ from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsSpatialIndex, \
     QgsMessageLog
 
 from .baza_wrapper import znajdz_baze_do_wydz, Baza
-from .ui.ui_baza_dopisz_pnsw import Ui_Dialog
+from .sprawdzenia_warstw import SprawdzWydzielenia
+from .ui.ui_baza_dopisz_pnsw import Ui_Ui_Dialog as Ui_Dialog
 from .funkcje import isNone
 
 
-class DopiszPnsw():
+class DopiszPnsw(SprawdzWydzielenia):
     def __init__(self, iface):
         self.iface = iface
         self.feat_do_spr = []  # tabela z featurkami przecinajacymi wydzielenia
@@ -143,6 +144,10 @@ class DopiszPnsw():
         True. Jeżeli PNSW leży na różnych wydz, to użytkownik musi zadecydować
         którą część zostawić i ponownie uruchomić skrypt
         """
+
+        if not self.poprawne_wydz():
+            return False
+
         # spatial index dla wydzieleń
         self.si = QgsSpatialIndex()
         self.sl_wydz = {}  # sl z wydz {id: feat}
@@ -153,6 +158,7 @@ class DopiszPnsw():
             self.sl_wydz[fw.id()] = fw
 
         # sprawdz nakładanie dla PNSW
+        self.pnsw.startEditing()
         for pnsw in self.pnsw.getFeatures():
 
             if isNone(pnsw['KOD_PNSW']) not in self.sl_baza:
@@ -165,7 +171,7 @@ class DopiszPnsw():
             ids = self.si.intersects(geom.boundingBox())
             for id in ids:
                 inter = self.sl_wydz[id].geometry().intersection(geom)
-                if inter.area() / geom.area() >= 0.95:
+                if inter.area() / geom.area() >= 0.9:
                     # jeżeli podmieniamy geometrię wpisujemy też rozpoznany adr
                     self.pnsw.changeGeometry(pnsw.id(), inter)
                     self.pnsw.dataProvider().changeAttributeValues({
@@ -175,11 +181,13 @@ class DopiszPnsw():
                     self.pnsw_podm += 1
                     break
 
-                elif inter.area() / geom.area() < 0.05:
+                elif inter.area() / geom.area() < 0.1:
                     continue
 
                 else:
                     self.feat_do_spr.append(pnsw)
+
+        self.pnsw.commitChanges()
 
         if len(self.feat_do_spr) > 0:
             wyps = 'W warstwie PNSW znajdują się poligony przecinające ' + \
@@ -246,10 +254,10 @@ class DopiszPnsw():
                         self.fnm['NR_PNSW']: nump[wydz['ADR_LES']],
                         self.fnm['POW']: round(p.geometry().area()/10000, 4),
                         self.fnm['ADR_ADM']: '-'.join(
-                            [self.sl_woj[wydz['ADR_LES']],
+                            [self.sl_woj[wydz['ADR_LES'][0]],
                              wydz['ADR_LES'][1:3],
-                             wydz['ADR_LES'][3:5],
-                             wydz['ADR_LES'][5:8],
+                             wydz['ADR_LES'][3:6],
+                             wydz['ADR_LES'][6:10],
                              ]),
                     }
                 })
@@ -331,7 +339,7 @@ class DopiszPnsw():
 
         if pb.yMinimum() > wb.yMaximum() - wys3:
             return 'N'
-        if pb.yMaximum < wb.yMinimum() + wys3:
+        if pb.yMaximum() < wb.yMinimum() + wys3:
             return 'S'
 
         return 'C'

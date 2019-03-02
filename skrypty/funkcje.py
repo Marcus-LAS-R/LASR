@@ -239,12 +239,12 @@ def oblicz_pow_graf(iface):
     fnm = iface.activeLayer().dataProvider().fieldNameMap()
     ind = -1
     nazwa_pola = 'POW_GRAF'
-    if 'PARCEL_POW' in fnm:
-        ind = fnm['PARCEL_POW']
-        nazwa_pola = 'PARCEL_POW'
-    elif 'LAND_POW' in fnm:
+    if 'LAND_POW' in fnm:
         ind = fnm['LAND_POW']
         nazwa_pola = 'LAND_POW'
+    elif 'PARCEL_POW' in fnm:
+        ind = fnm['PARCEL_POW']
+        nazwa_pola = 'PARCEL_POW'
     elif 'POW_GRAF' in [k.upper() for k in fnm.keys()]:
         ind = [v for k, v in fnm.items() if k.upper() == 'POW_GRAF'][0]
     else:
@@ -259,16 +259,14 @@ def oblicz_pow_graf(iface):
         ind = fnm['POW_GRAF']
 
     bledy = 0
+    tabb = []   # tab z featurami z bledna geometria
     print('obliczam pow')
     for feat in iface.activeLayer().getFeatures():
-        if feat.geometry().isGeosValid():
-            iface.activeLayer().dataProvider().changeAttributeValues({
-                feat.id(): {ind: feat.geometry().area()/10000}
-            })
-        else:
-            iface.activeLayer().dataProvider().changeAttributeValues({
-                feat.id(): {ind: -1}
-            })
+        iface.activeLayer().dataProvider().changeAttributeValues({
+            feat.id(): {ind: feat.geometry().area()/10000}
+        })
+        if not feat.geometry().isGeosValid():
+            tabb.append(feat)
             bledy += 1
 
     if bledy == 0:
@@ -285,5 +283,18 @@ def oblicz_pow_graf(iface):
             '] -->  Znaleziono poligony z błędną geometrią (GEOS): ' + \
             str(bledy)
         typ = Qgis.Warning
+
+    bledy = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
+                           "Poligony_z_błędą_geom",
+                           "memory"
+                           )
+
+    bledy.startEditing()
+    bledy.dataProvider().addAttributes(
+        iface.activeLayer().dataProvider().fields().toList())
+    bledy.updateFields()
+    bledy.addFeatures(tabb)
+    bledy.commitChanges()
+    QgsProject.instance().addMapLayer(bledy)
 
     iface.messageBar().pushMessage(wyps_gl, wyps, typ)
