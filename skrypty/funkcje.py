@@ -284,17 +284,18 @@ def oblicz_pow_graf(iface):
             str(bledy)
         typ = Qgis.Warning
 
-    bledy = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
-                           "Poligony_z_błędą_geom",
-                           "memory"
-                           )
+    if len(tabb) > 0:
+        bledy = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
+                               "Poligony_z_błędą_geom",
+                               "memory"
+                               )
 
-    bledy.startEditing()
-    bledy.dataProvider().addAttributes(
-        iface.activeLayer().dataProvider().fields().toList())
-    bledy.updateFields()
-    bledy.addFeatures(tabb)
-    bledy.commitChanges()
-    QgsProject.instance().addMapLayer(bledy)
+        bledy.startEditing()
+        bledy.dataProvider().addAttributes(
+            iface.activeLayer().dataProvider().fields().toList())
+        bledy.updateFields()
+        bledy.addFeatures(tabb)
+        bledy.commitChanges()
+        QgsProject.instance().addMapLayer(bledy)
 
     iface.messageBar().pushMessage(wyps_gl, wyps, typ)
