@@ -1,4 +1,5 @@
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsProject, QgsVectorLayer, QgsLayerTreeGroup, \
+    QgsLayerTreeLayer
 import os
 
 
@@ -21,7 +22,7 @@ def rysuj(iface, co):
         'ls': ['AU', 'KLU.qml'],
     }
 
-    if sl[co][0] in [x.name() for x in lyr.fields()] or sl[co][0] == 'dzkat':
+    if sl[co][0] in [x.name() for x in lyr.fields()] or co in ['dzkat', 'ls']:
         plugin_dir = os.path.dirname(__file__)
         lyr.loadNamedStyle(os.path.join(plugin_dir, '..', 'qml',
                                         sl[co][1]))
@@ -34,3 +35,42 @@ def rysuj(iface, co):
             Qgis.Critical,
             10
         )
+
+
+def PokazWezly(iface):
+    plug = os.path.dirname(__file__)
+
+    root = QgsProject.instance().layerTreeRoot()
+
+    # sprawdź czy juz nie ma węzełków, jeżeli są usuń
+    for ro in root.children():
+        if isinstance(ro, QgsLayerTreeGroup):
+            if ro.name() == 'LAS-R_Węzełki':
+                root.removeChildNode(ro)
+                return
+
+    # jeżeli nie ma, wyszukaj wszystkie warstwy, dla których obsługujemy węzły
+    # dodaj symbolizację i dodaj do grupy
+    war = []
+    for lyr in iface.mapCanvas().layers():
+        if lyr.wkbType() in [2, 3, 5, 6] and \
+                '_las-r_węzełki' not in lyr.name():
+            lyrw = QgsVectorLayer(
+                lyr.source(),
+                lyr.name() + '_las-r_węzełki',
+                lyr.providerType()
+            )
+            war.append(lyrw)
+
+    if len(war) > 0:
+        gr = root.insertGroup(0, 'LAS-R_Węzełki')
+        for w in war:
+            lyrw = QgsProject.instance().addMapLayer(w, False)
+            if lyrw.wkbType() in [2, 5]:
+                lyrw.loadNamedStyle(os.path.join(
+                    plug, '..', 'qml', 'vertices_lft.qml'))
+            else:
+                lyrw.loadNamedStyle(os.path.join(
+                    plug, '..', 'qml', 'vertices_aft.qml'))
+
+            gr.insertChildNode(0, QgsLayerTreeLayer(lyrw))

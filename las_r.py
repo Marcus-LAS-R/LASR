@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject, Qgis
+from qgis.core import QgsProject
 from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
@@ -684,9 +684,7 @@ class LasR:
         shp_symbolizacja.rysuj(self.iface, 'ls')
 
     def rysuj_wezelki(self):
-        # shp_symbolizacja.rysuj(self.iface, 'ls')
-        self.iface.messageBar().pushMessage(
-            'BĘDZIE!', 'W niedalekiej przyszłości ;)', Qgis.Success, 10)
+        shp_symbolizacja.PokazWezly(self.iface)
 
     def ustaw_utf8(self):
         funkcje.ustaw_utf8(self.iface)
