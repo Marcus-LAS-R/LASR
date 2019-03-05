@@ -39,7 +39,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
-    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw
+    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz
 
 
 class LasR:
@@ -315,6 +315,11 @@ class LasR:
             QIcon(None), 'Przeliterkuj (Całość)', self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.przelit)
         self.przelit.triggered.connect(self.przeliterkuj)
+
+        self.klon = QAction(
+            QIcon(None), 'Klonuj wydzielenia w bazie', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.klon)
+        self.klon.triggered.connect(self.klonuj)
 
         # ----------------------------------------
 
@@ -634,6 +639,13 @@ class LasR:
         p.przygotuj_wpis()
         p.dopisz_do_bazy()
         p.wyswietl_info()
+
+    def klonuj(self):
+        b = baza_klonuj_wydz.Klonuj(self.iface)
+        if b.pobierz_dane():
+            if b.sprawdz_dane():
+                b.klonuj()
+                b.wyswietl_info()
 
     def zanumeruj(self):
         shp_numeruj.Numeruj(self.iface)
