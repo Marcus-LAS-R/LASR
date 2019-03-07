@@ -122,6 +122,15 @@ class Baza(object):
             return False
         return True
 
+    def wpisz_tab(self, tab):
+        """Metoda dopisuje do bazy podaną tabele, uprzednio ja rozpakowujac"""
+        try:
+            self.cur.execute(*tab)
+            self.con.commit()
+        except:  # nopep8
+            return False
+        return True
+
     def pobierz(self, sql):
         """Metoda pobiera z bazy podanego sql"""
         try:

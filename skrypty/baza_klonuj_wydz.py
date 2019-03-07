@@ -41,7 +41,7 @@ class Klonuj():
             self.pobierz_dane.ui.lineEdit_wydz.text(), 'r').readlines()
 
         if len(instr) > 0:
-            self.instr = [x.split('\t') for x in instr]
+            self.instr = [x.rstrip('\r\n ').split('\t') for x in instr]
 
         # jeżeli nie odnaleziono żadnych instrukcji
         if len(self.instr) == 0:
@@ -98,7 +98,6 @@ class Klonuj():
         """ Metoda zbiorcza dla klonowania danych z bazy """
 
         for kl in self.instr:
-
             if not self.k_subarea(kl[0], kl[1]):
                 self.blad(kl, 'f_subarea')
                 continue
@@ -107,8 +106,8 @@ class Klonuj():
                 self.blad(kl, 'f_arod_goal')
                 continue
 
-            if not self.k_arod_stand_spec(kl[0], kl[1]):
-                self.blad(kl, 'f_arod_stand_spec')
+            if not self.k_arod_stand_pec(kl[0], kl[1]):
+                self.blad(kl, 'f_arod_stand_pec')
                 continue
 
             if not self.k_arod_storey(kl[0], kl[1]):
@@ -116,41 +115,45 @@ class Klonuj():
                 continue
 
             if not self.k_storey_spec(kl[0], kl[1]):
-                self.blad(kl, 'f_storey_spec')
+                self.blad(kl, 'f_storey_species')
                 continue
 
             self.sklonowano += 1
 
     def wyswietl_info(self):
-        if self.blad > 1:
+        if self.bledy > 0:
             self.iface.messageBar().pushMessage(
-                'Sklonowano '+str(self.sklonowano)+'wydzieleń. Błędów podczas '
-                'klonowania: '+str(self.blad)+' (Szczegóły w logu Las-R)',
+                'Sklonowano '+str(self.sklonowano)+' wydzieleń. '
+                'Błędów podczas '
+                'klonowania: '+str(self.bledy)+' (Szczegóły w logu Las-R)',
                 Qgis.Warning,
                 0
             )
             return
 
         self.iface.messageBar().pushMessage(
-            'Sklonowano '+str(self.sklonowano)+'wydzieleń.',
+            'Sklonowano wydzieleń: '+str(self.sklonowano),
             Qgis.Success,
             10
         )
 
     def blad(self, kl, kwer):
-        self.blad += 1
+        self.bledy += 1
 
-        if self.blad == 1:
+        if self.bledy == 1:
             QgsMessageLog.logMessage(
-                '--------------'
+                '--------------\n'
                 'Kolejność modyfikowania tabel przy klonowaniu wydzielenia:\n'
                 'f_subarea\nf_arod_goal\nf_arod_stand_spec\nf_arod_storey\n'
-                'f_storey_spec\n-------------',
+                'f_storey_spec\n-------------\n'
+                '(w nawiasach podano ARODES_INT_NUM)\n',
                 'Las-R'
             )
 
         QgsMessageLog.logMessage(
-            'Błąd klonowania: ' + kl[0] + ' --> ' + kl[1] + ' | tabela: '+kwer,
+            'Błąd klonowania: ' + kl[0] + ' (' + str(self.wydz[kl[0]]) + ')' +
+            ' --> ' + kl[1] + ' (' + str(self.wydz[kl[1]]) + ')' +
+            ' | tabela: '+kwer,
             'Las-R'
         )
 
@@ -188,51 +191,57 @@ class Klonuj():
 
         try:
             item = self.baza.pobierz(sql)[0]
-            if len(item) != 1:
+            if len(item) == 0:
                 return False
         except:  # nopep8
             return False
 
-        sql = "update f_subarea set "
-        sql += 'DAMAGE_DEGREE_CD = ' + isNone(item[0], True)
-        if item[1] is not None:
-            sql += ',CAUSE_CD = ' + "'" + isNone(item[1]) + "'"
-        sql += ',AREA_TYPE_CD = ' + "'" + isNone(item[2]) + "'"
-        if item[3] is not None:
-            sql += ',POSITION_CD= ' + "'" + isNone(item[3]) + "'"
-        if item[4] is not None:
-            sql += ',RELIEF_CD= ' + "'" + isNone(item[4]) + "'"
-        if item[5] is not None:
-            sql += ',SITE_TYPE_CD= ' + "'" + isNone(item[5]) + "'"
-        if item[6] is not None:
-            sql += ',DEGRADATION_CD= ' + "'" + isNone(item[6]) + "'"
-        if item[7] is not None:
-            sql += ',VEG_COVER_CD = ' + "'" + isNone(item[7]) + "'"
-        if item[8] is not None:
-            sql += ',STAND_STRUCT_CD = ' + "'" + isNone(item[8]) + "'"
-        if item[9] is not None:
-            sql += ',SLOPE_CD = ' + "'" + isNone(item[9]) + "'"
-        if item[10] is not None:
-            sql += ',EXPOSURE_CD = ' + "'" + isNone(item[10]) + "'"
-        if item[11] is not None:
-            sql += ',MOISTURE_CD = ' + "'" + isNone(item[11]) + "'"
-        if item[12] is not None:
-            sql += ',SOIL_PEC_CD = ' + "'" + isNone(item[12]) + "'"
-        if item[13] is not None:
-            sql += ',SOIL_SUBTYPE_CD = ' + "'" + isNone(item[13]) + "'"
-        if item[14] is not None:
-            sql += ',PLANT_COMM_CD = ' + "'" + isNone(item[14]) + "'"
-        if item[15] is not None:
-            sql += ',FOREST_FUNC_CD = ' + "'" + isNone(item[15]) + "'"
-        if item[16] is not None:
-            sql += ',ROTATION_AGE = ' + isNone(item[16], True)
-        if item[17] is not None:
-            sql += ',DEAD_WOOD  = ' + isNone(item[17], True)
-        if item[18] is not None:
-            sql += ',SUBAREA_INFO  = ' + "'" + isNone(item[18]) + "'"
-        sql += ' where ARODES_INT_NUM = ' + str(self.wydz[do]) + ';'
-
-        if not self.baza.wpisz(sql):
+        sql = [
+            """update f_subarea set
+            DAMAGE_DEGREE_CD = ?,
+            CAUSE_CD =  ?,
+            AREA_TYPE_CD = ?,
+            POSITION_CD= ?,
+            RELIEF_CD= ?,
+            SITE_TYPE_CD= ?,
+            DEGRADATION_CD= ?,
+            VEG_COVER_CD = ?,
+            STAND_STRUCT_CD = ?,
+            SLOPE_CD = ?,
+            EXPOSURE_CD = ?,
+            MOISTURE_CD = ?,
+            SOIL_PEC_CD = ?,
+            SOIL_SUBTYPE_CD = ?,
+            PLANT_COMM_CD = ?,
+            FOREST_FUNC_CD = ?,
+            ROTATION_AGE = ?,
+            DEAD_WOOD  = ?,
+            SUBAREA_INFO  = ?
+            where ARODES_INT_NUM = ?; """,
+            (
+                item[0],
+                item[1],
+                item[2],
+                item[3],
+                item[4],
+                item[5],
+                item[6],
+                item[7],
+                item[8],
+                item[9],
+                item[10],
+                item[11],
+                item[12],
+                item[13],
+                item[14],
+                item[15],
+                item[16],
+                item[17],
+                item[18],
+                self.wydz[do]
+            )
+        ]
+        if not self.baza.wpisz_tab(sql):
             return False
 
         return True
@@ -253,9 +262,10 @@ class Klonuj():
         sql += str(self.wydz[z]) + ';'
 
         try:
-            item = self.baza.pobierz(sql)[0]
-            if len(item) != 1:
-                return False
+            item = self.baza.pobierz(sql)
+            # wydzielenia nielesne lener, inne_wyl
+            if len(item) == 0:
+                return True
         except:  # nopep8
             return False
 
@@ -268,25 +278,40 @@ class Klonuj():
         if len(spr) > 0:
             return False
 
-        for it in item:
-            sql = '''insert into f_arod_goal (
+        it = item[0]
+        sql = '''insert into f_arod_goal (
                 GOAL_TYPE_FL,
                 ARODES_INT_NUM ,
                 SPECIES_CD ,
                 GOAL_RANK_ORDER
                 )
                 values (\'''' + \
-                isNone(it[0]) + '\', ' + \
-                str(self.wydz[do]) + ', \'' + \
-                isNone(it[2]) + '\', ' +  \
-                str(it[3]) + ');'
+            str(isNone(it[0])) + '\', ' + \
+            str(self.wydz[do]) + ', \'' + \
+            str(isNone(it[2])) + '\', ' +  \
+            str(it[3]) + ');'
 
-            if not self.baza.wpisz(sql):
-                return False
+        tab = [
+            '''insert into f_arod_goal (
+                GOAL_TYPE_FL,
+                ARODES_INT_NUM ,
+                SPECIES_CD ,
+                GOAL_RANK_ORDER
+                )
+                values (?,?,?,?);''',
+            (
+                it[0],
+                self.wydz[do],
+                it[2],
+                it[3]
+            )
+        ]
 
+        if not self.baza.wpisz_tab(tab):
+            return False
         return True
 
-    def k_arod_stand_spec(self, z, do):
+    def k_arod_stand_pec(self, z, do):
         # F_AROD_STAND_PEC
         sql = '''
         SELECT
@@ -295,20 +320,28 @@ class Klonuj():
             F_AROD_STAND_PEC
         WHERE
             ARODES_INT_NUM = '''
-        sql += str(self.wydz[do]) + ";"
+        sql += str(self.wydz[z]) + ";"
         item = self.baza.pobierz(sql)
 
         for it in item:
-            sql = '''insert into f_arod_stand_pec(
-                FOREST_PEC_CD,
-                ARODES_INT_NUM ,
-                PEC_RANK_ORDER) values (
-                \'''' + \
-                isNone(it[0]) + '\', ' + \
-                str(self.wydz[do]) + ', ' + \
-                str(it[2]) + ');'
+            # sql = '''insert into f_arod_stand_pec(
+                # FOREST_PEC_CD,
+                # ARODES_INT_NUM ,
+                # PEC_RANK_ORDER) values (
+                # \'''' + \
+                # str(isNone(it[0])) + '\', ' + \
+                # str(self.wydz[do]) + ', ' + \
+                # str(it[2]) + ');'
 
-            if not self.baza.wpisz(sql):
+            sql = [
+                '''insert into f_arod_stand_pec(
+                    FOREST_PEC_CD,
+                    ARODES_INT_NUM,
+                    PEC_RANK_ORDER) values (?,?,?);''',
+                (it[0], self.wydz[do], it[2])
+            ]
+
+            if not self.baza.wpisz_tab(sql):
                 return False
 
         return True
@@ -330,11 +363,33 @@ class Klonuj():
             F_AROD_STOREY
         WHERE
             ARODES_INT_NUM = '''
-        sql += str(self.wydz[do]) + ";"
+        sql += str(self.wydz[z]) + ";"
         item = self.baza.pobierz(sql)
 
         for it in item:
-            sql = '''insert into f_arod_storey(
+            # sql = '''insert into f_arod_storey(
+                        # ARODES_INT_NUM ,
+                        # STOREY_CD ,
+                        # STOREY_RANK_ORDER ,
+                        # STANDDENSITY_INDEX ,
+                        # MIXTURE_CD ,
+                        # DENSITY_CD ,
+                        # TREE_STOCK_CD ,
+                        # SILV_QUALITY_CD ,
+                        # LOCATION_CD) values ( \'''' + \
+                # str(self.wydz[do]) + ', \'' + \
+                # str(isNone(it[0])) + '\', ' + \
+                # str(it[1]) + ', ' + \
+                # str(round(float(str(isNone(it[2])), 1))) + ', ' + \
+                # str(it[3]) + ', \'' + \
+                # str(it[4]) + '\', \'' + \
+                # str(it[5]) + '\', ' + \
+                # str(it[6]) + ', \'' + \
+                # str(it[7]) + '\', ' + \
+                # ');'
+
+            sql = [
+                '''insert into f_arod_storey(
                         ARODES_INT_NUM ,
                         STOREY_CD ,
                         STOREY_RANK_ORDER ,
@@ -343,19 +398,21 @@ class Klonuj():
                         DENSITY_CD ,
                         TREE_STOCK_CD ,
                         SILV_QUALITY_CD ,
-                        LOCATION_CD) values ( \'''' + \
-                str(self.wydz[do]) + ', \'' + \
-                isNone(it[0]) + '\', ' + \
-                str(it[1]) + ', ' + \
-                str(round(float(isNone(it[2]), 1))) + ', ' + \
-                str(it[3]) + ', \'' + \
-                str(it[4]) + '\', \'' + \
-                str(it[5]) + '\', ' + \
-                str(it[6]) + ', \'' + \
-                str(it[7]) + '\', ' + \
-                ');'
+                        LOCATION_CD) values (?,?,?,?,?,?,?,?,?);''',
+                (
+                    self.wydz[do],
+                    it[0],
+                    it[1],
+                    it[2],
+                    it[3],
+                    it[4],
+                    it[5],
+                    it[6],
+                    it[7]
+                )
+            ]
 
-            if not self.baza.wpisz(sql):
+            if not self.baza.wpisz_tab(sql):
                 return False
         return True
 
@@ -385,43 +442,49 @@ class Klonuj():
 
         item = self.baza.pobierz(sql)
         sql = 'select max(f.spec_stor_int_num) from f_storey_species as f;'
-        cur_ind = self.baza.pobierz(sql)[0]
+        cur_ind = self.baza.pobierz(sql)[0][0]
 
         for it in item:
             cur_ind += 1
-            sql = '''insert into f_storey_species(
-                        SPEC_STOR_INT_NUM,
-                        ARODES_INT_NUM,
-                        STOREY_CD,
-                        SPECIES_RANK_ORDER,
-                        SPECIES_CD,
-                        PART_CD,
-                        SPECIES_AGE,
-                        BHD,
-                        HEIGHT,
-                        VOLUME,
-                        SITE_CLASS_CD,
-                        TECHN_QUALITY_CD,
-                        INCREMENT_CURRENT,
-                        VOLUME_TEMP,
-                        INCREMENT_CURRENT_AREA) values (''' + \
-                str(cur_ind) + ', ' + \
-                str(self.wydz[do]) + ', \'' + \
-                str(it[0]) + '\', ' + \
-                str(it[1]) + \
-                str(it[2]) + ', \'' + \
-                str(it[3]) + '\', ' + \
-                str(it[4]) + ', ' + \
-                str(it[5]) + ', ' + \
-                str(it[6]) + ', ' + \
-                str(it[7]) + ', \'' + \
-                str(it[8]) + '\', \'' + \
-                str(it[9]) + '\', ' + \
-                str(it[10]) + ', ' + \
-                str(it[11]) + ', ' + \
-                str(it[12]) + ');'
+            sql = [
+                '''insert into f_storey_species(
+                    SPEC_STOR_INT_NUM,
+                    ARODES_INT_NUM,
+                    STOREY_CD,
+                    SPECIES_RANK_ORDER,
+                    SPECIES_CD,
+                    PART_CD,
+                    SPECIES_AGE,
+                    BHD,
+                    HEIGHT,
+                    VOLUME,
+                    SITE_CLASS_CD,
+                    TECHN_QUALITY_CD,
+                    INCREMENT_CURRENT,
+                    VOLUME_TEMP,
+                    INCREMENT_CURRENT_AREA)
+                values
+                    (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);''',
+                (
+                    cur_ind,
+                    self.wydz[do],
+                    it[0],
+                    it[1],
+                    it[2],
+                    it[3],
+                    it[4],
+                    it[5],
+                    it[6],
+                    it[7],
+                    it[8],
+                    it[9],
+                    it[10],
+                    it[11],
+                    it[12]
+                )
+            ]
 
-            if not self.baza.wpisz(sql):
+            if not self.baza.wpisz_tab(sql):
                 return False
         return True
 
