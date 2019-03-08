@@ -71,12 +71,12 @@ def przygotujDoCiecia(iface):  # noqa
     rozsz = ['shp', 'shx', 'dbf', 'prj', 'sbx', 'shx', ]
     try:
         for r in rozsz:
-            if os.path.isfile(os.path.join(kat, 'WYDZ_ciecie.'+r)):
-                os.remove(os.path.join(kat, 'WYDZ_ciecie.'+r))
+            if os.path.isfile(os.path.join(kat, 'WYDZ.'+r)):
+                os.remove(os.path.join(kat, 'WYDZ.'+r))
     except:  # nopep8
         iface.messageBar().pushMessage(
             'BŁĄD',
-            'Nie udało się usunąć poprzedniej wersji plików WYDZ_ciecie, '
+            'Nie udało się usunąć poprzedniej wersji plików WYDZ, '
             'proszę ponownie uruchomić QGIS-a',
             Qgis.Critical,
             10
@@ -84,14 +84,14 @@ def przygotujDoCiecia(iface):  # noqa
         return
 
     # rozbij do singlepartow
-    wydz_sc = os.path.join(kat, 'WYDZ_ciecie.shp')
+    wydz_sc = os.path.join(kat, 'WYDZ.shp')
     processing.run("native:multiparttosingleparts", {
         'OUTPUT': wydz_sc,
         'INPUT': ls_sciezka,
     })
 
     # Rozbij uzytki na single parts
-    wydz = QgsVectorLayer(wydz_sc, 'WYDZ_ciecie', 'ogr')
+    wydz = QgsVectorLayer(wydz_sc, 'WYDZ', 'ogr')
     wydz.startEditing()
 
     kol = [

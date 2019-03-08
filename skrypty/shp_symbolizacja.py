@@ -53,6 +53,13 @@ def PokazWezly(iface):
     # dodaj symbolizację i dodaj do grupy
     war = []
     for lyr in iface.mapCanvas().layers():
+        # obsługa wyjątku dla wszystkich wartw, którenie są wektorami
+        try:
+            if lyr.wkbType() in [2, 3, 5, 6]:
+                pass
+        except:  # nopep8
+            continue
+
         if lyr.wkbType() in [2, 3, 5, 6] and \
                 '_las-r_węzełki' not in lyr.name():
             lyrw = QgsVectorLayer(

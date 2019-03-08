@@ -1,8 +1,9 @@
 import os
 import glob
+import shutil
 from qgis.core import QgsVectorLayer, Qgis, QgsSpatialIndex, QgsRectangle, \
-    QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsFeatureRequest, \
-    QgsMessageLog
+    QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
+    QgsMessageLog, QgsProject
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
 import processing
@@ -17,6 +18,7 @@ class WyszukajLz():
                                  'Las-R', Qgis.Info)
 
         self.ls = False
+        self.uz = False
         self.oddz = False
 
         self.kat = ''  # katalog z ls
@@ -26,11 +28,15 @@ class WyszukajLz():
         self.ls_si = QgsSpatialIndex()
         self.oddz_si = QgsSpatialIndex()
         self.ls_diss_si = QgsSpatialIndex()  # SI z diss poly z ls
+        self.uz_diss_si = QgsSpatialIndex()
 
         self.ls_fts = {}  # slownik z featurami ls
+        self.uz_fts = {}  # slownik z featurami uz
         self.ls_diss = {}  # sl z diss feat ls
         self.oddz_fts = {}  # sl w featsami oddz
         self.lzp = []  # lista z potencjalnymi lzami w postaci feat
+
+        self.uz_pole = ''  # pole w uzytkach przetrzymujace klasę gr
 
     def pobierz_dane(self):
         """ Metoda pobiera informacje na temat danych od użytkownika na temat
@@ -38,9 +44,20 @@ class WyszukajLz():
         strukturę i czy pola w niezbędnych kolumnach są wypełnione
         """
 
+        lyrs = [x for x in QgsProject.instance().mapLayers().values()]
+        ls = [x for x in lyrs if x.name()[:2].upper() == 'LS']
+        oddz = [x for x in lyrs if x.name()[:4].upper() == 'ODDZ']
+        uz = [x for x in lyrs if x.name()[:4].upper() in ['UZYT', 'UŻYT']]
+
+        if len(ls) > 0:
+            self.ls = ls[0]
+        if len(uz) > 0:
+            self.uz = uz[0]
+        if len(oddz) > 0:
+            self.oddz = oddz[0]
+
         # pobierz dane od użytkownika
-        self.ls = self.iface.activeLayer()
-        self.pd = PobierzDane(self.ls, self.oddz)
+        self.pd = PobierzDane(self.ls, self.uz, self.oddz)
         self.pd.exec_()
 
         if not self.pd.kontynuuj:
@@ -74,30 +91,25 @@ class WyszukajLz():
             )
             return False
 
-        # sprawdz czy warstwie znajduja sie tylko Ls
-        request = QgsFeatureRequest().setFlags(
-            QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
-                ['AU'],
-                self.ls.fields()
-            )
-        uz = set([x['AU'] for x in self.ls.getFeatures(request)])
-        if len(uz) > 1:
+        pola_uz_wyb = [x.name() for x in
+                       self.uz.dataProvider().fields().toList()
+                       if x.name() in ['AU', 'G5OFU']]
+
+        if len(pola_uz_wyb) == 0:
+            self.uz = False
             self.iface.messageBar().pushMessage(
-                'LS',
-                'W warstwie Ls muszą znajdować się tylko Ls '
-                '[w polu AU muszą być kody "Ls"]',
+                'UŻYTKI',
+                'Brak wymaganego pola w tabeli atrybutów [AU] lub [G5OFU]',
                 Qgis.Critical,
                 10
             )
             QgsMessageLog.logMessage(
-                'W AU muszą znajdować się tylko użytki Ls'
+                'Brak wymaganych pól w tabeli atrybutów [AU]'
                 '\n---[ KONIEC ]---',
                 'Las-R', Qgis.Critical
             )
             return False
-
-        # except:  # nopep8
-            # return False
+        self.uz_pole = pola_uz_wyb[0]
 
         lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
         self.kat = os.path.dirname(lsc)
@@ -120,23 +132,22 @@ class WyszukajLz():
         else:
             return a
 
-    def zabuduj_strukt(self):
+    def zabuduj_strukt(self):  # noqa
         """Metoda buduje indeksy przestrzenne dla warstw o ile istnieją"""
+        self.crs = QgsCoordinateReferenceSystem("epsg:2180")
 
         # stworz katalog tymczasowy
         self.tempkat = os.path.join(self.kat, 'temp')
         if not os.path.isdir(self.tempkat):
             os.mkdir(self.tempkat)
 
-        for feat in self.ls.getFeatures():
-            self.ls_si.insertFeature(feat)
-            self.ls_fts[feat.id()] = feat
+        self.struk_oddz()
+        self.struk_ls()
+        self.struk_uz()
 
-            # jezeli feature ma pow rejestrowa mniejsza niz 10 ar
-            if str(self.isNone(feat['LAND_AR'])).isdigit():
-                if self.isNone(feat['LAND_AR']) < 0.1:
-                    self.lzp.append(feat)
+        del self.w_ls_diss
 
+    def struk_oddz(self):
         if self.oddz is not False:
             for feat in self.oddz.getFeatures():
                 self.oddz_si.insertFeature(feat)
@@ -147,9 +158,47 @@ class WyszukajLz():
             'Las-R', Qgis.Info
         )
 
+    def struk_ls(self):
+        for feat in self.ls.getFeatures():
+            if feat['AU'] == 'Ls':
+                self.ls_si.insertFeature(feat)
+                self.ls_fts[feat.id()] = feat
+
+            # jezeli feature ma pow rejestrowa mniejsza niz 10 ar
+            if str(self.isNone(feat['LAND_AR'])).isdigit():
+                if self.isNone(feat['LAND_AR']) < 0.1:
+                    self.lzp.append(feat)
+
+        # stwórz warstwy tymczasowe dla lasów z uzytków i ls
+        self.lswybr = QgsVectorLayer(
+            "MultiPolygon?crs=epsg:2180&index=yes",
+            "LS_wybrane_ls",
+            "memory"
+        )
+        self.lswybr.startEditing()
+        self.lswybr.dataProvider().addAttributes(
+            self.ls.dataProvider().fields().toList()
+        )
+        self.lswybr.updateFields()
+        self.lswybr.addFeatures(self.ls_fts.values())
+        self.lswybr.commitChanges()
+
+        QgsVectorFileWriter.writeAsVectorFormat(
+            self.lswybr,
+            os.path.join(self.tempkat, "Ls_wybr.shp"),
+            "UTF-8",
+            self.crs,
+            "ESRI Shapefile")
+
+        self.lswybr = QgsVectorLayer(
+            os.path.join(self.tempkat, "Ls_wybr.shp"),
+            "LS_wybrane_ls",
+            "ogr"
+        )
+
         processing.run(
             'saga:polygondissolveallpolygons',
-            {'POLYGONS': self.ls,
+            {'POLYGONS': self.lswybr,
              'BND_KEEP': False,
              'DISSOLVED': os.path.join(self.tempkat, 'ls_diss.shp')
              }
@@ -164,17 +213,104 @@ class WyszukajLz():
                         })
 
         # wczytaj warstwe ls single partow
-        w_ls_diss = QgsVectorLayer(
+        self.w_ls_diss = QgsVectorLayer(
             os.path.join(self.tempkat, 'ls_diss_single.shp'),
             'ls_diss_single',
             'ogr'
         )
 
-        for feat in w_ls_diss.getFeatures():
+        for feat in self.w_ls_diss.getFeatures():
             self.ls_diss_si.insertFeature(feat)
             self.ls_diss[feat.id()] = feat
 
-        del w_ls_diss
+    def struk_uz(self):
+        for feat in self.uz.getFeatures():
+            if feat[self.uz_pole] == 'Ls':
+                self.uz_fts[feat.id()] = feat
+
+        QgsMessageLog.logMessage(
+            'Znalazłem Ls w UZYTKACH:' + str(len(self.uz_fts.keys())),
+            'Las-R', Qgis.Info
+        )
+
+        if len(self.uz_fts.keys()) == 0:
+            return
+
+        self.uzwybr = QgsVectorLayer(
+            "MultiPolygon?crs=epsg:2180&index=yes",
+            "UZYTKI_wybrane_ls",
+            "memory"
+        )
+        self.uzwybr.startEditing()
+        self.uzwybr.dataProvider().addAttributes(
+            self.uz.dataProvider().fields().toList()
+        )
+        self.uzwybr.updateFields()
+        self.uzwybr.addFeatures(self.uz_fts.values())
+        self.uzwybr.commitChanges()
+
+        QgsVectorFileWriter.writeAsVectorFormat(
+            self.uzwybr,
+            os.path.join(self.tempkat, "uz_wybr.shp"),
+            "UTF-8",
+            self.crs,
+            "ESRI Shapefile")
+
+        self.uzwybr = QgsVectorLayer(
+            os.path.join(self.tempkat, "uz_wybr.shp"),
+            "uz_wybr",
+            "ogr"
+        )
+
+        if len(self.uz_fts.keys()) > 1:
+            processing.run(
+                'saga:polygondissolveallpolygons',
+                {'POLYGONS': self.uzwybr,
+                 'BND_KEEP': False,
+                 'DISSOLVED': os.path.join(self.tempkat, 'uz_diss.shp')
+                 }
+            )
+        else:
+            for roz in ['shp', 'shx', 'prj', 'dbf']:
+                shutil.copy(os.path.join(self.tempkat, "uz_wybr."+roz),
+                            os.path.join(self.tempkat, "uz_diss."+roz))
+
+        if len(self.uz_fts.keys()) > 1:
+            processing.run("native:multiparttosingleparts", {
+                'OUTPUT': os.path.join(
+                    self.tempkat,
+                    'uz_diss_single.shp'),
+                'INPUT': os.path.join(
+                    self.tempkat, 'uz_diss.shp')
+            })
+        else:
+            for roz in ['shp', 'shx', 'prj', 'dbf']:
+                shutil.copy(os.path.join(self.tempkat, "uz_diss."+roz),
+                            os.path.join(self.tempkat, "uz_diss_single."+roz))
+
+        processing.run("saga:difference", {
+            'A': os.path.join(
+                self.tempkat, 'uz_diss_single.shp'),
+            'B': self.w_ls_diss,
+            'SPLIT': True,
+            'RESULT': os.path.join(
+                self.tempkat,
+                'uz_diss_single_diff.shp')
+        })
+
+        # wczytaj warstwe ls single partow
+        w_uz_diss = QgsVectorLayer(
+            os.path.join(self.tempkat, 'uz_diss_single_diff.shp'),
+            'uz_diss_single_diff',
+            'ogr'
+        )
+
+        self.uz_fts = {}  # kasujemy slownik poprzednich featurkow, sa zbedne
+        for feat in w_uz_diss.getFeatures():
+            self.uz_diss_si.insertFeature(feat)
+            self.uz_fts[feat.id()] = feat
+
+        del w_uz_diss
 
     def wybierz_potencjalne_lz(self):
         """Metoda wybiera z warstwy Ls potencjalne poligony z odpowiednią
@@ -247,24 +383,44 @@ class WyszukajLz():
             # sprawdz o ile wskazano oddz pgllp czy nic sie nie styka
             if self.oddz is not False:
                 ids = self.oddz_si.intersects(rect)
-                if len(ids) > 0:
-                    for id in ids:
-                        for ls in lsy:
-                            otemp = \
-                                round(ls.geometry().shortestLine(
-                                    self.oddz_fts[id].geometry()).length(), 2)
-                            if otemp < self.odl_min:
-                                try:
-                                    QgsMessageLog.logMessage(
-                                        'Potencjalny Lz, blisko PGL LP: ' +
-                                        str(otemp) + 'm \t\tuz:' +
-                                        ls['LANDID'] + ",\t oddz:" +
-                                        self.oddz_fts[id]['adr_for'],
-                                        'Las-R', Qgis.Info
-                                    )
-                                except:  # nopep8
-                                    pass
-                                return [False, []]
+                for id in ids:
+                    for ls in lsy:
+                        otemp = \
+                            round(ls.geometry().shortestLine(
+                                self.oddz_fts[id].geometry()).length(), 2)
+                        if otemp < self.odl_min:
+                            try:
+                                QgsMessageLog.logMessage(
+                                    'Potencjalny Lz, blisko PGL LP: ' +
+                                    str(otemp) + 'm \t\tuz:' +
+                                    ls['LANDID'] + ",\t oddz:" +
+                                    self.oddz_fts[id]['adr_for'],
+                                    'Las-R', Qgis.Info
+                                )
+                            except:  # nopep8
+                                pass
+                            return [False, []]
+
+            # sprawdzamy czy kompleks nie lezy za blisko innych uzytków
+            if self.uz is not False:
+                ids = self.uz_diss_si.intersects(rect)
+                for id in ids:
+                    for ls in lsy:
+                        otemp = \
+                            round(ls.geometry().shortestLine(
+                                self.uz_fts[id].geometry()).length(), 2)
+                        if otemp < self.odl_min and \
+                                self.uz_fts[id].geometry().area()/10000 > 0.1:
+                            try:
+                                QgsMessageLog.logMessage(
+                                    'Potencjalny Lz, blisko uzytku: ' +
+                                    str(otemp) + 'm \t\tuz:' +
+                                    ls['LANDID'],
+                                    'Las-R', Qgis.Info
+                                )
+                            except:  # nopep8
+                                pass
+                            return [False, []]
 
             # sprawdz czy sa jakies ls w powiekszonym zasiegu i nie sa to juz
             # wyselekcjonowane ls
@@ -370,23 +526,27 @@ class WyszukajLz():
         )
 
         # sprzatamy po sobie
-        lista = glob.glob(os.path.join(self.tempkat, 'ls_diss.*'))
-        lista += glob.glob(os.path.join(self.tempkat, 'ls_diss_single.*'))
+        lista = glob.glob(os.path.join(self.tempkat, 'ls*'))
+        lista += glob.glob(os.path.join(self.tempkat, 'uz*'))
         for ll in lista:
             os.remove(ll)
-        os.removedirs(self.tempkat)
+            try:
+                os.removedirs(self.tempkat)
+            except:  # nopep8
+                pass
 
         QgsMessageLog.logMessage('---[ KONIEC ]---',
                                  'Las-R', Qgis.Info)
 
 
 class PobierzDane(QDialog):
-    def __init__(self, ls, oddz):
+    def __init__(self, ls=False, uz=False, oddz=False):
         super(PobierzDane, self).__init__()
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
 
         self.ls = ls
+        self.uz = uz
         self.oddz = oddz
         self.kontynuuj = False
         self.kat = ''
@@ -399,10 +559,19 @@ class PobierzDane(QDialog):
                 lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
                 self.kat = os.path.dirname(lsc)
 
+        if uz:
+            if self.uz.isValid():
+                self.ui.lineEdit_uz.setText(
+                    self.uz.dataProvider().dataSourceUri().split("|")[0]
+                )
+                lsc = self.uz.dataProvider().dataSourceUri().split("|")[0]
+                self.kat = os.path.dirname(lsc)
+
         if oddz:
             self.sprawdz_oddz()
 
         self.ui.pushButton_ls.clicked.connect(self.wybierz_ls)
+        self.ui.pushButton_uz.clicked.connect(self.wybierz_uz)
         self.ui.pushButton_oddz.clicked.connect(self.wybierz_oddz)
         self.ui.pushButton_ok.clicked.connect(self.zatwierdz)
         self.ui.pushButton_anuluj.clicked.connect(self.porzuc)
@@ -433,8 +602,41 @@ class PobierzDane(QDialog):
             self.ui.lineEdit_ls.setText(
                 self.ls.dataProvider().dataSourceUri().split("|")[0])
         except:  # nopep8
-            msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec_()
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText('Nie udało się otworzyć podanej warstwy')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
+
+    def wybierz_uz(self):
+        warstwa = QFileDialog().getOpenFileName(self,
+                                                'Wskaż warstwę użytków',
+                                                self.kat,
+                                                "ESRI shp (*.shp)")[0]
+        try:
+            self.uz = QgsVectorLayer(warstwa, "uzytki", "ogr")
+            if 'AU' not in [x.name() for x in
+                            self.uz.dataProvider().fields().toList()]:
+                message = QMessageBox()
+                message.setIcon(QMessageBox.Information)
+                message.setWindowTitle('Błąd')
+                message.setText('W warstwie nie ma kolumny AU, proszę '
+                                'ją stworzyć i uzupełnić')
+                message.addButton(u"Zamknij", QMessageBox.ActionRole)
+                message.exec_()
+
+            else:
+                self.ui.lineEdit_uz.setText(
+                    self.uz.dataProvider().dataSourceUri().split("|")[0])
+
+        except:  # nopep8
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText('Nie udało się otworzyć podanej warstwy')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
 
     def sprawdz_oddz(self):
         """ Metoda sprawdza czy użyszkodnik nie chce dodać warstwy oddziałów
@@ -464,8 +666,12 @@ class PobierzDane(QDialog):
             self.kontynuuj = True
             self.hide()
         else:
-            msbx = QMessageBox('Sprawdź wprowadzone dane, coś nie gra...')
-            msbx.exec_()
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText('Sprawdź wprowadzone dane, coś nie gra...')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
 
     def porzuc(self):
         self.kontynuuj = False
