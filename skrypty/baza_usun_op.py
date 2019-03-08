@@ -1,6 +1,6 @@
 import os
 import glob
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
@@ -8,10 +8,11 @@ from .baza_wrapper import Baza
 
 def UsunOP(iface):
     bazy_kat = QFileDialog().getExistingDirectory(
-        iface.mainWindow,
+        iface.mainWindow(),
         "Katalog z bazami danych",
         '')
-    ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+    bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
+    ile_baz = len(bazy_sc)
     if ile_baz == 0:
         iface.messageBar().pushMessage(
             'BŁĄD',
@@ -22,21 +23,33 @@ def UsunOP(iface):
 
     bledy = 0
     ile_ok = 0
-    for sc in bazy_kat:
+    for sc in bazy_sc:
         baza = Baza(sc)
         # jezeli nie mozna polaczyc sie z bazą pomin ją
         if not baza.polacz():
+            QgsMessageLog.logMessage(
+                'Nie mogłem połączyć sięz bazą: ' + sc,
+                'Las-R'
+            )
             continue
+
+        QgsMessageLog.logMessage(
+            '\n'+20*'-'+'\nPrzetwarzam bazę: ' + sc,
+            'Las-R', Qgis.Info
+        )
 
         baza.utworz_kopie('kasuj_OP')
         wyn = CzyscBaze(baza)
         ile_ok += 1
         bledy += wyn[0]
 
+        QgsMessageLog.logMessage('\n'+20*'-', 'Las-R', Qgis.Info)
+
     if bledy == 0:
         iface.messageBar().pushMessage(
             "OK",
-            'Skasowałem OP w ' + str(ile_ok) + ' bazie/bazach',
+            'Skasowałem OP w ' + str(ile_ok) + ' bazie/bazach, (szczegóły '
+            'w logu Las-R)',
             Qgis.Success,
             10
         )
@@ -75,27 +88,49 @@ def CzyscBaze(baza):  # noqa
             sl[key] = []
         sl[key].append(k[-1])
 
+    # wartosci początkowe do statystyk
+    f_parcel_cnt_b = baza.pobierz('select count(*) from f_parcel;')[0][0]
+    f_parcel_land_use_cnt_b = \
+        baza.pobierz('select count(*) from f_parcel_land_use;')[0][0]
+    f_parcel_part_cnt_b = \
+        baza.pobierz('select count(*) from v_parcel_participation;')[0][0]
+    v_addr_cnt_b = baza.pobierz('select count(*) from v_address;')[0][0]
+
     bledy_pid = []  # tab z nieskasowanymi dzkatami OP
     slu = []  # sl z PARCEL_INT_NUM usunietymi z F_PARCEL i F_PARCEL_LAND_USE
     for key, val in sl.items():
         if len(set(val)) == 1 and 'OP' in set(val):
             pid = key.split('-')[-1]
-            sql = 'delete * from F_PARCEL_LAND_USE WHERE PARCEL_INT_NUM = ?;'
-            if baza.wpisz_tab(sql, (pid)):
+            sql = 'delete * from F_PARCEL_LAND_USE WHERE PARCEL_INT_NUM = ' +\
+                str(pid) + ';'
+            if baza.wpisz(sql):
                 slu.append(pid)
             else:
                 bledy_pid.append(pid)
+                QgsMessageLog.logMessage(
+                    'Błąd kasowania pid F_PARCEL_LAND_USE: ' + pid,
+                    'Las-R'
+                )
 
-            sql = "delete * from F_PARCEL WHERE PARCEL_INT_NUM = ?;"
-            if not baza.wpisz_tab(sql, (pid)):
+            sql = "delete * from F_PARCEL WHERE PARCEL_INT_NUM = " + \
+                str(pid) + ';'
+            if not baza.wpisz(sql):
                 if pid not in bledy_pid:
+                    QgsMessageLog.logMessage(
+                        'Błąd kasowania pid F_PARCEL: ' + pid,
+                        'Las-R'
+                    )
                     bledy_pid.append(pid)
 
-            sql = 'delete * from F_PARCEL_PARTICIPATION WHERE '\
-                'PARCEL_INT_NUM = ?;'
-            if not baza.wpisz_tab(sql, (pid)):
+            sql = 'delete * from V_PARCEL_PARTICIPATION WHERE '\
+                'PARCEL_INT_NUM = ' + str(pid) + ';'
+            if not baza.wpisz(sql):
                 if pid not in bledy_pid:
                     bledy_pid.append(pid)
+                    QgsMessageLog.logMessage(
+                        'Błąd kasowania pid V_PARCEL_PARTICIPATION: ' + pid,
+                        'Las-R'
+                    )
 
     sql = 'select distinct addr_nr from v_parcel_participation;'
     twl_temp = baza.pobierz(sql)  # tablica wlasnosci
@@ -126,8 +161,33 @@ def CzyscBaze(baza):  # noqa
                 str(c.split('-')[1]) + ';'
             if not baza.wpisz(sql):
                 QgsMessageLog.logMessage(
-                    'Las-R',
                     'Nie udało się usunąć obrębu z COMMUNITY: ' + str(c),
+                    'Las-R'
                 )
+            else:
+                QgsMessageLog.logMessage(
+                    'skasowałem w F_COMMUNITY: ' + str(c[:9]),
+                    'Las-R',
+                    Qgis.Info
+                )
+
+    # statystyki po usuwaniu
+    f_parcel_cnt_k = baza.pobierz('select count(*) from f_parcel;')[0][0]
+    f_parcel_land_use_cnt_k = \
+        baza.pobierz('select count(*) from f_parcel_land_use;')[0][0]
+    f_parcel_part_cnt_k = \
+        baza.pobierz('select count(*) from v_parcel_participation;')[0][0]
+    v_addr_cnt_k = baza.pobierz('select count(*) from v_address;')[0][0]
+
+    QgsMessageLog.logMessage(
+        '\nUsuniętych rekordów:\nF_PARCEL: ' +
+        str(f_parcel_cnt_b-f_parcel_cnt_k) + '\nF_PARCEL_LAND_USE: ' +
+        str(f_parcel_land_use_cnt_b-f_parcel_land_use_cnt_k) +
+        '\nV_PARCEL_PARTICIPATION: ' +
+        str(f_parcel_part_cnt_b-f_parcel_part_cnt_k) + '\nV_ADDRESS: ' +
+        str(v_addr_cnt_b-v_addr_cnt_k),
+        'Las-R',
+        Qgis.Info
+    )
 
     return [len(bledy_adr)+len(bledy_pid), bledy_pid, bledy_adr]
