@@ -414,7 +414,7 @@ class AnalizujKlus(object):
                         # self.singleparts.dataProvider().fields()
                     # )
                     nf = f
-                    nf['SQ'] = f['SQ'].upper()
+                    nf['SQ'] = self.isNone(f['SQ']).upper()
                     geom_n = QgsGeometry().fromMultiPolygonXY([part])
                     geom_n.convertToMultiType()
                     geom_ok = usun_wasy(geom_n)
@@ -2125,8 +2125,14 @@ class PobierzDane(QDialog):
             self.ui.comboBox_ident.setDisabled(False)
             self.wczytaj_pola()
         except:  # nopep8
-            msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec_()
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText(
+                'Nie udało się odnaleźć podanej warstwy')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
+
             self.lyrk = False
             self.ui.comboBox_ident.setDisabled(True)
 
@@ -2144,8 +2150,14 @@ class PobierzDane(QDialog):
             self.ui.lineEdit_dzkat.setText(
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
         except:  # nopep8
-            msbx = QMessageBox('Nie udało się otworzyć podanej warstwy')
-            msbx.exec_()
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText(
+                'Nie udało się odnaleźć podanej warstwy')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
+
             self.lyrd = False
 
     def pobierz_bazy(self):

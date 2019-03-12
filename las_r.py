@@ -39,7 +39,8 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
-    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz
+    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
+    shp_atlasuj
 
 
 class LasR:
@@ -208,6 +209,10 @@ class LasR:
             os.path.join(self.plugin_dir, 'ico', 'klu.png'))
         ico_wezelki = QIcon(
             os.path.join(self.plugin_dir, 'ico', 'wezelki.png'))
+        ico_gen_pola = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'genPola.png'))
+        ico_num_pola = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'numPola.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -417,6 +422,7 @@ class LasR:
         self.toolbar.addSeparator()
 
         self.toolbar.addAction(self.rys_gat)
+        self.toolbar.addAction(self.rys_stl)
         self.toolbar.addAction(self.rys_dz)
         self.toolbar.addAction(self.rys_klu)
 
@@ -429,14 +435,29 @@ class LasR:
 
         self.toolbar.addSeparator()
 
-        self.toolbar.addAction(self.spr_topo)
+        self.rys_atl = QAction(ico_gen_pola,
+                               'Rysuj pola atlasowe',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.rys_atl)
+        self.rys_atl.triggered.connect(self.rysuj_atlas)
 
+        self.num_atl = QAction(ico_num_pola,
+                               'Numeruj pola atlasu',
+                               self.iface.mainWindow())
+        self.toolbar.addAction(self.num_atl)
+        self.num_atl.triggered.connect(self.numeruj_atlas)
+
+
+        self.toolbar.addSeparator()
+
+        self.toolbar.addAction(self.spr_topo)
         self.akcje_toolbara = [self.dop_meta,
                                self.spr_wydz,
-                               self.rys_stl,
+                               self.rys_dz,
+                               self.rys_klu,
                                self.rys_gat,
-                               self.rys_zab,
-                               self.rys_orto,
+                               self.rys_wez,
+                               self.rys_atl,
                                self.spr_topo
                                ]
         # toolbar koniec ---------------------
@@ -568,6 +589,18 @@ class LasR:
 
     def sprawdz_pow_wydzielen(self):
         baza_sprawdz_rozl.sprawdz_rozliczenie_bazy(self.iface)
+
+    def rysuj_atlas(self):
+        g = shp_atlasuj.GenerujAtlas(self.iface)
+        if not g.wybierz_warstwe():
+            return
+        if g.pobierz_dane():
+            g.stworz_warstwy()
+            g.generuj_pola()
+            g.zapisz_warstwy()
+
+    def numeruj_atlas(self):
+        pass
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
@@ -716,5 +749,4 @@ class LasR:
         y.trigger()
 
     def powierzchnia_graf(self):
-        print('start obliczam pow')
         funkcje.oblicz_pow_graf(self.iface)

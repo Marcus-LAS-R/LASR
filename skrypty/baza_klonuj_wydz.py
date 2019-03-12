@@ -523,9 +523,13 @@ class PobierzDane(QDialog):
             self.porzucone = False
             self.hide()
         else:
-            msbx = QMessageBox(
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText(
                 'Nie udało się odnaleźć wszystkich podanych plików!')
-            msbx.exec_()
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
 
     def kat_baza(self):
         sc = QFileDialog().getOpenFileName(self,
