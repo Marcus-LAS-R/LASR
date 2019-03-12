@@ -716,7 +716,7 @@ class AnalizujKlus(object):
         rap_out = raport.generuj_raport()
 
         self.rap_sc = os.path.join(
-            self.kat, "raport_ls_"+self.czas+".txt")
+            self.kat, "ls_raport_"+self.czas+".txt")
 
         open(self.rap_sc, 'w', encoding='cp1250').write(rap_out)
 
@@ -2051,6 +2051,7 @@ class GenerujRaport():
                 self.wypis += 'Coś poszło nie tak jak powinno!'
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
+        self.wypis += '\n-----[ KONIEC RAPORTU ]------'
         return self.wypis
 
 

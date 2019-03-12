@@ -76,8 +76,9 @@ class GenerujAtlas():
         x = xmin
         y = ymin
         polaPoly = []
-        while x < xmax:
-            while y < ymax:
+        ita = 0
+        while x < xmax and ita < 999:
+            while y < ymax and ita < 999:
                 f = QgsFeature()
                 f.setFields(self.pola.fields())
                 poly = [
@@ -92,8 +93,10 @@ class GenerujAtlas():
                 f.setGeometry(g)
                 polaPoly.append(f)
                 y += self.rozm[1]
+                ita += 1
 
             x += self.rozm[0]
+            ita += 1
             y = ymin
 
         self.pola.addFeatures(polaPoly)
@@ -108,7 +111,6 @@ class GenerujAtlas():
             crs,
             "ESRI Shapefile")
 
-        print(self.kat)
         self.atlasF = QgsVectorLayer(
             os.path.join(self.kat, "ATLAS_AFT.shp"), "ATLAS_AFT", "ogr")
 
@@ -119,29 +121,38 @@ class GenerujAtlas():
         self.atlasF.loadNamedStyle(
             os.path.join(plugin_dir, '..', 'qml', 'ATLAS_AFT_spr.qml'))
         self.linia.loadNamedStyle(
-            os.path.join(plugin_dir, 'qml', '..', 'ATLAS_LINIA.qml'))
+            os.path.join(plugin_dir, '..', 'qml', 'ATLAS_LINIA.qml'))
 
 
 class Zanumeruj():
     def __init__(self, iface):
         self.iface = iface
+        self.rozm = [0, 0]  # tablica z rozmiarami pól w atlasie
+        self.sll = {}  # sl linii {id: point(x, y), ...}
+        self.slp = {}  # sl z id pola i nr strony {id: nr_strony, }
+        self.slc = {}  # sl z id pola i wsp centroidu {id: [x, y], }
+        self.zanum = 0  # licznik zanumerowanych
 
     def wczytaj_warstwy(self):
         try:
             lyrs = [x for x in QgsProject.instance().mapLayers().values()]
             pola = [x for x in lyrs if
-                    x.name()[:8].upper() == 'ATLAS_AFT']
+                    x.name()[:9].upper() == 'ATLAS_AFT']
             lin = [x for x in lyrs if
-                   x.name()[:8].upper() == 'ATLAS_LIN']
+                   x.name()[:8] == 'AtlasLin']
 
-            if len(pola) != 1 and len(lin) != 1:
+            if len(pola) != 1 or len(lin) != 1:
+                self.iface.messageBar().pushMessage(
+                    "BŁĄD",
+                    'Nie odnalazłem ATLAS_AFT i/lub AtlasLinia',
+                    Qgis.Critical,
+                    0
+                )
                 return False
 
             self.pola = pola[0]
             self.lin = lin[0]
-            if self.pola.isvalid() and self.lin.isvalid():
-                return True
-
+            return True
         except:  # nopep8
             pass
 
@@ -168,14 +179,120 @@ class Zanumeruj():
             return False
 
         linia = next(self.lin.getFeatures())
-        if self.wydz.featureCount() != linia:
+        if self.pola.featureCount() != len(linia.geometry().asPolyline()):
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
-                'Linia powinna mieć tyle wierzchołków ile jest  pól w atlasie',
+                'Linia powinna mieć tyle wierzchołków ile jest pól w atlasie.'
+                '   Pól atlasowych: '+str(self.pola.featureCount()) +
+                ', Wierzchołków: ' + str(len(linia.geometry().asPolyline())),
                 Qgis.Critical,
                 0
             )
             return False
+
+        return True
+
+    def przetworz_linie(self):
+        """ Metoda przetwarza wprowadzoną przez użytkownika linę na sl w post:
+            {id: pkt(x, y), ...}
+        """
+        linia = next(self.lin.getFeatures())
+        self.sll = {i+1: val for i, val in
+                    enumerate(linia.geometry().asPolyline())}
+
+    def poprawnie_rozlozone(self):
+        self.przetworz_linie()
+        for feat in self.pola.getFeatures():
+            bbox = feat.geometry().boundingBox()
+            num = [x for x, pnt in self.sll.items()
+                   if bbox.xMinimum() < pnt.x() < bbox.xMaximum() and
+                   bbox.yMinimum() < pnt.y() < bbox.yMaximum()]
+
+            self.slc[feat.id()] = [
+                feat.geometry().centroid().boundingBox().xMinimum(),
+                feat.geometry().centroid().boundingBox().yMinimum(),
+            ]
+
+            if len(num) != 1:
+                if len(num) > 1:
+                    tekst = 'z więcej niż jednym wierzchołkiem'
+                else:
+                    tekst = 'bez wierzchołków'
+
+                self.iface.messageBar().pushMessage(
+                    "BŁĄD",
+                    'Sprawdź wierzchołki linii, znaleziono pole '+tekst,
+                    Qgis.Critical,
+                    0
+                )
+                return False
+            self.slp[feat.id()] = num[0]
+
+        if len(self.slp) == len(self.sll):
+            return True
+        else:
+            return False
+
+    def zanumeruj_pola(self):
+        fnm = self.pola.dataProvider().fieldNameMap()
+        for i, feat in enumerate(self.pola.getFeatures()):
+            bbox = feat.geometry().boundingBox()
+            szer = bbox.width() / 2
+            wys = bbox.height() / 2
+
+            val = {fnm['STRONA']: str(self.slp[feat.id()])}
+
+            L = [x for x, pkt in self.slc.items()
+                 if bbox.xMinimum()-szer-50 < pkt[0] < bbox.xMinimum()+szer-1
+                 and
+                 bbox.yMinimum()-wys+50 < pkt[1] < bbox.yMaximum()+wys-50
+                 and feat.id() != x
+                 ]
+            val[fnm['L']] = str('0')
+            print(L)
+            if len(L) > 0:
+                val[fnm['L']] = str(self.slp[L[0]])
+
+            G = [x for x, pkt in self.slc.items()
+                 if bbox.xMinimum()-szer/3 < pkt[0] < bbox.xMaximum()+szer/3
+                 and
+                 bbox.yMaximum()-wys/3 < pkt[1] < bbox.yMaximum()+wys+50
+                 and feat.id() != x
+                 ]
+            val[fnm['G']] = str('0')
+            if len(G) > 0:
+                val[fnm['G']] = str(self.slp[G[0]])
+
+            P = [x for x, pkt in self.slc.items()
+                 if bbox.xMaximum()-szer+50 < pkt[0] < bbox.xMaximum()+szer+50
+                 and
+                 bbox.yMinimum()-wys+50 < pkt[1] < bbox.yMaximum()+wys-50
+                 and feat.id() != x
+                 ]
+            val[fnm['P']] = str('0')
+            if len(P) > 0:
+                val[fnm['P']] = str(self.slp[P[0]])
+
+            D = [x for x, pkt in self.slc.items()
+                 if bbox.xMinimum()-szer/3 < pkt[0] < bbox.xMaximum()+szer/3
+                 and
+                 bbox.yMinimum()-wys-50 < pkt[1] < bbox.yMinimum()+wys/3
+                 and feat.id() != x
+                 ]
+            val[fnm['D']] = str('0')
+            if len(D) > 0:
+                val[fnm['D']] = str(self.slp[D[0]])
+
+            self.pola.dataProvider().changeAttributeValues({feat.id(): val})
+            self.zanum += 1
+
+    def wyswietl_info(self):
+        self.iface.messageBar().pushMessage(
+            'OK',
+            'Zanumerowano pól: ' + str(self.zanum),
+            Qgis.Success,
+            10
+        )
 
 
 class PobierzDane(QDialog):
@@ -222,7 +339,8 @@ class PobierzDane(QDialog):
                 if len(w) != 2:
                     tekst = 'Powinien być tylko JEDEN x!!!'
                 elif w[0].isdigit() and w[1].isdigit():
-                    self.rozmiar = [int(rozm[0]), int(rozm[1])]
+                    self.rozmiar = [int(w[0]), int(w[1])]
+                    print(self.rozmiar)
                     self.uklad = ''
                 else:
                     tekst = 'Podany rozmiar nie składa się z samych cyfr ' + \
@@ -262,10 +380,18 @@ class PobierzDane(QDialog):
             (((self.rozmiar[1]-30)/10)*int(skala))/100,
         ]
 
+        if self.wyn[0] < 1 or self.wyn[1] < 0:
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText('Wymiary mają być większe od zera!!!')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
+            return False
+
         if not self.ui.radioButton_inny.isChecked():
             if self.rozmiar[0] in [210, 297] and \
                     self.ui.radioButton_poziom.isChecked():
                 self.wyn = self.wyn[::-1]
 
-        print(self.wyn)
         return True

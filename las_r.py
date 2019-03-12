@@ -608,7 +608,15 @@ class LasR:
             g.zapisz_warstwy()
 
     def numeruj_atlas(self):
-        pass
+        n = shp_atlasuj.Zanumeruj(self.iface)
+        if not n.wczytaj_warstwy():
+            return
+        if not n.sprawdz_warstwy():
+            return
+        if n.poprawnie_rozlozone():
+            n.zanumeruj_pola()
+            n.wyswietl_info()
+
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)

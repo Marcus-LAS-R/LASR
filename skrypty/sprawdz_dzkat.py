@@ -529,7 +529,7 @@ class AnalizujDzKat(object):
             district = dzp[2:4]
             municip = dzp[4:7]
             community = dzp[7:11]
-            nr = dzp.split('.')[-1]
+            nr = dzp.split('.')[-1].rstrip('\r\n ')
 
         elif self.typ == u'Adr':
             dzp = str(dz[self.adradm])
@@ -540,7 +540,7 @@ class AnalizujDzKat(object):
             district = dzp[2:4]
             municip = dzp.split('.')[0].replace('_', '')[-3:]
             community = dzp.split('.')[1]
-            nr = dzp.split('.')[-1]
+            nr = dzp.split('.')[-1].rstrip('\r\n ')
 
         elif self.typ == u'Kol':
             if self.ark != '---':
@@ -550,7 +550,7 @@ class AnalizujDzKat(object):
             district = self.district
             municip = dz[self.gm]
             community = dz[self.obr]
-            nr = dz[self.nrdz]
+            nr = dz[self.nrdz].rstrip('\r\n ')
             ark = ark
         else:
             QgsMessageLog.logMessage(
@@ -604,7 +604,13 @@ class AnalizujDzKat(object):
 
         raport += 'Brakujące działki leśne: ' + str(ile_brak) + '\n\n'
 
-        raport += 'Działek leśnych w shp: ' + str(len(self.dz_les_spr)) + '\n'
+        if self.wl == 'OF':
+            dz_les = len([x for x in self.dz_les_spr
+                          if x not in self.tylko_op])
+        else:
+            dz_les = len(self.dz_les_spr)
+
+        raport += 'Działek leśnych w shp: ' + str(dz_les) + '\n'
         raport += 'Działek nieleśnych w shp: ' + str(len(self.dzkat_nieles)) + '\n'
 
         duble = [x[0] for x in Counter(self.dz_les_spr+self.dzkat_nieles).most_common()
@@ -723,7 +729,9 @@ class AnalizujDzKat(object):
 
         # zapisz raport do pliku
         self.rap_sc = os.path.join(self.kat, 'dzkat_raport_'+self.czas+'.txt')
-        open(self.rap_sc, 'w', encoding='cp1250').write(raport)
+        plik =open(self.rap_sc, 'w', encoding='cp1250')
+        plik.write(raport)
+        plik.close()
 
     def wypiszPow(self, x, sl):
         if x in sl:
