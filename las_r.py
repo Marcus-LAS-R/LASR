@@ -40,7 +40,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj
+    shp_atlasuj, baza_usun_op
 
 
 class LasR:
@@ -244,6 +244,12 @@ class LasR:
         self.m_przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
+        self.kas_op = QAction(QIcon(None),
+                              "Kasuj OP",
+                              self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.kas_op)
+        self.kas_op.triggered.connect(self.kasuj_wlas_OP)
+
         self.wyz_lz = QAction(QIcon(None),
                               'LZ - wyznacz potencjalne',
                               self.iface.mainWindow())
@@ -377,7 +383,7 @@ class LasR:
         self.rys_gat = QAction(ico_wydz_rys_gat,
                                'Rysuj gatunki',
                                self.iface.mainWindow())
-        self.toolbar.addAction(self.rys_gat)
+        self.m_style.addAction(self.rys_gat)
         self.rys_gat.triggered.connect(self.rysuj_gatunki)
 
         self.rys_zab = QAction(ico_wydz_rys_zab,
@@ -446,7 +452,6 @@ class LasR:
                                self.iface.mainWindow())
         self.toolbar.addAction(self.num_atl)
         self.num_atl.triggered.connect(self.numeruj_atlas)
-
 
         self.toolbar.addSeparator()
 
@@ -562,6 +567,9 @@ class LasR:
         if b.wybierz_fo():
             b.wybierz_wydz()
             b.dopisz_do_bazy()
+
+    def kasuj_wlas_OP(self):
+        baza_usun_op.UsunOP(self.iface)
 
     def dopisz_wydzielenia(self):
         w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)
