@@ -211,7 +211,7 @@ class AnalizujDzKat(object):
                     self.wl_dict[wyr1].append("OF")
                 else:
                     self.wl_dict[wyr1].append(item[2])
-                    if item[2] == "OP":
+                    if "OP" in item[2]:
                         self.lista_OP.append([wlasciciel, wyr1])
 
         # lista dzialek tylko z wlasnoscia OP
@@ -588,15 +588,21 @@ class AnalizujDzKat(object):
 
         raport = '---RAPORT----------------------------\n\n'
         raport += 'Działek w shp: ' + str(self.ile_dzkat) + '\n'
-        raport += 'Działek leśnych w bazie: ' + str(len(
-            [x for x in self.dz_lesne if x not in self.tylko_op]
-        )) + '\n'
+        if self.wl == 'OF':
+            ile_dz_baza = [x for x in self.dz_lesne if x not in self.tylko_op]
+        else:
+            ile_dz_baza = [x for x in self.dz_lesne]
+        raport += 'Działek leśnych w bazie: ' + str(len(ile_dz_baza)) + '\n'
 
         brakujace_dz_les = [x for x in list(self.dz_lesne)
                             if x not in self.dz_les_spr]
-        raport += 'Brakujące działki leśne: ' + str(len(
-            [x for x in brakujace_dz_les if x not in self.tylko_op]
-        )) + '\n\n'
+        if self.wl == 'OF':
+            ile_brak = len([x for x in brakujace_dz_les
+                            if x not in self.tylko_op])
+        else:
+            ile_brak = len(brakujace_dz_les)
+
+        raport += 'Brakujące działki leśne: ' + str(ile_brak) + '\n\n'
 
         raport += 'Działek leśnych w shp: ' + str(len(self.dz_les_spr)) + '\n'
         raport += 'Działek nieleśnych w shp: ' + str(len(self.dzkat_nieles)) + '\n'
@@ -622,11 +628,18 @@ class AnalizujDzKat(object):
         if len(self.dzkat_brak) > 0:
             raport += '\n\n---BRAKUJACE DZIALKI LEŚNE--------------' + '\n'
             raport += 'Brakujace dzialki lesne w shp: ' + \
-                str(len(self.dzkat_brak)) + '\n\n'
+                str(ile_brak) + '\n\n'
+
+            if self.wl == 'OF':
+                braki = [x for x in sorted(brakujace_dz_les)
+                         if x[4:] not in self.tylko_op]
+            else:
+                braki = [x for x in sorted(brakujace_dz_les)]
+
             raport += '\n'.join([
                 '\t'.join([self.county+self.district+x,
                            str(self.wypiszPow(x, self.dz_dict))])
-                for x in sorted(brakujace_dz_les) if x[4:] not in self.tylko_op
+                for x in braki
             ])
             raport += '\n' + 45 * '-' + '\n\n\n'
 
@@ -681,18 +694,26 @@ class AnalizujDzKat(object):
 
         if len(self.lista_OP) > 0:
             raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\n"
-            raport += "Liczba wlascicieli z kodem OP: " + str(len(set(
-                [x[0] for x in self.lista_OP
-                 if x[1] not in self.tylko_op and x[1] in self.dz_lesne]))) + '\n\n'
+            if self.wl == 'OF':
+                wl = [x[0] for x in self.lista_OP
+                      if x[1] not in self.tylko_op and x[1] in self.dz_lesne]
+            else:
+                wl = [x[0] for x in self.lista_OP if x[1] in self.dz_lesne]
+            raport += "Liczba wlascicieli z kodem OP: " + str(len(set(wl))) + \
+                '\n\n'
 
             sl_temp = {}
             for x in self.lista_OP:
-                # przygotuj slownik wlascicieli z liczba dzialek ktorzy nie sa w tylkoOP
+                # przygotuj slownik wlascicieli z liczba dzialek ktorzy nie sa
+                # w tylkoOP
                 # jezeli dopisujemy wszystkie wlasnosci, to raportze wszystkich
-                if x[1] not in self.tylko_op and x[1] in self.dz_lesne:
-                    if x[0] not in sl_temp:
-                        sl_temp[x[0]] = []
-                    sl_temp[x[0]].append(x[1])
+                if x[1] in self.dz_lesne:
+                    if self.wl == 'OF' and x[1] in self.tylko_op:
+                        pass
+                    else:
+                        if x[0] not in sl_temp:
+                            sl_temp[x[0]] = []
+                        sl_temp[x[0]].append(x[1])
 
             raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat" for x in
                                 sorted(list(sl_temp.keys()))])
