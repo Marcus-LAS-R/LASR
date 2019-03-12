@@ -414,7 +414,7 @@ class AnalizujKlus(object):
                         # self.singleparts.dataProvider().fields()
                     # )
                     nf = f
-                    nf['SQ'] = self.isNone(f['SQ']).upper()
+                    nf['SQ'] = isNone(f['SQ']).upper()
                     geom_n = QgsGeometry().fromMultiPolygonXY([part])
                     geom_n.convertToMultiType()
                     geom_ok = usun_wasy(geom_n)
