@@ -1,0 +1,740 @@
+# import os
+# from collections import defaultdict
+
+from skrypty.baza_zabiegi_sl import ZabiegiSlownik
+# from .skrypty.funkcje import isNone
+
+
+class Zabiegi(ZabiegiSlownik):
+    def __init__(self, iface):
+        self.iface = iface
+
+
+class GenerujZabiegi():
+    def __init__(self):
+        pass
+
+    def generuj_rebnie(self, spr=True):
+        if spr:
+            if self.stl not in self.rebnieSl:
+                return False
+            if self.gat_gl_wiek < self.wiekReb - 9:
+                return False
+            if self.zadrzew < 0.5:
+                return False
+            if self.typ != 'D-STAN':
+                return False
+
+        if self.stl in self.rebnieSl:
+            if len(self.rebnieSl[self.stl]) == 1:
+                return [self.rebnieSl[self.stl][0]]
+            else:
+                if self.pow_wydz < 4:
+                    return [self.rebnieSl[self.stl][0]]
+                else:
+                    return [self.rebnieSl[self.stl][1]]
+
+        return False
+
+    def zab_plaz(self):
+        if self.typ == 'PŁAZ':
+            self.zabiegi.append(['PŁAZ', self.pow_wydz])
+            self.zabiegi.append(['ODN-ZRB', self.pow_wydz])
+        if self.typ == 'HAL':
+            self.zabiegi.append(['ODN-HAL', self.pow_wydz])
+        if self.typ == 'ZRĄB':
+            self.zabiegi.append(['ODN-ZRB', self.pow_wydz])
+
+        self.zabiegi.append(['AGROT', self.pow_wydz])
+        self.zabiegi.append(['PIEL', self.pow_wydz])
+
+    def zab_dstan_cp(self):
+        if self.gat_gl_vol == 0:
+            self.zabiegi.append(['CP', self.pow_wydz])
+        elif self.gat_gl_vol > 0 and self.gat_gl_bhd < 10:
+            if self.gat_gl[:2] in ['TP', 'BR', 'WB', 'OS']:
+                self.zabiegi.append(['TW', self.pow_wydz])
+                self.trzebierz = True
+            else:
+                self.zabiegi.append(['CP', self.pow_wydz])
+        elif self.gat_gl_vol > 0 and self.gat_gl_bhd > 9.9999:
+            self.zabiegi.append(['TW', self.pow_wydz])
+            self.trzebierz = True
+
+    def zab_dstan_trz(self):
+        if self.gat_gl_bhd < 20:
+            self.zabiegi.append(['TW', self.pow_wydz])
+        else:
+            self.zabiegi.append(['TP', self.pow_wydz])
+        self.trzebierz = True
+
+    def zab_dstan(self):  # noqa
+        # wygeneruj rebnie o ile jest taka mozliwość
+        genr = self.generuj_rebnie()
+        if genr is not False and self.gat_gl_wiek + 9 >= self.wiekReb:
+            self.gen_reb = genr[0][0]
+            self.gen_proc_reb = genr[0][1]
+            self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
+        # jezeli uszkodzenia z 2, 3 klasy usuwamy dstan rebnią
+        if self.uszk in ('3', '4', ):
+            _genr = self.generuj_rebnie(spr=False)
+            if _genr is not False:
+                self.gen_reb = _genr[0]
+                self.gen_proc_reb = _genr[1]
+                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
+                # dodaj informacje o zmianie standardowego drylu
+                if len(self.uwagi) + len(self.uw_sl['uszk']['c']) < 255:
+                    if self.uw_sl['uszk']['c'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['uszk']['c']
+                elif len(self.uwagi) + len(self.uw_sl['uszk']['s']) < 255:
+                    if self.uw_sl['uszk']['s'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['uszk']['s']
+                else:
+                    self.uw_raport.append(self.uw_sl['uszk']['r'])
+                # dopisz odnowienie do rebni w zaleznosci od typu
+                self.zab_dstan_odn_reb()
+                return
+
+        if self.struk == 'KO':
+            # jezeli wygenerowane rebnie to I albo II to przerzucamy na IIB
+            if genr[0] in self.rebnieSpis[:11]:
+                self.gen_reb = 'IIB'
+                self.gen_proc_reb = 50
+                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
+            # jezeli co co innego to przezucamy ma IVDU
+            else:
+                self.gen_reb = 'IVDU'
+                self.gen_proc_reb = 40
+                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
+            # dopisz odnowienie do rebni w zaleznosci od typu
+            self.zab_dstan_odn_reb()
+            return
+
+        # jezeli mamy rebnie zupelna to i pow wydz powyzej 4ha dodaj uwage o
+        # traktowaniu dzialek ewid jako zrebowe
+        if self.gen_reb in ['IA', 'IB', 'IC', ]:
+            if self.ile_dzkat > 3 or self.pow_wydz > 3.9999:
+                # dodaj informacje o zmianie standardowego drylu
+                if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
+                    if self.uw_sl['reb_zup']['c'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['reb_zup']['c']
+                elif len(self.uwagi) + len(self.uw_sl['reb_zup']['s']) < 255:
+                    if self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['reb_zup']['s']
+                else:
+                    self.uw_raport.append(self.uw_sl['reb_zup']['r'])
+
+        # dopisz odnowienie do rebni w zaleznosci od typu
+        self.zab_dstan_odn_reb()
+
+        if self.gat_gl_wiek < 10:
+            self.zabiegi.append(['CW', self.pow_wydz])
+            return
+
+        if 9 < self.gat_gl_wiek < 20:
+            self.zab_dstan_cp()
+            return
+
+        if 19 < self.gat_gl_wiek < 40:
+            self.gen_reb = ''
+            self.gen_proc_reb = 0
+            self.zab_dstan_trz()
+            return
+
+        if self.wiekReb - 9 > self.gat_gl_wiek > 39:
+            self.gen_reb = ''
+            self.gen_proc_reb = 0
+            self.zabiegi.append(['TP', self.pow_wydz])
+            self.trzebierz = True
+
+    def zab_dstan_odn_reb(self):
+        # jezeli użyszkodnik wpisał jakąś rębnie to zabiegi generujemy dla
+        # podanej przez niego rebni, a jeżeli nic nie podał to jedziemy z
+        # rębnią ze słownika
+        if self.reb != '':
+            rr = self.reb
+            rr_pow = self.pow_reb
+            rr_proc = self.proc_reb * 100
+        else:
+            rr = self.gen_reb
+            rr_pow = self.gen_pow_reb
+            rr_proc = self.gen_proc_reb
+
+        # jezeli uzyszkodnik wpisal trzebiez to nie generu zabiego dla rebni
+        if len([x for x in ['TP', 'TW', 'CP-P'] if x in self.cue]):
+            return
+
+        # rebnie zupełne
+        if rr in ['IA', 'IB', 'IC']:
+            self.zabiegi.append(['ODN-ZRB', rr_pow])
+            self.zabiegi.append(['PIEL', rr_pow])
+            self.zabiegi.append(['AGROT', rr_pow])
+            return
+
+        # inne rebnie czesściowe
+        elif rr in self.rebnieSpis:
+            odn_cz = 0
+            np_sum = self.nal + self.podr
+            if np_sum > 0:
+                odn_cz = np_sum - 0.1
+
+            # oblicz pow odnowienia dla rebni cz
+            pow_odn = round(
+                (rr_proc/100)*self.pow_wydz*(1-odn_cz), 4
+            )
+
+            self.zabiegi.append(['ODN-ZŁOŻ', pow_odn])
+            self.zabiegi.append(['PIEL', pow_odn])
+            self.zabiegi.append(['AGROT', pow_odn])
+
+    def generuj_zabiegi(self):
+        """ Metoda generuje zabiegi w tablicy zab dla danego
+        wydzelenia w tablicy w postaci: [['ZABIEG', POW],...]
+        """
+
+        # kolejność wpisanych zabieów wpisanych do bazy będzie taka jak w
+        # tabeli, numeracja będie kontynuowana od największego wpisanego do
+        # bazy zabiegu, o ile taki istnieje. Jak nie to zanie od zera
+        if self.przes:
+            self.zabiegi.append(['PRZEST', self.pow_wydz])
+
+        if self.typ in ['PŁAZ', 'ZRĄB', 'HAL']:
+            self.zab_plaz()
+
+        if self.typ == 'D-STAN':
+            self.zab_dstan()
+
+            if self.trzebierz:
+                if 0.4 < self.zadrzew < 0.9:
+                    if self.luki > 0:
+                        powluk = round(self.luki, 4)
+                        self.zabiegi.append(['ODN-LUK', powluk])
+                        self.zabiegi.append(['PIEL', powluk])
+                        self.zabiegi.append(['AGROT', powluk])
+
+        return True
+
+    def oblicz_ciecie(self):  # noqa
+        ''' zwraca % ciecia dla wydz oraz wartosc pozyskania grubizny
+        '''
+        # skroc nazwy do 2 lub 3 liter, tylko takie mamy dostepne w slowniku
+        gat = ''
+        if 'BRZ' in self.gat_gl:
+            gat = 'BRZ'
+        else:
+            gat = self.gat_gl[:2].upper()
+
+        # zagreguj nazwy gatunkow do 6 podstwowych gat ze sl cieć
+        if gat in ['MD', 'LB']:
+            gat = 'SO'
+        if gat in ['JS', 'WZ', 'KL', 'GB', 'JW', ]:
+            gat = 'DB'
+        if gat in ['DG', ]:
+            gat = 'ŚW'
+
+        # jezeli dalej sa jakies wymyslone gatunki, policz jak dla BRZ
+        if gat not in ['SO', 'DB', 'ŚW', 'BRZ', 'JD', 'BK', 'OL', ]:
+            gat = 'BRZ'
+
+        klWieku = sorted(self.cieciaSl[gat].keys())
+        wiek = 0  # zmienna dla przedzialu wieku gatGl
+        if self.gat_gl_wiek < klWieku[0] + 1:
+            wiek = klWieku[0]
+        elif self.gat_gl_wiek > klWieku[-1] - 1:
+            wiek = klWieku[-1]
+        else:
+            for i in range(1, len(klWieku)):
+                if klWieku[i-1] < self.gat_gl_wiek < klWieku[i]:
+                    wiek = klWieku[i]
+
+        if self.gat_gl_vol < 6:
+            zas = 5
+        elif 5 < self.gat_gl_vol < 11:
+            zas = 10
+        else:
+            zas = round(self.gat_gl_vol/10, 0)*10
+
+        # jezeli zasobnosc jest wieksza niz max w tablicach zwroc max tablicowe
+
+        maxZas = max([x for x in self.cieciaSl[gat][wiek].keys()])
+
+        if 199 < zas < 300:
+            zas = 200
+        if zas > maxZas - 1:
+            zas = maxZas
+
+        zw = {
+              u'UM': 1,
+              u'PRZ': 2,
+              u'PEŁ': 0,
+              u'LUŹ': 3,
+              }
+
+        if self.zwarcie in zw.keys():
+            # zwracamy tablice [procent grub, m3 grub]
+            proc = self.cieciaSl[gat][wiek][int(zas)][zw[self.zwarcie]]
+            pow_ciecia = self.pow_wydz
+            if self.gen_pow_reb > 0:
+                pow_ciecia = self.gen_pow_reb
+            return [
+                proc,
+                round(self.gat_gl_vol * (float(proc)/100) * pow_ciecia, 0)
+            ]
+
+        # jezeli nie udalo sie znalezc danych w slowniku zwroc 10% grubizny
+        return [
+                99,
+                round(self.gat_gl_vol * self.pow_wydz, 0)
+                ]
+
+
+class SprawdzZabiegi():
+    def __init__(self):
+        pass
+
+    def sprawdz_zabiegi(self):
+        '''Metoda sprawdza wpisane do bazy zabiegi z tymi ktore zostały
+        wygenerowane prze klase GenerujZabiegi i zapisuje raport sprawdzenia
+        w katalogu z baza
+        '''
+        self.sprawdz_luki()
+        self.sprawdz_halizne()
+        self.sprawdz_ile_rebni()
+        self.sprawdz_KO_KDO()
+        self.sprawdz_dopasowanie_reb()
+        self.sprawdz_dopasowanie_odn()
+        self.sprawdz_pow_rebni()
+        self.sprawdz_wiek_rebnosci()
+        self.sprawdz_zadrzewienie()
+        self.sprawdz_wpisanie_rebni()
+        self.sprawdz_wpisanie_zabiegow()
+
+    def sprawdz_luki(self):
+        ''' sprawdz czy w tym wydzieleniu nie powinno byc luk ze wzg na wiek,
+        badź wpisana rebnie w zbiegach
+        '''
+        if self.luki > 0:
+            if self.gat_gl_wiek < 20 or self.reb in self.rebnieSpis:
+                self.uw_raport.append(
+                    'Nie powinno być luk w tym wydzieleniu, '
+                    'ze wzgl na wiek/rębnie'
+                )
+
+    def sprawdz_halizne(self):
+        if self.zadrzew < 0.5 and self.typ == 'D-STAN':
+            if self.gat_gl_vol == 0:
+                self.uw_raport.append('Zadrzewienie poniżej 0.5 -> HAL')
+            if self.brak_zad:
+                self.uw_raport.append('Brak wpisanego zadrzewienia w bazie')
+
+    def sprawdz_ile_rebni(self):
+        if self.ile_reb > 1:
+            self.uw_raport.append(
+                'Stwierdzono wpisanie więcej niż jednej rębni w wydzieleniu'
+            )
+
+    def sprawdz_KO_KDO(self):
+        ''' to sprawdzenie powinno byc puszczane tylko wtedy gdy mamy pewnosc
+        ze w bazie mamy wpisana tylko 1 rebnie
+        '''
+        if self.ile_reb == 1:
+            if self.nal + self.podr > 0.49 and self.struk not in ['KO', 'KDO']:
+                self.uw_raport.append(
+                    'W strukturze powinno być KO/KDO '
+                    '(ze zwzgl na nal+podr>=0.5) (' +
+                    str(self.nal)+", "+str(self.podr)+")")
+
+    def sprawdz_dopasowanie_reb(self):
+        if self.ile_reb == 1:
+            _reb = self.reb.replace('U', '')
+            if _reb not in [
+                    x[0] for x in self.rebnieSl[self.stl] + ['PŁAZ', 'IVD']]:
+
+                self.uw_raport.append(
+                    'Rębnia niedostosowana do STL ('+self.stl +
+                    '), jest: ' +
+                    self.reb + ' (' + str(self.pow_reb) + 'ha)'
+                    ', sugerowane: ' +
+                    ', '.join([x[0] for x in self.rebnieSl[self.stl]])
+                )
+
+    def sprawdz_pow_rebni(self):
+        if self.ile_reb == 1:
+            if self.reb.replace('U', '') in self.rebnieSpis[:3] and \
+                    self.pow_reb > 3.9999:
+                self.uw_raport.append(
+                    'Rębnia zupełna na powierzchni większej niż 4 ha (' +
+                    str(self.ile_dzkat) + ' dz. ewid.)'
+                )
+
+            if self.pow_wydz < self.pow_reb:
+                self.uw_raport.append(
+                    'Powierzchnia rębni większa od powierzchni wydzielenia'
+                )
+
+    def sprawdz_dopasowanie_odn(self):
+        if self.ile_reb == 1:
+            if ('ODN-ZRB' in self.cue and self.reb not in
+                    self.rebnieSpis[:3]+[self.rebnieSpis[24]]):
+                self.uw_raport.append('Odnowienie zrębu na rębni częściowej')
+            if ('ODN-ZŁOŻ' in self.cue and
+                    self.reb not in self.rebnieSpis[3:24]):
+                self.uw_raport.append('Odnowienie złożone na rębni zupełnej')
+
+    def sprawdz_wiek_rebnosci(self):
+        if self.gen_reb != '' or self.reb in self.rebnieSpis:
+            if self.gat_gl == '' or self.gat_gl_wiek == 0:
+                self.uw_raport.append('Nie wpisano gatunku głównego lub wieku')
+                return
+
+            if self.gat_gl_wiek < self.wiekReb - 11:
+                if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
+                                                                          '3']:
+                        self.uw_raport.append(
+                            'Rębnia poniżej wieku rębności, ' +
+                            self.reb +
+                            u' w wieku: ' +
+                            self.gat_gl_wiek +
+                            u', wiek rębności w bazie ustalono na: ' +
+                            str(self.wiekReb[self.gat_gl]))
+
+    def sprawdz_zadrzewienie(self):
+        if self.zadrzew > 1.4:
+            self.uw_raport.append('Zadrzewienie większe niż 1.4')
+
+    def sprawdz_wpisanie_zabiegow(self):
+        for zab in self.zabiegi:
+            if zab[0] in self.cue:
+                if round(zab[1], 4) != round(self.cue[zab[0]], 4):
+                    self.uw_raport.append(
+                        'Zabieg: ' + zab[0] +
+                        ", ma powierzchnię niezgodną z wygenerowaną: " +
+                        str(zab[1]) + ',  baza: [' + str(self.cue[zab[0]]) +
+                        ']')
+            else:
+                self.uw_raport.append(
+                    'Nie wpisano zabiegu: ' + zab[0] +
+                    ", o powierzchni: " + str(zab[1])+u', # [' +
+                    u', '.join(self.cue.keys()) + ']')
+
+    def sprawdz_wpisanie_rebni(self):
+        if self.reb == '' and self.gen_reb != '' and self.typ == 'D-STAN':
+            self.uw_raport.append('Nie dodano rebni do wydzielenia?')
+
+
+class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
+    def __init__(self, aid):
+        # wczytaj wpisy i slowniki
+        self.spisy()
+
+        self.aid = aid  # arodes_int_num
+        self.adr = ''
+        self.przes = False
+        self.nal = 0
+        self.podr = 0
+
+        # dane rebni wpisanej do bazy przez taksatora
+        self.reb = ''
+        self.ile_reb = 0
+        self.pow_reb = 0
+        self.proc_reb = 0
+
+        # dane rebni wygeneowanej przez skrypt
+        self.gen_reb = ''
+        self.gen_pow_reb = 0
+        self.gen_proc_reb = 0
+
+        self.gat_gl = ''
+        self.struk = ''
+        self.zadrzew = 0
+        self.luki = 0
+        self.ile_dzkat = 0
+        self.gat_gl_wiek = 0
+        self.gat_gl_udz = 0
+        self.gat_gl_vol = 0
+        self.gat_gl_bhd = 0
+
+        # ostatnia wartość z jaką coś jest wpisane do bazy
+        self.max_cue = 0
+
+        self.wiekReb = 120  # wiek rebności standardowo ustawiamy na 120 lat
+        self.przest_vol = 0
+        self.plaz_vol = 0
+        self.brak_zad = False
+        self.zwarcie = ''
+        self.trzebierz = False  # flaga do sprawdzenia luk na trzebierzach
+        self.uszk = 0  # stopien uszkodzenia d-stanu
+        self.uw_dopisz = ''  # string z uwagami do dopisania do f_subarea
+        self.uw_raport = []  # tablica z uwagami do raportu
+        self.uwagi = ''  # string z uwagami w bazie, max dł 255 znaków!!!
+
+        # tabela z wygenerowanymi zabiegami w postaci:
+        # [[zab: pow], ...] kolejnosc ma znaczenie!
+        self.zabiegi = []
+
+        # tab z wpisanymi zabiegami przez taksatorow, brak kolejnosci zabiegow
+        self.cue = {}
+
+    def isNone(self, it):
+        if it is None:
+            return 0
+        else:
+            return it
+
+    def isNoneT(self, it):
+        if it is None:
+            return ''
+        else:
+            return it
+
+    def wpisz_wiek_rebnosci(self, sl):
+        self.wiekRebSl = sl
+        # Pobierz wiek rebnosci dla gatunku głównego
+        if self.gat_gl != '':
+            _wiekReb = self.isNone(self.wiekRebSl[self.gat_gl])
+            if _wiekReb > 0:
+                self.wiekReb = _wiekReb
+
+    def wpisz_pod_nal(self, tab):
+        for t in tab:
+            if t[1] == 'PODR':
+                self.podr = round(self.isNone(t[2]), 1)
+            if t[1] == 'NAL':
+                self.nal = round(self.isNone(t[2]), 1)
+
+            if t[1] == 'DRZEW' and t[3] == 1:
+                self.zadrzew = round(self.isNone(t[2]), 1)
+                if t[4] is not None:
+                    self.zwarcie = t[4]
+
+                # ustaw flage jesli brak wpisanego zadrzewienia
+                if t[2] is None:
+                    self.brak_zad = True
+
+    def wpisz_ist_zab(self, tab):
+        for t in tab:
+            # typ_zab: pow zab
+            self.cue[t[1]] = t[2]
+            if self.max_cue < t[3]:
+                self.max_cue = t[3]
+            if t[1] in self.rebnieSpis:
+                self.proc_reb = float(self.isNone(t[5]) / 100)
+                self.reb = t[1]
+                self.pow_reb = self.isNone(t[2])
+                self.ile_reb += 1
+
+    def wpisz_przest(self, tab):
+        if len(tab) > 0:
+            self.przes = True
+
+    def wpisz_gat_gl(self, tab):
+        if not isinstance(tab, type([])):
+            return
+        if len(tab) > 0:
+            self.gat_gl = tab[0][1]
+            self.gat_gl_bhd = self.isNone(tab[0][4])
+            self.gat_gl_wiek = self.isNone(tab[0][3])
+            self.gat_gl_vol = self.isNone(tab[0][5])
+            self.gat_gl_udz = self.isNone(tab[0][2])
+
+        if self.gat_gl != '':
+            _wiekReb = self.isNone(self.wiekRebSl[self.gat_gl])
+            if _wiekReb > 0:
+                self.wiekReb = _wiekReb
+
+    def wpisz_szczeg_wydz(self, tab):
+        if len(tab) > 0:
+            self.pow_wydz = round(self.isNone(tab[0][3]), 4)
+            self.typ = tab[0][1]
+            self.stl = tab[0][2]
+            self.opis = tab[0][4]
+            self.struk = tab[0][5]
+            self.uszk = self.isNone(tab[0][6])
+            self.uwagi = self.isNoneT(tab[0][7])
+
+    def wpisz_luki(self, tab):
+        if len(tab) > 0:
+            self.luki = tab[0][2]
+
+    def wpisz_przest_vol(self, tab):
+        if len(tab) > 0:
+            for t in tab:
+                if t[6] == 'PRZES':
+                    self.przest_vol += self.isNone(t[5])
+                else:
+                    self.plaz_vol += self.isNone(t[5])
+
+    def wpisz_dzkat(self, tab):
+        if not isinstance(tab, type([])):
+            return
+        self.ile_dzkat = tab[0][0]
+
+    def wczytaj_dane(self, tab):
+        """Metoda wczytuje podane przez użytkownika dane w postaci tablicy z
+        bazy danych z metody pobierz do zab, i wczytuje wartości do zmiennych.
+        """
+
+        self.wpisz_pod_nal(tab[0])
+        self.wpisz_ist_zab(tab[1])
+        self.wpisz_gat_gl(tab[2])
+        self.wpisz_przest(tab[3])
+        self.wpisz_szczeg_wydz(tab[4])
+        self.wpisz_przest_vol(tab[5])
+        self.wpisz_luki(tab[6])
+        self.wpisz_dzkat(tab[7])
+
+        return True
+
+    def dopisz_zabiegi(self, alter=True):  #noqa
+        '''Metoda dopisuje lub poprawia juz wpisane zbiegi do bazy na podstawie
+        wygenerowanych automatycznie
+        '''
+
+        # dopisz do bazy wygenerowana rebnie o ile nie jest juz w niej wpisana
+        # jakaś inna
+        if self.reb != '' and self.gen_reb != '' and alter:
+            self.max_cue += 1
+            wpis = self.baza.wpisz_sql(
+                "insert into F_AROD_CUE "
+                "(ARODES_INT_NUM, "
+                "MEASURE_CD, "
+                "URGENCY, "
+                "CUTTING_AREA, "
+                "LARGE_TIMBER_PERC, "
+                "CUE_RANK_ORDER, "
+                "SITE_NR, "
+                "PROC_AREA) "
+                "values(?, ?, 'N', ?, ?, ?, 0, 100);",
+                [
+                    self.aid,
+                    self.gen_reb,
+                    self.pow_wydz,
+                    self.gen_pow_reb,
+                    self.max_cue
+                ]
+            )
+
+        # jeżeli nie udalo sie wpisac rebnie do baza dodaj to do uwag i
+        # poinformuj o tym uzytkownika w raporcie
+        if not wpis:
+            self.uw_raport.append(
+                'Nie udało się wpisać wygenerowanej rębni do bazy [' +
+                self.gen_reb+']'
+            )
+
+        for it in self.zabiegi:
+            # jezeli taki zabieg jest juz w bazie zmien powierzchnie na zgodna
+            # z wygenerowana w tym przebiegu.
+            if it[0] in self.cue:
+                if it[1] != self.cue[it[0]]:
+                    self.baza.wpisz_tab(
+                        "UPDATE F_AROD_CUE SET CUTTING_AREA = ? "
+                        "WHERE ARODES_INT_NUM = ? AND "
+                        "MEASURE_CD = ?;",
+                        [it[1], self.aid, it[0]]
+                    )
+            else:
+                # jezeli jest juz wpisany jakis inny zabieg (ciecie) - pomijamy
+                if it[0] in ['TP', 'TW', 'CP-P', 'CP', 'CW'] and \
+                        len([x for x in self.zabiegi
+                             if x[0] in ['TP', 'TW', 'CP-P', 'CP', 'CW']]) > 0:
+                    continue
+
+                if it[0] in [u'TP', u'TW', u'CP-P'] and alter:
+                    self.max_cue += 1
+                    ciecie = self.oblicz_ciecie()
+                    wpis = self.baza.wpisz_tab(
+                        "insert into F_AROD_CUE ("
+                        "ARODES_INT_NUM, "
+                        "MEASURE_CD, "
+                        "URGENCY, "
+                        "CUTTING_AREA, "
+                        "LARGE_TIMBER_PERC, "
+                        "CUE_RANK_ORDER, "
+                        "SITE_NR, "
+                        "PROC_AREA, "
+                        "LARGE_TIMBER_VALUE"
+                        ") values(?, ?, 'N', ?, ?, ?, 0, ?, ?);",
+                        [
+                            self.aid,
+                            it[0],
+                            it[1],
+                            ciecie[0],
+                            self.max_cue,
+                            round((it[1]*100)/self.pow_wydz, 0),
+                            ciecie[1]
+                        ]
+                    )
+
+                    if not wpis:
+                        self.uw_raport.append(
+                            'Nie udało sie wpisać do bazy zabiegu: ' +
+                            it[0]+' '+str(it[1])
+                        )
+
+                else:
+                    self.max_cue += 1
+                    wpis = self.baza.wpisz_tag(
+                        "insert into F_AROD_CUE ("
+                        "ARODES_INT_NUM, "
+                        "MEASURE_CD, "
+                        "URGENCY, "
+                        "CUTTING_AREA, "
+                        "CUE_RANK_ORDER, "
+                        "SITE_NR, "
+                        "PROC_AREA"
+                        ") values(?, ?, 'N', ?, ?, 0, ?);",
+                        [
+                            self.aid,
+                            it[0],
+                            it[1],
+                            self.max_cue,
+                            round((it[1]*100)/self.pow_wydz, 0)
+                        ]
+                    )
+                    if not wpis:
+                        self.uw_raport.append(
+                            'Nie udało sie wpisać do bazy zabiegu: ' +
+                            it[0]+' '+str(it[1])
+                        )
+
+                if it[0] in [u'PŁAZ', u'PRZEST'] and alter:
+                    ciecie = 100
+                    grub = 0
+                    if it[0] == 'PRZEST':
+                        grub = self.przest_vol
+                    else:
+                        grub = self.plaz_vol
+
+                    self.max_cue += 1
+                    wpis = self.baza.wpisz_tab(
+                        "insert into F_AROD_CUE ("
+                        "ARODES_INT_NUM, "
+                        "MEASURE_CD, "
+                        "URGENCY, "
+                        "CUTTING_AREA, "
+                        "LARGE_TIMBER_PERC, "
+                        "CUE_RANK_ORDER, "
+                        "SITE_NR, "
+                        "PROC_AREA, "
+                        "LARGE_TIMBER_VALUE"
+                        ") values(?, ?, 'N', ?, 100, ?, 0, ?, ?);",
+                        [
+                            self.aid,
+                            it[0],
+                            it[1],
+                            ciecie,
+                            self.max_cue,
+                            round((it[1]*100)/self.pow_wydz, 0),
+                            round(grub, 0)
+                        ]
+                    )
+                    if not wpis:
+                        self.uw_raport.append(
+                            'Nie udało sie wpisać do bazy zabiegu: ' +
+                            it[0]+' '+str(it[1])
+                        )

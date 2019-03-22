@@ -40,7 +40,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj, baza_usun_op
+    shp_atlasuj, baza_usun_op, baza_zabiegi
 
 
 class LasR:
@@ -314,6 +314,11 @@ class LasR:
             QIcon(None), 'Dopisz PNSW', self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.dop_pnsw)
         self.dop_pnsw.triggered.connect(self.dopisz_pnsw)
+
+        self.dop_zab = QAction(
+            QIcon(None), 'Zabiegi dopisz/sprawdź', self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.dop_zab)
+        self.dop_zab.triggered.connect(self.zabiegi)
 
         self.m_rozlicz_pow.addSeparator()
 
@@ -617,7 +622,6 @@ class LasR:
             n.zanumeruj_pola()
             n.wyswietl_info()
 
-
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
         b.pobierz_feat()
@@ -649,6 +653,13 @@ class LasR:
         if w.pobierz_warstwy():
             w.sprawdz_wlasnosci()
             w.wyswietl_info()
+
+    def zabiegi(self):
+        z = baza_zabiegi.Zabiegi(self.iface)
+        if z.pobierz_dane():
+            z.przetworz()
+            z.generuj_raport()
+            z.wyswietl_info()
 
     def dopisanie_wydzielen(self):
         d = shp_dopisz_kody.DopiszKody(self.iface)

@@ -153,7 +153,9 @@ class Baza(object):
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        # self.baza = os.path.join(katalog, plikn)
+        self.baza = os.path.join(katalog, plikn)
+        self.zamknij()
+        self.polacz()
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
@@ -634,3 +636,158 @@ class Baza(object):
             return True
         except:  # nopep8
             return False
+
+    def pobierz_do_zab(self, aid):
+        """Metoda pobiera z bazy z rozynych tabel niezbedne dane do obliczenia
+        zabiegów dla konkretnego wydzielenia.
+        """
+        # sprawdz czy posadany aid(arodes_int_num) jest w bazie, jezeli nie
+        # zwroc false
+        if aid not in self.pobierz_wydzielenia().values():
+            return False
+
+        # wyciagamy dane na temat podrostu i nalotu wraz z udzialem
+        sql = """
+        SELECT
+            fs.arodes_int_num,
+            fs.storey_cd,
+            fs.standdensity_index,
+            fs.storey_rank_order,
+            fs.density_cd
+        FROM
+            f_arod_storey AS fs
+        WHERE
+            fs.arodes_int_num = """ + str(aid) + ';'
+
+        podNal_kwer = self.cur.execute(sql).fetchall()
+
+        # dane dotyczace rebni wpisanych przez taksatorow
+        SQL = """
+        select
+            f.arodes_int_num,
+            f.measure_cd,
+            f.cutting_area,
+            f.cue_rank_order,
+            f.proc_area,
+            f.large_timber_perc,
+            f.large_timber_value
+        from
+            f_arod_cue as f
+        where
+            f.arodes_int_num = """ + str(aid) + ';'
+        reb_kwer = self.cur.execute(SQL).fetchall()
+
+        SQL = """
+        select
+            f.ARODES_INT_NUM,
+            f.SPECIES_CD,
+            f.SPECIES_RANK_ORDER,
+            f.SPECIES_AGE,
+            f.BHD,
+            f.VOLUME_TEMP
+        FROM
+            F_STOREY_SPECIES AS f
+        WHERE
+            f.STOREY_CD = 'DRZEW' AND f.SPECIES_RANK_ORDER = 1 AND
+            f.ARODES_INT_NUM = """ + str(aid) + ';'
+        gatGl_kwer = self.cur.execute(SQL).fetchall()
+
+        # dane dotyczace przest i plaz
+        sql = '''
+        select
+            f.ARODES_INT_NUM,
+            sum(f.VOLUME_TEMP),'''
+        if self.baza[-6:] == 'sqlite':
+            sql += '''f.storey_cd '''
+        else:
+            sql += '''first(f.storey_cd) '''
+
+        sql += '''
+        FROM
+            F_STOREY_SPECIES AS f
+        WHERE
+            f.STOREY_CD in ('PŁAZ', 'PRZEST') and
+            f.ARODES_INT_NUM = ''' + str(aid) + '''
+        GROUP BY
+            f.ARODES_INT_NUM;'''
+        pp_kwer = self.cur.execute(sql).fetchall()
+
+        # szczegolowe dane o wydzieleniach
+        SQL = """
+        select
+            f.ARODES_INT_NUM,
+            f.AREA_TYPE_CD,
+            f.SITE_TYPE_CD,
+            f.SUB_AREA,
+            f.SUBAREA_INFO,
+            f.STAND_STRUCT_CD,
+            f.DAMAGE_DEGREE_CD,
+            f.SUBAREA_INFO
+        FROM
+            F_SUBAREA AS f
+        WHERE
+            f.ARODES_INT_NUM = """ + str(aid) + ';'
+        wydzSzczeg_kwer = self.cur.execute(SQL).fetchall()
+
+        # dane o przestojach
+        SQL = """
+        select
+            f.ARODES_INT_NUM,
+            f.SPECIES_CD,
+            f.PART_CD,
+            f.SPECIES_AGE,
+            f.BHD,
+            f.VOLUME,
+            f.storey_cd
+        FROM
+            F_STOREY_SPECIES AS f
+        WHERE
+            f.STOREY_CD = 'PRZES' AND
+            f.ARODES_INT_NUM = """ + str(aid) + ';'
+        przest_kwer = self.cur.execute(SQL).fetchall()
+
+        # pobierz dane dotyczace luk
+        sql = """
+        SELECT
+            f.arodes_int_num,
+            f.special_area_cd,
+            sum(f.special_area)
+        from
+            f_arod_spec_area as f
+        where
+            f.special_area_cd = 'LUKA' and
+            f.ARODES_INT_NUM = """ + str(aid) + """
+        group by
+            f.special_area_cd ;
+        """
+        luki_kwer = self.cur.execute(sql).fetchall()
+
+        # dzialki na ktorych lezy wydzielenie
+        sql = 'select count(parcel_int_num) from F_AROD_LAND_USE where ' + \
+            'arodes_int_num = ' + str(aid) + ';'
+        wydz_dzkat = self.cur.execute(sql).fetchall()
+
+        tab = [
+            podNal_kwer,
+            reb_kwer,
+            gatGl_kwer,
+            pp_kwer,
+            wydzSzczeg_kwer,
+            przest_kwer,
+            luki_kwer,
+            wydz_dzkat,
+        ]
+
+        return tab
+
+    def pobierz_wiek_reb(self):
+        # dane o wieku rebnosci pobranych z bazy
+        SQL = """
+        select
+            f.SPECIES_CD,
+            f.AVG_CUT_AGE
+        FROM
+            F_TREE_SPECIES AS f;
+        """
+        wr = {x[0]: x[1] for x in self.cur.execute(SQL).fetchall()}
+        return wr

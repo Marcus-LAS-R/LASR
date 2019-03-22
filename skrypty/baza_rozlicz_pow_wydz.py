@@ -170,7 +170,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             )
             return False
 
-        if len(duble) > 1:
+        if len(duble) > 0:
             self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
@@ -413,14 +413,17 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         del self.inter
 
-        if len(self.wydz_nierozliczone) == 0:
-            for ll in glob.glob(os.path.join(self.tempkat,
-                                             '__ls_wydz_inter.*')):
-                os.remove(ll)
+        try:
+            if len(self.wydz_nierozliczone) == 0:
+                for ll in glob.glob(os.path.join(self.tempkat,
+                                                 '__ls_wydz_inter.*')):
+                    os.remove(ll)
 
-        for ll in glob.glob(os.path.join(self.tempkat,
-                                         '__WYDZ_singleparts.*')):
-            os.remove(ll)
+            for ll in glob.glob(os.path.join(self.tempkat,
+                                             '__WYDZ_singleparts.*')):
+                os.remove(ll)
+        except:  # nopep8
+            pass
 
         QgsMessageLog.logMessage(
             '\nINFORMACJE LICZBOWE O ROZLICZENIU'
@@ -594,6 +597,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         dopisuje do bazy wygenerowane rozliczenie """
 
         if len(self.baza.pobierz_rozliczenie_wydz()) > 0:
+            self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
                 'Proszę skasować wszystkie rekordy w tabeli F_AROD_LAND_USE',
