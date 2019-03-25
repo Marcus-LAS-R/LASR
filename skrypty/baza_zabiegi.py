@@ -276,8 +276,14 @@ class GenerujZabiegi():
                 return
 
         if self.struk == 'KO':
+            _genr = self.generuj_rebnie(spr=False)
+            if _genr is False:
+                self.gen_reb = 'IIB'
+                self.gen_proc_reb = 50
+                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
             # jezeli wygenerowane rebnie to I albo II to przerzucamy na IIB
-            if genr[0] in self.rebnieSpis[:11]:
+            elif _genr[0] in self.rebnieSpis[:11]:
                 self.gen_reb = 'IIB'
                 self.gen_proc_reb = 50
                 self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
@@ -551,6 +557,13 @@ class SprawdzZabiegi():
                     str(self.ile_dzkat) + ' dz. ewid.)'
                 )
 
+                if self.pow_wydz > self.pow_reb:
+                    self.uw_raport.append(
+                        'Powierzchnia rębni mniejsza od powierzchni '
+                        'wydzielenia  ' +
+                        str(self.pow_reb) + ' / ' + str(self.pow_wydz) + ' ha'
+                    )
+
             if self.pow_wydz < self.pow_reb:
                 self.uw_raport.append(
                     'Powierzchnia rębni większa od powierzchni wydzielenia  ' +
@@ -574,7 +587,7 @@ class SprawdzZabiegi():
 
             if self.gat_gl_wiek < self.wiekReb - 11:
                 if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
-                                                                          '3']:
+                                                                         '3']:
                         self.uw_raport.append(
                             'Rębnia poniżej wieku rębności, ' +
                             self.reb +
@@ -1048,8 +1061,6 @@ class PobierzDane(QDialog):
         self.porzuc = True
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
-        self.ui.lineEdit_baza.setText(
-            '/home/qnox/upul/testy/grabica/baza_czysta.sqlite')
 
         self.ui.pushButton_ok.clicked.connect(self.zatwierdz)
         self.ui.pushButton_porzuc.clicked.connect(self.porzucone)

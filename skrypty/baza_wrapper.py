@@ -747,10 +747,20 @@ class Baza(object):
         przest_kwer = self.cur.execute(SQL).fetchall()
 
         # pobierz dane dotyczace luk
-        sql = """
-        SELECT
-            f.arodes_int_num,
-            f.special_area_cd,
+        if self.baza[-6:] == 'sqlite':
+            sql = """
+            SELECT
+                f.arodes_int_num,
+                f.special_area_cd,
+                """
+        else:
+            sql = """
+            SELECT
+                first(f.arodes_int_num),
+                first(f.special_area_cd),
+                """
+
+        sql += """
             sum(f.special_area)
         from
             f_arod_spec_area as f
