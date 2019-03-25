@@ -26,6 +26,9 @@ class Zabiegi():
         self.dd = PobierzDane()
         self.dd.exec_()
 
+        if self.dd.porzuc:
+            return False
+
         if self.dd.ui.lineEdit_baza.text() not in ['', ' ', None, 'None']:
             self.baza = Baza(self.dd.ui.lineEdit_baza.text())
             if not self.baza.polacz():
@@ -67,9 +70,10 @@ class Zabiegi():
                 _wydz.dodaj_baze(self.baza)
 
                 if self.wybor == 'Uzu':
-                    _wydz.dopisz_zabiegi(False)
+                    _wydz.zmodyfikuj_zabiegi()
 
                 if self.wybor == 'Dop':
+                    _wydz.zmodyfikuj_zabiegi()
                     _wydz.dopisz_zabiegi()
 
                 # jezeli cos dopisywalismy do baza musimy pobrac z bazyy
@@ -549,7 +553,8 @@ class SprawdzZabiegi():
 
             if self.pow_wydz < self.pow_reb:
                 self.uw_raport.append(
-                    'Powierzchnia rębni większa od powierzchni wydzielenia'
+                    'Powierzchnia rębni większa od powierzchni wydzielenia  ' +
+                    str(self.pow_reb) + ' / ' + str(self.pow_wydz) + ' ha'
                 )
 
     def sprawdz_dopasowanie_odn(self):
@@ -832,7 +837,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
             else:
                 self.dodano += 1
 
-        # uaktualnij w bazie powierzchnie wpisanej rebeni o ile jest taka sama
+        # uaktualnij w bazie powierzchnie wpisanej rebni o ile jest taka sama
         # jak wygenerowana w tym przebiegu
         if self.reb == self.gen_reb and self.pow_reb != self.gen_pow_reb and \
                 self.reb != '':
@@ -973,6 +978,67 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                         )
                     else:
                         self.dodano += 1
+
+    def zmodyfikuj_zabiegi(self):
+        ''' Metoda modyfikuj wpisane zabiegi tylko poprzez podmiane powierzchni
+        na podstawie procentow podanych w glownym zabiegu. Jeśli czegoś takiego
+        nie ma, sprawdza czy pow nie jest wieksza od pow wydzielenia'''
+
+        reb_cz_tab = [z for z in self.cue.keys() if z in self.rebnieSpis[3:-1]]
+        reb_cz = False
+        if len(reb_cz_tab) > 0:
+            reb_cz = reb_cz_tab[0]
+
+        for zab in self.cue.keys():
+            # olewamy poprawę zabiegów w wydzieleniach z tp,
+            # njaprawdopodobniej sa to odnowienia luk i maja dobre pow
+            if len([x for x in ['TP', 'TW'] if x in self.cue.keys()]) > 0 and\
+                    zab not in ['TP', 'TW']:
+                continue
+
+            if zab in ['TP', 'TW', 'CP-P', 'PRZES', 'PRZEST'] + \
+                    self.rebnieSpis or self.cue[zab] > self.pow_wydz:
+                wpis = self.baza.wpisz_tab([
+                    "UPDATE F_AROD_CUE SET CUTTING_AREA = ? "
+                    "WHERE ARODES_INT_NUM = ? AND "
+                    "MEASURE_CD = ?;",
+                    (self.pow_wydz, self.aid, zab)
+                ])
+                if not wpis:
+                    self.uw_baza.append(
+                        'Nie udało sie poprawić pow. zabiegu: ' + zab
+                    )
+                else:
+                    self.zmodyfikowano += 1
+
+            else:
+                # jezeli mamy procent rebni, to mnozymy akt pow_wydz i
+                # wpisujemy do bazy
+                if self.proc_reb > 0:
+                    # inne rebnie cześciowe
+                    odn_cz = 0
+                    if reb_cz:
+                        np_sum = self.nal + self.podr
+                        if np_sum > 0.1:
+                            odn_cz = np_sum - 0.1
+
+                    wpis = self.baza.wpisz_tab([
+                        "UPDATE F_AROD_CUE SET CUTTING_AREA = ? "
+                        "WHERE ARODES_INT_NUM = ? AND "
+                        "MEASURE_CD = ?;",
+                        (
+                            round((self.proc_reb/100)*self.pow_wydz*(1-odn_cz),
+                                  4),
+                            self.aid,
+                            zab
+                         )
+                    ])
+                    if not wpis:
+                        self.uw_baza.append(
+                            'Nie udało sie poprawić w bazie zabiegu: ' + zab
+                        )
+                    else:
+                        self.zmodyfikowano += 1
 
 
 class PobierzDane(QDialog):

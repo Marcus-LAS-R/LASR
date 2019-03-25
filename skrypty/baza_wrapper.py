@@ -153,9 +153,9 @@ class Baza(object):
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        self.baza = os.path.join(katalog, plikn)
-        self.zamknij()
-        self.polacz()
+        # self.baza = os.path.join(katalog, plikn)
+        # self.zamknij()
+        # self.polacz()
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:
