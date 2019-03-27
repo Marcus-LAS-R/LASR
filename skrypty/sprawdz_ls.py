@@ -55,8 +55,9 @@ class SprawdzLs(object):
         return True
 
     def sprawdz(self):
-        if self.a.sprawdz_warunki():
+        if not self.a.sprawdz_warunki():
             return False
+        return True
 
     def przygotuj(self):
         self.postep.setValue(10)
@@ -243,12 +244,22 @@ class AnalizujKlus(object):
                                                )
         policz = Counter([x['PARCELID'] for x in
                           self.dzkat.getFeatures(request)]).most_common()
-        nad = [x[0] for x in policz if x[1] > 2]
+        nad = [isNone(x[0]) for x in policz if x[1] > 2]
 
         if len(nad) > 0:
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage(
+                'Uwaga',
+                'Znaleziono zdublowanych działek w wartwie DZKAT: \n' +
+                str(len(nad)) + '    (patrz log LAS-R)',
+                Qgis.Critical,
+                0
+            )
             QgsMessageLog.logMessage(
                 '   Znaleziono zdublowanych działek w shp: \n' +
-                '\n'.join(nad),
+                '(puste lista poniżej oznacza, niewypełnioną kolumnę '
+                'PARCELID)\n' +
+                '\n'.join(nad) + '\n---------------------',
                 'Las-R',
                 Qgis.Critical
             )

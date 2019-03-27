@@ -557,7 +557,8 @@ class LasR:
             return
         if not spr.wczytaj():
             return
-        spr.sprawdz()
+        if not spr.sprawdz():
+            return
         spr.przygotuj()
         spr.przetworz()
 
