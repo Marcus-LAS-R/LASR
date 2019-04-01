@@ -1303,8 +1303,15 @@ class PrzetworzKlu(object):
                     # przechodzi kontroli geos.
                     # Dodałem informację dla usera o sprawdzeniu geometrii
 
+                # TODO: Przetestować toto, fix na szybko dla Marka
                 new_geom.convertToMultiType()
-                gpopr = usun_wasy(new_geom)
+                if not new_geom.isNull():
+                    try:
+                        gpopr = usun_wasy(new_geom)
+                    except:  # nopep8
+                        gpopr = geom_baza
+                else:
+                    gpopr = geom_baza
 
                 # usun powtarzajace sie wierzcholki i mikrowasy
                 self.poprawne[y].clearGeometry()
