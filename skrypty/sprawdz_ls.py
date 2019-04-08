@@ -1310,8 +1310,10 @@ class PrzetworzKlu(object):
                         gpopr = usun_wasy(new_geom)
                     except:  # nopep8
                         gpopr = geom_baza
+                        result = '9'
                 else:
                     gpopr = geom_baza
+                    result = '9'
 
                 # usun powtarzajace sie wierzcholki i mikrowasy
                 self.poprawne[y].clearGeometry()

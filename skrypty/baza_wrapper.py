@@ -22,11 +22,12 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
         wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
         kat = os.path.dirname(wydz_sc)
 
+        poziom = '../..' if wydz.name() == 'ODDZ' else '..'
         try:
             if platform.system()[:3] == 'Win':
-                bTemp = glob.glob(os.path.join(kat, "..", "*.mdb"))
+                bTemp = glob.glob(os.path.join(kat, poziom, "*.mdb"))
             else:
-                bTemp = glob.glob(os.path.join(kat, "..", "*.sqlite"))
+                bTemp = glob.glob(os.path.join(kat, poziom, "*.sqlite"))
         except:  # nopep8
             iface.messageBar().pushMessage(
                 'BŁĄD',
@@ -545,16 +546,8 @@ class Baza(object):
             return self.cur.execute(sql).fetchall()
 
         elif self.baza[-6:] == 'sqlite':
-            sql = """
-                select
-                    *
-                from
-                POW_suma
-               ;
-               """
-
+            sql = "select * from POW_suma;"
             tab = self.cur.execute(sql).fetchall()
-
             return [list(t) + [sum(t[2:4])-t[4]]
                     for t in tab]
 
