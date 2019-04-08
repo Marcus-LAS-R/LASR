@@ -729,7 +729,7 @@ class AnalizujKlus(object):
         self.rap_sc = os.path.join(
             self.kat, "ls_raport_"+self.czas+".txt")
 
-        open(self.rap_sc, 'w', encoding='cp1250').write(rap_out)
+        open(self.rap_sc, 'wb').write(rap_out.encode('cp1250'))
 
 
 class PrzetworzKlu(object):
