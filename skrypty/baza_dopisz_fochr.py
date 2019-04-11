@@ -46,6 +46,7 @@ class DopiszFO(SprawdzWydzielenia):
                                  )
         self.baza = Baza(self.Dane.ui.lineEdit_baza.text())
         self.baza.utworz_kopie('kopia_formyOchrony')
+        return True
 
     def poprawne_fo(self):
         """Metoda grupujaca wszystkie sprawdzenia danych i bazy dla fo"""
