@@ -243,9 +243,12 @@ class DopiszFO(SprawdzWydzielenia):
         if typy_w.issubset(typy_b):
             return True
 
+        braki = [x for x in typy_w if x not in typy_b]
+
         self.iface.messageBar().pushMessage(
             'formy ochrony',
-            'Typy form ochrony w shp, nie są zgodne ze słownikiem w bazie',
+            'Typy form ochrony w shp, nie są zgodne ze słownikiem w bazie [' +
+            ', '.join(braki) + ']',
             Qgis.Critical,
             10)
         return False
