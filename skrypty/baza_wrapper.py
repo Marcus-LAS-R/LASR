@@ -22,7 +22,11 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
         wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
         kat = os.path.dirname(wydz_sc)
 
-        poziom = '../..' if wydz.name() == 'ODDZ' else '..'
+        if wydz.name() == 'ODDZ':
+            poziom = '..'
+        else:
+            poziom = '../..'
+
         try:
             if platform.system()[:3] == 'Win':
                 bTemp = glob.glob(os.path.join(kat, poziom, "*.mdb"))
@@ -31,7 +35,7 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
         except:  # nopep8
             iface.messageBar().pushMessage(
                 'BŁĄD',
-                'Nie udało się odnaleźć bazy',
+                'Nie udało się odnaleźć bazy - wysyp',
                 Qgis.Critical,
                 10)
             return False

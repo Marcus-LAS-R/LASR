@@ -158,7 +158,6 @@ class DopiszPnsw(SprawdzWydzielenia):
             self.sl_wydz[fw.id()] = fw
 
         # sprawdz nakładanie dla PNSW
-        self.pnsw.startEditing()
         for pnsw in self.pnsw.getFeatures():
 
             if isNone(pnsw['KOD_PNSW']) not in self.sl_baza:
@@ -173,12 +172,16 @@ class DopiszPnsw(SprawdzWydzielenia):
                 inter = self.sl_wydz[id].geometry().intersection(geom)
                 if inter.area() / geom.area() >= 0.9:
                     # jeżeli podmieniamy geometrię wpisujemy też rozpoznany adr
-                    self.pnsw.changeGeometry(pnsw.id(), inter)
+                    self.pnsw.startEditing()
+                    if inter.isGeosValid():
+                        if inter.area() > 0:
+                            self.pnsw.changeGeometry(pnsw.id(), inter)
                     self.pnsw.dataProvider().changeAttributeValues({
                         pnsw.id(): {self.fnm['ADR_BDL']:
                                     self.sl_wydz[id]['ADR_LES']}
                     })
                     self.pnsw_podm += 1
+                    self.pnsw.commitChanges()
                     break
 
                 elif inter.area() / geom.area() < 0.1:
@@ -186,8 +189,6 @@ class DopiszPnsw(SprawdzWydzielenia):
 
                 else:
                     self.feat_do_spr.append(pnsw)
-
-        self.pnsw.commitChanges()
 
         if len(self.feat_do_spr) > 0:
             wyps = 'W warstwie PNSW znajdują się poligony przecinające ' + \
