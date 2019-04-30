@@ -46,6 +46,7 @@ class DopiszFO(SprawdzWydzielenia):
                                  )
         self.baza = Baza(self.Dane.ui.lineEdit_baza.text())
         self.baza.utworz_kopie('kopia_formyOchrony')
+        return True
 
     def poprawne_fo(self):
         """Metoda grupujaca wszystkie sprawdzenia danych i bazy dla fo"""
@@ -242,9 +243,12 @@ class DopiszFO(SprawdzWydzielenia):
         if typy_w.issubset(typy_b):
             return True
 
+        braki = [x for x in typy_w if x not in typy_b]
+
         self.iface.messageBar().pushMessage(
             'formy ochrony',
-            'Typy form ochrony w shp, nie są zgodne ze słownikiem w bazie',
+            'Typy form ochrony w shp, nie są zgodne ze słownikiem w bazie [' +
+            ', '.join(braki) + ']',
             Qgis.Critical,
             10)
         return False
