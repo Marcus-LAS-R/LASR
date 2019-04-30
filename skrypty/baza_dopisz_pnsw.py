@@ -105,8 +105,7 @@ class DopiszPnsw(SprawdzWydzielenia):
                              self.wydz.dataProvider().fields().toList()]:
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
-                'Brak kolumny ADR_LES w warstwie WYDZ - '
-                'piłeś coś dzisiaj, drogi użytkowniku?',
+                'Brak kolumny ADR_LES w warstwie WYDZ - ',
                 Qgis.Critical,
                 0
             )
@@ -306,7 +305,8 @@ class DopiszPnsw(SprawdzWydzielenia):
 
         self.iface.messageBar().pushMessage(
             'OK',
-            'Wpisałem do bazy: ' + str(len(self.wpis)) + ' PNSW',
+            'Wpisałem do bazy: ' + str(len(self.wpis)) + ' / ' +
+            str(self.pnsw.featureCount()) + ' PNSW',
             Qgis.Success,
             10
         )
