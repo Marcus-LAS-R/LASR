@@ -40,7 +40,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj, baza_usun_op, baza_zabiegi
+    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly
 
 
 class LasR:
@@ -223,21 +223,29 @@ class LasR:
         menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(),
                            self.menu)
 
-        self.m_przyg_danych = QMenu(u'Przygotowanie danych', self.menu)
-        self.m_rozlicz_pow = QMenu(u'Rozliczenie powierzchni', self.menu)
-        self.m_kontrola_danych = QMenu(u'Kontrola danych', self.menu)
-        self.m_style = QMenu(u'Style warstw', self.menu)
+        self.m_przyg_danych = QMenu('Przygotowanie danych', self.menu)
+        self.m_rozlicz_pow = QMenu('Rozliczenie powierzchni', self.menu)
+        self.m_kontrola_danych = QMenu('Kontrola danych', self.menu)
+        self.m_style = QMenu('Style warstw', self.menu)
+        self.m_narzedzia = QMenu('Narzędziowe', self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_kontrola_danych)
         self.menu.addMenu(self.m_style)
+        self.menu.addMenu(self.m_narzedzia)
 
         self.przyg_dzewid = QAction(QIcon(None),
                                     u"Przygotuj działki ewidencyjne",
                                     self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
+
+        self.a_snapuj = QAction(QIcon(None),
+                                "Przysnapuj do dzałek",
+                                self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.a_snapuj)
+        self.a_snapuj.triggered.connect(self.przysnapuj_do_dzewid)
 
         self.przyg_ls = QAction(
             QIcon(None), u"Przygotuj Lsy", self.iface.mainWindow())
@@ -420,6 +428,11 @@ class LasR:
                                self.iface.mainWindow())
         self.m_style.addAction(self.rys_klu)
         self.rys_klu.triggered.connect(self.rysuj_klu)
+
+        self.a_dod_adm = QAction(
+            QIcon(None), 'Dodaj [MUNICIP, COMUNITY]', self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_dod_adm)
+        self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
 
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
@@ -778,3 +791,17 @@ class LasR:
 
     def powierzchnia_graf(self):
         funkcje.oblicz_pow_graf(self.iface)
+
+    def dodaj_mun_comm(self):
+        funkcje.dodaj_adm(self.iface)
+
+    def przysnapuj_do_dzewid(self):
+        s = shp_dociagnij_poly.Przyciagnij(self.iface)
+        if not s.pobierz_dane():
+            return
+        if not s.sprawdz_dane():
+            return False
+        s._przetworz()
+        s.podociagaj()
+        s.stworz_poligony()
+        s.pokaz_warstwy()

@@ -528,10 +528,12 @@ class SprawdzZabiegi():
         ze w bazie mamy wpisana tylko 1 rebnie
         '''
         if self.ile_reb == 1:
-            if self.nal + self.podr > 0.49 and self.struk not in ['KO', 'KDO']:
+            if self.pods + self.nal + self.podr > 0.49 and \
+                    self.struk not in ['KO', 'KDO']:
                 self.uw_raport.append(
                     'W strukturze powinno być KO/KDO '
-                    '(ze zwzgl na nal+podr>=0.5) (' +
+                    '(ze zwzgl na pods+nal+podr>=0.5) (' +
+                    str(self.pods) + ', ' +
                     str(self.nal)+", "+str(self.podr)+")")
 
     def sprawdz_dopasowanie_reb(self):
@@ -587,7 +589,7 @@ class SprawdzZabiegi():
 
             if self.gat_gl_wiek < self.wiekReb - 11:
                 if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
-                                                                         '3']:
+                                                                          '3']:
                         self.uw_raport.append(
                             'Rębnia poniżej wieku rębności, ' +
                             self.reb +
@@ -640,6 +642,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         self.przes = False
         self.nal = 0
         self.podr = 0
+        self.pods = 0
 
         # dane rebni wpisanej do bazy przez taksatora
         self.reb = ''
@@ -724,6 +727,8 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                 self.podr = round(self.isNone(t[2]), 1)
             if t[1] == 'NAL':
                 self.nal = round(self.isNone(t[2]), 1)
+            if t[1] == 'PODS':
+                self.pods = round(self.isNone(t[2]), 1)
 
             if t[1] == 'DRZEW' and t[3] == 1:
                 self.zadrzew = round(self.isNone(t[2]), 1)

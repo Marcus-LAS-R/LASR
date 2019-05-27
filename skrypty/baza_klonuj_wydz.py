@@ -278,36 +278,40 @@ class Klonuj():
         if len(spr) > 0:
             return False
 
-        it = item[0]
-        sql = '''insert into f_arod_goal (
-                GOAL_TYPE_FL,
-                ARODES_INT_NUM ,
-                SPECIES_CD ,
-                GOAL_RANK_ORDER
-                )
-                values (\'''' + \
-            str(isNone(it[0])) + '\', ' + \
-            str(self.wydz[do]) + ', \'' + \
-            str(isNone(it[2])) + '\', ' +  \
-            str(it[3]) + ');'
+        blednie_wpisano = False
+        for it in item:
+            sql = '''insert into f_arod_goal (
+                    GOAL_TYPE_FL,
+                    ARODES_INT_NUM ,
+                    SPECIES_CD ,
+                    GOAL_RANK_ORDER
+                    )
+                    values (\'''' + \
+                str(isNone(it[0])) + '\', ' + \
+                str(self.wydz[do]) + ', \'' + \
+                str(isNone(it[2])) + '\', ' +  \
+                str(it[3]) + ');'
 
-        tab = [
-            '''insert into f_arod_goal (
-                GOAL_TYPE_FL,
-                ARODES_INT_NUM ,
-                SPECIES_CD ,
-                GOAL_RANK_ORDER
+            tab = [
+                '''insert into f_arod_goal (
+                    GOAL_TYPE_FL,
+                    ARODES_INT_NUM ,
+                    SPECIES_CD ,
+                    GOAL_RANK_ORDER
+                    )
+                    values (?,?,?,?);''',
+                (
+                    it[0],
+                    self.wydz[do],
+                    it[2],
+                    it[3]
                 )
-                values (?,?,?,?);''',
-            (
-                it[0],
-                self.wydz[do],
-                it[2],
-                it[3]
-            )
-        ]
+            ]
 
-        if not self.baza.wpisz_tab(tab):
+            if not self.baza.wpisz_tab(tab):
+                blednie_wpisano = True
+
+        if blednie_wpisano:
             return False
         return True
 

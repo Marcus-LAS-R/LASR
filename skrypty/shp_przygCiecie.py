@@ -1,7 +1,151 @@
 import os
-from qgis.core import QgsVectorLayer, Qgis, QgsField, QgsMessageLog, QgsProject
+from qgis.core import QgsVectorLayer, Qgis, QgsField, QgsMessageLog, \
+    QgsProject, QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
+    QgsGeometry, QgsFeature, QgsPointXY, QgsFeatureRequest, \
+    QgsExpression
 from PyQt5.QtCore import QVariant
 import processing
+
+
+def stworz_linie(kat):
+    lin = QgsVectorLayer("LineString?crs=epsg:2180&field=ID:integer"
+                         "&index=yes", 'lin', 'memory'
+                         )
+    lin_pola = [
+        QgsField("KOD", QVariant.String, len=25),
+        QgsField("SZER", QVariant.Double, "double", 10, 4),
+    ]
+
+    lin.startEditing()
+    lin.dataProvider().addAttributes(lin_pola)
+    lin.updateFields()
+    lin.commitChanges()
+
+    crs = QgsCoordinateReferenceSystem("epsg:2180")
+    QgsVectorFileWriter.writeAsVectorFormat(
+        lin,
+        os.path.join(os.path.join(kat, "LINIE.shp")),
+        "UTF-8",
+        crs,
+        "ESRI Shapefile")
+
+
+def stworz_pnsw(kat):
+    pnsw = QgsVectorLayer("Polygon?crs=epsg:2180&field=ID:integer"
+                          "&index=yes", 'pnsw', 'memory'
+                          )
+    pnsw_pola = [
+        QgsField("ADR_BDL", QVariant.String, len=25),
+        QgsField("KOD_PNSW", QVariant.String, len=12),
+        QgsField("NR_PNSW", QVariant.Int),
+        QgsField("NR_EW", QVariant.String, len=25),
+        QgsField("ADR_ADM", QVariant.String, len=25),
+        QgsField("POW_GRAF", QVariant.Double, "double", 10, 4),
+    ]
+
+    pnsw.startEditing()
+    pnsw.dataProvider().addAttributes(pnsw_pola)
+    pnsw.updateFields()
+
+    pnsw.commitChanges()
+    crs = QgsCoordinateReferenceSystem("epsg:2180")
+    QgsVectorFileWriter.writeAsVectorFormat(
+        pnsw,
+        os.path.join(os.path.join(kat, "PNSW.shp")),
+        "UTF-8",
+        crs,
+        "ESRI Shapefile")
+
+
+def stworz_maske(wydz):
+    ls_sciezka = wydz.dataProvider().dataSourceUri().split("|")[0]
+    kat = os.path.dirname(ls_sciezka)
+    e = wydz.extent()
+    xmin = e.xMinimum() - 4000
+    xmax = e.xMaximum() + 4000
+    ymin = e.yMinimum() - 4000
+    ymax = e.yMaximum() + 4000
+
+    mf = QgsFeature()
+    geom = QgsGeometry().fromPolygonXY([[
+        QgsPointXY(xmin, ymin),
+        QgsPointXY(xmin, ymax),
+        QgsPointXY(xmax, ymax),
+        QgsPointXY(xmax, ymin),
+        QgsPointXY(xmin, ymin),
+    ]])
+    mf.setGeometry(geom)
+
+    maska_temp = QgsVectorLayer('Polygon?crs=epsg:2180&index=yes',
+                                'maska_temp', 'memory'
+                                )
+    maska_temp.startEditing()
+    maska_temp.addFeatures([mf, ])
+    maska_temp.commitChanges()
+
+    processing.run('native:difference', {
+        'INPUT': maska_temp,
+        'OVERLAY': wydz,
+        'OUTPUT': os.path.join(kat, 'MASKA.shp'),
+    })
+
+
+def stworz_99(wydz):
+    # stworz polaczona warstwe wydzielen z kodem GRP 99
+    ls_sciezka = wydz.dataProvider().dataSourceUri().split("|")[0]
+    kat = os.path.dirname(ls_sciezka)
+    expr = QgsExpression('"GRP" = 99')
+    req = QgsFeatureRequest(expr)
+    feats = [x for x in wydz.getFeatures(req)]
+    QgsMessageLog.logMessage(
+        'Odnaleziono użytków ze współwłasnością: ' + str(len(feats)),
+        'Las-R',
+        Qgis.Info
+    )
+    if len(feats) == 0:
+        return
+
+    w99 = QgsVectorLayer('MultiPolygon?crs=epsg:2180&index=yes',
+                         '99temp', 'memory'
+                         )
+    w99.startEditing()
+    w99.dataProvider().addFeatures(feats)
+    w99.commitChanges()
+
+    processing.run('native:dissolve', {
+        'INPUT': w99,
+        'FIELD': 'GRP',
+        'OUTPUT': os.path.join(kat, '99.shp'),
+    })
+
+
+def stworz_pozaewid(wydz):
+    # stworz polaczona warstwe wydzielen z kodem GRP 99
+    ls_sciezka = wydz.dataProvider().dataSourceUri().split("|")[0]
+    kat = os.path.dirname(ls_sciezka)
+    expr = QgsExpression('"AU" != \'Ls\'')
+    req = QgsFeatureRequest(expr)
+    feats = [x for x in wydz.getFeatures(req)]
+    QgsMessageLog.logMessage(
+        'Odnaleziono użytków pozaewidencyjnych: ' + str(len(feats)),
+        'Las-R',
+        Qgis.Info
+    )
+    if len(feats) == 0:
+        return
+
+    pet = QgsVectorLayer('MultiPolygon?crs=epsg:2180&index=yes',
+                         'pozaewid_temp', 'memory'
+                         )
+    pet.startEditing()
+    pet.dataProvider().addFeatures(feats)
+    pet.commitChanges()
+
+    processing.run('native:dissolve', {
+        'INPUT': pet,
+        'FIELD': '',
+        'OUTPUT': os.path.join(kat, 'pozaewidencyjne.shp'),
+    })
 
 
 def przygotujDoCiecia(iface):  # noqa
@@ -63,8 +207,6 @@ def przygotujDoCiecia(iface):  # noqa
         )
         return
 
-        return
-
     # ----------------------------
 
     # sprawdz czy nie ma poprzedniej wersji pliku
@@ -90,7 +232,6 @@ def przygotujDoCiecia(iface):  # noqa
         'INPUT': ls_sciezka,
     })
 
-    # Rozbij uzytki na single parts
     wydz = QgsVectorLayer(wydz_sc, 'WYDZ', 'ogr')
     wydz.startEditing()
 
@@ -126,7 +267,7 @@ def przygotujDoCiecia(iface):  # noqa
     for f in wydz.getFeatures():
         if woj == '-1':
             w = str(f['COUNTY'])
-            if w != 'NULL':
+            if w in sl_woj:
                 woj = sl_woj[w]
             else:
                 woj = '-1'
@@ -142,6 +283,78 @@ def przygotujDoCiecia(iface):  # noqa
             bledy_zerowe = True
 
     wydz.commitChanges()
+
+    # dodaj warstwe PNSW do katalogu
+    stworz_pnsw(kat)
+    # dodaj warstwe lini
+    stworz_linie(kat)
+    stworz_maske(ls)
+    stworz_99(ls)
+    stworz_pozaewid(ls)
+
+    # dodaj przetworzona warstwe oddz
+    if os.path.isfile(os.path.join(kat, 'OBR.shp')):
+        obr = QgsVectorLayer(
+            os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
+        )
+
+        adr_adm = ''
+        if 'jpt_kod_je' in \
+                [x.name() for x in obr.dataProvider().fields().toList()]:
+            adr_adm = 'jpt_kod_je'
+        if 'G5NRO' in \
+                [x.name() for x in obr.dataProvider().fields().toList()]:
+            adr_adm = 'G5NRO'
+
+        oddz_fields = [
+            QgsField("MUNICIP", QVariant.String, len=3),
+            QgsField("COMMUNITY", QVariant.String, len=4),
+            QgsField("ODDZ", QVariant.String, len=6),
+        ]
+
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            obr,
+            os.path.join(os.path.join(kat, "ODDZ.shp")),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+
+        oddz = QgsVectorLayer(
+            os.path.join(os.path.join(kat, "ODDZ.shp")), 'ODDZ', 'ogr')
+
+        oddz.startEditing()
+        oddz.dataProvider().addAttributes(oddz_fields)
+        oddz.commitChanges()
+        fnm = oddz.dataProvider().fieldNameMap()
+
+        # jezeil mamy kolumne z adr adm dopisz doWarstwy kody z municip i
+        # community, oraz wpisz wszedzie oddz 1
+        if adr_adm != '':
+            for feat in oddz.getFeatures():
+                try:
+                    municip = feat[adr_adm][4:8].replace('_', '')
+                except:  # nopep8
+                    municip = ''
+                try:
+                    comm = feat[adr_adm][-4:]
+                except:  # nopep8
+                    comm = ''
+                oddz.dataProvider().changeAttributeValues(
+                    {feat.id(): {
+                        fnm['MUNICIP']: municip,
+                        fnm['COMMUNITY']: comm,
+                        fnm['ODDZ']: '1',
+                    }})
+
+        _skasuj = [fnm[x.name()] for x in oddz.fields()
+                   if x.name() not in [y.name() for y in oddz_fields]]
+        oddz.startEditing()
+        oddz.dataProvider().deleteAttributes(_skasuj)
+        oddz.commitChanges()
+
+        QgsProject.instance().addMapLayer(oddz)
+
     if bledy_zerowe:
         iface.messageBar().pushMessage(
             'OSTRZEŻENIE',
@@ -160,6 +373,34 @@ def przygotujDoCiecia(iface):  # noqa
         )
 
     QgsProject.instance().addMapLayer(wydz)
+
+    # dodaj warstwe pnsw i lini to TOC
+    pnsw = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "PNSW.shp")),
+        'PNSW', 'ogr')
+    QgsProject.instance().addMapLayer(pnsw)
+
+    linie = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "LINIE.shp")),
+        'LINIE', 'ogr')
+    QgsProject.instance().addMapLayer(linie)
+
+    maska = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "MASKA.shp")),
+        'MASKA', 'ogr')
+    QgsProject.instance().addMapLayer(maska)
+
+    w99 = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "99.shp")),
+        '99', 'ogr')
+    if w99.isValid():
+        QgsProject.instance().addMapLayer(w99)
+
+    pozaewidencyjne = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "pozaewidencyjne.shp")),
+        'pozaewidencyjne', 'ogr')
+    if pozaewidencyjne.isValid():
+        QgsProject.instance().addMapLayer(pozaewidencyjne)
 
     QgsMessageLog.logMessage(
         '------ KONIEC --------- ',

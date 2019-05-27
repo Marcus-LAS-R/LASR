@@ -299,3 +299,43 @@ def oblicz_pow_graf(iface):
         QgsProject.instance().addMapLayer(bledy)
 
     iface.messageBar().pushMessage(wyps_gl, wyps, typ)
+
+
+def dodaj_adm(iface):
+    # metoda dodaje do zaznaczonej warstwy wektorowej, kolumny MUNICIP,
+    # COMMUNITY o ile ich już nie ma w terj warstwie
+    lyr = iface.activeLayer()
+    try:
+        if lyr.wkbType() in [1, 2, 3, 4, 5, 6]:
+            pass
+    except:  # nopep8
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Wspierane są tylko warstwy wektorowe',
+            Qgis.Warning
+        )
+
+    pola = [
+        QgsField("MUNICIP", QVariant.String, len=3),
+        QgsField("COMMUNITY", QVariant.String, len=4),
+    ]
+    attr = [y for y in pola if y.name() not in
+            [x.name() for x in lyr.fields()]]
+    if len(attr) > 0:
+        lyr.startEditing()
+        lyr.dataProvider().addAttributes(attr)
+        lyr.updateFields()
+        lyr.commitChanges()
+
+        iface.messageBar().pushMessage(
+            'OK',
+            'Warstwa uzupełniono o brakujące pola [' +
+            ', '.join([x.name() for x in attr]),
+            Qgis.Success
+        )
+    else:
+        iface.messageBar().pushMessage(
+            'OK',
+            'W warstwie były już niezbędne pola, nic nie zmieniałem...',
+            Qgis.Success
+        )

@@ -421,9 +421,10 @@ class DopiszKody(SprawdzWydzielenia):
         fnm = wpol_data.fieldNameMap()
 
         brak_opisu = []
+
         for feat in wpol.getFeatures():
             dop = {}
-            adr = feat[u'ADR_LES']
+            adr = feat['ADR_LES']
             if adr in self.sl:
 
                 # przygotuj kod gatunku z odpowiednia wielkoscia liter

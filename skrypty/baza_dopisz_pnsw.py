@@ -59,7 +59,7 @@ class DopiszPnsw(SprawdzWydzielenia):
         pnsw, oraz bazy taksatora, do której mają zostać dopisane dane o pnsw
         Na podstawie danych pobranych o użytkownika sprawdzamy czy w
         warstwie wydz jest jedna z kolumn ADR_LES, ADR_BDL a w PNSW:
-            KOD_PNSW, NR_PNSW, POW.
+            KOD_PNSW, NR_PNSW, POW_GRAF.
         Sprawdzenie dotyczy również bazy, wypełnienia tabeli F_AROD_SPEC_AREA
         ( ma być pusta )
         """
@@ -113,12 +113,13 @@ class DopiszPnsw(SprawdzWydzielenia):
 
         self.fnm = self.pnsw.dataProvider().fieldNameMap()
         pnsw_niez_pola = [x for x in self.fnm.keys() if x in
-                          ['NR_PNSW', 'KOD_PNSW', 'POW', 'ADR_BDL']]
+                          ['NR_PNSW', 'KOD_PNSW', 'POW_GRAF', 'ADR_BDL']]
         if 4 != len(pnsw_niez_pola):
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
                 'W warstwie PNSW brakuje którejś z kolumn: NR_PNSW, KOD_PNSW,'
-                ' POW, ADR_BDL. Odnaleziono: ['+', '.join(pnsw_niez_pola)+']',
+                ' POW_GRAF, ADR_BDL. Odnaleziono: [' +
+                ', '.join(pnsw_niez_pola)+']',
                 Qgis.Critical,
                 0
             )
@@ -252,7 +253,8 @@ class DopiszPnsw(SprawdzWydzielenia):
                 self.pnsw.dataProvider().changeAttributeValues({
                     p.id(): {
                         self.fnm['NR_PNSW']: nump[wydz['ADR_LES']],
-                        self.fnm['POW']: round(p.geometry().area()/10000, 4),
+                        self.fnm['POW_GRAF']:
+                            round(p.geometry().area()/10000, 4),
                         self.fnm['ADR_ADM']: '-'.join(
                             [self.sl_woj[wydz['ADR_LES'][0]],
                              wydz['ADR_LES'][1:3],
