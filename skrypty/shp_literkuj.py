@@ -1,3 +1,4 @@
+import os
 from qgis.core import Qgis, QgsMessageLog
 from operator import itemgetter
 
@@ -107,11 +108,7 @@ def Literkuj(iface, lyr=False):  # noqa
 
                     message_trig += 1
                     QgsMessageLog.logMessage(
-                        ' '.join(map(str, [it['MUNICIP'],
-                                           it['COMMUNITY'],
-                                           it['ODDZ'],
-                                           'xxx']
-                                     )),
+                        ' '.join([str(gmi), str(obr), str(oddz), 'xxx']),
                         'Las-R',
                         Qgis.Warning
                     )
@@ -138,6 +135,12 @@ def Literkuj(iface, lyr=False):  # noqa
             'jednym oddziale, (Patrz log Las-R)',
             Qgis.Warning,
             10)
+        plugin_dir = os.path.dirname(__file__)
+        lyr.loadNamedStyle(
+            os.path.join(plugin_dir, '..', 'qml', 'WYDZ_xxx.qml'
+                         )
+        )
+        iface.mapCanvas().refreshAllLayers()
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
