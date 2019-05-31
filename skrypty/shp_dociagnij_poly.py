@@ -441,7 +441,7 @@ class Przyciagnij:
             ids_dz = _dzb_si.intersects(feat.geometry().boundingBox())
             if len(ids_dz) == 0:
                 # jezeli zadna dz sie nie przecina olewamy featura
-                # self.b_lin.append(feat)
+                self.b_lin.append(feat)
                 continue
             elif len(ids_dz) == 1:
                 fdzb = next(self.dz_buffer.getFeatures(ids_dz))
@@ -490,7 +490,8 @@ class Przyciagnij:
         print('lini blednych: ' + str(len(self.b_lin)))
         print('poprawionych lini: ' + str(len(feats_popr)))
         if len(self.b_lin) > 0:
-            blyr = QgsVectorLayer('LineString?crs=epsg:2180&index=yes',
+            blyr = QgsVectorLayer('LineString?crs=epsg:2180&index=yes'
+                                  '&field=ID:integer',
                                   '__BLEDY_SNAPOWANIA', 'memory')
             blyr.dataProvider().addFeatures(self.b_lin)
             QgsProject.instance().addMapLayer(blyr)

@@ -92,9 +92,9 @@ class DopiszFO(SprawdzWydzielenia):
                 10
             )
             return False
-        else:
-            self.wyb_fo_trig = True
-            return True
+
+        self.wyb_fo_trig = True
+        return True
 
     def wybierz_wydz(self):
         """Metoda wybiera na podstawie wybranych fo wydzielenia, ktore sie z
@@ -114,7 +114,8 @@ class DopiszFO(SprawdzWydzielenia):
                     if (inter.area()/f.geometry().area()) > 0.49999:
                         if fo_item.id() not in self.sl:
                             self.sl[fo_item.id()] = [f['ADR_LES']]
-                        self.sl[fo_item.id()].append(f['ADR_LES'])
+                        if f['ADR_LES'] not in self.sl[fo_item.id()]:
+                            self.sl[fo_item.id()].append(f['ADR_LES'])
 
     def dopisz_do_bazy(self):
         """Metoda dopisuje do wskazanej bazy taksatora wybrane wydzielenia i
@@ -136,7 +137,7 @@ class DopiszFO(SprawdzWydzielenia):
                         fof['TYP'],
                         num_fo,
                         fof['NAZWA'],
-                        int(fof.geometry().area()))
+                        int(fof.geometry().area()/10000))
                 try:
                     self.baza.wpisz(sql)
                 except:  # nopep8

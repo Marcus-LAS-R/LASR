@@ -93,28 +93,25 @@ def Literkuj(iface, lyr=False):  # noqa
                 # jezeli wydz ma litere, nie zmieniamy
                 pass
             else:
-                if iwydz < 88:
+                if iwydz < 87:
                     wpis = lit[iwydz]
                     iwydz += 1
                 else:
                     wpis = "xxx"
                     if message_trig == 0:
-                        iface.messageBar().pushMessage(
-                            'LICZBA WYDZIELEŃ',
-                            'Przekroczono liczbę wydzieleń obsługiwaną w '
-                            'jednym oddziale, (Patrz log Las-R)',
-                            Qgis.Warning,
-                            10)
-
                         QgsMessageLog.logMessage(
                             'Lista wydzielen z błędnymi kodami:',
                             'Las-R',
                             Qgis.Warning
                         )
-                    message_trig += 1
 
+                    message_trig += 1
                     QgsMessageLog.logMessage(
-                        ' '.join([it[5], it[6], it[3], 'xxx']),
+                        ' '.join(map(str, [it['MUNICIP'],
+                                           it['COMMUNITY'],
+                                           it['ODDZ'],
+                                           'xxx']
+                                     )),
                         'Las-R',
                         Qgis.Warning
                     )
@@ -132,6 +129,14 @@ def Literkuj(iface, lyr=False):  # noqa
             'OK',
             'Warstwa zaliterkowana bez problemów',
             Qgis.Success,
+            10)
+    else:
+
+        iface.messageBar().pushMessage(
+            'LICZBA WYDZIELEŃ',
+            'Przekroczono liczbę wydzieleń obsługiwaną w '
+            'jednym oddziale, (Patrz log Las-R)',
+            Qgis.Warning,
             10)
 
     QgsMessageLog.logMessage(
