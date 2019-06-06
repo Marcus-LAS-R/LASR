@@ -174,7 +174,7 @@ class AnalizujKlus(object):
         self.dzkat = QgsVectorLayer(self.dd.ui.lineEdit_dzkat.text(),
                                     'dz', 'ogr')
 
-        # self.klu.dataProvider().setEncoding('UTF-8')
+        self.klu.dataProvider().setEncoding('UTF-8')
         # sprawdzenie czy warstwy sa poprawne znajduje sie w metodzie
         # sprawdz_warunki ponizej, ktora powinna byc uruchomiona po tej.
 
@@ -353,46 +353,10 @@ class AnalizujKlus(object):
         }
         processing.run('grass7:v.dissolve', alg_params)
 
-        templyr = QgsVectorLayer(
+        templyr1 = QgsVectorLayer(
             os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
             'templyr_diss',
             'ogr')
-
-        if platform.system()[:3] == 'Win':
-            templyr.dataProvider().setEncoding('ISO-8859-2')
-
-        # dodaj 2 potrzebne kolumny i rozkoduj do nic dane z dissolva
-        pola = [x.name() for x in templyr.dataProvider().fields()]
-        pola_dodaj = []
-        if 'SQ' not in pola:
-            pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
-        if 'AU' not in pola:
-            pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
-
-        if len(pola_dodaj) > 0:
-            templyr.startEditing()
-            templyr.dataProvider().addAttributes(pola_dodaj)
-            templyr.updateFields()
-            templyr.commitChanges()
-
-        klu_fnm = templyr.dataProvider().fieldNameMap()
-        iau = klu_fnm['AU']
-        isq = klu_fnm['SQ']
-
-        sl_podm = {}
-        for f in templyr.getFeatures():
-            zsq = 'xxx'
-            zau = 'xxx'
-            it = f['KLU'].replace('?', 'Ł')
-            if it in self.sl_klu:
-                val = self.sl_klu[it]
-                zsq = val[1]
-                zau = val[0]
-
-            sl_podm[f.id()] = {iau: zau, isq: zsq}
-
-        for id, sl in sl_podm.items():
-            templyr.dataProvider().changeAttributeValues({id: sl})
 
         # wykonaj przeciecie z warstwa dzialek a nastepnie kontynuuj analize
         alg_params = {
@@ -404,7 +368,7 @@ class AnalizujKlus(object):
             'GRASS_VECTOR_DSCO': '',
             'GRASS_VECTOR_EXPORT_NOCAT': False,
             'GRASS_VECTOR_LCO': '',
-            'ainput': templyr,
+            'ainput': templyr1,
             'atype': 0,
             'binput': self.dzkat,
             'btype': 0,
@@ -420,12 +384,46 @@ class AnalizujKlus(object):
             'templyr_ovr',
             'ogr')
 
+        ovrlyr.dataProvider().setEncoding('UTF-8')
         fnm = ovrlyr.dataProvider().fieldNameMap()
         ovrlyr.startEditing()
         for old, id in fnm.items():
             if old[:2] in ['a_', 'b_', ]:
                 ovrlyr.renameAttribute(id, old[2:])
         ovrlyr.commitChanges()
+
+        # dodaj 2 potrzebne kolumny i rozkoduj do nich dane z dissolva
+        pola = [x.name() for x in ovrlyr.dataProvider().fields()]
+        pola_dodaj = []
+        if 'SQ' not in pola:
+            pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
+        if 'AU' not in pola:
+            pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+
+        if len(pola_dodaj) > 0:
+            ovrlyr.startEditing()
+            ovrlyr.dataProvider().addAttributes(pola_dodaj)
+            ovrlyr.updateFields()
+            ovrlyr.commitChanges()
+
+        klu_fnm = ovrlyr.dataProvider().fieldNameMap()
+        iau = klu_fnm['AU']
+        isq = klu_fnm['SQ']
+
+        sl_podm = {}
+        for f in ovrlyr.getFeatures():
+            zsq = 'xxx'
+            zau = 'xxx'
+            it = f['KLU'].replace('?', 'Ł')
+            if it in self.sl_klu:
+                val = self.sl_klu[it]
+                zsq = val[1]
+                zau = val[0]
+
+            sl_podm[f.id()] = {iau: zau, isq: zsq}
+
+        for id, sl in sl_podm.items():
+            ovrlyr.dataProvider().changeAttributeValues({id: sl})
 
         # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
         # uwzględnia samoprzecinających się poligonów i przez to generuj
@@ -438,20 +436,12 @@ class AnalizujKlus(object):
                            self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
                        })
 
-        # # Rozbij uzytki na single parts
-        # self.singleparts = QgsVectorLayer(
-        #    'Polygon?crs=epsg:2180&index=yes'
-        #    '__LS_singleparts_'+self.czas,
-        #    'ogr')
-
         self.singleparts = QgsVectorLayer(
             os.path.join(self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
             'Ls_singleparts',
             'ogr')
 
-        if platform.system()[:3] == 'Win':
-            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
-
+        self.singleparts.dataProvider().setEncoding('ISO-8859-2')
         crs = QgsCoordinateReferenceSystem("epsg:2180")
         QgsVectorFileWriter.writeAsVectorFormat(
             self.singleparts,
