@@ -130,6 +130,10 @@ class AnalizujKlus(object):
         self.sf = {}  # slownik z singleparts features w postaci{id: feature, }
         self.sl_sf_na_dzkat = {}  # slownik {PARCELID: [id1, id2, ..]}
 
+        # sl z wartosciami klu i odpowiadajacymi mu au sq w postaci tablicy
+        # {'RV': ['R', 'V'], ...}
+        self.sl_klu = {}
+
         self.czas = datetime.now().isoformat(
                         ).replace(":", "")[:-7].replace('-', '')
 
@@ -170,7 +174,7 @@ class AnalizujKlus(object):
         self.dzkat = QgsVectorLayer(self.dd.ui.lineEdit_dzkat.text(),
                                     'dz', 'ogr')
 
-        self.klu.dataProvider().setEncoding('UTF-8')
+        # self.klu.dataProvider().setEncoding('UTF-8')
         # sprawdzenie czy warstwy sa poprawne znajduje sie w metodzie
         # sprawdz_warunki ponizej, ktora powinna byc uruchomiona po tej.
 
@@ -278,6 +282,8 @@ class AnalizujKlus(object):
             pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
         if 'AU' not in pola:
             pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+        if 'KLU' not in pola:
+            pola_dodaj.append(QgsField("KLU", QVariant.String, len=15))
 
         if len(pola_dodaj) > 0:
             self.klu.startEditing()
@@ -293,6 +299,7 @@ class AnalizujKlus(object):
         klu_fnm = self.klu.dataProvider().fieldNameMap()
         iau = klu_fnm['AU']
         isq = klu_fnm['SQ']
+        iklu = klu_fnm['KLU']
 
         for f in self.klu.getFeatures():
             zau, zsq = '', ''
@@ -307,10 +314,154 @@ class AnalizujKlus(object):
                 zsq = f[self.sq]
                 zau = f[self.au]
 
-            attr = {iau: zau, isq: zsq}
+            attr = {iau: zau, isq: zsq, iklu: zau+zsq}
+
+            # dodaj do warstwy polaczone pole z AU i SQ oraz stworz slownik na
+            # podstawie ktorego dopiszemy odpowiednie kolumny po dissolvie
+            if zau+zsq not in self.sl_klu:
+                self.sl_klu[zau+zsq] = [zau, zsq]
+
             self.klu.dataProvider().changeAttributeValues({f.id(): attr})
 
     def geop_przetworz(self):
+        """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
+        dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
+        porownawczej z baza. Nie zwraca żadnej wartości"""
+        import processing
+
+        # utworz katalog temp w katalogu z warstwa
+        sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
+        self.kat = os.path.dirname(sciezka)
+        self.tempkat = os.path.join(self.kat, 'temp')
+        if not os.path.isdir(self.tempkat):
+            os.mkdir(self.tempkat)
+
+        # v.dissolve
+        alg_params = {
+            'GRASS_MIN_AREA_PARAMETER': 0.1,
+            'GRASS_OUTPUT_TYPE_PARAMETER': 0,
+            'GRASS_REGION_PARAMETER': None,
+            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.2,
+            'GRASS_VECTOR_DSCO': '',
+            'GRASS_VECTOR_EXPORT_NOCAT': False,
+            'GRASS_VECTOR_LCO': '',
+            'column': 'KLU',
+            'input': self.klu,
+            'output': os.path.join(self.tempkat,
+                                   '__klu_dissolve_' +
+                                   self.czas + '.shp')
+        }
+        processing.run('grass7:v.dissolve', alg_params)
+
+        templyr = QgsVectorLayer(
+            os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
+            'templyr_diss',
+            'ogr')
+
+        if platform.system()[:3] == 'Win':
+            templyr.dataProvider().setEncoding('ISO-8859-2')
+
+        # dodaj 2 potrzebne kolumny i rozkoduj do nic dane z dissolva
+        pola = [x.name() for x in templyr.dataProvider().fields()]
+        pola_dodaj = []
+        if 'SQ' not in pola:
+            pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
+        if 'AU' not in pola:
+            pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+
+        if len(pola_dodaj) > 0:
+            templyr.startEditing()
+            templyr.dataProvider().addAttributes(pola_dodaj)
+            templyr.updateFields()
+            templyr.commitChanges()
+
+        klu_fnm = templyr.dataProvider().fieldNameMap()
+        iau = klu_fnm['AU']
+        isq = klu_fnm['SQ']
+
+        sl_podm = {}
+        for f in templyr.getFeatures():
+            zsq = 'xxx'
+            zau = 'xxx'
+            it = f['KLU'].replace('?', 'Ł')
+            if it in self.sl_klu:
+                val = self.sl_klu[it]
+                zsq = val[1]
+                zau = val[0]
+
+            sl_podm[f.id()] = {iau: zau, isq: zsq}
+
+        for id, sl in sl_podm.items():
+            templyr.dataProvider().changeAttributeValues({id: sl})
+
+        # wykonaj przeciecie z warstwa dzialek a nastepnie kontynuuj analize
+        alg_params = {
+            '-t': False,
+            'GRASS_MIN_AREA_PARAMETER': 0.1,
+            'GRASS_OUTPUT_TYPE_PARAMETER': 0,
+            'GRASS_REGION_PARAMETER': None,
+            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.2,
+            'GRASS_VECTOR_DSCO': '',
+            'GRASS_VECTOR_EXPORT_NOCAT': False,
+            'GRASS_VECTOR_LCO': '',
+            'ainput': templyr,
+            'atype': 0,
+            'binput': self.dzkat,
+            'btype': 0,
+            'operator': 0,
+            'snap': 0.2,
+            'output': os.path.join(
+                self.tempkat, '__LS_multiparts_'+self.czas+'.shp')
+        }
+        processing.run('grass7:v.overlay', alg_params)
+
+        ovrlyr = QgsVectorLayer(
+            os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+            'templyr_ovr',
+            'ogr')
+
+        fnm = ovrlyr.dataProvider().fieldNameMap()
+        ovrlyr.startEditing()
+        for old, id in fnm.items():
+            if old[:2] in ['a_', 'b_', ]:
+                ovrlyr.renameAttribute(id, old[2:])
+        ovrlyr.commitChanges()
+
+        # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
+        # uwzględnia samoprzecinających się poligonów i przez to generuj
+        # problemy
+        processing.run("native:multiparttosingleparts", {
+                       'OUTPUT': os.path.join(
+                           self.tempkat,
+                           '__LS_singleparts_'+self.czas+'.shp'),
+                       'INPUT': os.path.join(
+                           self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+                       })
+
+        # # Rozbij uzytki na single parts
+        # self.singleparts = QgsVectorLayer(
+        #    'Polygon?crs=epsg:2180&index=yes'
+        #    '__LS_singleparts_'+self.czas,
+        #    'ogr')
+
+        self.singleparts = QgsVectorLayer(
+            os.path.join(self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+            'Ls_singleparts',
+            'ogr')
+
+        if platform.system()[:3] == 'Win':
+            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
+
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            self.singleparts,
+            os.path.join(
+                self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+
+    def geop_przetworz_old(self):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
         dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
         porownawczej z baza. Nie zwraca żadnej wartości"""
