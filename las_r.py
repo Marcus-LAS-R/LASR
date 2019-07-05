@@ -40,7 +40,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly
+    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles
 
 
 class LasR:
@@ -228,12 +228,14 @@ class LasR:
         self.m_kontrola_danych = QMenu('Kontrola danych', self.menu)
         self.m_style = QMenu('Style warstw', self.menu)
         self.m_narzedzia = QMenu('Narzędziowe', self.menu)
+        self.m_raporty = QMenu('Raporty', self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_kontrola_danych)
         self.menu.addMenu(self.m_style)
         self.menu.addMenu(self.m_narzedzia)
+        self.menu.addMenu(self.m_raporty)
 
         self.przyg_dzewid = QAction(QIcon(None),
                                     u"Przygotuj działki ewidencyjne",
@@ -433,6 +435,11 @@ class LasR:
             QIcon(None), 'Dodaj [MUNICIP, COMUNITY]', self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_dod_adm)
         self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
+
+        self.a_rap_wyles = QAction(
+            QIcon(None), 'Karty wylesień na dz.', self.iface.mainWindow())
+        self.m_raporty.addAction(self.a_rap_wyles)
+        self.a_rap_wyles.triggered.connect(self.generuj_karty_wylesien)
 
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
@@ -750,6 +757,12 @@ class LasR:
 
         if n.pobierz_dane():
             n.generuj_all()
+
+    def generuj_karty_wylesien(self):
+        r = raport_wyles.RaportWylesien(self.iface)
+        if r.sprawdz_dane():
+            r.generuj_karty()
+        del r
 
     def rysuj_gatunki(self):
         shp_symbolizacja.rysuj(self.iface, 'gat')

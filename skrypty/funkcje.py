@@ -187,6 +187,8 @@ def isNone(a):
     elif isinstance(a, QVariant):
         if a.isNull():
             return ''
+        else:
+            return a
     else:
         return a
 

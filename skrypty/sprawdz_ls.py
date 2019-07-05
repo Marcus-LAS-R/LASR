@@ -384,7 +384,8 @@ class AnalizujKlus(object):
             'templyr_ovr',
             'ogr')
 
-        ovrlyr.dataProvider().setEncoding('UTF-8')
+        if platform.system()[:3] == 'Win':
+            ovrlyr.dataProvider().setEncoding('UTF-8')
         fnm = ovrlyr.dataProvider().fieldNameMap()
         ovrlyr.startEditing()
         for old, id in fnm.items():
@@ -441,15 +442,17 @@ class AnalizujKlus(object):
             'Ls_singleparts',
             'ogr')
 
-        self.singleparts.dataProvider().setEncoding('ISO-8859-2')
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            self.singleparts,
-            os.path.join(
-                self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
+        if platform.system()[:3] == 'Win':
+            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
+
+            crs = QgsCoordinateReferenceSystem("epsg:2180")
+            QgsVectorFileWriter.writeAsVectorFormat(
+                self.singleparts,
+                os.path.join(
+                    self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+                "UTF-8",
+                crs,
+                "ESRI Shapefile")
 
     def geop_przetworz_old(self):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
