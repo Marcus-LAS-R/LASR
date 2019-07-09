@@ -305,8 +305,8 @@ class AnalizujKlus(object):
             zau, zsq = '', ''
             if self.typ == 'LAN':
                 if f[self.landid] in self.p.uzytki:
-                    zsq = self.p.uzytki[f[self.landid]][1]
-                    zau = self.p.uzytki[f[self.landid]][0]
+                    zsq = isNone(self.p.uzytki[f[self.landid]][1])
+                    zau = isNone(self.p.uzytki[f[self.landid]][0])
                 else:
                     zsq = 'xxx'
                     zau = 'xxx'
@@ -314,12 +314,13 @@ class AnalizujKlus(object):
                 zsq = f[self.sq]
                 zau = f[self.au]
 
-            attr = {iau: zau, isq: zsq, iklu: zau+zsq}
+            val_klu = isNone(zau) + isNone(zsq)
+            attr = {iau: zau, isq: zsq, iklu: val_klu}
 
             # dodaj do warstwy polaczone pole z AU i SQ oraz stworz slownik na
             # podstawie ktorego dopiszemy odpowiednie kolumny po dissolvie
-            if zau+zsq not in self.sl_klu:
-                self.sl_klu[zau+zsq] = [zau, zsq]
+            if val_klu not in self.sl_klu:
+                self.sl_klu[val_klu] = [zau, zsq]
 
             self.klu.dataProvider().changeAttributeValues({f.id(): attr})
 
@@ -328,6 +329,11 @@ class AnalizujKlus(object):
         dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
         porownawczej z baza. Nie zwraca żadnej wartości"""
         import processing
+
+
+        import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+        pyqtRemoveInputHook()
+        pdb.set_trace()
 
         # utworz katalog temp w katalogu z warstwa
         sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]

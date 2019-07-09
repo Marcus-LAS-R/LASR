@@ -188,7 +188,7 @@ def isNone(a):
         if a.isNull():
             return ''
         else:
-            return a
+            return str(a)
     else:
         return a
 

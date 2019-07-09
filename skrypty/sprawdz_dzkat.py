@@ -631,7 +631,7 @@ class AnalizujDzKat(object):
         # wypisz do logu podstawowy raport
         QgsMessageLog.logMessage(raport, 'Las-R')
 
-        if len(self.dzkat_brak) > 0:
+        if ile_brak > 0:
             raport += '\n\n---BRAKUJACE DZIALKI LEŚNE--------------' + '\n'
             raport += 'Brakujace dzialki lesne w shp: ' + \
                 str(ile_brak) + '\n\n'
