@@ -330,11 +330,6 @@ class AnalizujKlus(object):
         porownawczej z baza. Nie zwraca żadnej wartości"""
         import processing
 
-
-        import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
-        pyqtRemoveInputHook()
-        pdb.set_trace()
-
         # utworz katalog temp w katalogu z warstwa
         sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
