@@ -579,8 +579,8 @@ class LasR:
             return
         if not spr.sprawdz():
             return
-        spr.przygotuj()
-        spr.przetworz()
+        if spr.przygotuj():
+            spr.przetworz()
 
     def dopisz_f_ochr(self):
         b = baza_dopisz_fochr.DopiszFO(self.iface)

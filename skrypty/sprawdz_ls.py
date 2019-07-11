@@ -63,9 +63,11 @@ class SprawdzLs(object):
         self.postep.setValue(10)
         self.a.przygotuj_tabele()
         self.a.przygotuj_do_analizy()
-        self.a.geop_przetworz()
+        if not self.a.geop_przetworz():
+            return False
         self.a.zaladuj_strukture()
         self.postep.setValue(15)
+        return True
 
     def przetworz(self):
         self.a.przetworz_strukture()
@@ -387,6 +389,17 @@ class AnalizujKlus(object):
 
         if platform.system()[:3] == 'Win':
             ovrlyr.dataProvider().setEncoding('UTF-8')
+
+        # sprawdz czy warstwy zostały wygenerowane poprawnie
+        if not ovrlyr.isValid():
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie udało się poprawnie przetworzyc warstw...'
+                ' Sprawdź czy masz uruchomionego qgisa z grassem',
+                Qgis.Critical, 10
+            )
+            return False
+
         fnm = ovrlyr.dataProvider().fieldNameMap()
         ovrlyr.startEditing()
         for old, id in fnm.items():
@@ -454,6 +467,8 @@ class AnalizujKlus(object):
                 "UTF-8",
                 crs,
                 "ESRI Shapefile")
+
+        return True
 
     def geop_przetworz_old(self):
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
