@@ -2130,6 +2130,14 @@ class GenerujRaport():
         self.wypis == '\n\n'
 
         if len(self.brakujace_ls_w_shp) > 0:
+            self.wypis += '---POWOJNE LS [BAZA]----------\n'
+            self.wypis += 'Podwójne Ls-y: ' + \
+                str(len(self.p.ls_podwojne)) + '\n\n'
+            sort_temp = sorted(self.p.ls_podwojne)
+            self.wypis += '\n'.join(sort_temp)
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if len(self.brakujace_ls_w_shp) > 0:
             self.wypis += '---BRAKUJĄCE LSy [W SHP]----------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_shp)) + '\n\n'
