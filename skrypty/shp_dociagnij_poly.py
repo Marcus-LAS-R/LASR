@@ -749,10 +749,22 @@ class PobierzDane(QDialog):
         self.ui.pushButton_snap.clicked.connect(self.kat_snap)
         self.ui.pushButton_dz.clicked.connect(self.kat_dz)
 
-        self.ui.lineEdit_dz.setText(
-            '/home/qnox/upul/testy/dociaganie1/DZKAT.shp')
-        self.ui.lineEdit_snap.setText(
-            '/home/qnox/upul/testy/dociaganie1/LS.shp')
+        # znajdz warstwy w TOC
+
+        sc_d = ''
+        sc_l = ''
+        for key, lyr in QgsProject.instance().mapLayers().items():
+            if key[:5] == 'DZKAT':
+                d = lyr
+                sc_d = d.dataProvider().dataSourceUri().split("|")[0]
+                self.kat = os.path.dirname(sc_d)
+            if key[:2] == 'LS':
+                ls = lyr
+                sc_l = ls.dataProvider().dataSourceUri().split("|")[0]
+                self.kat = os.path.dirname(sc_l)
+
+        self.ui.lineEdit_dz.setText(sc_d)
+        self.ui.lineEdit_snap.setText(sc_l)
 
     def porzuc(self):
         self.porzucone = True

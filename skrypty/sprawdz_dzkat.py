@@ -29,7 +29,8 @@ class SprawdzDzKat(object):
             pass
 
         analizuj = AnalizujDzKat(self.lyr, self.iface)
-        analizuj.pobierz_dane_od_uzytkownika()
+        if not analizuj.pobierz_dane_od_uzytkownika():
+            return
         if not analizuj.warunki_spenione():
             self.iface.messageBar().pushMessage(
                 'BŁĄD',
@@ -113,6 +114,11 @@ class AnalizujDzKat(object):
     def pobierz_dane_od_uzytkownika(self):
         self.dd = PobierzDane(self.lyr)
         self.dd.exec_()
+        if self.dd.porzucone:
+            QgsMessageLog.logMessage('Porzucone na życzenie użyszkodnika...',
+                                     'Las-R')
+            return False
+        return True
 
     def warunki_spenione(self):
         if self.dd.ile_baz > 0 and self.lyr.isValid():
@@ -264,24 +270,31 @@ class AnalizujDzKat(object):
                 'OUTPUT': sciezka+'__dissolve.shp'
             })
 
-            # self.lyr = QgsVectorLayer(sciezka+'_dissolve.shp', "DZKAT_robocze", "ogr")
-            shutil.copy(sciezka+"__dissolve.shp",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
-            shutil.copy(sciezka+"__dissolve.shx",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
-            shutil.copy(sciezka+"__dissolve.dbf",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
-            shutil.copy(sciezka+"__dissolve.prj",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
+            shutil.copy(
+                sciezka+"__dissolve.shp",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
+            shutil.copy(
+                sciezka+"__dissolve.shx",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
+            shutil.copy(
+                sciezka+"__dissolve.dbf",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
+            shutil.copy(
+                sciezka+"__dissolve.prj",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
         else:
-            shutil.copy(sciezka+".shp",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
-            shutil.copy(sciezka+".shx",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
-            shutil.copy(sciezka+".dbf",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
-            shutil.copy(sciezka+".prj",
-                        os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
+            shutil.copy(
+                sciezka+".shp",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
+            shutil.copy(
+                sciezka+".shx",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
+            shutil.copy(
+                sciezka+".dbf",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
+            shutil.copy(
+                sciezka+".prj",
+                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
 
         # podmien warstwe na ostateczną
         self.lyrw = QgsVectorLayer(
@@ -611,22 +624,26 @@ class AnalizujDzKat(object):
             dz_les = len(self.dz_les_spr)
 
         raport += 'Działek leśnych w shp: ' + str(dz_les) + '\n'
-        raport += 'Działek nieleśnych w shp: ' + str(len(self.dzkat_nieles)) + '\n'
+        raport += 'Działek nieleśnych w shp: ' + \
+            str(len(self.dzkat_nieles)) + '\n'
 
-        duble = [x[0] for x in Counter(self.dz_les_spr+self.dzkat_nieles).most_common()
-                 if x[1] > 1]
+        duble = [x[0] for x in Counter(
+            self.dz_les_spr+self.dzkat_nieles).most_common()
+            if x[1] > 1]
         raport += 'Działki Zdublowane: ' + str(len(duble)) + '\n\n'
 
         if len(self.bledy_topo) > 0:
-            raport += 'Działki z błędami topologicznymi: ' + str(len(self.bledy_topo)) \
-                      + '\n\n\n'
+            raport += 'Działki z błędami topologicznymi: ' + \
+                str(len(self.bledy_topo)) \
+                + '\n\n\n'
 
         if len(self.dzkat_les_pow_zero) > 0:
             raport += 'Działek z zerowymi powierzchniami w bazie: ' + str(len(
                 self.dzkat_les_pow_zero)) + '\n'
 
         if len(self.dzkat_brak) > 0:
-            raport += 'Działek z brakiem opisu w bazie: ' + str(len(self.dzkat_brak)) + '\n'
+            raport += 'Działek z brakiem opisu w bazie: ' + \
+                str(len(self.dzkat_brak)) + '\n'
 
         # wypisz do logu podstawowy raport
         QgsMessageLog.logMessage(raport, 'Las-R')
@@ -651,7 +668,8 @@ class AnalizujDzKat(object):
 
         if len(self.dzkat_nieles) > 0:
             raport += "---DZIALKI NIELESNE--------------------------\n"
-            raport += "Dzialek nielesnych w shp: " + str(len(self.dzkat_nieles)) + '\n\n'
+            raport += "Dzialek nielesnych w shp: " + \
+                str(len(self.dzkat_nieles)) + '\n\n'
             if len(self.dzkat_nieles) < 200:
                 raport += '\n'.join([self.county + self.district + x
                                     for x in sorted(self.dzkat_nieles)])
@@ -666,7 +684,8 @@ class AnalizujDzKat(object):
                 len(self.dzkat_brak)) + '\n\n'
             if len(self.dzkat_brak) < 200:
                 raport += '\n'.join(
-                    [self.county + self.district + x for x in sorted(self.dzkat_brak)])
+                    [self.county + self.district + x
+                     for x in sorted(self.dzkat_brak)])
             else:
                 raport += 'liste dzialek pominieto'
             raport += '\n' + 45 * '-' + '\n\n\n'
@@ -675,7 +694,8 @@ class AnalizujDzKat(object):
         if len(duble) > 0:
             raport += "-----DZIALKI ZDUBLOWANE------------------------\n"
             raport += "Dzialki zdublowane: " + str(len(duble)) + '\n\n'
-            raport += '\n'.join([self.county + self.district + x for x in sorted(duble)])
+            raport += '\n'.join([self.county + self.district + x for x in
+                                 sorted(duble)])
             raport += '\n' + 45 * '-' + '\n\n\n'
 
         if len(self.dzkat_les_pow_zero) > 0:
@@ -721,8 +741,8 @@ class AnalizujDzKat(object):
                             sl_temp[x[0]] = []
                         sl_temp[x[0]].append(x[1])
 
-            raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat" for x in
-                                sorted(list(sl_temp.keys()))])
+            raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat"
+                                 for x in sorted(list(sl_temp.keys()))])
             raport += '\n' + 45 * '-' + '\n\n\n'
 
         raport += "---KONIEC RAPORTU----------------------------------"
@@ -760,6 +780,7 @@ class PobierzDane(QDialog):
         self.lyr = w
         self.pola = []
         self.ile_baz = 0
+        self.porzucone = True
 
         # Jezeli jest warstwa, odczytaj jej dane
         if self.lyr:
@@ -775,12 +796,14 @@ class PobierzDane(QDialog):
         self.ui.pushButton_ok.clicked.connect(self.ok)
 
     def ok(self):
+        self.porzucone = False
         self.hide()
 
     def wczytaj_pola(self):
         """Metoda uzupelnia comboboxy na podstawie podanej warstwy"""
         # wybierz nazwy pol z warstwy, ktore nie sa numeryczne
-        self.pola = ['---'] + [x.name() for x in self.lyr.dataProvider().fields().toList()
+        self.pola = ['---'] + [x.name() for
+                               x in self.lyr.dataProvider().fields().toList()
                                if not x.isNumeric()]
 
         # wyczysc wszystkie comboboxy z kolumnami
@@ -826,14 +849,19 @@ class PobierzDane(QDialog):
             "Katalog z bazami danych",
             kat
         )
-        self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+        if platform.system()[:3] == 'Win':
+            self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+        else:
+            self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.sqlite')))
+        # self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+
         if self.ile_baz > 0:
-            self.ui.label_bazy_wynik.setText("Znalazałem baz: " +
-                                             str(self.ile_baz))
+            self.ui.label_bazy_wynik.setText(
+                "Znalazłem baz: " + str(self.ile_baz))
             self.ui.lineEdit_bazy.setText(bazy_kat)
 
         else:
-            self.ui.label_bazy_wynik.setText("Nie znaleziono baz *.mdb")
+            self.ui.label_bazy_wynik.setText("Nie znaleziono baz taksatora")
 
     def identyfikuj(self):
         """ Metoda sprawdza wybór uzytkownika i
