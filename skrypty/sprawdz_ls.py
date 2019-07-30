@@ -2144,8 +2144,8 @@ class GenerujRaport():
 
         self.wypis == '\n\n'
 
-        if len(self.brakujace_ls_w_shp) > 0:
-            self.wypis += '---POWOJNE LS [BAZA]----------\n'
+        if len(self.p.ls_podwojne) > 0:
+            self.wypis += '---POWÓJNE LS [BAZA]----------\n'
             self.wypis += 'Podwójne Ls-y: ' + \
                 str(len(self.p.ls_podwojne)) + '\n\n'
             sort_temp = sorted(self.p.ls_podwojne)
@@ -2363,7 +2363,13 @@ class PobierzDane(QDialog):
             self,
             "Katalog z bazami danych",
             kat)
-        self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+
+        if platform.system()[:3] == 'Win':
+            self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+        else:
+            self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.sqlite')))
+        # self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))
+
         if self.ile_baz > 0:
             self.ui.label_bazy.setText("Znalazałem baz: "+str(self.ile_baz))
             self.ui.lineEdit_bazy.setText(bazy_kat)
