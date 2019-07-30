@@ -125,7 +125,14 @@ class DopiszPnsw(SprawdzWydzielenia):
             )
             return False
 
-        self.baza.polacz()
+        if not self.baza.polacz():
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Nie mogę się połączyć z bazą!',
+                Qgis.Critical,
+                0
+            )
+            return False
         # sprawdz czy w bazie nie ma juz dopisanych pnsw
         if len(self.baza.pobierz_pnsw()) > 0:
             self.iface.messageBar().pushMessage(
@@ -146,7 +153,20 @@ class DopiszPnsw(SprawdzWydzielenia):
         """
 
         if not self.poprawne_wydz():
-            return False
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błędy')
+            message.setText(
+                'Czy chcesz kontynuować pomimo odnalezionych błędów? \n'
+                'Najprawdopodobniej coś się wysypie')
+            message.addButton("Porzuć", QMessageBox.ActionRole)
+            message.addButton("Kontynuuj", QMessageBox.ActionRole)
+            kont = message.exec_()
+
+            if kont != 1:
+                return False
+
+            self.baza.polacz()
 
         # spatial index dla wydzieleń
         self.si = QgsSpatialIndex()
