@@ -485,51 +485,55 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
             '\n----[ KONIEC ]----\n\n'
         return False, wyps
 
-    if crs_ok:
-        # zbuduj indeks przestrzenny dla wydz
-        si = QgsSpatialIndex()
-        sl_w = {}  # slownik z feat wydz {id: wydz feat, ... }
+    if not crs_ok:
+        wyps += 'Błędny układ odniesienia warsty!!!\n\n' +\
+            '\n----[ KONIEC ]----\n\n'
+        return False, wyps
 
-        # slownik z poprawionymi adr_les i nr pnsw z shp do sprawdzenia z baza
-        # {adr_les:nr_pnws: kod_pnsw_b, }
-        sl_pnsw = {}
+    # zbuduj indeks przestrzenny dla wydz
+    si = QgsSpatialIndex()
+    sl_w = {}  # slownik z feat wydz {id: wydz feat, ... }
 
-        fmi = pnsw.dataProvider().fieldNameMap()
-        for wfeat in wydz.getFeatures():
-            si.insertFeature(wfeat)
-            sl_w[wfeat.id()] = wfeat
+    # slownik z poprawionymi adr_les i nr pnsw z shp do sprawdzenia z baza
+    # {adr_les:nr_pnws: kod_pnsw_b, }
+    sl_pnsw = {}
 
-        pnsw.startEditing()
-        podm_adr = 0
-        for feat in pnsw.getFeatures():
-            ids = si.intersects(feat.geometry().boundingBox())
-            for id in ids:
-                if feat.geometry().intersects(sl_w[id].geometry()):
-                    inter = feat.geometry().intersection(sl_w[id].geometry())
-                    # jeżeli pnsw lezy w wiekszosci na tym wydz dopisz adr_les
-                    if (inter.area()/feat.geometry().area()) > 0.6:
-                        if sl_w[id]['ADR_LES'] != feat['ADR_BDL']:
-                            pnsw.dataProvider().changeAttributeValues(
-                                {feat.id():
-                                 {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
-                             )
-                            podm_adr += 1
+    fmi = pnsw.dataProvider().fieldNameMap()
+    for wfeat in wydz.getFeatures():
+        si.insertFeature(wfeat)
+        sl_w[wfeat.id()] = wfeat
 
-                    if 0.1 < (inter.area()/feat.geometry().area()) < 0.98999:
-                        wyps += sl_w[id]['ADR_LES'] + \
-                            ' PNSW nie zawiera sie w wydzieleniu\n'
+    pnsw.startEditing()
+    podm_adr = 0
+    for feat in pnsw.getFeatures():
+        ids = si.intersects(feat.geometry().boundingBox())
+        for id in ids:
+            if feat.geometry().intersects(sl_w[id].geometry()):
+                inter = feat.geometry().intersection(sl_w[id].geometry())
+                # jeżeli pnsw lezy w wiekszosci na tym wydz dopisz adr_les
+                if (inter.area()/feat.geometry().area()) > 0.6:
+                    if sl_w[id]['ADR_LES'] != feat['ADR_BDL']:
+                        pnsw.dataProvider().changeAttributeValues(
+                            {feat.id():
+                                {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
+                            )
+                        podm_adr += 1
 
-        pnsw.commitChanges()
+                if 0.1 < (inter.area()/feat.geometry().area()) < 0.98999:
+                    wyps += sl_w[id]['ADR_LES'] + \
+                        ' PNSW nie zawiera sie w wydzieleniu\n'
 
-        for feat in pnsw.getFeatures():
-            # zbuduj slownik ze struktura porownawcza dla bazy
-            sl_pnsw[feat['ADR_BDL']+':'+str(feat['NR_PNSW'])] = \
-                feat['KOD_PNSW']
+    pnsw.commitChanges()
 
-        if podm_adr > 0:
-            wyps += '\nPodmieniono ADR_LES: ' + str(podm_adr) + '\n'
-            wyps += \
-                'Pamiętaj, że zmiany dotyczą tylko i wyłącznie warstwy!!!\n\n'
+    for feat in pnsw.getFeatures():
+        # zbuduj slownik ze struktura porownawcza dla bazy
+        sl_pnsw[feat['ADR_BDL']+':'+str(feat['NR_PNSW'])] = \
+            feat['KOD_PNSW']
+
+    if podm_adr > 0:
+        wyps += '\nPodmieniono ADR_LES: ' + str(podm_adr) + '\n'
+        wyps += \
+            'Pamiętaj, że zmiany dotyczą tylko i wyłącznie warstwy!!!\n\n'
 
     if baza is not False:
 
