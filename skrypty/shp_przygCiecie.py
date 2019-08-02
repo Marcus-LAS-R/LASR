@@ -148,7 +148,89 @@ def stworz_pozaewid(wydz):
     })
 
 
-def przygotujDoCiecia(iface):  # noqa
+def przygotuj_do_terenu(iface):  # noqa
+    QgsMessageLog.logMessage(
+        '------ PYRZGOTUJ LS DO TERENU --------- ',
+        'Las-R',
+        Qgis.Info
+    )
+
+    kolumny = [
+        "COUNTY",
+        "DISTRICT",
+        "MUNICIP",
+        "COMMUNITY",
+        "PARCELNR",
+        "PARCELID",
+        "GRP",
+        "PARCEL_AR",
+        "PARCEL_POW",
+        ]
+
+    ls = iface.activeLayer()
+    ls_sciezka = ls.dataProvider().dataSourceUri().split("|")[0]
+    kat = os.path.dirname(ls_sciezka)
+
+    # ------ WARUNKI POCZATKOWE ------
+    pls = [x.name() for x in ls.fields()]
+    brakikol = [x for x in kolumny if x not in pls]
+    if len(brakikol) > 0:
+        QgsMessageLog.logMessage(
+            'W warstwie brakuje kolumn: ' + ', '.join(brakikol),
+            'Las-R',
+            Qgis.Critical
+        )
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'W warstwie brakuje niezbędnych kolumn: ' + ', '.join(brakikol),
+            Qgis.Critical,
+            10
+        )
+        return
+
+    # ----------------------------
+    stworz_maske(ls)
+    stworz_99(ls)
+    stworz_pozaewid(ls)
+
+    # dodaj przetworzona warstwe oddz
+    if os.path.isfile(os.path.join(kat, 'OBR.shp')):
+        obr = QgsVectorLayer(
+            os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
+        )
+
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            obr,
+            os.path.join(os.path.join(kat, "ODDZ.shp")),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+
+    maska = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "MASKA.shp")),
+        'MASKA', 'ogr')
+    QgsProject.instance().addMapLayer(maska)
+
+    w99 = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "99.shp")),
+        '99', 'ogr')
+    if w99.isValid():
+        QgsProject.instance().addMapLayer(w99)
+
+    pozaewidencyjne = QgsVectorLayer(
+        os.path.join(os.path.join(kat, "pozaewidencyjne.shp")),
+        'pozaewidencyjne', 'ogr')
+    if pozaewidencyjne.isValid():
+        QgsProject.instance().addMapLayer(pozaewidencyjne)
+
+    QgsMessageLog.logMessage(
+        '------ KONIEC --------- ',
+        'Las-R',
+        Qgis.Info
+    )
+
+def przygotuj_wydz_do_ciecia(iface):  # noqa
     QgsMessageLog.logMessage(
         '------ PYRZGOTUJ LS DO CIECIA --------- ',
         'Las-R',
