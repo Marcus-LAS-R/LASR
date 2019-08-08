@@ -428,7 +428,7 @@ class AnalizujKlus(object):
         for f in ovrlyr.getFeatures():
             zsq = 'xxx'
             zau = 'xxx'
-            it = f['KLU'].replace('?', 'Ł')
+            it = isNone(f['KLU']).replace('?', 'Ł')
             if it in self.sl_klu:
                 val = self.sl_klu[it]
                 zsq = val[1]
@@ -436,10 +436,8 @@ class AnalizujKlus(object):
 
             sl_podm[f.id()] = {iau: zau, isq: zsq}
 
-        ovrlyr.startEditing()
         for fid, sl in sl_podm.items():
             ovrlyr.dataProvider().changeAttributeValues({fid: sl})
-        ovrlyr.commitChanges()
 
         # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
         # uwzględnia samoprzecinających się poligonów i przez to generuj
