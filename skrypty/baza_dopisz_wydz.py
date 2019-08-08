@@ -97,10 +97,10 @@ class DopiszWydzielenia():
             dodaj = []  # tablica, ktora trzyma rzeczy do dopisania do bazy
             if it not in self.arodes:
                 funk = [
-                    self.stworz_ops_wydz,
+                    self.stworz_ops_oddz,
                     self.stworz_ops_obrebu,
                     self.stworz_ops_lctwa,
-                    self.stworz_ops_oddz,
+                    self.stworz_ops_wydz,
                 ]
 
                 # wygeneruj tylko te zestawy, których jescze nie ma w bazie

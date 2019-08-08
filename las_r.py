@@ -254,17 +254,25 @@ class LasR:
         self.m_przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
-        self.kas_op = QAction(QIcon(None),
-                              "Kasuj OP",
-                              self.iface.mainWindow())
-        self.m_przyg_danych.addAction(self.kas_op)
-        self.kas_op.triggered.connect(self.kasuj_wlas_OP)
+        self.przyg_teren = QAction(
+            QIcon(None), 'Przygotuj w teren', self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.przyg_teren)
+        self.przyg_teren.triggered.connect(self.przygotuj_do_terenu)
 
         self.wyz_lz = QAction(QIcon(None),
                               'LZ - wyznacz potencjalne',
                               self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.wyz_lz)
         self.wyz_lz.triggered.connect(self.wyszukaj_lz)
+
+        self.m_przyg_danych.addSeparator()
+
+        self.kas_op = QAction(QIcon(None),
+                              "Kasuj OP",
+                              self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.kas_op)
+
+        self.kas_op.triggered.connect(self.kasuj_wlas_OP)
 
         self.eksp_kml = QAction(QIcon(None),
                                 u"Wyeksportuj do KML",
@@ -274,9 +282,10 @@ class LasR:
 
         # -----------------------------------------
 
-        self.przyg_ciec = QAction(QIcon(None),
-                                  u"Przygotuj wydzielenia do cięcia",
-                                  self.iface.mainWindow())
+        self.przyg_ciec = QAction(
+            QIcon(None),
+            'Przygotuj wydzielenia do cięcia',
+            self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
@@ -696,7 +705,10 @@ class LasR:
         shp_dopOddzWydz.dopOddzWydz(self.iface)
 
     def przygotuj_do_ciecia(self):
-        shp_przygCiecie.przygotujDoCiecia(self.iface)
+        shp_przygCiecie.przygotuj_wydz_do_ciecia(self.iface)
+
+    def przygotuj_do_terenu(self):
+        shp_przygCiecie.przygotuj_do_terenu(self.iface)
 
     def zaliterkuj(self):
         shp_literkuj.Literkuj(self.iface)

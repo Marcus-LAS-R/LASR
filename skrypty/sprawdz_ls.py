@@ -326,7 +326,7 @@ class AnalizujKlus(object):
 
             self.klu.dataProvider().changeAttributeValues({f.id(): attr})
 
-    def geop_przetworz(self):
+    def geop_przetworz(self):  # noqa
         """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
         dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
         porownawczej z baza. Nie zwraca żadnej wartości"""
@@ -387,15 +387,14 @@ class AnalizujKlus(object):
             'templyr_ovr',
             'ogr')
 
-        if platform.system()[:3] == 'Win':
-            ovrlyr.dataProvider().setEncoding('UTF-8')
+        ovrlyr.dataProvider().setEncoding('UTF-8')
 
         # sprawdz czy warstwy zostały wygenerowane poprawnie
         if not ovrlyr.isValid():
             self.iface.messageBar().pushMessage(
                 'BŁĄD',
                 'Nie udało się poprawnie przetworzyc warstw...'
-                ' Sprawdź czy masz uruchomionego qgisa z grassem',
+                ' Sprawdź czy masz uruchomionego qgisa z grass\'em',
                 Qgis.Critical, 10
             )
             return False
@@ -429,7 +428,7 @@ class AnalizujKlus(object):
         for f in ovrlyr.getFeatures():
             zsq = 'xxx'
             zau = 'xxx'
-            it = f['KLU'].replace('?', 'Ł')
+            it = isNone(f['KLU']).replace('?', 'Ł')
             if it in self.sl_klu:
                 val = self.sl_klu[it]
                 zsq = val[1]
@@ -437,8 +436,8 @@ class AnalizujKlus(object):
 
             sl_podm[f.id()] = {iau: zau, isq: zsq}
 
-        for id, sl in sl_podm.items():
-            ovrlyr.dataProvider().changeAttributeValues({id: sl})
+        for fid, sl in sl_podm.items():
+            ovrlyr.dataProvider().changeAttributeValues({fid: sl})
 
         # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
         # uwzględnia samoprzecinających się poligonów i przez to generuj
@@ -447,8 +446,9 @@ class AnalizujKlus(object):
                        'OUTPUT': os.path.join(
                            self.tempkat,
                            '__LS_singleparts_'+self.czas+'.shp'),
-                       'INPUT': os.path.join(
-                           self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+                       # 'INPUT': os.path.join(
+                        # self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+                       'INPUT': ovrlyr
                        })
 
         self.singleparts = QgsVectorLayer(
@@ -456,17 +456,16 @@ class AnalizujKlus(object):
             'Ls_singleparts',
             'ogr')
 
-        if platform.system()[:3] == 'Win':
-            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
-
-            crs = QgsCoordinateReferenceSystem("epsg:2180")
-            QgsVectorFileWriter.writeAsVectorFormat(
-                self.singleparts,
-                os.path.join(
-                    self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-                "UTF-8",
-                crs,
-                "ESRI Shapefile")
+        # self.singleparts.dataProvider().setEncoding('UTF-8')
+        # if platform.system()[:3] == 'Win':
+            # crs = QgsCoordinateReferenceSystem("epsg:2180")
+            # QgsVectorFileWriter.writeAsVectorFormat(
+                # self.singleparts,
+                # os.path.join(
+                    # self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+                # "UTF-8",
+                # crs,
+                # "ESRI Shapefile")
 
         return True
 
@@ -2008,9 +2007,13 @@ class GenerujRaport():
             ]
         else:
             self.brakujace_ls_w_shp = [
-                [k, v[2]] for k, v in self.p.uzytki.items()
-                if k not in self.p.ls
+                [k, self.p.uzytki[k][2]] for k in self.p.ls
+                if k not in [x['LANDID'] for x in self.ls_w_shp]
             ]
+            # [
+            # [k, v[2]] for k, v in self.p.uzytki.items()
+            # if k not in self.p.ls
+            # ]
 
     def zestaw_liste_brakujacych_ls_w_bazie(self):
         if self.wl == 'OF':
@@ -2112,7 +2115,6 @@ class GenerujRaport():
 
     def generuj_raport(self):  # noqa
         """Metoda generuj raport zapisany w zmiennej self.wypis"""
-        pass
         self.wypis += 'Ls w shp: ' + str(len(self.ls_w_shp)) + '\n'
         self.wypis += 'Ls w bazie: ' + str(self.ls_w_bazie) + '\n\n'
 
