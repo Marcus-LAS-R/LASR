@@ -2252,6 +2252,7 @@ class PobierzDane(QDialog):
         super(PobierzDane, self).__init__()
 
         self.kontynuuj = False
+        self.kat = ''
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
         self.lyrk = k
