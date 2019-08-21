@@ -562,7 +562,7 @@ class LasR:
                 self.menu.menuAction())
         for a in self.akcje_toolbara:
             self.iface.removeToolBarIcon(a)
-        # del self.toolbar
+        del self.toolbar
 
     def run(self):
         """Run method that performs all the real work"""
