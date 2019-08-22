@@ -578,7 +578,7 @@ class Przyciagnij:
             poly_ok = []  # tab z poprawnymi rozdzielonymi uztykami
 
             # przypadek gdy wszystko jest ok
-            if 1.1 > (tab[0][1]/tab[0][2]) >= 0.9 and \
+            if 1.1 > (round(tab[0][1], 8)/round(tab[0][2], 8)) >= 0.9 and \
                     1.1 > tab[0][1]/fp.geometry().area() > 0.9:
                 if tab[0][0] not in l_poly:
                     if f.id() not in sl:
@@ -592,7 +592,7 @@ class Przyciagnij:
             # snapowaniu wyleciał
             elif 0.9 > (tab[0][1]/tab[0][2]) and len(tab) > 1:
                 isn = 0
-                while pow_zb < f.geometry().area():
+                while round(pow_zb, 8) < round(f.geometry().area(), 8):
                     t = tab[isn]
                     fp = s_feat[t[0]]
                     if fp.geometry().area() + pow_zb < \

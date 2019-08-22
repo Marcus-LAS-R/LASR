@@ -102,12 +102,21 @@ def stworz_99(wydz):
         'Las-R',
         Qgis.Info
     )
-    if len(feats) == 0:
-        return
 
     w99 = QgsVectorLayer('MultiPolygon?crs=epsg:2180&index=yes',
                          '99temp', 'memory'
                          )
+
+    if len(feats) == 0:
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            w99,
+            os.path.join(os.path.join(kat, "99.shp")),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
+        return
+
     w99.startEditing()
     w99.dataProvider().addFeatures(feats)
     w99.commitChanges()
@@ -370,7 +379,6 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
     stworz_pnsw(kat)
     # dodaj warstwe lini
     stworz_linie(kat)
-    stworz_maske(ls)
     stworz_99(ls)
     stworz_pozaewid(ls)
 
@@ -466,11 +474,6 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         os.path.join(os.path.join(kat, "LINIE.shp")),
         'LINIE', 'ogr')
     QgsProject.instance().addMapLayer(linie)
-
-    maska = QgsVectorLayer(
-        os.path.join(os.path.join(kat, "MASKA.shp")),
-        'MASKA', 'ogr')
-    QgsProject.instance().addMapLayer(maska)
 
     w99 = QgsVectorLayer(
         os.path.join(os.path.join(kat, "99.shp")),

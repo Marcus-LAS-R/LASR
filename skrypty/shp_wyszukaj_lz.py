@@ -91,25 +91,26 @@ class WyszukajLz():
             )
             return False
 
-        pola_uz_wyb = [x.name() for x in
-                       self.uz.dataProvider().fields().toList()
-                       if x.name() in ['AU', 'G5OFU']]
+        if self.uz is not False:
+            pola_uz_wyb = [x.name() for x in
+                           self.uz.dataProvider().fields().toList()
+                           if x.name() in ['AU', 'G5OFU']]
 
-        if len(pola_uz_wyb) == 0:
-            self.uz = False
-            self.iface.messageBar().pushMessage(
-                'UŻYTKI',
-                'Brak wymaganego pola w tabeli atrybutów [AU] lub [G5OFU]',
-                Qgis.Critical,
-                10
-            )
-            QgsMessageLog.logMessage(
-                'Brak wymaganych pól w tabeli atrybutów [AU]'
-                '\n---[ KONIEC ]---',
-                'Las-R', Qgis.Critical
-            )
-            return False
-        self.uz_pole = pola_uz_wyb[0]
+            if len(pola_uz_wyb) == 0:
+                self.uz = False
+                self.iface.messageBar().pushMessage(
+                    'UŻYTKI',
+                    'Brak wymaganego pola w tabeli atrybutów [AU] lub [G5OFU]',
+                    Qgis.Critical,
+                    10
+                )
+                QgsMessageLog.logMessage(
+                    'Brak wymaganych pól w tabeli atrybutów [AU]'
+                    '\n---[ KONIEC ]---',
+                    'Las-R', Qgis.Critical
+                )
+                return False
+            self.uz_pole = pola_uz_wyb[0]
 
         lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
         self.kat = os.path.dirname(lsc)
@@ -143,7 +144,8 @@ class WyszukajLz():
 
         self.struk_oddz()
         self.struk_ls()
-        self.struk_uz()
+        if self.uz is not False:
+            self.struk_uz()
 
         del self.w_ls_diss
 
