@@ -177,7 +177,7 @@ class SprawdzWydzielenia():
             self.wypis_sprawdzenia_wydz += 'Brakujące wydzielenia w bazie:\n'
             for b in brakiw:
                 QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
-            self.wypis_sprawdzenia_wydz += b + '\n'
+                self.wypis_sprawdzenia_wydz += b + '\n'
 
         if len(brakib) > 0:
             self.iface.messageBar().pushMessage(
