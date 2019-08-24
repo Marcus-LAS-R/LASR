@@ -62,40 +62,43 @@ class Zabiegi():
             _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
             _wydz.wpisz_wiek_rebnosci(wr)
 
-            if not _wydz.generuj_zabiegi():
+            try:
+                if not _wydz.generuj_zabiegi():
+                    self.bledy.append(w)
+
+                else:
+                    # w ponizszych zadaniach wymagana jest baza
+                    _wydz.dodaj_baze(self.baza)
+
+                    if self.wybor == 'Uzu':
+                        _wydz.zmodyfikuj_zabiegi()
+
+                    if self.wybor == 'Dop':
+                        _wydz.zmodyfikuj_zabiegi()
+                        _wydz.dopisz_zabiegi()
+
+                    # jezeli cos dopisywalismy do baza musimy pobrac z bazyy
+                    # jeszcze raz w celu sprawdzenia na istniejacych danych
+                    if self.wybor in ['Dop', 'Uzu']:
+                        # zmienne do zachowania
+                        __uw_baza = _wydz.uw_baza
+                        self.zmodyfikowano += _wydz.zmodyfikowano
+                        self.dodano += _wydz.dodano
+
+                        del _wydz
+                        _wydz = Wydzielenie(w)
+                        _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
+                        _wydz.wpisz_wiek_rebnosci(wr)
+                        if not _wydz.generuj_zabiegi():
+                            self.bledy.append(w)
+
+                        _wydz.uw_baza += __uw_baza
+
+                    _wydz.sprawdz_zabiegi()
+
+                self.sl[w] = _wydz
+            except:  # noqa
                 self.bledy.append(w)
-
-            else:
-                # w ponizszych zadaniach wymagana jest baza
-                _wydz.dodaj_baze(self.baza)
-
-                if self.wybor == 'Uzu':
-                    _wydz.zmodyfikuj_zabiegi()
-
-                if self.wybor == 'Dop':
-                    _wydz.zmodyfikuj_zabiegi()
-                    _wydz.dopisz_zabiegi()
-
-                # jezeli cos dopisywalismy do baza musimy pobrac z bazyy
-                # jeszcze raz w celu sprawdzenia na istniejacych danych
-                if self.wybor in ['Dop', 'Uzu']:
-                    # zmienne do zachowania
-                    __uw_baza = _wydz.uw_baza
-                    self.zmodyfikowano += _wydz.zmodyfikowano
-                    self.dodano += _wydz.dodano
-
-                    del _wydz
-                    _wydz = Wydzielenie(w)
-                    _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
-                    _wydz.wpisz_wiek_rebnosci(wr)
-                    if not _wydz.generuj_zabiegi():
-                        self.bledy.append(w)
-
-                    _wydz.uw_baza += __uw_baza
-
-                _wydz.sprawdz_zabiegi()
-
-            self.sl[w] = _wydz
 
     def generuj_raport(self):
         '''Metoda generuje raport w katalogu z bazą danych'''
@@ -589,7 +592,7 @@ class SprawdzZabiegi():
 
             if self.gat_gl_wiek < self.wiekReb - 11:
                 if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
-                                                                          '3']:
+                                                                         '3']:
                         self.uw_raport.append(
                             'Rębnia poniżej wieku rębności, ' +
                             self.reb +
