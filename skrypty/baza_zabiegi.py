@@ -347,7 +347,8 @@ class GenerujZabiegi():
                     self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
                     self.zab_dstan_odn_reb()
                 self.uw_raport.append(
-                    'Zabiegi dla D-STANU na wydz. z zadrzew <0.5 ' +
+                    'Wygenerowano zabiegi dla D-STANU na wydz. ' +
+                    'z zadrzew <0.5 ' +
                     'i wiekiem rębności gat. gł. ' +
                     str(self.gat_gl_wiek)+'lat (baza: '+str(self.wiekReb) +
                     ') # [' + self.gen_reb + ', ' +
@@ -619,7 +620,7 @@ class SprawdzZabiegi():
 
             if self.gat_gl_wiek < self.wiekReb - 11:
                 if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
-                                                                          '3']:
+                                                                         '3']:
                         self.uw_raport.append(
                             'Rębnia poniżej wieku rębności, ' +
                             self.reb +
@@ -649,12 +650,12 @@ class SprawdzZabiegi():
 
         if len(self.cue) == 0 and self.typ in [
                 'PŁAZ', 'D-STAN', 'HAL', 'ZRĄB']:
-            self.uw_raport.append('-->> Brak wpisanych zabiegów!!')
+            self.uw_raport.append('-->> Brak wpisanych zabiegów w bazie!!')
 
     def sprawdz_wpisanie_rebni(self):
         if self.reb == '' and self.gen_reb != '' and self.typ == 'D-STAN':
             self.uw_raport.append(
-                'Nie dodano rebni do wydzielenia? # [' +
+                'Nie dodano rebni do wydzielenia? ('+self.gen_reb+') # [' +
                 ', '.join([x for x in self.cue.keys()]) + ']'
             )
 

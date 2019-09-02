@@ -703,7 +703,7 @@ class Baza(object):
         FROM
             F_STOREY_SPECIES AS f
         WHERE
-            f.STOREY_CD in ('PŁAZ', 'PRZEST') and
+            f.STOREY_CD in ('PŁAZ', 'PRZES') and
             f.ARODES_INT_NUM = ''' + str(aid) + '''
         GROUP BY
             f.ARODES_INT_NUM;'''
