@@ -379,7 +379,6 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
     stworz_pnsw(kat)
     # dodaj warstwe lini
     stworz_linie(kat)
-    stworz_99(ls)
     stworz_pozaewid(ls)
 
     # dodaj przetworzona warstwe oddz

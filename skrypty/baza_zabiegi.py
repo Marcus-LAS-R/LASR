@@ -339,31 +339,30 @@ class GenerujZabiegi():
             self.trzebierz = True
 
         if self.zadrzew < 0.5 and len(self.zabiegi) == 0:
-            if self.wiekReb - 9 < self.gat_gl_wiek:
-                genr = self.generuj_rebnie(spr=False)
-                if genr is not False:
-                    self.gen_reb = genr[0][0]
-                    self.gen_proc_reb = genr[0][1]
-                    self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
-                    self.zab_dstan_odn_reb()
+            genr = self.generuj_rebnie(spr=False)
+            if genr is not False:
+                if genr[0] not in ['IVD', 'IB']:
+                    genr = [['IVD', 40]]
+                self.gen_reb = genr[0][0]
+                self.gen_proc_reb = genr[0][1]
+                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+                self.zab_dstan_odn_reb()
+
                 self.uw_raport.append(
                     'Wygenerowano zabiegi dla D-STANU na wydz. ' +
                     'z zadrzew <0.5 ' +
                     'i wiekiem rębności gat. gł. ' +
-                    str(self.gat_gl_wiek)+'lat (baza: '+str(self.wiekReb) +
-                    ') # [' + self.gen_reb + ', ' +
+                    str(self.gat_gl_wiek)+' lat (baza: '+str(self.wiekReb) +
+                    ' lat) # [' + self.gen_reb + ', ' +
                     ', '.join([x[0] for x in self.zabiegi]) + ']'
                 )
             else:
-                self.zabiegi.append(['PŁAZ', self.pow_wydz])
-                self.zabiegi.append(['ODN-ZRB', self.pow_wydz])
-                self.zabiegi.append(['AGROT', self.pow_wydz])
-                self.zabiegi.append(['PIEL', self.pow_wydz])
                 self.uw_raport.append(
-                    'Wpisano D-STAN na wydz. z zadrzew <0.5 '
+                    'Niewygenerowano zabiegów dla D-STANU na wydz. ' +
+                    'z zadrzew <0.5 ' +
                     'i wiekiem rębności gat. gł. ' +
-                    str(self.gat_gl_wiek)+'lat (baza: '+str(self.wiekReb) +
-                    ') # [' + ', '.join([x[0] for x in self.zabiegi]) + ']'
+                    str(self.gat_gl_wiek)+' lat (baza: '+str(self.wiekReb) +
+                    ' lat) # BŁĄD GENEROWANIA ZABIEGÓW!!'
                 )
 
     def zab_dstan_odn_reb(self):
@@ -627,7 +626,9 @@ class SprawdzZabiegi():
                             ' w wieku: ' +
                             str(self.gat_gl_wiek) +
                             ', wiek rębności w bazie ustalono na: ' +
-                            str(self.wiekReb))
+                            str(self.wiekReb) + ' (' +
+                            self.uwagi + ')'
+                        )
 
     def sprawdz_zadrzewienie(self):
         if self.zadrzew > 1.4:
