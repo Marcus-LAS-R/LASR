@@ -150,27 +150,55 @@ def test_sprawdzenia_ze_stara_baza(licz):
             sorted([[k, v] for k, v in w.cue.items()])
 
 
-def test_wpisana_do_pustej(baza_pusta):
-    bb = baza_pusta
-    bb.wpisz('delete from f_arod_cue;')
-    b = bb.pobierz_do_zab(23)
-    w = Wydzielenie(23)
-    w.wczytaj_dane(b)
-    w.wpisz_wiek_rebnosci(bb.pobierz_wiek_reb())
+def test_wygenerowania_rebni_uprzatajacej():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 90
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.3
+    w.wiekReb = 90
     w.generuj_zabiegi()
-    w.dodaj_baze(bb)
-    w.dopisz_zabiegi()
-    assert w.dodano == 4 and w.zmodyfikowano == 0
+    assert w.gen_reb == 'IVDU'
 
 
-def test_zmodyfikowania_rekordu(baza_pusta):
-    bb = baza_pusta
-    bb.wpisz('update f_arod_cue set cutting_area=6.6666;')
-    b = bb.pobierz_do_zab(23)
-    w = Wydzielenie(23)
-    w.wczytaj_dane(b)
-    w.wpisz_wiek_rebnosci(bb.pobierz_wiek_reb())
+def test_wygenerowania_rebni_do_przebudowy():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 75
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.4
+    w.wiekReb = 90
     w.generuj_zabiegi()
-    w.dodaj_baze(bb)
-    w.dopisz_zabiegi(False)
-    assert w.uw_baza == [] and w.dodano == 0 and w.zmodyfikowano == 4
+    assert w.gen_reb == 'IIB' and \
+        w.uwagi == ' D-stan przeznaczony do przebudowy,' and \
+        len(w.zabiegi) == 3
+
+
+def test_wygenerowania_TP():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 55
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.4
+    w.wiekReb = 90
+    w.generuj_zabiegi()
+    assert len(w.zabiegi) == 1 and w.zabiegi[0][0] == 'TP'
+
+
+def test_wygenerowania_popr_uzup_ponizej21():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 15
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.5
+    w.wiekReb = 90
+    w.generuj_zabiegi()
+    assert len(w.zabiegi) == 3 and w.zabiegi[0][0] == 'POPR'

@@ -433,7 +433,6 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
                     {feat.id(): {
                         fnm['MUNICIP']: municip,
                         fnm['COMMUNITY']: comm,
-                        fnm['ODDZ']: '1',
                     }})
 
         _skasuj = [fnm[x.name()] for x in oddz.fields()
@@ -473,12 +472,6 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         os.path.join(os.path.join(kat, "LINIE.shp")),
         'LINIE', 'ogr')
     QgsProject.instance().addMapLayer(linie)
-
-    w99 = QgsVectorLayer(
-        os.path.join(os.path.join(kat, "99.shp")),
-        '99', 'ogr')
-    if w99.isValid():
-        QgsProject.instance().addMapLayer(w99)
 
     pozaewidencyjne = QgsVectorLayer(
         os.path.join(os.path.join(kat, "pozaewidencyjne.shp")),

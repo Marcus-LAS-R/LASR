@@ -92,6 +92,11 @@ class ZabiegiSlownik():
                 'r': ' Brak możliwości wpisania uwagi o działkach w rębni'
                 'zupełnej,'
             },
+            'przebud': {
+                'c': ' D-stan przeznaczony do przebudowy,',
+                's': ' D-stan do przebud.,',
+                'r': ' Brak możliwości wpisania uwagi o d-stanie do przebudowy'
+            },
 
         }
 

@@ -318,6 +318,13 @@ class GenerujZabiegi():
         # dopisz odnowienie do rebni w zaleznosci od typu
         self.zab_dstan_odn_reb()
 
+        if self.gat_gl_wiek < 22:
+            if 0.4 < self.zadrzew < 0.8:
+                self.zabiegi.append(['POPR', (1-self.zadrzew)*self.pow_wydz])
+                self.zabiegi.append(['UZUP', (1-self.zadrzew)*self.pow_wydz])
+                self.zabiegi.append(['AGROT', (1-self.zadrzew)*self.pow_wydz])
+                self.zabiegi.append(['PIEL', (1-self.zadrzew)*self.pow_wydz])
+
         if self.gat_gl_wiek < 10:
             self.zabiegi.append(['CW', self.pow_wydz])
             return
@@ -338,11 +345,33 @@ class GenerujZabiegi():
             self.zabiegi.append(['TP', self.pow_wydz])
             self.trzebierz = True
 
+        # d-stan rozsypuje sie 10 lat przed wiekiem rebnosci - przebudowa  IIB
+        if 0.399 < self.zadrzew < 0.51 and (
+                self.wiekReb-21 < self.gat_gl_wiek < self.wiekReb-9):
+            # kasuj wszystko co zstało wygenerowane
+            self.trzebierz = False
+            self.zabiegi = []
+            # ustaw rebnie i oblicz dane
+            self.gen_reb = 'IIB'
+            self.gen_proc_reb = 50
+            self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+            # dopisz info o przebudowie w uwagach
+            if len(self.uwagi) + len(self.uw_sl['przebud']['c']) < 255:
+                if self.uw_sl['przebud']['c'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['przebud']['c']
+            elif len(self.uwagi) + len(self.uw_sl['przebud']['s']) < 255:
+                if self.uw_sl['przebud']['s'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['przebud']['s']
+            else:
+                self.uw_raport.append(self.uw_sl['przebud']['r'])
+            # dopisz odnowienie do rebni w zaleznosci od typu
+            self.zab_dstan_odn_reb()
+
         if self.zadrzew < 0.5 and len(self.zabiegi) == 0:
             genr = self.generuj_rebnie(spr=False)
             if genr is not False:
                 if genr[0] not in ['IVD', 'IB']:
-                    genr = [['IVD', 40]]
+                    genr = [['IVDU', 40]]
                 self.gen_reb = genr[0][0]
                 self.gen_proc_reb = genr[0][1]
                 self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
@@ -618,9 +647,9 @@ class SprawdzZabiegi():
                 return
 
             if self.gat_gl_wiek < self.wiekReb - 11:
-                if self.reb not in ['PŁAZ', 'IVD'] and self.uszk not in ['2',
-                                                                         '3']:
-                        self.uw_raport.append(
+                if self.reb not in ['PŁAZ', 'IVD'] and \
+                        self.uszk not in ['2', '3']:
+                    self.uw_raport.append(
                             'Rębnia poniżej wieku rębności, ' +
                             self.reb +
                             ' w wieku: ' +
