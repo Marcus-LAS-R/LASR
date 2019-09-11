@@ -139,7 +139,7 @@ def CzyscBaze(baza):  # noqa
     sql = 'select distinct addr_nr, second_addr_nr ' +\
         'from v_parcel_participation;'
     twl_temp2 = baza.pobierz(sql)  # tablica wlasnosci
-    twl += [x[1] for x in twl_temp2 if x[0] in twl_temp]
+    twl += [x[1] for x in twl_temp2 if x[0] in twl]
 
     sql = 'select distinct addr_nr from v_address;'
     tadr = baza.pobierz(sql)  # tablica wlasnosci
