@@ -320,10 +320,12 @@ class GenerujZabiegi():
 
         if self.gat_gl_wiek < 22:
             if 0.4 < self.zadrzew < 0.8:
-                self.zabiegi.append(['POPR', (1-self.zadrzew)*self.pow_wydz])
-                self.zabiegi.append(['UZUP', (1-self.zadrzew)*self.pow_wydz])
-                self.zabiegi.append(['AGROT', (1-self.zadrzew)*self.pow_wydz])
-                self.zabiegi.append(['PIEL', (1-self.zadrzew)*self.pow_wydz])
+                self.zabiegi.append([
+                    'POPR', round((1-self.zadrzew)*self.pow_wydz, 4)])
+                self.zabiegi.append([
+                    'AGROT', round((1-self.zadrzew)*self.pow_wydz, 4)])
+                self.zabiegi.append([
+                    'PIEL', round((1-self.zadrzew)*self.pow_wydz, 4)])
 
         if self.gat_gl_wiek < 10:
             self.zabiegi.append(['CW', self.pow_wydz])
@@ -374,7 +376,8 @@ class GenerujZabiegi():
                     genr = [['IVDU', 40]]
                 self.gen_reb = genr[0][0]
                 self.gen_proc_reb = genr[0][1]
-                self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+                self.gen_pow_reb = round(
+                    self.pow_wydz * (self.gen_proc_reb/100), 4)
                 self.zab_dstan_odn_reb()
 
                 self.uw_raport.append(

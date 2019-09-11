@@ -1,8 +1,9 @@
 import os
 from collections import defaultdict
 from qgis.core import QgsVectorLayer, Qgis, QgsProject, \
-    QgsField, QgsMessageLog, QgsCoordinateReferenceSystem, QgsVectorFileWriter
+    QgsField, QgsMessageLog
 from PyQt5.QtCore import QVariant
+from shutil import copyfile
 
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .sprawdzenia_warstw import SprawdzWydzielenia
@@ -352,17 +353,22 @@ class DopiszKody(SprawdzWydzielenia):
 
     def dopisz_kody(self):  # noqa
         # kopiujemy shp
-        feats = [feat for feat in self.wydz.getFeatures()]
+        for roz in ['shp', 'shx', 'prj', 'dbf', 'cpg']:
+            try:
+                copyfile(self.wydz_path[:-3]+roz,
+                         os.path.join(self.kat, 'WYDZ_POL.' + roz))
+            except:  # noqa
+                pass
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        wpol = QgsVectorLayer("Polygon?crs=epsg:2180", "WYDZ_DOP", "memory")
-        wpol_data = wpol.dataProvider()
-        wpol_data.setEncoding('UTF-8')
-        wpol.startEditing()
+        self.wpol = QgsVectorLayer(os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
+                                   "WYDZ_DOPISANE", "ogr")
+        self.wpol_data = self.wpol.dataProvider()
+        self.wpol_data.setEncoding('UTF-8')
 
         # Dodajemy odpowiednie kolumny:
         attr_nazwy = [x.name() for x in self.wydz.fields()]
         attr = self.wydz.fields()
+
         pola = [
             QgsField("COUNTY_L", QVariant.String, len=1),
             QgsField("COUNTY", QVariant.String, len=2),
@@ -402,31 +408,19 @@ class DopiszKody(SprawdzWydzielenia):
         for d in dodaj:
             attr.append(d)
 
-        wpol_data.addAttributes(attr)
-        wpol.updateFields()
-        wpol_data.addFeatures(feats)
-        wpol.commitChanges()
-        QgsVectorFileWriter.writeAsVectorFormat(
-            wpol,
-            os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
-        wpol = QgsVectorLayer(os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
-                              "WYDZ_DOPISANE", "ogr")
-        wpol_data = wpol.dataProvider()
-        wpol_data.setEncoding('UTF-8')
-        wpol.startEditing()
+        self.wpol_data.addAttributes(attr)
+        self.wpol.updateFields()
+        self.wpol.commitChanges()
 
-        fnm = wpol_data.fieldNameMap()
+        fnm = self.wpol_data.fieldNameMap()
 
         brak_opisu = []
-
-        for feat in wpol.getFeatures():
+        sl_dop = {}
+        for feat in self.wpol.getFeatures():
             dop = {}
             adr = feat['ADR_LES']
+            print(adr)
             if adr in self.sl:
-
                 # przygotuj kod gatunku z odpowiednia wielkoscia liter
                 gat = self.isNone(self.sl[adr][4])
                 if gat != ' ':
@@ -436,19 +430,21 @@ class DopiszKody(SprawdzWydzielenia):
                     fnm['TYP_POW']: self.isNone(self.sl[adr][0]),
                     fnm['STL']: self.isNone(self.sl[adr][1]),
                     fnm['POW_WYDZ']: self.isNone(self.sl[adr][2], typ='i'),
-                    fnm['UDZIAL']: self.isNone(self.sl[adr][3], typ='i'),
-                    fnm['GAT']: gat,
+                    fnm['UDZIAL']: self.isNone(self.sl[adr][3]),
+                    fnm['GAT']: self.isNone(gat),
                     fnm['WIEK']: self.isNone(self.sl[adr][5], typ='i'),
-                    fnm['ZADRZEW']: self.isNone(self.sl[adr][6], typ='i'),
+                    fnm['ZADRZEW']: round(
+                        self.isNone(self.sl[adr][6], typ='i'), 1),
                     fnm['STRUKTUR']: self.isNone(self.sl[adr][8]),
                     fnm['L_EWID']: 'T',
                 }
 
                 if adr in self.dopis:
-                    dop[fnm['AGROT']] = self.isNone(self.dopis[adr]['AGROT'],
-                                                    typ='i')
-                    dop[fnm['PIEL']] = self.isNone(self.dopis[adr]['PIEL'],
-                                                   typ='i')
+                    if 'AGROT' in self.dopis[adr]:
+                        dop[fnm['AGROT']] = self.dopis[adr]['AGROT']
+                    if 'PIEL' in self.dopis[adr]:
+                        dop[fnm['PIEL']] = self.dopis[adr]['PIEL']
+
                     if self.przestoje_flag:
                         if 'PRZEST' in self.dopis[adr]:
                             prz = self.isNone(self.dopis[adr]['PRZEST'],
@@ -490,41 +486,26 @@ class DopiszKody(SprawdzWydzielenia):
                         "LCH")
                     self.iface.messageBar().pushMessage(
                         'UWAGA',
-                        u'Probemy przy generowaniu kodów, zobacz log',
-                        level=Qgis.Warning)
+                        'Probemy przy generowaniu kodów, zobacz log',
+                        Qgis.Warning)
 
-                wpol_data.changeAttributeValues({feat.id(): dop})
-
+                sl_dop[feat.id()] = dop
             else:
-                brak_opisu.append(adr)
-                dop[fnm['SLMN_KOL']] = 0
+                sl_dop[feat.id()] = {fnm['SLMN_KOL']: 0}
+                brak_opisu.append(feat.id())
 
-        wpol.commitChanges()
+        for k, it in sl_dop.items():
+            self.wpol_data.changeAttributeValues({k: it})
+        if len(brak_opisu) > 0:
+            self.iface.messageBar().pushMessage(
+                'BŁĘDY', 'Nie dopisano wszystkich atrybutów', Qgis.Warning)
 
-        crs = QgsCoordinateReferenceSystem('epsg:2180')
-        QgsVectorFileWriter.writeAsVectorFormat(
-            wpol,
-            os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
+            QgsMessageLog.logMessage(
+                '\n'.join([str(x) for x in brak_opisu]),
+                'LAS-R'
+            )
 
-        self.wpol = QgsVectorLayer(os.path.join(self.kat,
-                                                "WYDZ_DOPISANE.shp"),
-                                   "WYDZ_DOPISANE",
-                                   "ogr")
-        self.wpol.dataProvider().setEncoding('utf-8')
-
-        self.iface.messageBar().pushMessage(
-            'OK',
-            u'Metadane dopisane do wydzieleń',
-            level=Qgis.Success)
+        else:
+            self.iface.messageBar().pushMessage(
+                'OK', 'Metadane dopisane do wydzieleń', Qgis.Success)
         QgsProject.instance().addMapLayer(self.wpol)
-
-        self.koniec()
-
-
-# if __name__ == '__console__':
-    # d = DopiszKody(iface)
-    # d.pobierzBaze()
-    # d.dopisz_kody()
