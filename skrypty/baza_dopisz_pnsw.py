@@ -193,15 +193,12 @@ class DopiszPnsw(SprawdzWydzielenia):
                 if inter.area() / geom.area() >= 0.9:
                     # jeżeli podmieniamy geometrię wpisujemy też rozpoznany adr
                     self.pnsw.startEditing()
-                    if inter.isGeosValid():
-                        if inter.area() > 0:
-                            self.pnsw.changeGeometry(pnsw.id(), inter)
                     self.pnsw.dataProvider().changeAttributeValues({
                         pnsw.id(): {self.fnm['ADR_BDL']:
                                     self.sl_wydz[id]['ADR_LES']}
                     })
-                    self.pnsw_podm += 1
                     self.pnsw.commitChanges()
+                    self.feat_do_spr.append(pnsw)
                     break
 
                 elif inter.area() / geom.area() < 0.1:

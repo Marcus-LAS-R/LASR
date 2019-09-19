@@ -80,6 +80,230 @@ class ZabiegiSlownik():
             u'OLJWYŻ': [['TP', 19, ]],
         }
 
+        # kolejnosc dla kazdego siedliska jest wazna i po kolei oznacza:
+        # reb dla d-stanu podstawowego
+        # jezeli pow wydz < 0,5 ha lub 1 dzkat o pow < 4ha
+        # KO i zadrzew >= 0,5 lub jest forma ochr. przyr.
+        # KO i zadrzew < 0,5 lub dstan rebny i zadrzew <= 0,5
+        self.rebnieSlnowy = {
+            'BB': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['V', 40, ],
+                ['IIBU', 100, ],
+            ],
+            'BGB': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMB': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMGB': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMŚW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BS': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+            ],
+            'BŚW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+            ],
+            'BW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BWG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁWYŻ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMB': [
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'LMGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMŚW': [
+                ['IB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMW': [
+                ['IIB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OL': [
+                ['IB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJWYŻ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+        }
+
         self.uw_sl = {
             'uszk': {
                 'c': ' D-stan do przebudowy ze wzg. na uszkodzenia.',

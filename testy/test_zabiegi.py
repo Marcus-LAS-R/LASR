@@ -160,7 +160,21 @@ def test_wygenerowania_rebni_uprzatajacej():
     w.zadrzew = 0.3
     w.wiekReb = 90
     w.generuj_zabiegi()
-    assert w.gen_reb == 'IVDU'
+    assert w.gen_reb == 'IIBU' and len(w.zabiegi) == 3
+
+
+def test_wygenerowania_rebni_ponizej_9_lat():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 76
+    w.gat_gl_vol = 40
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.6
+    w.wiekReb = 90
+    w.generuj_zabiegi()
+    assert w.gen_reb == '' and len(w.zabiegi) == 1
 
 
 def test_wygenerowania_rebni_do_przebudowy():
@@ -173,9 +187,83 @@ def test_wygenerowania_rebni_do_przebudowy():
     w.zadrzew = 0.4
     w.wiekReb = 90
     w.generuj_zabiegi()
-    assert w.gen_reb == 'IIB' and \
+    assert w.gen_reb == 'IVDU' and \
         w.uwagi == ' D-stan przeznaczony do przebudowy,' and \
         len(w.zabiegi) == 3
+
+
+def test_wygenerowania_rebni_do_przebudowy_opis_skrocony():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 75
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.4
+    w.wiekReb = 90
+    w.uwagi = 220 * 'a'
+    w.generuj_zabiegi()
+    assert w.gen_reb == 'IVDU' and \
+        w.uwagi == 220 * 'a' + ' D-stan do przebud.,' and \
+        len(w.zabiegi) == 3
+
+
+def test_wygenerowania_rebni_do_przebudowy_opis_niezmieszczony():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 75
+    w.typ = 'D-STAN'
+    w.stl = 'BMŚW'
+    w.pow_wydz = 0.2345
+    w.zadrzew = 0.4
+    w.wiekReb = 90
+    w.uwagi = 250 * 'a'
+    w.generuj_zabiegi()
+    assert w.gen_reb == 'IVDU' and \
+        w.uwagi == 250 * 'a' and \
+        len(w.zabiegi) == 3 and \
+        w.uw_raport[-1] == \
+        ' Brak możliwości wpisania uwagi o d-stanie do przebudowy'
+
+
+def test_wygenerowania_zab_w_rebni_do_przebudowy():
+    w = Wydzielenie(1)
+    w.gat_gl = 'JD'
+    w.gat_gl_wiek = 80
+    w.reb = 'IVDU'
+    w.proc_reb = 100
+    w.typ = 'D-STAN'
+    w.stl = 'LMGŚW'
+    w.pow_wydz = 0.2345
+    w.podr = 0.4
+    w.nal = 0.4
+    w.zadrzew = 0.4
+    w.wiekReb = 100
+    w.generuj_zabiegi()
+    assert len(w.zabiegi) == 3
+
+
+def test_sprawdzenia_uwagi_o_rebnie_przy_2_stopniu_usk():
+    w = Wydzielenie(1)
+    w.gat_gl = 'JD'
+    w.gat_gl_wiek = 81
+    w.typ = 'D-STAN'
+    w.reb = ''
+    w.stl = 'LMGŚW'
+    w.pow_wydz = 0.2345
+    w.gat_gl_vol = 20
+    w.podr = 0.4
+    w.nal = 0.4
+    w.zadrzew = 0.4
+    w.uszk = '2'
+    w.cue = ['TP', ]
+    w.zabigi = ['TP', ]
+    w.wiekReb = 100
+    w.sprawdz_zabiegi()
+    # w.generuj_zabiegi()
+    assert w.uw_raport == [
+        'Brak wpisanej rębni przy 2 stopniu' +
+        ' uszkodzeń, do sprawdzenia']
 
 
 def test_wygenerowania_TP():
@@ -201,4 +289,4 @@ def test_wygenerowania_popr_uzup_ponizej21():
     w.zadrzew = 0.5
     w.wiekReb = 90
     w.generuj_zabiegi()
-    assert len(w.zabiegi) == 3 and w.zabiegi[0][0] == 'POPR'
+    assert len(w.zabiegi) == 4 and w.zabiegi[0][0] == 'POPR'

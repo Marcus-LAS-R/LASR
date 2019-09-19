@@ -103,7 +103,8 @@ class Zabiegi():
     def generuj_raport(self):
         '''Metoda generuje raport w katalogu z bazą danych'''
         rap = ''
-        for w in self.sl.values():
+        for k in sorted(self.wydz.keys()):
+            w = self.sl[self.wydz[k]]
             if len(w.uw_raport+w.uw_baza) > 0:
                 rap += '\n'.join([self.wydz_id[w.aid]+'#   '+x
                                   for x in w.uw_raport+w.uw_baza])
@@ -201,6 +202,85 @@ class GenerujZabiegi():
 
         return False
 
+    def generuj_rebnie_nowe(self, spr=True):  # noqa
+        if spr:
+            if self.stl not in self.rebnieSl:
+                return False
+            if self.gat_gl_wiek < self.wiekReb - 20:
+                return False
+            if self.wiekReb-9 > self.gat_gl_wiek:
+                if self.zadrzew > 0.49:
+                    return False
+            if self.typ != 'D-STAN':
+                return False
+
+        # wyczysc zabiegi i trzebiez bo bedziemy generowac rebnie
+        self.trzebierz = False
+        self.zabiegi = []
+
+        # ustaw rebnie podstawowa dla tego siedliska
+        reb = self.rebnieSlnowy[self.stl][0]
+
+        if self.pow_wydz < 0.5 or self.ile_dzkat < 2 and self.pow_wydz < 4:
+            reb = self.rebnieSlnowy[self.stl][1]
+
+        if self.struk == 'KO':
+            if self.zadrzew >= 0.5:
+                reb = self.rebnieSlnowy[self.stl][2]
+            if self.zadrzew < 0.5:
+                reb = self.rebnieSlnowy[self.stl][3]
+
+        # jezeli jest forma ochrony przyrody to zwroc wariant 3
+        if self.fop > 0:
+            reb = self.rebnieSlnowy[self.stl][2]
+
+        # dla wydzielen o powierzchi powyżej 10 ha
+        if self.pow_wydz > 10 and self.ile_dzkat > 1:
+            reb = ['IIB', 50]
+
+        if self.zadrzew < 0.5 and self.gat_gl_wiek > self.wiekReb - 10:
+            reb = self.rebnieSlnowy[self.stl][3]
+
+        # dstan rozsypujacy sie przed wiekiem rebnosci
+        if self.zadrzew < 0.5 and \
+                self.wiekReb - 10 > self.gat_gl_wiek > self.wiekReb - 20:
+            reb = ['IVDU', 100]
+
+            self.uw_raport.append(
+                'Wygenerowano zabiegi dla D-STANU na wydz. ' +
+                'z zadrzew <0.5 ' +
+                'i wiekiem rębności gat. gł. ' +
+                str(self.gat_gl_wiek)+' lat (baza: '+str(self.wiekReb) +
+                ' lat) # rębnia wygenerowana:(' + reb[0] + ', ' + str(reb[1])
+                + '%); ' + 'baza: [' + ', '.join([x for x in self.cue]) + ']'
+            )
+
+            # dopisz info o przebudowie w uwagach
+            if len(self.uwagi) + len(self.uw_sl['przebud']['c']) < 255:
+                if self.uw_sl['przebud']['c'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['przebud']['c']
+            elif len(self.uwagi) + len(self.uw_sl['przebud']['s']) < 255:
+                if self.uw_sl['przebud']['s'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['przebud']['s']
+            else:
+                self.uw_raport.append(self.uw_sl['przebud']['r'])
+
+            return [reb]
+
+        if self.uszk == '3':
+            reb = self.rebnieSlnowy[self.stl][1]
+            # dodaj informacje o zmianie standardowego drylu
+            if len(self.uwagi) + len(self.uw_sl['uszk']['c']) < 255:
+                if self.uw_sl['uszk']['c'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['uszk']['c']
+            elif len(self.uwagi) + len(self.uw_sl['uszk']['s']) < 255:
+                if self.uw_sl['uszk']['s'] not in self.uwagi:
+                    self.uwagi += self.uw_sl['uszk']['s']
+            else:
+                self.uw_raport.append(self.uw_sl['uszk']['r'])
+
+        return [reb]
+
     def zab_plaz(self):
         if self.typ == 'PŁAZ':
             self.zabiegi.append(['PŁAZ', self.pow_wydz])
@@ -232,6 +312,81 @@ class GenerujZabiegi():
         else:
             self.zabiegi.append(['TP', self.pow_wydz])
         self.trzebierz = True
+
+    def zab_dstan_nowe(self):  # noqa
+        if self.struk == 'W PIĘTR':
+            self.uw_raport.append(
+                'Wydzielenie ze strukturą d-stanu wielopiętrowego'
+            )
+            return
+        if self.struk == '2 PIĘTR':
+            self.uw_raport.append(
+                'Wydzielenie ze strukturą d-stanu dwupiętrowego'
+            )
+            return
+        if self.struk == 'SP':
+            self.uw_raport.append(
+                'Wydzielenie ze strukturą przerębową'
+            )
+            return
+
+        if self.gat_gl_wiek < 22:
+            if 0.4 < self.zadrzew < 0.8:
+                self.zabiegi.append([
+                    'POPR', round((1-self.zadrzew)*self.pow_wydz, 4)])
+                self.zabiegi.append([
+                    'AGROT', round((1-self.zadrzew)*self.pow_wydz, 4)])
+                self.zabiegi.append([
+                    'PIEL', round((1-self.zadrzew)*self.pow_wydz, 4)])
+
+        if self.gat_gl_wiek < 10:
+            self.zabiegi.append(['CW', self.pow_wydz])
+            return
+
+        if 9 < self.gat_gl_wiek < 20:
+            self.zab_dstan_cp()
+            return
+
+        if 19 < self.gat_gl_wiek < 40:
+            self.gen_reb = ''
+            self.gen_proc_reb = 0
+            # generuj trzebierze tylko jesli uzytkownik nic nie wpisał
+            if self.reb == '':
+                self.zab_dstan_trz()
+            return
+
+        if self.wiekReb - 9 > self.gat_gl_wiek > 39:
+            self.gen_reb = ''
+            self.gen_proc_reb = 0
+            if self.reb == '':
+                self.zabiegi.append(['TP', self.pow_wydz])
+                self.trzebierz = True
+
+        genr = self.generuj_rebnie_nowe()
+        # wygeneruj rebnie o ile jest taka mozliwość
+        if genr is not False:
+            self.gen_reb = genr[0][0]
+            self.gen_proc_reb = genr[0][1]
+            self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
+
+            # generuj zabiegi dodatkowe dla rebni, o ile nie wygenerowano
+            if len(self.zabiegi) == 0:
+                self.zab_dstan_odn_reb()
+
+        # jezeli mamy rebnie zupelna to i pow wydz powyzej 4ha dodaj uwage o
+        # traktowaniu dzialek ewid jako zrebowe
+        if self.gen_reb in ['IA', 'IB', 'IC', ]:
+            if self.ile_dzkat > 1 and self.pow_wydz > 1:
+                # dodaj informacje o zmianie standardowego drylu
+                if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
+                    if self.uw_sl['reb_zup']['c'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['reb_zup']['c']
+                elif len(self.uwagi) + len(self.uw_sl['reb_zup']['s']) < 255:
+                    if self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                        self.uwagi += self.uw_sl['reb_zup']['s']
+                else:
+                    self.uw_raport.append(self.uw_sl['reb_zup']['r'])
+
 
     def zab_dstan(self):  # noqa
         if self.struk == 'W PIĘTR':
@@ -294,7 +449,7 @@ class GenerujZabiegi():
             # jezeli co co innego to przezucamy ma IVDU
             else:
                 self.gen_reb = 'IVDU'
-                self.gen_proc_reb = 40
+                self.gen_proc_reb = 100
                 self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
 
             # dopisz odnowienie do rebni w zaleznosci od typu
@@ -338,14 +493,17 @@ class GenerujZabiegi():
         if 19 < self.gat_gl_wiek < 40:
             self.gen_reb = ''
             self.gen_proc_reb = 0
-            self.zab_dstan_trz()
+            # generuj trzebierze tylko jesli uzytkownik nic nie wpisał
+            if self.reb == '':
+                self.zab_dstan_trz()
             return
 
         if self.wiekReb - 9 > self.gat_gl_wiek > 39:
             self.gen_reb = ''
             self.gen_proc_reb = 0
-            self.zabiegi.append(['TP', self.pow_wydz])
-            self.trzebierz = True
+            if self.reb == '':
+                self.zabiegi.append(['TP', self.pow_wydz])
+                self.trzebierz = True
 
         # d-stan rozsypuje sie 10 lat przed wiekiem rebnosci - przebudowa  IIB
         if 0.399 < self.zadrzew < 0.51 and (
@@ -372,8 +530,8 @@ class GenerujZabiegi():
         if self.zadrzew < 0.5 and len(self.zabiegi) == 0:
             genr = self.generuj_rebnie(spr=False)
             if genr is not False:
-                if genr[0] not in ['IVD', 'IB']:
-                    genr = [['IVDU', 40]]
+                if genr[0] not in ['IB']:
+                    genr = [['IVDU', 100]]
                 self.gen_reb = genr[0][0]
                 self.gen_proc_reb = genr[0][1]
                 self.gen_pow_reb = round(
@@ -385,8 +543,8 @@ class GenerujZabiegi():
                     'z zadrzew <0.5 ' +
                     'i wiekiem rębności gat. gł. ' +
                     str(self.gat_gl_wiek)+' lat (baza: '+str(self.wiekReb) +
-                    ' lat) # [' + self.gen_reb + ', ' +
-                    ', '.join([x[0] for x in self.zabiegi]) + ']'
+                    ' lat) # zabiegi wygenerowane:(' + self.gen_reb + ', ' +
+                    ', '.join([x[0] for x in self.zabiegi]) + ')'
                 )
             else:
                 self.uw_raport.append(
@@ -410,7 +568,7 @@ class GenerujZabiegi():
             rr_proc = self.proc_reb
             if self.proc_reb > 100:
                 rr_proc = 100
-            rr_pow = round(self.pow_wydz * (self.proc_reb/100), 4)
+            rr_pow = round(self.pow_wydz * (rr_proc/100), 4)
         else:
             rr = self.gen_reb
             rr_pow = self.gen_pow_reb
@@ -426,7 +584,7 @@ class GenerujZabiegi():
         # inne rebnie cześciowe
         elif rr in self.rebnieSpis:
             odn_cz = 0
-            np_sum = self.nal + self.podr
+            np_sum = self.nal + self.podr + self.pods
             if np_sum > 0.1:
                 odn_cz = np_sum - 0.1
 
@@ -454,7 +612,7 @@ class GenerujZabiegi():
             self.zab_plaz()
 
         if self.typ == 'D-STAN':
-            self.zab_dstan()
+            self.zab_dstan_nowe()
 
             if self.trzebierz:
                 if 0.4 < self.zadrzew < 0.9:
@@ -541,8 +699,8 @@ class GenerujZabiegi():
 
 
 class SprawdzZabiegi():
-    def __init__(self):
-        pass
+    # def __init__(self):
+        # pass
 
     def sprawdz_zabiegi(self):
         '''Metoda sprawdza wpisane do bazy zabiegi z tymi ktore zostały
@@ -560,6 +718,7 @@ class SprawdzZabiegi():
         self.sprawdz_zadrzewienie()
         self.sprawdz_wpisanie_rebni()
         self.sprawdz_wpisanie_zabiegow()
+        self.sprawdz_stopien_uszkodzen()
 
     def sprawdz_luki(self):
         ''' sprawdz czy w tym wydzieleniu nie powinno byc luk ze wzg na wiek,
@@ -653,14 +812,20 @@ class SprawdzZabiegi():
                 if self.reb not in ['PŁAZ', 'IVD'] and \
                         self.uszk not in ['2', '3']:
                     self.uw_raport.append(
-                            'Rębnia poniżej wieku rębności, ' +
-                            self.reb +
-                            ' w wieku: ' +
-                            str(self.gat_gl_wiek) +
-                            ', wiek rębności w bazie ustalono na: ' +
-                            str(self.wiekReb) + ' (' +
-                            self.uwagi + ')'
+                        'Rębnia poniżej wieku rębności, ' +
+                        self.reb +
+                        ' w wieku: ' +
+                        str(self.gat_gl_wiek) +
+                        ', wiek rębności w bazie ustalono na: ' +
+                        str(self.wiekReb) + '; opis w bazie: (' +
+                        self.uwagi + ')'
                         )
+
+    def sprawdz_stopien_uszkodzen(self):
+        if self.reb == '' and self.uszk == '2':
+            self.uw_raport.append(
+                'Brak wpisanej rębni przy 2 stopniu' +
+                ' uszkodzeń, do sprawdzenia')
 
     def sprawdz_zadrzewienie(self):
         if self.zadrzew > 1.4:
@@ -704,6 +869,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
 
         self.dodano = 0  # ile rekordow dodano do bazy taksatora
         self.zmodyfikowano = 0  # ile rekordow zmodyfikowano/ powierzchnie
+        self.fop = 0  # policz ile form ochrony przyrody jest na wydzieleniu
 
         self.aid = aid  # arodes_int_num
         self.adr = ''
@@ -815,6 +981,8 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                 self.max_cue = t[3]
             if t[1] in self.rebnieSpis:
                 self.proc_reb = float(self.isNone(t[5]))
+                if self.proc_reb == 0:
+                    self.proc_reb = float(self.isNone(t[4]))
                 self.reb = t[1]
                 self.pow_reb = self.isNone(t[2])
                 self.ile_reb += 1
