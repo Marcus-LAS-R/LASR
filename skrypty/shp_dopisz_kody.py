@@ -320,6 +320,8 @@ class DopiszKody(SprawdzWydzielenia):
             u'CP-P',
             u'TP',
             u'TW',
+            u'TPP',
+            u'TWP',
             u'DRZEW',
         ]
 
@@ -356,7 +358,7 @@ class DopiszKody(SprawdzWydzielenia):
         for roz in ['shp', 'shx', 'prj', 'dbf', 'cpg']:
             try:
                 copyfile(self.wydz_path[:-3]+roz,
-                         os.path.join(self.kat, 'WYDZ_POL.' + roz))
+                         os.path.join(self.kat, 'WYDZ_DOPISANE.' + roz))
             except:  # noqa
                 pass
 
