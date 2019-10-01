@@ -190,7 +190,7 @@ class DopiszPnsw(SprawdzWydzielenia):
             ids = self.si.intersects(geom.boundingBox())
             for id in ids:
                 inter = self.sl_wydz[id].geometry().intersection(geom)
-                if inter.area() / geom.area() >= 0.9:
+                if inter.area() / geom.area() >= 0.999:
                     # jeżeli podmieniamy geometrię wpisujemy też rozpoznany adr
                     self.pnsw.startEditing()
                     self.pnsw.dataProvider().changeAttributeValues({
@@ -198,15 +198,21 @@ class DopiszPnsw(SprawdzWydzielenia):
                                     self.sl_wydz[id]['ADR_LES']}
                     })
                     self.pnsw.commitChanges()
-                    self.feat_do_spr.append(pnsw)
                     break
 
-                elif inter.area() / geom.area() < 0.1:
-                    continue
+                elif inter.area() / geom.area() < 0.2:
+                    pass
+
+                elif 0.999 > (inter.area() / geom.area()) >= 0.2:
+                    self.feat_do_spr.append(pnsw)
 
                 else:
                     self.feat_do_spr.append(pnsw)
 
+
+        import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
+        pyqtRemoveInputHook()
+        pdb.set_trace()
         if len(self.feat_do_spr) > 0:
             wyps = 'W warstwie PNSW znajdują się poligony przecinające ' + \
                 'wydzielenia. Sprawdź błędy w dodanej warstwie!'
@@ -229,7 +235,7 @@ class DopiszPnsw(SprawdzWydzielenia):
         bledy.dataProvider().addAttributes(
             self.pnsw.dataProvider().fields().toList())
         bledy.updateFields()
-        bledy.addFeatures(self.feat_do_spr)
+        bledy.dataProvider().addFeatures(self.feat_do_spr)
         bledy.commitChanges()
         QgsProject.instance().addMapLayer(bledy)
 
