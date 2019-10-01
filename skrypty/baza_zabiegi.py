@@ -842,11 +842,17 @@ class SprawdzZabiegi():
     def sprawdz_wpisanie_zabiegow(self):
         for zab in self.zabiegi:
             if zab[0] in self.cue:
-                if round(zab[1], 4) != round(self.cue[zab[0]], 4):
+                zar = self.cue[zab[0]]
+                try:
+                    zar = float(zar)
+                except TypeError:
+                    zar = 0.0
+
+                if round(zab[1], 4) != round(zar, 4):
                     self.uw_raport.append(
                         'Zabieg: ' + zab[0] +
                         ", ma powierzchnię niezgodną z wygenerowaną: " +
-                        str(zab[1]) + 'ha, (baza: ' + str(self.cue[zab[0]]) +
+                        str(zab[1]) + 'ha, (baza: ' + str(zar) +
                         'ha)')
             else:
                 self.uw_raport.append(
