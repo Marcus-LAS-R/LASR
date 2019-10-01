@@ -108,6 +108,7 @@ class GenerujNaklejki:
         self.kat = self.info.lineEdit_sciezka.text()
         self.tomy = self.info.checkBox_tomy.isChecked()
         self.polacz = False
+        self.powierzchnie = self.info.checkBox_powierzchnie.isChecked()
 
         self.plyta = self.info.checkBox_plyta.isChecked()
         self.okladka = self.info.checkBox_okladka.isChecked()
@@ -189,7 +190,8 @@ class GenerujNaklejki:
 
         else:
             QgsMessageLog.logMessage(
-                'Brak dat ważności geodezji w bazie - tabela F_PARAMETER',
+                'Brak dat ważności geodezji w bazie - tabela F_PARAMETER'
+                ' lub brak kwerend w bazie',
                 "Las-R",
                 Qgis.Warning)
             self.iface.messageBar().clearWidgets()
@@ -1033,19 +1035,21 @@ class GenerujNaklejki:
         lay.addItem(l1)
 
         # powierzchnia
-        l1 = QgsLayoutItemLabel(lay)
-        l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
-        l1.setText(tab[7])
-        l1.setFont(QFont("Arial", 13, QFont.Bold))
-        l1.setHAlign(Qt.AlignCenter)
-        l1.attemptResize(
-            QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
-        l1.attemptMove(
-            QgsLayoutPoint(77.5+px, 76.8+py, QgsUnitTypes.LayoutMillimeters),
-            page=si
-        )
-        l1.setFontColor(QColor("#00b050"))
-        lay.addItem(l1)
+        if self.powierzchnie:
+            l1 = QgsLayoutItemLabel(lay)
+            l1.setReferencePoint(QgsLayoutItem.UpperMiddle)
+            l1.setText(tab[7])
+            l1.setFont(QFont("Arial", 13, QFont.Bold))
+            l1.setHAlign(Qt.AlignCenter)
+            l1.attemptResize(
+                QgsLayoutSize(108, 6, QgsUnitTypes.LayoutMillimeters))
+            l1.attemptMove(
+                QgsLayoutPoint(77.5+px, 76.8+py,
+                               QgsUnitTypes.LayoutMillimeters),
+                page=si
+            )
+            l1.setFontColor(QColor("#00b050"))
+            lay.addItem(l1)
 
         # stan na
         l1 = QgsLayoutItemLabel(lay)

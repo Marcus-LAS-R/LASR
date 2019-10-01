@@ -2,18 +2,20 @@
 
 # Form implementation generated from reading ui file 'ui_naklejki_dialog.ui'
 #
-# Created by: PyQt5 UI code generator 5.11.3
+# Created by: PyQt5 UI code generator 5.13.0
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_DialogNaklejki(object):
     def setupUi(self, DialogNaklejki):
         DialogNaklejki.setObjectName("DialogNaklejki")
-        DialogNaklejki.resize(450, 427)
-        DialogNaklejki.setMinimumSize(QtCore.QSize(450, 427))
-        DialogNaklejki.setMaximumSize(QtCore.QSize(450, 427))
+        DialogNaklejki.resize(460, 460)
+        DialogNaklejki.setMinimumSize(QtCore.QSize(460, 460))
+        DialogNaklejki.setMaximumSize(QtCore.QSize(450, 460))
         self.buttonBox = QtWidgets.QDialogButtonBox(DialogNaklejki)
         self.buttonBox.setGeometry(QtCore.QRect(350, 100, 81, 81))
         self.buttonBox.setMaximumSize(QtCore.QSize(81, 241))
@@ -36,28 +38,28 @@ class Ui_DialogNaklejki(object):
         self.label.setFont(font)
         self.label.setObjectName("label")
         self.label_2 = QtWidgets.QLabel(DialogNaklejki)
-        self.label_2.setGeometry(QtCore.QRect(30, 160, 171, 16))
+        self.label_2.setGeometry(QtCore.QRect(30, 190, 171, 16))
         font = QtGui.QFont()
         font.setFamily("Arial")
         self.label_2.setFont(font)
         self.label_2.setObjectName("label_2")
         self.lineEdit_od = QtWidgets.QLineEdit(DialogNaklejki)
-        self.lineEdit_od.setGeometry(QtCore.QRect(40, 180, 111, 20))
+        self.lineEdit_od.setGeometry(QtCore.QRect(40, 210, 111, 20))
         self.lineEdit_od.setObjectName("lineEdit_od")
         self.label_3 = QtWidgets.QLabel(DialogNaklejki)
-        self.label_3.setGeometry(QtCore.QRect(20, 180, 21, 16))
+        self.label_3.setGeometry(QtCore.QRect(20, 210, 21, 16))
         font = QtGui.QFont()
         font.setFamily("Arial")
         self.label_3.setFont(font)
         self.label_3.setObjectName("label_3")
         self.label_4 = QtWidgets.QLabel(DialogNaklejki)
-        self.label_4.setGeometry(QtCore.QRect(180, 180, 21, 16))
+        self.label_4.setGeometry(QtCore.QRect(180, 210, 21, 16))
         font = QtGui.QFont()
         font.setFamily("Arial")
         self.label_4.setFont(font)
         self.label_4.setObjectName("label_4")
         self.lineEdit_do = QtWidgets.QLineEdit(DialogNaklejki)
-        self.lineEdit_do.setGeometry(QtCore.QRect(210, 180, 111, 20))
+        self.lineEdit_do.setGeometry(QtCore.QRect(210, 210, 111, 20))
         self.lineEdit_do.setObjectName("lineEdit_do")
         self.label_5 = QtWidgets.QLabel(DialogNaklejki)
         self.label_5.setGeometry(QtCore.QRect(10, 60, 131, 16))
@@ -90,7 +92,7 @@ class Ui_DialogNaklejki(object):
         self.checkBox_tomy.setFont(font)
         self.checkBox_tomy.setObjectName("checkBox_tomy")
         self.label_6 = QtWidgets.QLabel(DialogNaklejki)
-        self.label_6.setGeometry(QtCore.QRect(30, 200, 361, 18))
+        self.label_6.setGeometry(QtCore.QRect(30, 230, 361, 18))
         font = QtGui.QFont()
         font.setFamily("Arial")
         font.setPointSize(8)
@@ -98,7 +100,7 @@ class Ui_DialogNaklejki(object):
         self.label_6.setFont(font)
         self.label_6.setObjectName("label_6")
         self.groupBox = QtWidgets.QGroupBox(DialogNaklejki)
-        self.groupBox.setGeometry(QtCore.QRect(10, 360, 431, 61))
+        self.groupBox.setGeometry(QtCore.QRect(10, 390, 431, 61))
         font = QtGui.QFont()
         font.setFamily("Arial")
         self.groupBox.setFont(font)
@@ -116,7 +118,7 @@ class Ui_DialogNaklejki(object):
         self.checkBox_naklejki.setChecked(True)
         self.checkBox_naklejki.setObjectName("checkBox_naklejki")
         self.groupBox_2 = QtWidgets.QGroupBox(DialogNaklejki)
-        self.groupBox_2.setGeometry(QtCore.QRect(10, 230, 431, 131))
+        self.groupBox_2.setGeometry(QtCore.QRect(10, 260, 431, 131))
         self.groupBox_2.setObjectName("groupBox_2")
         self.label_7 = QtWidgets.QLabel(self.groupBox_2)
         self.label_7.setGeometry(QtCore.QRect(20, 40, 41, 18))
@@ -163,11 +165,17 @@ class Ui_DialogNaklejki(object):
         self.label_10 = QtWidgets.QLabel(self.groupBox_2)
         self.label_10.setGeometry(QtCore.QRect(20, 60, 311, 31))
         font = QtGui.QFont()
-        font.setFamily("Arial")
+        font.setFamily("Arial Narrow")
         font.setPointSize(8)
         font.setItalic(True)
         self.label_10.setFont(font)
         self.label_10.setObjectName("label_10")
+        self.checkBox_powierzchnie = QtWidgets.QCheckBox(DialogNaklejki)
+        self.checkBox_powierzchnie.setGeometry(QtCore.QRect(40, 160, 281, 22))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        self.checkBox_powierzchnie.setFont(font)
+        self.checkBox_powierzchnie.setObjectName("checkBox_powierzchnie")
 
         self.retranslateUi(DialogNaklejki)
         self.buttonBox.accepted.connect(DialogNaklejki.accept)
@@ -218,14 +226,4 @@ class Ui_DialogNaklejki(object):
         self.comboBox_nfosigw.setItemText(16, _translate("DialogNaklejki", "Zielona Góra (Lubuskie)"))
         self.label_10.setText(_translate("DialogNaklejki", "Jeżeli w katalogu z bazami znajduje się plik:    herb.png \n"
 "zostanie podczytany automatycznie"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    DialogNaklejki = QtWidgets.QDialog()
-    ui = Ui_DialogNaklejki()
-    ui.setupUi(DialogNaklejki)
-    DialogNaklejki.show()
-    sys.exit(app.exec_())
-
+        self.checkBox_powierzchnie.setText(_translate("DialogNaklejki", "powierzchnie na naklejkach"))

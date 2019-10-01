@@ -1,7 +1,7 @@
 import os
 from collections import defaultdict
 from qgis.core import QgsVectorLayer, Qgis, QgsProject, \
-    QgsField, QgsMessageLog
+    QgsField, QgsMessageLog, QgsFields
 from PyQt5.QtCore import QVariant
 from shutil import copyfile
 
@@ -359,17 +359,17 @@ class DopiszKody(SprawdzWydzielenia):
             try:
                 copyfile(self.wydz_path[:-3]+roz,
                          os.path.join(self.kat, 'WYDZ_DOPISANE.' + roz))
-            except:  # noqa
+            except Exception:
                 pass
 
-        self.wpol = QgsVectorLayer(os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
-                                   "WYDZ_DOPISANE", "ogr")
+        self.wpol = QgsVectorLayer(
+            os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
+            "WYDZ_DOPISANE", "ogr")
         self.wpol_data = self.wpol.dataProvider()
         self.wpol_data.setEncoding('UTF-8')
 
         # Dodajemy odpowiednie kolumny:
-        attr_nazwy = [x.name() for x in self.wydz.fields()]
-        attr = self.wydz.fields()
+        attr_nazwy = [x.name() for x in self.wpol.fields()]
 
         pola = [
             QgsField("COUNTY_L", QVariant.String, len=1),
@@ -407,10 +407,11 @@ class DopiszKody(SprawdzWydzielenia):
         ]
 
         dodaj = [y for y in pola if y.name() not in attr_nazwy]
+        attrn = QgsFields()
         for d in dodaj:
-            attr.append(d)
+            attrn.append(d)
 
-        self.wpol_data.addAttributes(attr)
+        self.wpol_data.addAttributes(attrn)
         self.wpol.updateFields()
         self.wpol.commitChanges()
 
@@ -421,7 +422,6 @@ class DopiszKody(SprawdzWydzielenia):
         for feat in self.wpol.getFeatures():
             dop = {}
             adr = feat['ADR_LES']
-            print(adr)
             if adr in self.sl:
                 # przygotuj kod gatunku z odpowiednia wielkoscia liter
                 gat = self.isNone(self.sl[adr][4])

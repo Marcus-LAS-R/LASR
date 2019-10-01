@@ -151,7 +151,7 @@ class Zabiegi():
         message = QMessageBox()
         message.setIcon(QMessageBox.Information)
         message.setWindowTitle('Raport')
-        message.setText('Czy wyświetlić raport z generowania Ls-ów?')
+        message.setText('Czy wyświetlić raport z generowania zabiegów?')
         message.addButton(u"Zamknij", QMessageBox.ActionRole)
         message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
         pok_rap = message.exec_()
