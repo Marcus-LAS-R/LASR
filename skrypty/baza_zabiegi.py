@@ -104,11 +104,19 @@ class Zabiegi():
         '''Metoda generuje raport w katalogu z bazą danych'''
         rap = ''
         for k in sorted(self.wydz.keys()):
-            w = self.sl[self.wydz[k]]
-            if len(w.uw_raport+w.uw_baza) > 0:
-                rap += '\n'.join([self.wydz_id[w.aid]+'#   '+x
-                                  for x in w.uw_raport+w.uw_baza])
-                rap += '\n'
+            try:
+                w = self.sl[self.wydz[k]]
+
+                if len(w.uw_raport+w.uw_baza) > 0:
+                    rap += '\n'.join([self.wydz_id[w.aid]+'#   '+x
+                                      for x in w.uw_raport+w.uw_baza])
+                    rap += '\n'
+            except Exception:
+                    rap += '\n'.join([
+                        self.wydz_id[w.aid]+'#   ' +
+                        'Cos poszlo nie tak - zonk?!? - SPRAWDZIC!!!'
+                    ])
+                    rap += '\n'
 
         plik = open(os.path.join(self.kat,
                                  'raport_zabiegi_'+self.baza.czas+'.txt'),
