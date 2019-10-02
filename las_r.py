@@ -40,7 +40,8 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles
+    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
+    baza_kontrola_ls, baza_anonimizuj
 
 
 class LasR:
@@ -322,13 +323,6 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
-        self.spr_rozlicz_wydz = QAction(
-            QIcon(None),
-            'Sprawdz rozliczenie powierzchni wydz.',
-            self.iface.mainWindow())
-        self.m_rozlicz_pow.addAction(self.spr_rozlicz_wydz)
-        self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
-
         self.dop_pnsw = QAction(
             QIcon(None), 'Dopisz PNSW', self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.dop_pnsw)
@@ -375,6 +369,20 @@ class LasR:
                                self.iface.mainWindow())
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
+
+        self.spr_kontr_ls = QAction(
+            QIcon(None),
+            'Kontrola Ls z bazą',
+            self.iface.mainWindow())
+        self.m_kontrola_danych.addAction(self.spr_kontr_ls)
+        self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
+
+        self.spr_rozlicz_wydz = QAction(
+            QIcon(None),
+            'Sprawdz rozliczenie powierzchni wydz.',
+            self.iface.mainWindow())
+        self.m_kontrola_danych.addAction(self.spr_rozlicz_wydz)
+        self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
 
         self.spr_wydz = QAction(
             ico_wydz_spr, 'Sprawdź wydzielenia', self.iface.mainWindow())
@@ -444,6 +452,12 @@ class LasR:
             QIcon(None), 'Dodaj [MUNICIP, COMUNITY]', self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_dod_adm)
         self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
+
+        self.a_anon = QAction(QIcon(None),
+                              "Anonimizuj bazy TPU",
+                              self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_anon)
+        self.a_anon.triggered.connect(self.anonimizuj)
 
         self.a_rap_wyles = QAction(
             QIcon(None), 'Karty wylesień na dz.', self.iface.mainWindow())
@@ -606,6 +620,9 @@ class LasR:
     def kasuj_wlas_OP(self):
         baza_usun_op.UsunOP(self.iface)
 
+    def anonimizuj(self):
+        baza_anonimizuj.Anonimizuj(self.iface)
+
     def dopisz_wydzielenia(self):
         w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)
         if w.sprawdz_dane():
@@ -751,6 +768,13 @@ class LasR:
         if s.pobierzDane():
             s.przetworz()
             s.zapisz_kml()
+
+    def kontrola_ls_z_baza(self):
+        k = baza_kontrola_ls.KontrolaLs(self.iface)
+        if k.dane_wejsciowe():
+            k.przetworz_dane()
+            k.zestawienia()
+            k.generuj_raport()
 
     def wyszukaj_lz(self):
         lz = shp_wyszukaj_lz.WyszukajLz(self.iface)

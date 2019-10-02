@@ -748,7 +748,8 @@ class AnalizujDzKat(object):
         raport += "---KONIEC RAPORTU----------------------------------"
 
         # zapisz raport do pliku
-        self.rap_sc = os.path.join(self.kat, 'dzkat_raport_'+self.czas+'.txt')
+        self.rap_sc = os.path.join(self.kat, '..',
+                                   'dzkat_raport_'+self.czas+'.txt')
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(raport)
         plik.close()

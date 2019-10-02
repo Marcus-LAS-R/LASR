@@ -72,9 +72,6 @@ class GenerujNaklejki:
         jeżeli tak pyta użytkownika czy chce kontynuować.
         Zwraca True/False"""
 
-        self.postep = PasekPostepu(self.iface).stworz_pasek(
-            'Generowanie wybranych raportów'
-        )
         if len(self.mn.layouts()) == 0:
             return False
         else:
@@ -89,6 +86,9 @@ class GenerujNaklejki:
                 return True
             return False
 
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Generowanie wybranych raportów'
+        )
         self.postep.setValue(5)
 
     def pobierz_dane(self):  # noqa

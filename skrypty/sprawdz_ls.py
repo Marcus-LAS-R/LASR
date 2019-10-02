@@ -886,9 +886,7 @@ class AnalizujKlus(object):
         rap_out = raport.generuj_raport()
 
         self.rap_sc = os.path.join(
-            self.kat, "ls_raport_"+self.czas+".txt")
-
-        # open(self.rap_sc, 'wb').write(rap_out.encode('cp1250'))
+            self.kat, '..', "ls_raport_"+self.czas+".txt")
 
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(rap_out)
@@ -2233,7 +2231,7 @@ class GenerujRaport():
             self.wypis += '---LS ZE ZNACZNĄ RÓŻNICĄ POW.-----\n'
             self.wypis += 'Ls z dużą rozbieżnością powierzchni: ' + \
                 str(len(self.rozb_pow)) + '\n\n'
-            self.wypis += 'adr_les\tpow_graf\tpow_rej\troznica\n'
+            self.wypis += 'adr_adm\tpow_graf\tpow_rej\troznica\n'
             try:
 
                 rr = sorted([x + [round(abs(x[1] - x[2]), 4)]

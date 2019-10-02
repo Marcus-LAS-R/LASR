@@ -10,7 +10,7 @@ from datetime import datetime
 from shutil import copyfile
 
 
-def znajdz_baze_do_wydz(iface, wydzlyr=False):
+def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2):
     if wydzlyr is not False:
         wydz = wydzlyr
     else:
@@ -22,7 +22,7 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False):
         wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
         kat = os.path.dirname(wydz_sc)
 
-        if wydz.name() == 'ODDZ':
+        if wydz.name() == 'ODDZ' or poz == 1:
             poziom = '..'
         else:
             poziom = '../..'
@@ -168,6 +168,8 @@ class Baza(object):
         elif isinstance(a, QVariant):
             if a.isNull():
                 return ''
+            else:
+                return str(a)
         else:
             return a
 
@@ -786,6 +788,15 @@ class Baza(object):
         ]
 
         return tab
+
+    def anonimizuj_vaddress(self):
+        sql = 'update v_address set name_1=\'IMIE\', name_2=\'NAZWISKO\', ' + \
+            'place=\'MIEJSCOWOSC\', street=\'ULICA d:0 l:0\', ' +\
+            'post_cd=\'00-000\', post=\'POCZTA\', stat_info=\'00000000000\'' +\
+            ', tax_nr=\'000-000-00-00\';'
+
+        self.cur.execute(sql)
+        self.con.commit()
 
     def pobierz_wiek_reb(self):
         # dane o wieku rebnosci pobranych z bazy
