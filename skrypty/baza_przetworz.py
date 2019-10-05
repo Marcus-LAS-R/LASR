@@ -26,7 +26,7 @@ class Przetworz(object):
         self.sl_wlasnosc = {}
 
         # slownik z kodami wlascicieli dla kazdej dzialki
-        # {Wyr1: ['OP', 'OF' ...]}
+        # {GGGOOOO.NR: ['OP', 'OF' ...]}
         self.sl_kody_wlasciceli_na_dzialce = {}  # wl_dict
 
         # listy działek z pogrupowanymi własnościami

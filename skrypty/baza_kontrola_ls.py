@@ -14,6 +14,7 @@ class KontrolaLs:
         self.ls = False
         self.baza = False
         self.kat = ''
+        self.dopisane = 0
         self.uzytki = []
         self.wlasnosci = []
         self.wl = 'OF'
@@ -27,6 +28,7 @@ class KontrolaLs:
         self.pola_ls = [
             'LANDID', 'PARCELID', 'AU', 'SQ', 'LAND_AR', 'LAND_POW',
             'COMMUNITY', 'MUNICIP', 'COUNTY', 'DISTRICT', 'PARCELNR', 'GRP',
+            'PARCEL_AR', 'PARCEL_POW',
             'NIELES', 'ARK', 'SPRAWDZ',
         ]
 
@@ -104,19 +106,104 @@ class KontrolaLs:
         self.p.przetworz_dzialki()
         self.p.przetworz_uzytkowanie()
 
-        # uzup = {}  # TODO:sl z uzupelnieniami do dodania z bazy
+        uzup = {}
         for ft in self.ls.getFeatures():
+            pomin = False
             if ft['LANDID'] in self.d_ls:
                 self.zdublowane_lid.append(ft['LANDID'])
 
             if self.baza.isNone(ft['LANDID']) == '':
                 self.puste_lid += 1
+                pomin = True
 
             self.d_ls[ft['LANDID']] = {
                 x: self.baza.isNone(ft[x]) for x in self.pola_ls
             }
             self.d_ls[ft['LANDID']]['id'] = ft.id()
             self.d_ls[ft['LANDID']]['feat'] = ft
+
+            if not pomin:
+                s = self.sprawdz_puste(ft['LANDID'])
+                if len(s.keys()) > 0:
+                    for k, v in s.items():
+                        self.d_ls[ft['LANDID']][k] = v
+
+                    uzup[ft.id()] = s
+
+        self.dopisane = len(uzup)
+        print(uzup)
+        fnm = self.ls.dataProvider().fieldNameMap()
+        dopis = {k: {fnm[x]: y for x, y in v.items()} for k, v in uzup.items()}
+        self.ls.startEditing()
+        self.ls.dataProvider().changeAttributeValues(dopis)
+        self.ls.commitChanges()
+
+    def sprawdz_puste(self, lid):  # noqa
+        # metoda sprawdza czy wpis w sl o podanym landid posiada uzupelnione
+        # informacje, jezeli nie dopisuj co potrzeba do sprawdzenia oraz
+        # generuje slownik ktory na koncy sprawdzanaia zostanie dopisany do shp
+        # z bazy
+        if lid not in self.d_ls.keys():
+            print('Brak w bazie, LANDID: '+lid)
+            return
+
+        if len(lid) < 14:
+            print('za krótki LANDID: '+lid)
+            return
+
+        s = {}
+        if self.d_ls[lid]['COUNTY'] != lid[:2]:
+            s['COUNTY'] = lid[:2]
+        if self.d_ls[lid]['DISTRICT'] != lid[2:4]:
+            s['DISTRICT'] = lid[2:4]
+        if self.d_ls[lid]['MUNICIP'] != lid[4:7]:
+            s['MUNICIP'] = lid[4:7]
+        if self.d_ls[lid]['COMMUNITY'] != lid[7:11]:
+            s['COMMUNITY'] = lid[7:11]
+
+        ind = 1
+        try:
+            if len(lid.split('.')) == 4 and \
+                    self.d_ls[lid]['ARK'] != lid.split('.')[1]:
+                s['COMMUNITY'] = lid.split('.')[1]
+                ind = 2
+        except IndexError:
+            print('Niepoprawny LANDID: '+lid)
+
+        if self.d_ls[lid]['PARCELNR'] != lid.split('.')[ind]:
+            s['PARCELNR'] = lid.split('.')[ind]
+        if self.d_ls[lid]['PARCELID'] != '.'.join(lid.split('.')[:ind+1]):
+            s['PARCELID'] = '.'.join(lid.split('.')[:ind+1])
+        pow_graf = round(
+            self.d_ls[lid]['feat'].geometry().area()/10000, 4)
+        if self.d_ls[lid]['LAND_POW'] != pow_graf:
+            s['LAND_POW'] = pow_graf
+
+        if lid in self.p.uzytki:
+            if self.d_ls[lid]['AU'] != self.p.uzytki[lid][0]:
+                s['AU'] = self.p.uzytki[lid][0]
+            if self.d_ls[lid]['SQ'] != self.p.uzytki[lid][1]:
+                s['SQ'] = self.p.uzytki[lid][1]
+            if self.d_ls[lid]['LAND_AR'] != self.p.uzytki[lid][2]:
+                s['LAND_AR'] = self.p.uzytki[lid][2]
+
+            dzid = lid[4:11] + '.' + lid.split('.')[ind]
+            if dzid in self.p.sl_kody_wlasciceli_na_dzialce:
+                wlas_set = set(self.p.sl_kody_wlasciceli_na_dzialce[dzid])
+                if wlas_set == set(['OF']):
+                    grp = '10'
+                else:
+                    grp = '99'
+
+                if grp != self.d_ls[lid]['GRP']:
+                    s['GRP'] = grp
+
+            if self.p.uzytki[lid][3] in self.p.dzialki:
+                parcar = self.p.dzialki[self.p.uzytki[lid][3]][3]
+                if parcar != self.d_ls[lid]['PARCEL_AR']:
+                    s['PARCEL_AR'] = parcar
+
+        return s
 
     def zestawienia(self):
         self.postep.setValue(20)
@@ -326,3 +413,9 @@ class KontrolaLs:
                     ['kate',
                      os.path.join(self.kat, '..',
                                   'ls_kontrola_'+self.baza.czas+'.txt')])
+
+        ilosc = ' (Nic nie dopisywano w warstwie)'
+        if self.dopisane > 0:
+            ilosc = ' (dopisano informacje do '+str(self.dopisane)+' uż.)'
+        self.iface.messageBar().pushMessage(
+            'OK', 'Zakończone sprawdzanie Ls' + ilosc)
