@@ -209,10 +209,6 @@ class DopiszPnsw(SprawdzWydzielenia):
                 else:
                     self.feat_do_spr.append(pnsw)
 
-
-        import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
-        pyqtRemoveInputHook()
-        pdb.set_trace()
         if len(self.feat_do_spr) > 0:
             wyps = 'W warstwie PNSW znajdują się poligony przecinające ' + \
                 'wydzielenia. Sprawdź błędy w dodanej warstwie!'

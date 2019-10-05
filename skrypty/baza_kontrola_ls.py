@@ -327,7 +327,7 @@ class KontrolaLs:
 
         self.wypis == '\n\n'
 
-        if len(self.p.ls_podwojne) > 0:
+        if len(self.zdublowane_lid) > 0:
             self.wypis += '---NIEPOŁĄCZONE LANDID [SHP]----------\n'
             self.wypis += 'Niepołączone LANDID: ' + \
                 str(len(self.zdublowane_lid)) + '\n\n'
@@ -405,7 +405,7 @@ class KontrolaLs:
         if pok_rap == 1:
             if platform.system()[:3] == 'Win':
                 os.startfile(
-                    os.path.join(self.kat,
+                    os.path.join(self.kat, '..',
                                  'ls_kontrola_'+self.baza.czas+'.txt'))
             else:
                 import subprocess
