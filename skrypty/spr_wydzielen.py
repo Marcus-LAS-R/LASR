@@ -79,7 +79,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
             czas = self.baza.czas
 
         sc = os.path.join(
-            self.kat, prefix+czas+'.txt')
+            self.kat, '..', prefix+czas+'.txt')
         plik = open(sc, 'w')
         plik.write(str(self.wypis))
         plik.close()

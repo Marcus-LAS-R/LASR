@@ -105,9 +105,16 @@ class DopiszWydzielenia():
 
                 # wygeneruj tylko te zestawy, których jescze nie ma w bazie
                 for f in funk:
-                    d = f(it)
-                    if d[0] not in self.arodes:
-                        dodaj.append(d)
+                    try:
+                        d = f(it)
+                        if d[0] not in self.arodes:
+                            dodaj.append(d)
+                    except Exception:
+                        self.bledy += 1
+                        QgsMessageLog.logMessage(
+                            'Nie wpisano: '+str(it),
+                            'Las-R'
+                        )
 
             else:
                 self.obecne += 1

@@ -328,8 +328,9 @@ class KontrolaLs:
         self.wypis == '\n\n'
 
         if len(self.zdublowane_lid) > 0:
-            self.wypis += '---NIEPOŁĄCZONE LANDID [SHP]----------\n'
-            self.wypis += 'Niepołączone LANDID: ' + \
+            self.wypis += '---ZDUBLOWANE LANDID [SHP]----------\n'
+            self.wypis += '(Najprawdopodobniej niepołączone w multipoligony)\n'
+            self.wypis += 'Zdublowane LANDID: ' + \
                 str(len(self.zdublowane_lid)) + '\n\n'
             sort_temp = sorted(self.zdublowane_lid)
             self.wypis += '\n'.join(sort_temp)

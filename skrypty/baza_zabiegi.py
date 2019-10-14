@@ -118,7 +118,7 @@ class Zabiegi():
                     ])
                     rap += '\n'
 
-        plik = open(os.path.join(self.kat, '..',
+        plik = open(os.path.join(self.kat,
                                  'raport_zabiegi_'+self.baza.czas+'.txt'),
                     'w',
                     encoding='cp1250')
@@ -167,13 +167,13 @@ class Zabiegi():
         if pok_rap == 1:
             if platform.system()[:3] == 'Win':
                 os.startfile(
-                    os.path.join(self.kat, '..',
+                    os.path.join(self.kat,
                                  'raport_zabiegi_'+self.baza.czas+'.txt'))
             else:
                 import subprocess
                 subprocess.call(
                     ['kate',
-                     os.path.join(self.kat, '..',
+                     os.path.join(self.kat,
                                   'raport_zabiegi_'+self.baza.czas+'.txt')])
 
     def kopiuj_baze(self):

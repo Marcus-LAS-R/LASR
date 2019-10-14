@@ -19,11 +19,12 @@ def dopOddzWydz(iface):  # noqa
     # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
     go = False
     policz_warstwy = Counter(spis_warstw)
-    if 'ODDZ' in policz_warstwy:
-        if policz_warstwy['ODDZ'] == 1:
-            go = True
-            oddz = [x for x in QgsProject.instance().mapLayers().values()
-                    if x.name() == 'ODDZ'][0]
+
+    oddz = [x for x in QgsProject.instance().mapLayers().values()
+            if x.name()[:4] == 'ODDZ']
+    if len(oddz) > 0:
+        oddz = oddz[0]
+        go = True
 
     if not go:
         QgsMessageLog.logMessage(
@@ -38,7 +39,7 @@ def dopOddzWydz(iface):  # noqa
             10)
         return
 
-    if iface.activeLayer().name() == 'ODDZ':
+    if iface.activeLayer().name()[:4] == 'ODDZ':
         QgsMessageLog.logMessage(
             'Aktywną warstwą powinny być wydzielenia',
             'Las-R',
