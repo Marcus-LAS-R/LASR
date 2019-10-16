@@ -1301,6 +1301,10 @@ class PrzetworzKlu(object):
                 self.klus_popr.append(f)
                 self.do_usun.append(ii)
 
+                # pokaz userowi ze ma sprawdzic tego klu czy jest poprawny
+                if uw == 'Podmieniono AU i SQ na zgodny z bazą; ':
+                    self.klus_do_spr.append(f)
+
         self.s_do_usuniecia(self.do_usun, 'OK')
         return True
 
@@ -2305,12 +2309,12 @@ class PobierzDane(QDialog):
     def pobierz_klu(self):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
         if self.lyrd:
-            kat = os.path.dirname(
+            self.kat = os.path.dirname(
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
 
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                kat,
+                                                self.kat,
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrk = QgsVectorLayer(warstwa, "klu", "ogr")
@@ -2332,12 +2336,13 @@ class PobierzDane(QDialog):
 
     def pobierz_dzkat(self):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
+
         if self.lyrk:
-            kat = os.path.dirname(
+            self.kat = os.path.dirname(
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                kat,
+                                                self.kat,
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrd = QgsVectorLayer(warstwa, "dz", "ogr")
@@ -2356,14 +2361,13 @@ class PobierzDane(QDialog):
 
     def pobierz_bazy(self):
         """Metoda pobiera wskazany przez użytkownika katalog"""
-        kat = ""
         if self.lyrk:
-            kat = os.path.dirname(self.lyrk.dataProvider().dataSourceUri(
-                                                            ).split("|")[0])
+            self.kat = os.path.dirname(self.lyrk.dataProvider().dataSourceUri(
+                ).split("|")[0])
         bazy_kat = QFileDialog().getExistingDirectory(
             self,
             "Katalog z bazami danych",
-            kat)
+            self.kat)
 
         if platform.system()[:3] == 'Win':
             self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))

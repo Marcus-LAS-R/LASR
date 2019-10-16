@@ -707,9 +707,6 @@ class GenerujZabiegi():
 
 
 class SprawdzZabiegi():
-    # def __init__(self):
-        # pass
-
     def sprawdz_zabiegi(self):
         '''Metoda sprawdza wpisane do bazy zabiegi z tymi ktore zostały
         wygenerowane prze klase GenerujZabiegi i zapisuje raport sprawdzenia
@@ -927,7 +924,8 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         self.uw_dopisz = ''  # string z uwagami do dopisania do f_subarea
         self.uw_raport = []  # tablica z uwagami do raportu
         self.uw_baza = []  # tablica z uw. z wpisywana do bazy...
-        self.uwagi = ''  # string z uwagami w bazie, max dł 255 znaków!!!
+        self.uwagi = ''  # string z uwagami w bazie+uzup, max dł 255 znaków!!!
+        self.uwagi_org = ''  # string z uwagami w bazie, max dł 255 znaków!!!
 
         # tabela z wygenerowanymi zabiegami w postaci:
         # [[zab: pow], ...] kolejnosc ma znaczenie!
@@ -1029,6 +1027,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
             self.struk = tab[0][5]
             self.uszk = self.isNoneT(tab[0][6])
             self.uwagi = self.isNoneT(tab[0][7])
+            self.uwagi_org = self.isNoneT(tab[0][7])
 
     def wpisz_luki(self, tab):
         if len(tab) > 0:
@@ -1246,6 +1245,17 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                         )
                     else:
                         self.dodano += 1
+
+        # uzupelnij opis w subarea o ile doszlo cos nowego
+        if self.uwagi != self.uwagi_org:
+            sql = 'update f_subarea set subarea_info=\'' + self.uwagi +\
+                '\' where arodes_int_num = ' + str(self.aid) + ';'
+            wpis = self.baza.wpisz(sql)
+            if not wpis:
+                self.uw_baza.append(
+                    'Nie udało sie wpisać do opisu do f_subarea: ' +
+                    self.adr+' ('+str(it[1])+') - ' + self.uwagi
+                )
 
     def zmodyfikuj_zabiegi(self):
         ''' Metoda modyfikuj wpisane zabiegi tylko poprzez podmiane powierzchni

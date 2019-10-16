@@ -163,6 +163,21 @@ def test_wygenerowania_rebni_uprzatajacej():
     assert w.gen_reb == 'IIBU' and len(w.zabiegi) == 3
 
 
+def test_wygenerowania_rebni_zupelnej_z_opisem():
+    w = Wydzielenie(1)
+    w.gat_gl = 'SO'
+    w.gat_gl_wiek = 90
+    w.typ = 'D-STAN'
+    w.stl = 'BB'
+    w.ile_dzkat = 10
+    w.pow_wydz = 1.2345
+    w.zadrzew = 0.6
+    w.wiekReb = 90
+    w.generuj_zabiegi()
+    assert w.gen_reb == 'IB' and \
+        w.uwagi == ' Działki ewidencyjne należy traktować jak dz. zrębowe,'
+
+
 def test_wygenerowania_rebni_ponizej_9_lat():
     w = Wydzielenie(1)
     w.gat_gl = 'SO'
