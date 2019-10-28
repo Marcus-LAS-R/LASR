@@ -223,7 +223,7 @@ class GenerujZabiegi():
                 return False
 
         # wyczysc zabiegi i trzebiez bo bedziemy generowac rebnie
-        self.trzebierz = False
+        self.trzebiez = False
         self.zabiegi = []
 
         # ustaw rebnie podstawowa dla tego siedliska
@@ -307,19 +307,19 @@ class GenerujZabiegi():
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd < 10:
             if self.gat_gl[:2] in ['TP', 'BR', 'WB', 'OS']:
                 self.zabiegi.append(['TW', self.pow_wydz])
-                self.trzebierz = True
+                self.trzebiez = True
             else:
                 self.zabiegi.append(['CP', self.pow_wydz])
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd > 9.9999:
             self.zabiegi.append(['TW', self.pow_wydz])
-            self.trzebierz = True
+            self.trzebiez = True
 
     def zab_dstan_trz(self):
         if self.gat_gl_bhd < 20:
             self.zabiegi.append(['TW', self.pow_wydz])
         else:
             self.zabiegi.append(['TP', self.pow_wydz])
-        self.trzebierz = True
+        self.trzebiez = True
 
     def zab_dstan_nowe(self):  # noqa
         if self.struk == 'W PIĘTR':
@@ -349,16 +349,17 @@ class GenerujZabiegi():
 
         if self.gat_gl_wiek < 10:
             self.zabiegi.append(['CW', self.pow_wydz])
-            return
+            if self.gat_gl_wiek < 4:
+                return
 
-        if 9 < self.gat_gl_wiek < 20:
+        if 3 < self.gat_gl_wiek < 20:
             self.zab_dstan_cp()
             return
 
         if 19 < self.gat_gl_wiek < 40:
             self.gen_reb = ''
             self.gen_proc_reb = 0
-            # generuj trzebierze tylko jesli uzytkownik nic nie wpisał
+            # generuj trzebieze tylko jesli uzytkownik nic nie wpisał
             if self.reb == '':
                 self.zab_dstan_trz()
             return
@@ -368,7 +369,7 @@ class GenerujZabiegi():
             self.gen_proc_reb = 0
             if self.reb == '':
                 self.zabiegi.append(['TP', self.pow_wydz])
-                self.trzebierz = True
+                self.trzebiez = True
 
         genr = self.generuj_rebnie_nowe()
         # wygeneruj rebnie o ile jest taka mozliwość
@@ -501,7 +502,7 @@ class GenerujZabiegi():
         if 19 < self.gat_gl_wiek < 40:
             self.gen_reb = ''
             self.gen_proc_reb = 0
-            # generuj trzebierze tylko jesli uzytkownik nic nie wpisał
+            # generuj trzebieze tylko jesli uzytkownik nic nie wpisał
             if self.reb == '':
                 self.zab_dstan_trz()
             return
@@ -511,13 +512,13 @@ class GenerujZabiegi():
             self.gen_proc_reb = 0
             if self.reb == '':
                 self.zabiegi.append(['TP', self.pow_wydz])
-                self.trzebierz = True
+                self.trzebiez = True
 
         # d-stan rozsypuje sie 10 lat przed wiekiem rebnosci - przebudowa  IIB
         if 0.399 < self.zadrzew < 0.51 and (
                 self.wiekReb-21 < self.gat_gl_wiek < self.wiekReb-9):
             # kasuj wszystko co zstało wygenerowane
-            self.trzebierz = False
+            self.trzebiez = False
             self.zabiegi = []
             # ustaw rebnie i oblicz dane
             self.gen_reb = 'IIB'
@@ -622,7 +623,7 @@ class GenerujZabiegi():
         if self.typ == 'D-STAN':
             self.zab_dstan_nowe()
 
-            if self.trzebierz:
+            if self.trzebiez:
                 if 0.4 < self.zadrzew < 0.9:
                     if self.luki > 0:
                         powluk = round(self.luki, 4)
@@ -919,7 +920,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         self.plaz_vol = 0
         self.brak_zad = False
         self.zwarcie = ''
-        self.trzebierz = False  # flaga do sprawdzenia luk na trzebierzach
+        self.trzebiez = False  # flaga do sprawdzenia luk na trzebiezach
         self.uszk = ''  # stopien uszkodzenia d-stanu
         self.uw_dopisz = ''  # string z uwagami do dopisania do f_subarea
         self.uw_raport = []  # tablica z uwagami do raportu

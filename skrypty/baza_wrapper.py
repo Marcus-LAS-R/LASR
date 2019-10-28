@@ -147,13 +147,11 @@ class Baza(object):
         """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
         znacznikiem czasu oraz ew podanym wpisem"""
         katalog, plik = os.path.split(self.baza)
-        plikn = plik[:-4] + \
-            '_' + wpis + '_' + self.czas
 
-        if platform.system()[:3] == 'Win':
-            plikn += '.mdb'
+        if self.baza[-3:] == 'mdb':
+            plikn = plik[:-4] + '_' + wpis + '_' + self.czas + '.mdb'
         else:
-            plikn += '.sqlite'
+            plikn = plik[:-7] + '_' + wpis + '_' + self.czas + '.sqlite'
 
         copyfile(self.baza, os.path.join(katalog, plikn))
 

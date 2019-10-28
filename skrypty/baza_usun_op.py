@@ -1,4 +1,5 @@
 import os
+import platform
 import glob
 from PyQt5.QtWidgets import QFileDialog
 
@@ -11,7 +12,12 @@ def UsunOP(iface):
         iface.mainWindow(),
         "Katalog z bazami danych",
         '')
-    bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
+
+    if platform.system()[:3] == 'Win':
+        bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
+    else:
+        bazy_sc = glob.glob(os.path.join(bazy_kat, '*.sqlite'))
+
     ile_baz = len(bazy_sc)
     if ile_baz == 0:
         iface.messageBar().pushMessage(

@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject
+from qgis.core import QgsProject, Qgis
 from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
@@ -41,7 +41,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
-    baza_kontrola_ls, baza_anonimizuj
+    baza_kontrola_ls, baza_anonimizuj, baza_polacz
 
 
 class LasR:
@@ -459,6 +459,12 @@ class LasR:
         self.m_narzedzia.addAction(self.a_anon)
         self.a_anon.triggered.connect(self.anonimizuj)
 
+        self.a_copy = QAction(QIcon(None),
+                              "Połącz bazy TPU",
+                              self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_copy)
+        self.a_copy.triggered.connect(self.lacz_bazy)
+
         self.a_rap_wyles = QAction(
             QIcon(None), 'Karty wylesień na dz.', self.iface.mainWindow())
         self.m_raporty.addAction(self.a_rap_wyles)
@@ -768,6 +774,19 @@ class LasR:
         if s.pobierzDane():
             s.przetworz()
             s.zapisz_kml()
+
+    def lacz_bazy(self):
+        p = baza_polacz.PolaczBazy(self.iface)
+        if p.pobierz_katalog():
+            if p.stworz_docelowa():
+                p.kopiuj()
+                # try:
+                    # p.kopiuj()
+                # except Exception:
+                    # self.iface.messageBar().clearWidgets()
+                    # self.iface.messageBar().pushMessage(
+                        # 'Błąd', 'Coś się wysypało - krytycznie',
+                        # Qgis.Critical, 0)
 
     def kontrola_ls_z_baza(self):
         k = baza_kontrola_ls.KontrolaLs(self.iface)
