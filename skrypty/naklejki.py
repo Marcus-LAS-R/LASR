@@ -72,6 +72,11 @@ class GenerujNaklejki:
         jeżeli tak pyta użytkownika czy chce kontynuować.
         Zwraca True/False"""
 
+        self.postep = PasekPostepu(self.iface).stworz_pasek(
+            'Generowanie wybranych raportów'
+        )
+        self.postep.setValue(5)
+
         if len(self.mn.layouts()) == 0:
             return False
         else:
@@ -83,13 +88,9 @@ class GenerujNaklejki:
             m.exec_()
 
             if m == QMessageBox.No:
+                self.iface.messageBar().clearWidgets()
                 return True
             return False
-
-        self.postep = PasekPostepu(self.iface).stworz_pasek(
-            'Generowanie wybranych raportów'
-        )
-        self.postep.setValue(5)
 
     def pobierz_dane(self):  # noqa
         """Metoda pobiera od uzytkownika sciezke do baz, oraz informacje o
