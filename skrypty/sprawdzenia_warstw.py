@@ -527,8 +527,8 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
 
     for feat in pnsw.getFeatures():
         # zbuduj slownik ze struktura porownawcza dla bazy
-        sl_pnsw[feat['ADR_BDL']+':'+str(feat['NR_PNSW'])] = \
-            feat['KOD_PNSW']
+        sl_pnsw[str(feat['ADR_BDL'])+':'+str(feat['NR_PNSW'])] = \
+            str(feat['KOD_PNSW'])
 
     if podm_adr > 0:
         wyps += '\nPodmieniono ADR_LES: ' + str(podm_adr) + '\n'

@@ -15,9 +15,12 @@ class DopiszPnsw(SprawdzWydzielenia):
         self.feat_do_spr = []  # tabela z featurkami przecinajacymi wydzielenia
         self.pnsw_podm = 0  # liczba pnsw z dociętą grafiką do wydzielen
         self.wpis = []  # tabela z rekordami do wpisania do bazy
+        self.update = []  # tablica z rekordami do poprawienia
+        self.sl_pnsw = {}
 
         # tablica z wpisami których nie udało się dopisać do bazy danych
         self.bledy_wpisywania = []
+        self.bledy_uaktualniania = []
 
         # sl z kodami w shp i przetłumaczonymi na kody w bazie
         self.sl_baza = {
@@ -73,17 +76,16 @@ class DopiszPnsw(SprawdzWydzielenia):
             self.pnsw = pnsw[0]
             self.pnsw.dataProvider().setEncoding('UTF-8')
             pnsw_sc = self.pnsw.dataProvider().dataSourceUri().split("|")[0]
-        except:  # nopep8
+        except Exception:
             pnsw_sc = False
 
         try:
             self.wydz = wydz[0]
-            # self.wydz.dataProvider().setEncoding('UTF-8')
             wydz_sc = self.wydz.dataProvider().dataSourceUri().split("|")[0]
 
             # znajdz bazę do danych jeżeli wydzielenia są ok
-            baza_sc = znajdz_baze_do_wydz(self.iface, wydzlyr=self.wydz)
-        except:  # nopep8
+            baza_sc = znajdz_baze_do_wydz(self.iface, wydzlyr=self.wydz, poz=1)
+        except Exception:
             wydz_sc = False
             baza_sc = False
 
@@ -105,7 +107,7 @@ class DopiszPnsw(SprawdzWydzielenia):
                              self.wydz.dataProvider().fields().toList()]:
             self.iface.messageBar().pushMessage(
                 "BŁĄD",
-                'Brak kolumny ADR_LES w warstwie WYDZ - ',
+                'Brak kolumny ADR_LES w warstwie WYDZ',
                 Qgis.Critical,
                 0
             )
@@ -133,15 +135,16 @@ class DopiszPnsw(SprawdzWydzielenia):
                 0
             )
             return False
+
         # sprawdz czy w bazie nie ma juz dopisanych pnsw
-        if len(self.baza.pobierz_pnsw()) > 0:
-            self.iface.messageBar().pushMessage(
-                "BŁĄD",
-                'W Bazie znajdują się już dopisane PNSW - proszę je usunąć.',
-                Qgis.Critical,
-                0
-            )
-            return False
+        # if len(self.baza.pobierz_pnsw()) > 0:
+        #    self.iface.messageBar().pushMessage(
+        #        "BŁĄD",
+        #        'W Bazie znajdują się już dopisane PNSW - proszę je usunąć.',
+        #        Qgis.Critical,
+        #        0
+        #    )
+        #    return False
 
         return True
 
@@ -235,7 +238,7 @@ class DopiszPnsw(SprawdzWydzielenia):
         bledy.commitChanges()
         QgsProject.instance().addMapLayer(bledy)
 
-    def przygotuj_wpis(self):
+    def przygotuj_wpis(self):  # noqa
         """ Metoda uzupełnia w warstwie dla każdego PNSW adres leśny, nr_pnsw
         w bazie, pow pnsw i przygotowuje tablicę, która zostanie wpisana do
         bazy taksatora
@@ -243,6 +246,17 @@ class DopiszPnsw(SprawdzWydzielenia):
 
         f_arod = self.baza.pobierz_wydzielenia()
         nump = {}  # sl z numerem pnsw w każdym wydz od 1
+        pnsw = self.baza.pobierz_pnsw()
+        for p in pnsw:
+            if p[0] not in nump:
+                nump[p[0]] = p[1]
+            else:
+                if nump[p[0]] < p[1]:
+                    nump[p[0]] = p[1]
+
+            if p[0] not in self.sl_pnsw:
+                self.sl_pnsw[p[0]] = []
+            self.sl_pnsw[p[0]].append(p[1:])
 
         for p in self.pnsw.getFeatures():
             geom = p.geometry()
@@ -254,24 +268,44 @@ class DopiszPnsw(SprawdzWydzielenia):
                     wydz = self.sl_wydz[id]
                     break
 
+            upd = False  # flaga update'u
+            pnsw_nr = self.baza.isNone(p['NR_PNSW'])
             if wydz is not False:
-                if wydz['ADR_LES'] not in nump:
-                    nump[wydz['ADR_LES']] = 0
-                nump[wydz['ADR_LES']] += 1
+                nrpnsw_wpisu = 1
+                # jezeli nie ma zadnego pnsw w tym wydz to nadajemy 1
+                if f_arod[wydz['ADR_LES']] not in nump:
+                    nump[f_arod[wydz['ADR_LES']]] = 1
+                # jezeli w warstwie jest juz numer to bedziemy uaktualniac
+                elif f_arod[wydz['ADR_LES']] in nump:
+                    if str(pnsw_nr).isdigit() and \
+                            f_arod[wydz['ADR_LES']] in self.sl_pnsw:
+                        # if int(pnsw_nr) <= nump[f_arod[wydz['ADR_LES']]]:
+                        if int(pnsw_nr) in \
+                                [x[0] for x in
+                                 self.sl_pnsw[f_arod[wydz['ADR_LES']]]]:
+                            nrpnsw_wpisu = int(pnsw_nr)
+                            upd = True
+                        else:
+                            nump[f_arod[wydz['ADR_LES']]] += 1
+                            nrpnsw_wpisu = nump[f_arod[wydz['ADR_LES']]]
+                    else:
+                        nump[f_arod[wydz['ADR_LES']]] += 1
+                        nrpnsw_wpisu = nump[f_arod[wydz['ADR_LES']]]
 
                 # stworz wpis do bazy dla tego PNSW
                 wpis = [
                     f_arod[wydz['ADR_LES']],
-                    nump[wydz['ADR_LES']],
+                    nrpnsw_wpisu,
                     self.sl_baza[p['KOD_PNSW']],
                     self.polozenie_pnsw(p, wydz),
                     round(p.geometry().area()/10000, 4),
                 ]
 
                 # uzupełnij warstwę PNSW
+                # ADR_BDL uzupełniono już wcześniej przy sprawdzaniu zawierania
                 self.pnsw.dataProvider().changeAttributeValues({
                     p.id(): {
-                        self.fnm['NR_PNSW']: nump[wydz['ADR_LES']],
+                        self.fnm['NR_PNSW']: nrpnsw_wpisu,
                         self.fnm['POW_GRAF']:
                             round(p.geometry().area()/10000, 4),
                         self.fnm['ADR_ADM']: '-'.join(
@@ -283,10 +317,14 @@ class DopiszPnsw(SprawdzWydzielenia):
                     }
                 })
 
-                self.wpis.append(wpis)
+                if upd:
+                    self.update.append(wpis)
+                else:
+                    self.wpis.append(wpis)
 
     def dopisz_do_bazy(self):
         """ Dopisanie do bazy tablicy pnsw """
+        self.baza.utworz_kopie('dopisanie_pnsw')
         for wpis in self.wpis:
             sql = '''
                 INSERT INTO F_AROD_SPEC_AREA
@@ -307,19 +345,34 @@ class DopiszPnsw(SprawdzWydzielenia):
             if not self.baza.wpisz(sql):
                 self.bledy_wpisywania.append(wpis)
 
+        for upd in self.update:
+            sql = 'update f_arod_spec_area set ' + \
+                'special_area_cd=\'' + upd[2] + '\', ' + \
+                'location_cd=\'' + upd[3] + '\', ' + \
+                'special_area=' + str(upd[4]) + \
+                ' where arodes_int_num = ' + str(upd[0]) + ' and ' + \
+                'arod_sparea_order=' + str(upd[1]) + ';'
+            if not self.baza.wpisz(sql):
+                self.bledy_uaktualniania.append(upd)
+
     def wyswietl_info(self):
-        if len(self.bledy_wpisywania) > 0:
+        if len(self.bledy_wpisywania) > 0 or len(self.bledy_uaktualniania) > 0:
             self.iface.messageBar().pushMessage(
                 'BŁĘDY',
                 'Nie udało się wpisać do bazy: ' +
-                str(len(self.bledy_wpisywania)) + ' PNSW, patrz log Las-R',
+                str(len(self.bledy_wpisywania)) +
+                'PNSW, nie udało się uaktualnić w bazie: ' +
+                str(len(self.bledy_uaktualniania)) +
+                ' PNSW, patrz log Las-R',
                 Qgis.Warning,
                 15
             )
 
             QgsMessageLog.logMessage(
                 'Aaa coś niewyraźnie ta baza zeznaje, sprawdź jeszcze raz '
-                'warstwę PNSW...',
+                'warstwę PNSW...' +
+                str(self.wpis) + '\nUzupełnienia: \n' +
+                str(self.bledy_uaktualniania),
                 'Las-R'
             )
             return
@@ -327,7 +380,8 @@ class DopiszPnsw(SprawdzWydzielenia):
         self.iface.messageBar().pushMessage(
             'OK',
             'Wpisałem do bazy: ' + str(len(self.wpis)) + ' / ' +
-            str(self.pnsw.featureCount()) + ' PNSW',
+            str(self.pnsw.featureCount()) + ' PNSW' +
+            '; Uaktualniłem: ' + str(len(self.update)) + ' PNSW',
             Qgis.Success,
             10
         )

@@ -281,7 +281,7 @@ class Laczenie():
 
     def p_tabele(self):
         for t in self.tab:
-            sql = 'select '+','.join(t[2]) +' from ' + t[1] + ';'
+            sql = 'select '+','.join(t[2]) + ' from ' + t[1] + ';'
             t[0] = self.baza.pobierz(sql)
 
     def p_f_max(self):
@@ -338,39 +338,3 @@ class Laczenie():
                 if intnum in self.sl_arodes:
                     self.baza0.cur.execute(sql, its)
                     self.baza0.con.commit()
-
-        # # kilka tabel ma inny uklad niz standardowy i trzeba je machnac osobno
-        # for row in self.tab[3][0]:
-            # nag = []
-            # its = []
-            # for i, r in enumerate(row[1:]):
-                # if r is not None:
-                    # nag.append(self.tab[3][2][i])
-                    # its.append(r)
-
-            # sql = 'insert into ' + self.tab[3][1] + ' (' + \
-                # nag + ') values (' + \
-                # ','.join(['?'] + ['?' for x in its]) + ';'
-
-            # # sql = 'insert into ' + self.tab[3][1] + ' (' + \
-                # # ','.join(self.tab[3][2]) + ') values (' + \
-                # # '?,'*(len(row)-1) + '?);'
-
-            # if row[1] in self.sl_arodes:
-                # self.baza0.cur.execute(
-                    # sql, [row[0], str(self.sl_arodes[row[1]]), row[2]])
-                # self.baza0.con.commit()
-
-        # for row in self.tab[2][0]:
-            # sql = 'insert into ' + self.tab[2][1] + ' (' + \
-                # ','.join(self.tab[2][2]) + ') values (' + \
-                # '?,'*(len(row)-1) + '?);'
-
-            # if row[1] in self.sl_arodes:
-                # self.maxspecstor += 1
-                # self.baza0.cur.execute(
-                    # sql,
-                    # [self.maxspecstor, self.sl_arodes[row[1]]] +
-                    # list(row[2:])
-                # )
-                # self.baza0.con.commit()

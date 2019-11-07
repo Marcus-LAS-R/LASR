@@ -593,6 +593,10 @@ class Przyciagnij:
             elif 0.9 > (tab[0][1]/tab[0][2]) and len(tab) > 1:
                 isn = 0
                 while round(pow_zb, 8) < round(f.geometry().area(), 8):
+
+                    if len(tab) - 1 <= isn:
+                        break
+
                     t = tab[isn]
                     fp = s_feat[t[0]]
                     if fp.geometry().area() + pow_zb < \

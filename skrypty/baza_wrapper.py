@@ -507,7 +507,8 @@ class Baza(object):
             SELECT
                 ARODES_INT_NUM,
                 AROD_SPAREA_ORDER,
-                SPECIAL_AREA_CD
+                SPECIAL_AREA_CD,
+                LOCATION_CD
             FROM
                 F_AROD_SPEC_AREA;
         """
