@@ -180,7 +180,7 @@ class Laczenie():
                 "VOLUME",
                 "SITE_CLASS_CD",
                 "TECHN_QUALITY_CD",
-                "INCREMENT_CURRENT",
+                # "INCREMENT_CURRENT",
                 "VOLUME_TEMP",
                 "INCREMENT_CURRENT_AREA",
             ]],
@@ -281,8 +281,11 @@ class Laczenie():
 
     def p_tabele(self):
         for t in self.tab:
-            sql = 'select '+','.join(t[2]) + ' from ' + t[1] + ';'
-            t[0] = self.baza.pobierz(sql)
+            sql = 'select '+', '.join(t[2]) + ' from ' + t[1] + ';'
+            pob = self.baza.pobierz(sql)
+            if pob is False:
+                print(sql)
+            t[0] = pob
 
     def p_f_max(self):
         # metoda pobiera nawieksza wartos arodes_int_num i spec_stor_int_num
@@ -308,6 +311,7 @@ class Laczenie():
             self.baza0.con.commit()
 
         for id in range(8):
+            print(id)
             for row in self.tab[id][0]:
 
                 nag = []

@@ -77,7 +77,7 @@ class Zabiegi():
                         _wydz.zmodyfikuj_zabiegi()
                         _wydz.dopisz_zabiegi()
 
-                    # jezeli cos dopisywalismy do baza musimy pobrac z bazyy
+                    # jezeli cos dopisywalismy do baza musimy pobrac z bazy
                     # jeszcze raz w celu sprawdzenia na istniejacych danych
                     if self.wybor in ['Dop', 'Uzu']:
                         # zmienne do zachowania
@@ -96,7 +96,7 @@ class Zabiegi():
 
                     _wydz.sprawdz_zabiegi()
 
-                self.sl[w] = _wydz
+                    self.sl[w] = _wydz
             except:  # noqa
                 self.bledy.append(w)
 
@@ -112,11 +112,11 @@ class Zabiegi():
                                       for x in w.uw_raport+w.uw_baza])
                     rap += '\n'
             except Exception:
-                    rap += '\n'.join([
-                        self.wydz_id[w.aid]+'#   ' +
-                        'Cos poszlo nie tak - zonk?!? - SPRAWDZIC!!!'
-                    ])
-                    rap += '\n'
+                rap += '\n'.join([
+                    self.wydz_id[self.wydz[k]]+'#   ' +
+                    'Cos poszlo nie tak - zonk?!? - SPRAWDZIC!!!'
+                ])
+                rap += '\n'
 
         plik = open(os.path.join(self.kat,
                                  'raport_zabiegi_'+self.baza.czas+'.txt'),
@@ -610,7 +610,6 @@ class GenerujZabiegi():
         """ Metoda generuje zabiegi w tablicy zab dla danego
         wydzelenia w tablicy w postaci: [['ZABIEG', POW],...]
         """
-
         # kolejność wpisanych zabieów wpisanych do bazy będzie taka jak w
         # tabeli, numeracja będie kontynuowana od największego wpisanego do
         # bazy zabiegu, o ile taki istnieje. Jak nie to zanie od zera
@@ -1263,16 +1262,34 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         na podstawie procentow podanych w glownym zabiegu. Jeśli czegoś takiego
         nie ma, sprawdza czy pow nie jest wieksza od pow wydzielenia'''
 
-        reb_cz_tab = [z for z in self.cue.keys() if z in self.rebnieSpis[3:-1]]
-        reb_cz = False
-        if len(reb_cz_tab) > 0:
-            reb_cz = reb_cz_tab[0]
+        popr_rebnie = False
+        if self.reb == self.gen_reb and \
+                self.pow_reb != self.gen_pow_reb and self.reb != '':
+            popr_rebnie = True
+            # popraw pow rebnie nawet jesli sie nie zgadza ale i tak jest
+            # wieksza od pow wydzielenia...
+        elif self.reb != '' and self.pow_reb > self.pow_wydz:
+            popr_rebnie = True
 
-        for zab in self.cue.keys():
+        if popr_rebnie:
+            sql = 'update f_arod_cue set cutting_area=' + \
+                str(self.pow_wydz) + ' where arodes_int_num=' + \
+                str(self.aid) + " and measure_cd='"\
+                + self.reb + "';"
+            wpis = self.baza.wpisz(sql)
+            if not wpis:
+                self.uw_baza.append('Nie udało się zmodyfikować pow. rębni '
+                                    'na ['+str(self.gen_pow_reb)+']')
+            else:
+                self.zmodyfikowano += 1
+
+        for zab_tab in self.zabiegi:
+            zab = zab_tab[0]
             # olewamy poprawę zabiegów w wydzieleniach z tp,
             # njaprawdopodobniej sa to odnowienia luk i maja dobre pow
-            if len([x for x in ['TP', 'TW'] if x in self.cue.keys()]) > 0 and\
-                    zab not in ['TP', 'TW']:
+
+            # obejscie jezeli wygenerowanego Zabiegu nie ma w bazie
+            if zab not in self.cue:
                 continue
 
             if zab in ['TP', 'TW', 'CP-P', 'PRZES', 'PRZEST'] + \
@@ -1291,33 +1308,19 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                     self.zmodyfikowano += 1
 
             else:
-                # jezeli mamy procent rebni, to mnozymy akt pow_wydz i
                 # wpisujemy do bazy
-                if self.proc_reb > 0:
-                    # inne rebnie cześciowe
-                    odn_cz = 0
-                    if reb_cz:
-                        np_sum = self.nal + self.podr
-                        if np_sum > 0.1:
-                            odn_cz = np_sum - 0.1
-
-                    wpis = self.baza.wpisz_tab([
-                        "UPDATE F_AROD_CUE SET CUTTING_AREA = ? "
-                        "WHERE ARODES_INT_NUM = ? AND "
-                        "MEASURE_CD = ?;",
-                        (
-                            round((self.proc_reb/100)*self.pow_wydz*(1-odn_cz),
-                                  4),
-                            self.aid,
-                            zab
-                         )
-                    ])
-                    if not wpis:
-                        self.uw_baza.append(
-                            'Nie udało sie poprawić w bazie zabiegu: ' + zab
-                        )
-                    else:
-                        self.zmodyfikowano += 1
+                wpis = self.baza.wpisz_tab([
+                    "UPDATE F_AROD_CUE SET CUTTING_AREA = ? "
+                    "WHERE ARODES_INT_NUM = ? AND "
+                    "MEASURE_CD = ?;",
+                    (zab_tab[1], self.aid, zab)
+                ])
+                if not wpis:
+                    self.uw_baza.append(
+                        'Nie udało sie poprawić w bazie zabiegu: ' + zab
+                    )
+                else:
+                    self.zmodyfikowano += 1
 
 
 class PobierzDane(QDialog):

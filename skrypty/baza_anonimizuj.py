@@ -12,6 +12,7 @@ def Anonimizuj(iface):
         "Katalog z bazami danych",
         '')
     bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
+    bazy_sc += glob.glob(os.path.join(bazy_kat, '*.MDB'))
     ile_baz = len(bazy_sc)
     if ile_baz == 0:
         iface.messageBar().pushMessage(

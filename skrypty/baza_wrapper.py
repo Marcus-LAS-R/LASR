@@ -789,7 +789,7 @@ class Baza(object):
         return tab
 
     def anonimizuj_vaddress(self):
-        sql = 'update v_address set name_1=\'IMIE\', name_2=\'NAZWISKO\', ' + \
+        sql = 'update v_address set name_1=\'NAZWISKO\', name_2=\'IMIE\', ' + \
             'place=\'MIEJSCOWOSC\', street=\'ULICA d:0 l:0\', ' +\
             'post_cd=\'00-000\', post=\'POCZTA\', stat_info=\'00000000000\'' +\
             ', tax_nr=\'000-000-00-00\';'
