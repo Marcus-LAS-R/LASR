@@ -97,7 +97,7 @@ class Zabiegi():
                     _wydz.sprawdz_zabiegi()
 
                     self.sl[w] = _wydz
-            except:  # noqa
+            except Exception:
                 self.bledy.append(w)
 
     def generuj_raport(self):
@@ -387,15 +387,15 @@ class GenerujZabiegi():
         if self.gen_reb in ['IA', 'IB', 'IC', ]:
             if self.ile_dzkat > 1 and self.pow_wydz > 1:
                 # dodaj informacje o zmianie standardowego drylu
-                if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
-                    if self.uw_sl['reb_zup']['c'] not in self.uwagi:
+                if self.uw_sl['reb_zup']['c'] not in self.uwagi or \
+                        self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                    if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
                         self.uwagi += self.uw_sl['reb_zup']['c']
-                elif len(self.uwagi) + len(self.uw_sl['reb_zup']['s']) < 255:
-                    if self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                    elif len(self.uwagi) + len(
+                            self.uw_sl['reb_zup']['s']) < 255:
                         self.uwagi += self.uw_sl['reb_zup']['s']
-                else:
-                    self.uw_raport.append(self.uw_sl['reb_zup']['r'])
-
+                    else:
+                        self.uw_raport.append(self.uw_sl['reb_zup']['r'])
 
     def zab_dstan(self):  # noqa
         if self.struk == 'W PIĘTR':
@@ -430,14 +430,14 @@ class GenerujZabiegi():
                 self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
 
                 # dodaj informacje o zmianie standardowego drylu
-                if len(self.uwagi) + len(self.uw_sl['uszk']['c']) < 255:
-                    if self.uw_sl['uszk']['c'] not in self.uwagi:
+                if self.uw_sl['uszk']['c'] not in self.uwagi or \
+                        self.uw_sl['uszk']['s'] not in self.uwagi:
+                    if len(self.uwagi) + len(self.uw_sl['uszk']['c']) < 255:
                         self.uwagi += self.uw_sl['uszk']['c']
-                elif len(self.uwagi) + len(self.uw_sl['uszk']['s']) < 255:
-                    if self.uw_sl['uszk']['s'] not in self.uwagi:
+                    elif len(self.uwagi) + len(self.uw_sl['uszk']['s']) < 255:
                         self.uwagi += self.uw_sl['uszk']['s']
-                else:
-                    self.uw_raport.append(self.uw_sl['uszk']['r'])
+                    else:
+                        self.uw_raport.append(self.uw_sl['uszk']['r'])
                 # dopisz odnowienie do rebni w zaleznosci od typu
                 self.zab_dstan_odn_reb()
                 return
@@ -470,14 +470,15 @@ class GenerujZabiegi():
         if self.gen_reb in ['IA', 'IB', 'IC', ]:
             if self.ile_dzkat > 3 or self.pow_wydz > 3.9999:
                 # dodaj informacje o zmianie standardowego drylu
-                if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
-                    if self.uw_sl['reb_zup']['c'] not in self.uwagi:
+                if self.uw_sl['reb_zup']['c'] not in self.uwagi or \
+                        self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                    if len(self.uwagi) + len(self.uw_sl['reb_zup']['c']) < 255:
                         self.uwagi += self.uw_sl['reb_zup']['c']
-                elif len(self.uwagi) + len(self.uw_sl['reb_zup']['s']) < 255:
-                    if self.uw_sl['reb_zup']['s'] not in self.uwagi:
+                    elif len(self.uwagi) + len(
+                            self.uw_sl['reb_zup']['s']) < 255:
                         self.uwagi += self.uw_sl['reb_zup']['s']
-                else:
-                    self.uw_raport.append(self.uw_sl['reb_zup']['r'])
+                    else:
+                        self.uw_raport.append(self.uw_sl['reb_zup']['r'])
 
         # dopisz odnowienie do rebni w zaleznosci od typu
         self.zab_dstan_odn_reb()
@@ -525,14 +526,14 @@ class GenerujZabiegi():
             self.gen_proc_reb = 50
             self.gen_pow_reb = self.pow_wydz * (self.gen_proc_reb/100)
             # dopisz info o przebudowie w uwagach
-            if len(self.uwagi) + len(self.uw_sl['przebud']['c']) < 255:
-                if self.uw_sl['przebud']['c'] not in self.uwagi:
+            if self.uw_sl['przebud']['c'] not in self.uwagi or \
+                    self.uw_sl['przebud']['s'] not in self.uwagi:
+                if len(self.uwagi) + len(self.uw_sl['przebud']['c']) < 255:
                     self.uwagi += self.uw_sl['przebud']['c']
-            elif len(self.uwagi) + len(self.uw_sl['przebud']['s']) < 255:
-                if self.uw_sl['przebud']['s'] not in self.uwagi:
+                elif len(self.uwagi) + len(self.uw_sl['przebud']['s']) < 255:
                     self.uwagi += self.uw_sl['przebud']['s']
-            else:
-                self.uw_raport.append(self.uw_sl['przebud']['r'])
+                else:
+                    self.uw_raport.append(self.uw_sl['przebud']['r'])
             # dopisz odnowienie do rebni w zaleznosci od typu
             self.zab_dstan_odn_reb()
 
@@ -1268,7 +1269,7 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
             popr_rebnie = True
             # popraw pow rebnie nawet jesli sie nie zgadza ale i tak jest
             # wieksza od pow wydzielenia...
-        elif self.reb != '' and self.pow_reb > self.pow_wydz:
+        elif self.reb != '' and self.pow_reb != self.pow_wydz:
             popr_rebnie = True
 
         if popr_rebnie:
@@ -1283,11 +1284,17 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
             else:
                 self.zmodyfikowano += 1
 
-        for zab_tab in self.zabiegi:
-            zab = zab_tab[0]
-            # olewamy poprawę zabiegów w wydzieleniach z tp,
-            # njaprawdopodobniej sa to odnowienia luk i maja dobre pow
+        tab_nie = [x for x in self.cue.keys() if x not in
+                   [y[0] for y in self.zabiegi]+self.rebnieSpis]
+        tab_nie, zab_oblicz = self.oblicz_wpisane_zab(tab_nie)
+        if len(tab_nie) > 0:
+            self.uw_baza.append(
+                'Nie zmodyfikowano powierzchni zabiegu: [' +
+                ','.join(tab_nie) + ']'
+            )
 
+        for zab_tab in self.zabiegi + zab_oblicz:
+            zab = zab_tab[0]
             # obejscie jezeli wygenerowanego Zabiegu nie ma w bazie
             if zab not in self.cue:
                 continue
@@ -1321,6 +1328,25 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
                     )
                 else:
                     self.zmodyfikowano += 1
+
+    def oblicz_wpisane_zab(self, tab):
+        zwrot = []
+        niewiadomo = []
+        for it in tab:
+            if 'ODN-ZRB' in tab and it in ['PIEL', 'ODN-ZRB', 'AGROT']:
+                zwrot.append([it, self.pow_wydz])
+            elif 'ODN-ZŁOŻ' in tab and it in ['PIEL', 'ODN-ZŁOŻ', 'AGROT']:
+                np_sum = self.nal + self.podr + self.pods
+                odn_cz = 0
+                if np_sum > 0.1:
+                    odn_cz = np_sum - 0.1
+                # oblicz pow odnowienia dla rebni cz
+                pow_odn = round(
+                    (self.proc_reb/100)*self.pow_wydz*(1-odn_cz), 4)
+                zwrot.append([it, pow_odn])
+            else:
+                niewiadomo.append(it)
+        return niewiadomo, zwrot
 
 
 class PobierzDane(QDialog):

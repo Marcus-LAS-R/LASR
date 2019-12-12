@@ -41,7 +41,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
-    baza_kontrola_ls, baza_anonimizuj, baza_polacz
+    baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie
 
 
 class LasR:
@@ -284,11 +284,16 @@ class LasR:
         # -----------------------------------------
 
         self.przyg_ciec = QAction(
-            QIcon(None),
-            'Przygotuj wydzielenia do cięcia',
+            QIcon(None), 'Przygotuj wydzielenia do cięcia',
             self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
+
+        self.przyg_klep = QAction(
+            QIcon(None), 'Stwórz listę adresów do klepania',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.przyg_klep)
+        self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
 
         self.zanum = QAction(
             QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
@@ -873,3 +878,12 @@ class LasR:
         s.podociagaj()
         s.stworz_poligony()
         s.pokaz_warstwy()
+
+    def sprawdzenie_ciecia(self):
+        sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)
+        if not sp.zalozenia_poczatkowe():
+            return False
+        sp.zbuduj_strukture()
+        sp.przetworz()
+        sp.raport_spis_kart()
+        sp.raport_rozbieznosci()
