@@ -581,15 +581,51 @@ def sprawdz_linie(linie):
 
     if 2 != len([x.name() for x in linie.dataProvider().fields().toList()
                  if x.name() in ['KOD', 'SZER', ]]):
-        wyps += 'BRAK NIEZBĘDNYCH KOLUMN: KOD, SZER\n----[ KONIEC ]----\n\n'
+        wyps += 'BRAK NIEZBĘDNYCH KOLUMN: KOD, SZER\n----[ KONIEC ]----\n'
         return False, wyps
 
     for feat in linie.getFeatures():
         if isNone(feat['KOD']) == '':
             wyps += 'Brak wpisanych kodów lub szerokości\n' + \
                 '\n\n WARSTWA NIEPOPRAWNA!!!\n\n' + \
-                '----[ KONIEC ]----\n\n'
+                '----[ KONIEC ]----\n'
             return False, wyps
 
     wyps += 'Wastwa uzupełniona poprawnie - OK\n----[ KONIEC ]----\n\n'
+    return True, wyps
+
+
+def sprawdz_powierzchnie_wydz(wydz, baza=False):
+    '''Sprawdzenie czy pow_graf i pow rejestrowa w f_subarea jest podobna,
+    do raportu jeżeli > 30 ar
+    '''
+    wyps = '\n\n----[ SPRAWDZENIE WYDZ POW_GRAF<->POW_REJ ]----\n'
+    if baza.polacz() is False:
+        wyps += 'Brak połączenia z bazą\n' + \
+            '----[ KONIEC ]----\n'
+        return False, wyps
+
+    mb = baza.pobierz_do_mapy()
+    md = {x[0]: float(x[3]) for x in mb}
+
+    request = QgsFeatureRequest().setSubsetOfAttributes(
+        ['ADR_LES', 'POW_WYDZ'], wydz.fields())
+    adr_r = [[x['ADR_LES'], x.geometry().area()/10000,]
+             for x in wydz.getFeatures(request)
+             if abs(x.geometry().area()/10000-md[x['ADR_LES']]) > 0.3
+             ]
+
+    if len(adr_r) == 0:
+        wyps += 'Wszystkie wydzielenia w normie - OK\n' + \
+            '----[ KONIEC ]----\n'
+        return False, wyps
+
+    wyps += 'ADR_LES\tp_graf\tp_rej\trozb\n'
+    wyps += '\n'.join(
+        ['\t'.join([str(x[0]),
+                    str(round(md[x[0]], 4)),
+                    str(round(x[1], 4)),
+                    str(round(abs(md[x[0]]-x[1]), 4))
+                    ]) for x in adr_r])
+    wyps += '\n----[ KONIEC ]----\n'
     return True, wyps

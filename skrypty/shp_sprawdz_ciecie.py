@@ -30,10 +30,17 @@ class SprawdzCiecie:
             ).split("|")[0])
 
         self.akt = self.iface.activeLayer()
-        fex = next(self.akt.getFeatures()).geometry().wkbType()
-        if fex not in [QgsWkbTypes.Point, QgsWkbTypes.MultiPoint]:
+        ftype = next(self.akt.getFeatures()).geometry().wkbType()
+        if ftype not in [QgsWkbTypes.Point, QgsWkbTypes.MultiPoint]:
             self.iface.messageBar().pushWarning(
                 'Aktywna warstwa', 'Zaznacz warstwę punktową z nr kart')
+            return False
+
+        if len([x.name() for x in self.akt.dataProvider().fields().toList()
+                if upper(x.name()) in ['ODDZ', 'WYDZ']]) != 2:
+            self.iface.messageBar().pushWarning(
+                'Brak kolumn', 'Warstwa z nr kart powinna zawierać kolumny '
+                '[WYDZ, ODDZ]')
             return False
         return True
 

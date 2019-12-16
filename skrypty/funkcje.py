@@ -341,3 +341,13 @@ def dodaj_adm(iface):
             'W warstwie były już niezbędne pola, nic nie zmieniałem...',
             Qgis.Success
         )
+
+
+def otworz_kompozycje(iface):
+    project = QgsProject.instance()
+    projectLayoutManager = project.layoutManager()
+    lays = projectLayoutManager.layouts()
+    if len(lays) == 1:
+        iface.openLayoutDesigner(lays[0])
+    else:
+        iface.showLayoutManager()

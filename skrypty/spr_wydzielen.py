@@ -5,7 +5,7 @@ from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 from PyQt5.QtWidgets import QMessageBox
 
 from .sprawdzenia_warstw import SprawdzWydzielenia, sprawdz_odl_wydz, \
-    sprawdz_odl_lz, sprawdz_pnsw, sprawdz_linie
+    sprawdz_odl_lz, sprawdz_pnsw, sprawdz_linie, sprawdz_powierzchnie_wydz
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .shp_sprWydzOddz import spr_wydz_oddz
 
@@ -55,7 +55,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         return True
 
     def wczytaj_baze(self):
-        baza_sc = znajdz_baze_do_wydz(self.iface)
+        baza_sc = znajdz_baze_do_wydz(self.iface, poz=1)
         if baza_sc:
             self.baza = Baza(baza_sc)
             if self.baza.polacz():
@@ -125,6 +125,10 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         self.wypis += wyps
 
         l_odl_lz, wyps = sprawdz_odl_lz(self.iface, self.wydz)
+        self.wypis += wyps
+
+    def kontrola_powierzchni(self):
+        wyn, wyps = sprawdz_powierzchnie_wydz(self.wydz, self.baza)
         self.wypis += wyps
 
     def znajdz_warstwe(self, nazwa=''):

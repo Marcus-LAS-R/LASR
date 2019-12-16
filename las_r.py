@@ -214,6 +214,8 @@ class LasR:
             os.path.join(self.plugin_dir, 'ico', 'genPola.png'))
         ico_num_pola = QIcon(
             os.path.join(self.plugin_dir, 'ico', 'numPola.png'))
+        ico_pok_lay = QIcon(
+            os.path.join(self.plugin_dir, 'ico', 'pokazLay.png'))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
@@ -498,6 +500,12 @@ class LasR:
         self.toolbar.addAction(self.rys_wez)
         self.rys_wez.triggered.connect(self.rysuj_wezelki)
 
+        self.a_pokaz_lay = QAction(ico_pok_lay,
+                                'Pokaż Layout',
+                                self.iface.mainWindow())
+        self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
+        self.toolbar.addAction(self.a_pokaz_lay)
+
         self.toolbar.addSeparator()
 
         self.rys_atl = QAction(ico_gen_pola,
@@ -522,7 +530,8 @@ class LasR:
                                self.rys_gat,
                                self.rys_wez,
                                self.rys_atl,
-                               self.spr_topo
+                               self.spr_topo,
+                               self.a_pokaz_lay,
                                ]
         # toolbar koniec ---------------------
 
@@ -566,6 +575,18 @@ class LasR:
         self.toolbar_skr.addAction(self.pg)
         self.pg.triggered.connect(self.powierzchnia_graf)
 
+        self.akcje_toolbar_skr = [
+            self.spr_geom,
+            self.uutf8,
+            self.iface.actionSplitFeatures(),
+            self.msplit,
+            self.odzn,
+            self.pg,
+            self.iface.actionAddRing(),
+            self.iface.actionAddFeature(),
+            self.iface.actionSelectRectangle(),
+            self.iface.actionVertexTool(),
+        ]
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
         # self.add_action(
@@ -588,6 +609,10 @@ class LasR:
         for a in self.akcje_toolbara:
             self.iface.removeToolBarIcon(a)
         del self.toolbar
+
+        for a in self.akcje_toolbar_skr:
+            self.iface.removeToolBarIcon(a)
+        del self.toolbar_skr
 
     def run(self):
         """Run method that performs all the real work"""
@@ -695,6 +720,10 @@ class LasR:
             return
         if k.podst_spr():
             k.kontrola_odl()
+            try:
+                k.kontrola_powierzchni()
+            except Exception:
+                pass
             k.spr_oddz()
             k.spr_pnsw()
             k.spr_line()
@@ -887,3 +916,6 @@ class LasR:
         sp.przetworz()
         sp.raport_spis_kart()
         sp.raport_rozbieznosci()
+
+    def pokaz_layout(self):
+        funkcje.otworz_kompozycje(self.iface)
