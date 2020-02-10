@@ -37,7 +37,7 @@ class SprawdzCiecie:
             return False
 
         if len([x.name() for x in self.akt.dataProvider().fields().toList()
-                if upper(x.name()) in ['ODDZ', 'WYDZ']]) != 2:
+                if x.name().upper() in ['ODDZ', 'WYDZ']]) != 2:
             self.iface.messageBar().pushWarning(
                 'Brak kolumn', 'Warstwa z nr kart powinna zawierać kolumny '
                 '[WYDZ, ODDZ]')

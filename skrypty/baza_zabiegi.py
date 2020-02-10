@@ -914,6 +914,8 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         # ostatnia wartość z jaką coś jest wpisane do bazy
         self.max_cue = 0
 
+        self.pow_wydz = 0.0
+
         self.wiekRebSl = {}  # slownik z bazy z rokiem rebnosci dla poszcz gat.
         self.wiekReb = 120  # wiek rebności standardowo ustawiamy na 120 lat
         self.przest_vol = 0

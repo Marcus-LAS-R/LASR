@@ -258,8 +258,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         elif isinstance(a, QVariant):
             if a.isNull():
                 return ''
-        else:
-            return a
+
+        return a
 
     def zbuduj_strukture(self):
         """ metoda pobiera dane z bazy i shp oraz buduje niezbedne slowniki i

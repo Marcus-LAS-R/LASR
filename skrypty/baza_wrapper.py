@@ -115,7 +115,7 @@ class Baza(object):
             self.con.close()
             self.con = False
             self.cur = False
-        except:  # nopep8
+        except Exception:
             pass
 
     def wpisz(self, sql):
@@ -123,7 +123,7 @@ class Baza(object):
         try:
             self.cur.execute(sql)
             self.con.commit()
-        except:  # nopep8
+        except Exception:
             return False
         return True
 
@@ -143,12 +143,12 @@ class Baza(object):
         except:  # nopep8
             return False
 
-    def utworz_kopie(self, wpis=''):
+    def utworz_kopie(self, wpis='', debug=False):
         """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
         znacznikiem czasu oraz ew podanym wpisem"""
         katalog, plik = os.path.split(self.baza)
 
-        if self.baza[-3:] == 'mdb':
+        if self.baza[-3:].upper() == 'MDB':
             plikn = plik[:-4] + '_' + wpis + '_' + self.czas + '.mdb'
         else:
             plikn = plik[:-7] + '_' + wpis + '_' + self.czas + '.sqlite'
@@ -156,9 +156,11 @@ class Baza(object):
         copyfile(self.baza, os.path.join(katalog, plikn))
 
         # debug
-        # self.baza = os.path.join(katalog, plikn)
-        # self.zamknij()
-        # self.polacz()
+        if debug:
+            self.baza = os.path.join(katalog, plikn)
+
+        self.zamknij()
+        self.polacz()
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:

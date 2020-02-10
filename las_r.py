@@ -41,7 +41,8 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
-    baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie
+    baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
+    baza_napraw_stor_spec
 
 
 class LasR:
@@ -466,6 +467,12 @@ class LasR:
         self.m_narzedzia.addAction(self.a_anon)
         self.a_anon.triggered.connect(self.anonimizuj)
 
+        self.a_fstspec = QAction(QIcon(None),
+                                 "Napraw F_STOREY_SPECIES",
+                                 self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_fstspec)
+        self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
+
         self.a_copy = QAction(QIcon(None),
                               "Połącz bazy TPU",
                               self.iface.mainWindow())
@@ -501,8 +508,8 @@ class LasR:
         self.rys_wez.triggered.connect(self.rysuj_wezelki)
 
         self.a_pokaz_lay = QAction(ico_pok_lay,
-                                'Pokaż Layout',
-                                self.iface.mainWindow())
+                                   'Pokaż Layout',
+                                   self.iface.mainWindow())
         self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
         self.toolbar.addAction(self.a_pokaz_lay)
 
@@ -919,3 +926,16 @@ class LasR:
 
     def pokaz_layout(self):
         funkcje.otworz_kompozycje(self.iface)
+
+    def napraw_f_stor_spec(self):
+        np = baza_napraw_stor_spec.WrapNaprawFStorSpec(self.iface)
+        if not np.pobierz_sciezke():
+            return
+        if not np.pobierz_z_bazy():
+            self.iface.messageBar().pushCritical(
+                'BAZA', 'Nie udało się połączyć z bazą')
+        np.zbuduj_strukture()
+        np.popraw()
+        np.dopisz_poprawki()
+        np.raport()
+        np.pokaz_wyniki()
