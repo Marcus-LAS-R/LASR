@@ -163,15 +163,20 @@ class NaprawFStorSpec:
 
             # jezeli tu dotarlismy to mozemy zmienic baze
             for i, it in enumerate(self.sl[wydz][key+'_s']):
-                if not y_org[i]:
-                    sql = 'update f_storey_species set ' + \
-                        'species_rank_order='+str(i+1) + \
-                        ' where spec_stor_int_num='+str(it[0])+';'
-                    wyn = self.baza.wpisz(sql)
-                    if not wyn:
-                        self.uwagi.append(wydz)
-                    else:
-                        self.wpisanych += 1
+                sql = 'update f_storey_species set ' + \
+                    'species_rank_order='+str(i+100) + \
+                    ' where spec_stor_int_num='+str(it[0])+';'
+                wyn = self.baza.wpisz(sql)
+
+            for i, it in enumerate(self.sl[wydz][key+'_s']):
+                sql = 'update f_storey_species set ' + \
+                    'species_rank_order='+str(i+1) + \
+                    ' where spec_stor_int_num='+str(it[0])+';'
+                wyn = self.baza.wpisz(sql)
+                if not wyn:
+                    self.uwagi.append(wydz)
+                else:
+                    self.wpisanych += 1
 
 
 class WrapNaprawFStorSpec(NaprawFStorSpec):
@@ -179,7 +184,7 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
         NaprawFStorSpec.__init__(self)
         self.iface = iface
 
-    def pokaz_wynik(self):
+    def pokaz_wyniki(self):
         if len(self.uwagi) == 0:
             self.iface.messageBar().pushSucces(
                 'OK',
@@ -188,8 +193,9 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
         else:
             self.iface.messageBar().pushWarning(
                 'BŁĘDY KRYTCZNE',
-                '; poprawiono rekordów: '+str(self.wpisanych) +
-                'Znaleziono błędów krytycznych: '+str(len(self.uwagi)/2) + ' '
+                'Poprawiono rekordów: '+str(self.wpisanych) +
+                '; Znaleziono błędów krytycznych: ' +
+                str(len(set(self.uwagi))) + ' '
                 ' (Sprawdź plik raportu)'
             )
 
@@ -203,7 +209,7 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
-            self.baza.baza(sc)
+            self.baza.baza = sc
             return True
         return False
 
