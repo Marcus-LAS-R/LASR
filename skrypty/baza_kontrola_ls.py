@@ -32,22 +32,27 @@ class KontrolaLs:
             'NIELES', 'ARK', 'SPRAWDZ',
         ]
 
-    def dane_wejsciowe(self):
-        # sprawdz czy użyszkodnik zaznaczył warstwę Ls z odpowiednimi polami w
-        # tabeli i czy w katalogu nadrzędnym jest jedna baza taks
+    def dane_wejsciowe(self, ls=''):
+        """Sprawdz czy uzytkownik podał warstwe ls na której chce działać,
+        bądz czy zaznaczył ja w TOC oraz czy ta warstwa spełania kryteria
+        Zwraca True
+        """
 
-        try:
-            self.ls = self.iface.activeLayer()
-            if self.ls is None:
+        if ls != '':
+            self.ls = ls
+        else:
+            try:
+                self.ls = self.iface.activeLayer()
+                if self.ls is None:
+                    self.iface.messageBar().pushMessage(
+                        'BŁĄD', 'Proszę zaznaczyć warstwę Ls', Qgis.Critical
+                    )
+                    return False
+            except Exception:
                 self.iface.messageBar().pushMessage(
                     'BŁĄD', 'Proszę zaznaczyć warstwę Ls', Qgis.Critical
                 )
                 return False
-        except Exception:
-            self.iface.messageBar().pushMessage(
-                'BŁĄD', 'Proszę zaznaczyć warstwę Ls', Qgis.Critical
-            )
-            return False
 
         pola_braki = [
             y for y in self.pola_ls

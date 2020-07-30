@@ -41,6 +41,7 @@ class GenerujAtlas():
             QgsField("G", QVariant.Int),
             QgsField("P", QVariant.Int),
             QgsField("D", QVariant.Int),
+            QgsField("ZROBIONE", QVariant.String, len=50),
             ])
         self.pola.updateFields()
         self.pola.commitChanges()

@@ -1,7 +1,6 @@
 import os
 
-from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QMessageBox, QFileDialog, QDialog
+from PyQt5.QtWidgets import QFileDialog
 from .baza_wrapper import Baza
 
 
@@ -186,7 +185,7 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
 
     def pokaz_wyniki(self):
         if len(self.uwagi) == 0:
-            self.iface.messageBar().pushSucces(
+            self.iface.messageBar().pushSuccess(
                 'OK',
                 'Brak uwag, poprawiono rekordów: '+str(self.wpisanych),
             )
@@ -212,4 +211,3 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
             self.baza.baza = sc
             return True
         return False
-

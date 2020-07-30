@@ -391,6 +391,7 @@ class DopiszKody(SprawdzWydzielenia):
             QgsField("STRUKTUR", QVariant.String, len=20),
             QgsField("SLMN_KOL", QVariant.Int),
             QgsField("STL", QVariant.String, len=20),
+            QgsField("POKRYWA", QVariant.String, len=20),
             QgsField("ZABIEG", QVariant.String, len=20),
             QgsField("POW_ZAB", QVariant.Double, 'double', 10, 4),
             QgsField("ODNOW", QVariant.String, len=20),
@@ -439,6 +440,7 @@ class DopiszKody(SprawdzWydzielenia):
                         self.isNone(self.sl[adr][6], typ='i'), 1),
                     fnm['STRUKTUR']: self.isNone(self.sl[adr][8]),
                     fnm['L_EWID']: 'T',
+                    fnm['POKRYWA']: self.isNone(self.sl[adr][9]),
                 }
 
                 if adr in self.dopis:

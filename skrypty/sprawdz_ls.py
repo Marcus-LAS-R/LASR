@@ -8,7 +8,7 @@ from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \
     QgsFeatureRequest, QgsVectorFileWriter, QgsCoordinateReferenceSystem, \
-    QgsGeometry
+    QgsGeometry, QgsExpression
 
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
@@ -18,6 +18,12 @@ from .pw import PasekPostepu
 # import processing  # import przeniesiony do metody - pytest probemy!
 # import subprocess  # import niezbedny przy wysietleniu raportu na maszynach
 #                      bez windowsa
+
+
+def dodaj_plus(xx):
+    if xx > 0:
+        return '+'+str(xx)
+    return str(xx)
 
 
 class recursivedefaultdict(defaultdict):
@@ -313,7 +319,7 @@ class AnalizujKlus(object):
                     zsq = 'xxx'
                     zau = 'xxx'
             else:
-                zsq = f[self.sq]
+                zsq = f[self.sq].upper()
                 zau = f[self.au]
 
             val_klu = isNone(zau) + isNone(zsq)
@@ -344,7 +350,7 @@ class AnalizujKlus(object):
             'GRASS_MIN_AREA_PARAMETER': 0.1,
             'GRASS_OUTPUT_TYPE_PARAMETER': 0,
             'GRASS_REGION_PARAMETER': None,
-            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.2,
+            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.05,
             'GRASS_VECTOR_DSCO': '',
             'GRASS_VECTOR_EXPORT_NOCAT': False,
             'GRASS_VECTOR_LCO': '',
@@ -352,12 +358,12 @@ class AnalizujKlus(object):
             'input': self.klu,
             'output': os.path.join(self.tempkat,
                                    '__klu_dissolve_' +
-                                   self.czas + '.shp')
+                                   self.czas + '.gpkg')
         }
         processing.run('grass7:v.dissolve', alg_params)
 
         templyr1 = QgsVectorLayer(
-            os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
+            os.path.join(self.tempkat, '__klu_dissolve_' + self.czas+'.gpkg'),
             'templyr_diss',
             'ogr')
 
@@ -367,7 +373,7 @@ class AnalizujKlus(object):
             'GRASS_MIN_AREA_PARAMETER': 0.1,
             'GRASS_OUTPUT_TYPE_PARAMETER': 0,
             'GRASS_REGION_PARAMETER': None,
-            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.2,
+            'GRASS_SNAP_TOLERANCE_PARAMETER': 0.05,
             'GRASS_VECTOR_DSCO': '',
             'GRASS_VECTOR_EXPORT_NOCAT': False,
             'GRASS_VECTOR_LCO': '',
@@ -376,14 +382,14 @@ class AnalizujKlus(object):
             'binput': self.dzkat,
             'btype': 0,
             'operator': 0,
-            'snap': 0.2,
+            'snap': 0.05,
             'output': os.path.join(
-                self.tempkat, '__LS_multiparts_'+self.czas+'.shp')
+                self.tempkat, '__LS_multiparts_'+self.czas+'.gpkg')
         }
         processing.run('grass7:v.overlay', alg_params)
 
         ovrlyr = QgsVectorLayer(
-            os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+            os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.gpkg'),
             'templyr_ovr',
             'ogr')
 
@@ -404,6 +410,8 @@ class AnalizujKlus(object):
         for old, id in fnm.items():
             if old[:2] in ['a_', 'b_', ]:
                 ovrlyr.renameAttribute(id, old[2:])
+
+        # dodaj COMMUNITY i przelicz grass nie dodaje za dlugich pol
         ovrlyr.commitChanges()
 
         # dodaj 2 potrzebne kolumny i rozkoduj do nich dane z dissolva
@@ -413,6 +421,8 @@ class AnalizujKlus(object):
             pola_dodaj.append(QgsField("SQ", QVariant.String, len=10))
         if 'AU' not in pola:
             pola_dodaj.append(QgsField("AU", QVariant.String, len=10))
+        if 'COMMUNITY' not in pola:
+            pola_dodaj.append(QgsField("COMMUNITY", QVariant.String, len=4))
 
         if len(pola_dodaj) > 0:
             ovrlyr.startEditing()
@@ -423,18 +433,25 @@ class AnalizujKlus(object):
         klu_fnm = ovrlyr.dataProvider().fieldNameMap()
         iau = klu_fnm['AU']
         isq = klu_fnm['SQ']
+        icom = klu_fnm['COMMUNITY']
 
         sl_podm = {}
         for f in ovrlyr.getFeatures():
             zsq = 'xxx'
             zau = 'xxx'
-            it = isNone(f['KLU']).replace('?', 'Ł')
+            it = isNone(f['KLU'].replace('?', 'Ł'))
+
             if it in self.sl_klu:
                 val = self.sl_klu[it]
                 zsq = val[1]
                 zau = val[0]
 
-            sl_podm[f.id()] = {iau: zau, isq: zsq}
+            sl = {iau: zau, isq: zsq}
+            if isNone(f['COMMUNITY']):
+                if 'PARCELID' in pola:
+                    sl[icom] = isNone(f['PARCELID'])[7:10]
+
+            sl_podm[f.id()] = sl
 
         for fid, sl in sl_podm.items():
             ovrlyr.dataProvider().changeAttributeValues({fid: sl})
@@ -447,7 +464,7 @@ class AnalizujKlus(object):
                            self.tempkat,
                            '__LS_singleparts_'+self.czas+'.shp'),
                        # 'INPUT': os.path.join(
-                        # self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
+                       # self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
                        'INPUT': ovrlyr
                        })
 
@@ -458,14 +475,14 @@ class AnalizujKlus(object):
 
         # self.singleparts.dataProvider().setEncoding('UTF-8')
         # if platform.system()[:3] == 'Win':
-            # crs = QgsCoordinateReferenceSystem("epsg:2180")
-            # QgsVectorFileWriter.writeAsVectorFormat(
-                # self.singleparts,
-                # os.path.join(
-                    # self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-                # "UTF-8",
-                # crs,
-                # "ESRI Shapefile")
+        #     crs = QgsCoordinateReferenceSystem("epsg:2180")
+        #     QgsVectorFileWriter.writeAsVectorFormat(
+        #         self.singleparts,
+        #         os.path.join(
+        #             self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
+        #         "UTF-8",
+        #         crs,
+        #         "ESRI Shapefile")
 
         return True
 
@@ -523,8 +540,8 @@ class AnalizujKlus(object):
             'templyr_multi',
             'ogr')
 
-        if platform.system()[:3] == 'Win':
-            templyr.dataProvider().setEncoding('ISO-8859-2')
+        # if platform.system()[:3] == 'Win':
+        #     templyr.dataProvider().setEncoding('ISO-8859-2')
 
         # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
         # uwzględnia samoprzecinających się poligonów i przez to generuj
@@ -547,8 +564,8 @@ class AnalizujKlus(object):
             'Ls_singleparts',
             'ogr')
 
-        if platform.system()[:3] == 'Win':
-            self.singleparts.dataProvider().setEncoding('ISO-8859-2')
+        # if platform.system()[:3] == 'Win':
+        #     self.singleparts.dataProvider().setEncoding('ISO-8859-2')
 
         self.singleparts.startEditing()
         feats = []
@@ -572,16 +589,13 @@ class AnalizujKlus(object):
             )
 
             if len(ng.asMultiPolygon()) > 1:
-                # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
-                # pyqtRemoveInputHook()
-                # pdb.set_trace()
                 print('Zmina feat z id: ' + str(nrf))
                 self.singleparts.changeGeometry(f.id(), geom_ok)
 
                 for i, part in enumerate(ng.asMultiPolygon()[1:]):
                     # nf = QgsFeature(nrf)
                     # nf.setFields(
-                        # self.singleparts.dataProvider().fields()
+                    #     self.singleparts.dataProvider().fields()
                     # )
                     nf = f
                     nf['SQ'] = isNone(f['SQ']).upper()
@@ -818,19 +832,18 @@ class AnalizujKlus(object):
             # self.lyrls.changeGeometry(feat.id(), gpopr)
         self.lyrls.commitChanges()
 
+        # uzupelnij o dane z bazy
+        self.__uzupelnij_inne_ls(self.lyrbl)
+        self.__uzupelnij_inne_ls(self.lyrspr)
+
         # usun zbedne kolumny z warstwy z bledami i feat do spr
-        self.lyrspr.startEditing()
-        self.lyrbl.startEditing()
-
-        do_usun = [k for k, v in enumerate(self.kolumny_dz + self.kolumny_ls)
-                   if v.name() not in [
-                       'SQ', 'AU', 'PARCELID', 'SPRAWDZ', 'LAND_POW', ]
-                   ]
-        self.lyrspr.dataProvider().deleteAttributes(do_usun)
-        self.lyrbl.dataProvider().deleteAttributes(do_usun)
-
-        self.lyrbl.commitChanges()
-        self.lyrspr.commitChanges()
+        # do_usun = [k for k, v in enumerate(self.kolumny_dz + self.kolumny_ls)
+        #            if v.name() not in [
+        #                'SQ', 'AU', 'PARCELID', 'SPRAWDZ', 'LAND_POW', ]
+        #            ]
+        # zostaw strukture rozbudowana w tabeli atrybutuw - MAREK
+        # self.lyrspr.dataProvider().deleteAttributes(do_usun)
+        # self.lyrbl.dataProvider().deleteAttributes(do_usun)
 
         QgsVectorFileWriter.writeAsVectorFormat(
             self.lyrbl,
@@ -891,6 +904,57 @@ class AnalizujKlus(object):
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(rap_out)
         plik.close()
+
+    def __uzupelnij_inne_ls(self, lyr):
+        """Uzupełnia warstwy ls do sprawdzenia oraz bledow o dane z bazy danych
+        i warstwy dzielk w celu latwego wkopiowania danych do wlasciwej
+        warstwy Ls
+        """
+
+        lyr.startEditing()
+        fnm = lyr.dataProvider().fieldNameMap()
+
+        slg = {}
+        for feat in lyr.getFeatures():
+            lid = isNone(feat['PARCELID']) + '.' + \
+                isNone(feat['AU']) + isNone(feat['SQ']).upper()
+
+            # ADR_ADM
+            sl = {fnm['LANDID']: lid,
+                  fnm['COUNTY']: lid[:2],
+                  fnm['DISTRICT']: lid[2:4],
+                  fnm['MUNICIP']: lid[4:7],
+                  fnm['COMMUNITY']: lid[7:11],
+                  }
+
+            # PARCELNR
+            sl[fnm['PARCELNR']] = feat['PARCELID'].split('.')[-1]
+
+            # LAND_AR
+            if lid in self.p.uzytki:
+                sl[fnm['LAND_AR']] = self.p.uzytki[lid][2]
+
+            request = QgsFeatureRequest(QgsExpression(
+                "PARCELID='"+str(feat['PARCELID'])+"'")).setFlags(
+                QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                    ['PARCELID', 'GRP', 'PARCEL_AR', 'PARCEL_POW', 'ARK', ],
+                    self.dzkat.fields())
+            dzs = {x['PARCELID']: [x['GRP'], x['PARCEL_AR'], x['PARCEL_POW'],
+                                   x['ARK'],
+                                   ]
+                   for x in self.dzkat.getFeatures(request)}
+
+            if len(dzs) > 0:
+                sl[fnm['GRP']] = dzs[feat['PARCELID']][0]
+                sl[fnm['PARCEL_AR']] = dzs[feat['PARCELID']][1]
+                sl[fnm['PARCEL_POW']] = dzs[feat['PARCELID']][2]
+                sl[fnm['ARK']] = dzs[feat['PARCELID']][3]
+
+            slg[feat.id()] = sl
+
+        # uaktualnij
+        lyr.dataProvider().changeAttributeValues(slg)
+        lyr.commitChanges()
 
 
 class PrzetworzKlu(object):
@@ -1239,7 +1303,7 @@ class PrzetworzKlu(object):
                 return True
         return False
 
-    def s_czy_jeden_ls(self):
+    def s_czy_jeden_ls(self):  # noqa
         """Metoda sprawdza czy w bazie jest jeden ls, jezeli tak, sprawdza czy
         na dzialce znajduje sie jeden ls o tej samej klasie"""
         # sprawdz czy w bazie znajduje sie tylko jeden ls na dzewid
@@ -1278,8 +1342,22 @@ class PrzetworzKlu(object):
 
                     self.uwagi['podmsq'][landid] = [
                         self.isNone(klu['SQ']),
-                        self.isNone(self.p.sl_ls_na_dz[self.pid][0])
+                        self.isNone(self.p.sl_ls_na_dz[self.pid][0]),
                     ]
+                    stary = list({x for x in self.sl_klus_pow.keys()})[0]
+
+                    # pow rejestrowa
+                    dod = ''
+                    if stary in self.p.uzytki:
+                        dod = round(self.p.uzytki[stary][2], 4)
+                    self.uwagi['podmsq'][landid].append(str(dod))
+
+                    # pow graficzna z uzytku
+                    dod = ''
+                    if stary in self.sl_klus_pow:
+                        dod = self.sl_klus_pow[stary]
+                    self.uwagi['podmsq'][landid].append(str(dod))
+
                     uw = 'Podmieniono SQ na zgodny z bazą; '
                     trig = True
 
@@ -1290,6 +1368,21 @@ class PrzetworzKlu(object):
                     klu['AU'] + self.isNone(klu['SQ']),
                     'Ls' + self.p.sl_ls_na_dz[self.pid][0]
                 ]
+                stary = list({x for x in self.sl_klus_pow.keys()})[0]
+
+                # pow rejestrowa
+                dod = ''
+                if stary in self.p.uzytki:
+                    dod = round(self.p.uzytki[stary][2], 4)
+                self.uwagi['podmau'][landid].append(str(dod))
+
+                # pow graficzna z uzytku
+                dod = ''
+                if stary in self.sl_klus_pow:
+                    dod = round(self.sl_klus_pow[stary], 4)
+
+                self.uwagi['podmau'][landid].append(str(dod))
+
                 uw = 'Podmieniono AU i SQ na zgodny z bazą; '
                 trig = True
 
@@ -1432,11 +1525,6 @@ class PrzetworzKlu(object):
             if y not in self.poprawne:
                 self.poprawne[y] = self.klus_popr[i]
                 continue
-
-            # if y == '24171420001.16224/1.LsIV':
-                # import pdb; from PyQt5.QtCore import pyqtRemoveInputHook
-                # pyqtRemoveInputHook()
-                # pdb.set_trace()
 
             # jezeli uzytek jest mikrusem dodaj uwage do slownika, ale jeżeli
             # nie jest jedynym poligonem z tego klu
@@ -1749,7 +1837,6 @@ class SprawdzMikro(object):
             # blad nachodzenia 2 klu na siebie - do wyjasnienia!
             if round(self.slk[p_area[0][0]].geometry().area(), 3) >= \
                     round(p_area[0][1], 3):
-                    # round(k.geometry().area(), 3) == round(p_area[0][1], 3):
                 self.do_polacz.append([k.id(), p_area[0][0]])
             else:
                 uw = self.isNone(k['SPRAWDZ'])
@@ -2075,7 +2162,7 @@ class GenerujRaport():
                 if len(x.uwagi['podmsq']) > 0
             ]
         for x in sl:
-            self.lista_zm_sq += [[k, v[0], v[1]] for k, v in x.items()]
+            self.lista_zm_sq += [[k]+v[:4] for k, v in x.items()]
 
     def zestaw_liste_zmienionych_au(self):
         if self.wl == 'OF':
@@ -2091,7 +2178,7 @@ class GenerujRaport():
             ]
 
         for x in sl:
-            self.lista_zm_au += [[k, v[0], v[1]] for k, v in x.items()]
+            self.lista_zm_au += [[k] + v[:4] for k, v in x.items()]
 
     def policz_podm_ls(self):
         if self.wl == 'OF':
@@ -2162,7 +2249,11 @@ class GenerujRaport():
                 str(len(self.brakujace_ls_w_shp)) + '\n\n'
             sort_temp = sorted(self.brakujace_ls_w_shp, key=lambda x: x[0])
             self.wypis += '\n'.join([
-                '\t'.join([x[0], str(x[1])]) for x in
+                '\t'.join(
+                    [x[0],
+                     str(x[1]),
+                     '.'.join(x[0].split('.')[:-1]),
+                     ]) for x in
                 sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
@@ -2173,7 +2264,11 @@ class GenerujRaport():
                 str(len(self.brakujace_ls_w_bazie)) + '\n\n'
             # sort_temp = sorted(self.brakujace_ls_w_bazie, key=lambda x: x[0])
             self.wypis += '\n'.join([
-                '\t'.join([x[0], str(x[1])]) for x in
+                '\t'.join([
+                    x[0],
+                    str(x[1]),
+                    '.'.join(x[0].split('.')[:-1]),
+                ]) for x in
                 # sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
                 self.brakujace_ls_w_bazie
             ])
@@ -2199,7 +2294,7 @@ class GenerujRaport():
             self.wypis += '---PODMIENIONE KLASY LS [W SHP]---\n'
             self.wypis += 'Lsy w warstwie z podmienionymi SQ: ' + \
                 str(len(self.lista_zm_sq)) + '\n\n'
-            self.wypis += 'landid\tstary sq\tnowy sq\n'
+            self.wypis += 'landid\tstary sq\tnowy sq\tpow.rej.\tpow.graf.\n'
             self.wypis += '\n'.join([
                 '\t'.join(x) for x in
                 sorted(self.lista_zm_sq, key=lambda x: x[0])
@@ -2210,7 +2305,7 @@ class GenerujRaport():
             self.wypis += '---PRZEMIANOWANE NA LS [W SHP]----\n'
             self.wypis += 'Lsy w warstwie z podmienionymi AU/SQ: ' + \
                 str(len(self.lista_zm_au)) + '\n\n'
-            self.wypis += 'landid\tstary aU\tnowy au\n'
+            self.wypis += 'landid\tstary aU\tnowy au\tpow.rej.\tpow.graf.\n'
             self.wypis += '\n'.join([
                 '\t'.join(x) for x in
                 sorted(self.lista_zm_au, key=lambda x: x[0])
@@ -2236,15 +2331,20 @@ class GenerujRaport():
             self.wypis += 'Ls z dużą rozbieżnością powierzchni: ' + \
                 str(len(self.rozb_pow)) + '\n\n'
             self.wypis += 'adr_adm\tpow_graf\tpow_rej\troznica\n'
-            try:
 
-                rr = sorted([x + [round(abs(x[1] - x[2]), 4)]
-                             for x in self.rozb_pow
-                             ],
-                            reverse=True, key=lambda x: x[3])
-                self.wypis += '\n'.join(["\t".join(map(str, x)) for x in rr])
-            except:  # nopep8
+            # na zlecenie wiceprezesa Marka
+            try:
+                rr = sorted([x + [
+                    dodaj_plus(round(x[1]-x[2], 4)),
+                    round(abs(x[1] - x[2]), 4)]
+                    for x in self.rozb_pow
+                ],
+                    reverse=True, key=lambda x: x[4])
+                self.wypis += '\n'.join(["\t".join(map(str, x[:4]))
+                                         for x in rr])
+            except Exception:
                 self.wypis += 'Coś poszło nie tak jak powinno!'
+
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         self.wypis += '\n-----[ KONIEC RAPORTU ]------'

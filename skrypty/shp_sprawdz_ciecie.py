@@ -1,8 +1,12 @@
 import os
-from qgis.core import QgsProject, QgsFeatureRequest, QgsSpatialIndex, \
-    QgsMessageLog, QgsWkbTypes, QgsVectorLayer, QgsField
 from collections import Counter
+
+from qgis.core import QgsProject, QgsSpatialIndex, QgsFeatureRequest, \
+    QgsMessageLog, QgsWkbTypes, QgsVectorLayer, Qgis, QgsField
+
 from PyQt5.QtCore import QVariant
+
+from .baza_wrapper import znajdz_baze_do_wydz, Baza
 
 
 class SprawdzCiecie:
@@ -15,6 +19,7 @@ class SprawdzCiecie:
         self.slwydz = {}  # {f.id(): feat, }
         self.slkart = {}  # {adr: [[oddz, wydz], [oddz, wydz]],
         self.zdublowane_adr = []
+        self.l_pkt_przec = []  # lista z pkt ktore przecinaja sie z wydz
 
     def zalozenia_poczatkowe(self):
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
@@ -22,9 +27,11 @@ class SprawdzCiecie:
         if len(self.wydz) != 1:
             self.iface.messageBar().pushWarning(
                 'Wydzielenia',
-                'Nazwa tylko jednej  warstwy w TOC powinna zaczynać się od WYDZ'
+                'Tylko jedna warstwa w TOC powinna nazywać '
+                'się WYDZ'
             )
             return False
+
         self.wydz = self.wydz[0]
         self.kat = os.path.dirname(self.wydz.dataProvider().dataSourceUri(
             ).split("|")[0])
@@ -35,6 +42,29 @@ class SprawdzCiecie:
             self.iface.messageBar().pushWarning(
                 'Aktywna warstwa', 'Zaznacz warstwę punktową z nr kart')
             return False
+
+        # sprawdz czy w warstwie jest kolumna z ID
+        if 'ID' not in [x.name() for x in
+                        self.wydz.dataProvider().fields().toList()]:
+            self.wydz.startEditing()
+            self.wydz.dataProvider().addAttributes(
+                [QgsField("ID", QVariant.Int)]
+            )
+            self.wydz.updateFields()
+            self.wydz.commitChanges()
+
+        # uaktualnij na nowo kolumn ID
+        self.wydz.startEditing()
+        request = QgsFeatureRequest().setFlags(
+            QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                ['ID'], self.wydz.fields()
+            )
+        sl = {}
+        fnm = self.wydz.dataProvider().fieldNameMap()
+        for feat in self.wydz.getFeatures(request):
+            sl[feat.id()] = {fnm['ID']: feat.id()}
+        self.wydz.dataProvider().changeAttributeValues(sl)
+        self.wydz.commitChanges()
 
         if len([x.name() for x in self.akt.dataProvider().fields().toList()
                 if x.name().upper() in ['ODDZ', 'WYDZ']]) != 2:
@@ -56,13 +86,13 @@ class SprawdzCiecie:
 
         wydz = []
         for feat in self.wydz.getFeatures():
-            aa = str(feat['ADR_LES'])
+            aa = feat['ID']
             self.slwydz[aa] = feat
             self.slkart[aa] = []
             wydz.append(aa)
             if aa in ['', None, 'NULL']:
                 self.iface.messageBar().pushWarning(
-                    'Błędny ADR_LES', 'Niezakodowana kolumna ADR_LES w WYDZ')
+                    'Błędny ID', 'Niezakodowana kolumna ID w WYDZ')
                 return False
 
         # sprawdz czy adr_les nie pokrywa się w jakims wydzieleniu
@@ -86,28 +116,56 @@ class SprawdzCiecie:
 
     def przetworz(self):
         for feat in self.slwydz.values():
-            adr = str(feat['ADR_LES'])
             rext = feat.geometry().boundingBox()
             ids = self.si.intersects(rext)
 
             for it in ids:
                 fk = self.slpkt[it]
                 if feat.geometry().intersects(fk.geometry()):
-                    self.slkart[adr] += [[str(fk['oddz']), str(fk['wydz'])]]
+                    self.l_pkt_przec.append(it)
+                    self.slkart[feat.id()] += [[str(fk['oddz']),
+                                                str(fk['wydz']),
+                                                str(feat['ADR_LES']),
+                                                ]]
 
     def raport_spis_kart(self):
-        rap_out = 'MUNICIP\tCOMMUNITY\tODDZ\tWYDZ\tNR_ROBO\n'
+        sc = znajdz_baze_do_wydz(self.iface, self.wydz, poz=1)
+        adm = {}  # slownik z kodami administracyjnymi
+        if sc:
+            b = Baza(sc)
+            if b.polacz():
+                pob = b.pobierz_naglowek()
+                pob = [] if pob is False else pob
+            adm = {x[4]+x[5]: x[3] for x in pob}
+
+        rap_out = 'MUNICIP\tCOMMUNITY\tODDZ\tWYDZ\tNR_ROBO\tOBR\n'
         tab = []
-        for key, val in self.slkart.items():
+
+        for k, val in self.slkart.items():
+            key = '---------------------'
+            if len(val) > 0:
+                if len(val[0][2]) > 20:
+                    key = val[0][2]
+
             tp = [key[3:6], key[6:10], key[13:17], key[18:20], ]
-            t = [tp+['-'.join(x)] for x in val]
+
+            # nazwa obrebu adm
+            obr = '---'
+            if key[3:10] in adm:
+                obr = adm[key[3:10]]
+
+            t = [tp+['-'.join(x[:2])]+[obr] for x in val]
             if len(val) == 0:
-                t = [tp + ['', ]]
+                t = [tp + ['', obr]]
             tab += t
         tout = sorted(tab, key=lambda x: ''.join(x[:3])+x[3][::-1])
         rap_out += '\n'.join((['\t'.join(x) for x in tout]))
-        open(os.path.join(self.kat,
+        open(os.path.join(self.kat, '..',
                           'raport_nr_robocze.csv'), 'w').write(rap_out)
+
+        self.iface.messageBar().pushSuccess(
+            'OK', 'Zapisano raport z kartami'
+        )
 
     def raport_rozbieznosci(self):
         wps = '-----RAPORT--------\n\n'
@@ -121,24 +179,39 @@ class SprawdzCiecie:
             wps += '\n\n'
 
         wps += '---[ wydzielenia bez nr roboczego ]---\n'
-        wydz_bez = [k for k, v in self.slkart.items() if len(v) == 0]
+        wydz_bez = [str(k) for k, v in self.slkart.items() if len(v) == 0]
         if len(wydz_bez) == 0:
-            wps += '(Brak takowych)\n'
+            wps += '(Brak)\n'
         else:
             wps += 'Liczba: '+str(len(wydz_bez)) + '\n\n'
             wps += '\n'.join(wydz_bez)
         wps += '\n\n'
 
         wps += '---[ wydzielenia z kilkoma nr roboczymi ]---\n'
-        wydz_wiela = [k for k, v in self.slkart.items() if len(v) > 1]
+        wydz_wiela = [str(k) for k, v in self.slkart.items() if len(v) > 1]
         if len(wydz_wiela) == 0:
-            wps += '(Brak takowych)\n'
+            wps += '(Brak)\n'
         else:
             wps += 'Liczba: '+str(len(wydz_wiela)) + '\n\n'
             wps += '\n'.join(wydz_wiela)
         wps += '\n\n'
-        open(os.path.join(self.kat, 'raport_spr_ciecia.txt'), 'w').write(wps)
 
+        wps += '---[ Pkt leżące poza wydzieleniami ]---\n'
+        lpoz = [str(v['ODDZ']) + '-' + str(v['WYDZ'])
+                for k, v in self.slpkt.items()
+                if k not in self.l_pkt_przec]
+        if len(lpoz) == 0:
+            wps += '(Brak)\n'
+        else:
+            wps += 'Liczba: '+str(len(lpoz)) + '\n\n'
+            wps += '\n'.join([x for x in lpoz])
+        wps += '\n\n'
+
+        open(
+            os.path.join(self.kat, '..', 'raport_spr_ciecia.txt'),
+            'w').write(wps)
+
+        plug = os.path.dirname(__file__)
         if len(wydz_bez) > 0:
             lyrbez = QgsVectorLayer(
                 "MultiPolygon?crs=epsg:2180",
@@ -148,10 +221,12 @@ class SprawdzCiecie:
             lyrbez.startEditing()
             lyrbez_dp.addAttributes(self.wydz.dataProvider().fields().toList())
             lyrbez.updateFields()
-            lyrbez_dp.addFeatures([x for x in self.slwydz.values()
-                                if x['ADR_LES'] in wydz_bez])
+            lyrbez_dp.addFeatures([x for k, x in self.slwydz.items()
+                                   if str(k) in wydz_bez])
             lyrbez.commitChanges()
-            QgsProject.instance().addMapLayer(lyrbez)
+            lyrb = QgsProject.instance().addMapLayer(lyrbez)
+            lyrb.loadNamedStyle(os.path.join(
+                plug, '..', 'qml', 'poly_red_outline.qml'))
 
         if len(wydz_wiela) > 0:
             lyrwiela = QgsVectorLayer(
@@ -163,13 +238,15 @@ class SprawdzCiecie:
             lyrwiela_dp.addAttributes(
                 self.wydz.dataProvider().fields().toList())
             lyrwiela.updateFields()
-            lyrwiela_dp.addFeatures([x for x in self.slwydz.values()
-                                if x['ADR_LES'] in wydz_wiela])
+            lyrwiela_dp.addFeatures([x for k, x in self.slwydz.items()
+                                     if str(k) in wydz_wiela])
             lyrwiela.commitChanges()
-            QgsProject.instance().addMapLayer(lyrwiela)
+            lyrw = QgsProject.instance().addMapLayer(lyrwiela)
+            lyrw.loadNamedStyle(os.path.join(
+                plug, '..', 'qml', 'poly_green_outline.qml'))
 
         self.iface.messageBar().pushSuccess(
-            'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +\
-            str(len(wydz_bez)) + ', wydz z wieloma kartami: ' + \
+            'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +
+            str(len(wydz_bez)) + ', wydz z wieloma kartami: ' +
             str(len(wydz_wiela))
         )

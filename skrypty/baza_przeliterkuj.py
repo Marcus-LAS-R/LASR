@@ -5,6 +5,7 @@ from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .shp_literkuj import Literkuj
 from .shp_adr_les import Zaadresuj
+from .shp_sprWydzOddz import spr_wydz_oddz
 from .baza_dopisz_wydz import DopiszWydzielenia
 
 
@@ -47,6 +48,17 @@ class Przeliterkuj(SprawdzWydzielenia):
             return False
 
         if not self.poprawne_wydz():
+            return False
+
+        # Sprawdz zawieranie sie przeliterkowywania w oddzialach
+        spr = spr_wydz_oddz(self.iface, wydz=self.wydz)
+        if spr[1] > 0:
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Wydzielenia nie zawierają sie w oddziałach',
+                Qgis.Critical,
+                10
+            )
             return False
 
         return True

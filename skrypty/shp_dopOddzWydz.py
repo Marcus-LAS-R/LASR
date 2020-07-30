@@ -1,6 +1,5 @@
 from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
     QgsVectorLayer, QgsField, QgsFeature
-from collections import Counter
 from PyQt5.QtCore import QVariant
 
 
@@ -12,13 +11,9 @@ def dopOddzWydz(iface):  # noqa
         Qgis.Info
     )
 
-    spis_warstw = [x.name() for x in
-                   QgsProject.instance().mapLayers().values()]
-
     # SPRAWDZ WARUNKI POCZATKOWE ----------------------
     # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
     go = False
-    policz_warstwy = Counter(spis_warstw)
 
     oddz = [x for x in QgsProject.instance().mapLayers().values()
             if x.name()[:4] == 'ODDZ']
@@ -95,6 +90,10 @@ def dopOddzWydz(iface):  # noqa
         si.insertFeature(f)
         sl_wydz[f.id()] = f
 
+    # slownik ze zliczeniami wydzielen dla poszczegolnych oddz
+    # sl_licz = {'GGGOOOO-ODDZ': [0, feat_oddz], }
+    sl_licz = {}
+
     # sprawdz przeciecia wydzielen z poszczegolnymi oddzialami
     # jeżeli są poprawne dopisz numer oddziału
     fnm = wydz.dataProvider().fieldNameMap()
@@ -117,6 +116,22 @@ def dopOddzWydz(iface):  # noqa
                                                         str(foddz['ODDZ'])})
                             f_dop.append(idk)
                             dopisano += 1
+
+                            # zestawa adres dla slowniki zliczajacego wydz
+                            gm = sl_wydz[idk]['MUNICIP']
+                            gm = gm if gm is not None else 'mmm'
+                            obr = sl_wydz[idk]['COMMUNITY']
+                            obr = obr if obr is not None else 'cccc'
+
+                            # sprawdz czy w sl jest juz cos dodane
+                            adr = gm + obr + '-' + str(foddz['ODDZ'])
+                            if adr not in sl_licz:
+                                sl_licz[adr] = [0, foddz]
+
+                            # dodaj do slownika liczbe jezeli nie jest lz
+                            if str(sl_wydz[idk]['WYDZ']).upper() != 'LZ':
+                                sl_licz[adr][0] += 1
+
                     elif abs(inter.area() /
                              sl_wydz[idk].geometry().area()) > 0.01\
                             and abs(inter.area() /
@@ -126,6 +141,7 @@ def dopOddzWydz(iface):  # noqa
 
     wydz.commitChanges()
 
+    oke = True  # trig do wyswietlenia okejki na koncu
     if len(f_przec) > 0:
         iface.messageBar().pushMessage(
             'ZNALEZIONO PRZECIĘCIA',
@@ -160,8 +176,36 @@ def dopOddzWydz(iface):  # noqa
         polylyr_dp.addFeatures(fs)
         polyLyr.commitChanges()
         QgsProject.instance().addMapLayer(polyLyr)
+        oke = False
 
-    else:
+    # dodaj warstwe z oddzialami z za duza liczba wydzielen
+    licz_wydz = [x[1] for x in sl_licz.values() if x[0] > 87]
+    if len(licz_wydz):
+        opolyLyr = QgsVectorLayer(
+                "MultiPolygon?crs=epsg:2180",
+                "ODDZ_za_duzo_wydzielen",
+                "memory")
+
+        opolylyr_dp = opolyLyr.dataProvider()
+        opolyLyr.startEditing()
+        opolylyr_dp.addAttributes([
+            QgsField("ID", QVariant.Int),
+        ])
+        opolyLyr.updateFields()
+
+        opolylyr_dp.addFeatures(licz_wydz)
+        opolyLyr.commitChanges()
+        QgsProject.instance().addMapLayer(opolyLyr)
+
+        iface.messageBar().pushMessage(
+            'ZA DUZO WYDZIELEN',
+            'do TOC dodano warstwę z oddz o liczbie wydz>87',
+            Qgis.Warning,
+            10
+        )
+        oke = False
+
+    if oke:
         iface.messageBar().pushMessage(
             'OK',
             'Dopisano numery oddziałów do: '+str(dopisano) + '/' +

@@ -35,7 +35,7 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2):
         except:  # nopep8
             iface.messageBar().pushMessage(
                 'BŁĄD',
-                'Nie udało się odnaleźć bazy - wysyp',
+                'Nie udało się odnaleźć bazy!',
                 Qgis.Critical,
                 10)
             return False
@@ -356,7 +356,8 @@ class Baza(object):
         do_lacz.SPECIES_AGE,
         do_lacz.STANDDENSITY_INDEX,
         do_lacz.STOREY_CD,
-        do_lacz.STAND_STRUCT_CD
+        do_lacz.STAND_STRUCT_CD,
+        rodz_pow.veg_cover_cd
 
         FROM
 
@@ -365,7 +366,8 @@ class Baza(object):
         F_ARODES.ADRESS_FOREST,
         F_SUBAREA.SUB_AREA,
         F_SUBAREA.AREA_TYPE_CD,
-        F_SUBAREA.SITE_TYPE_CD
+        F_SUBAREA.SITE_TYPE_CD,
+        F_SUBAREA.veg_cover_cd
         FROM
         F_ARODES
         INNER JOIN F_SUBAREA

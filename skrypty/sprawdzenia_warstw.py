@@ -53,10 +53,26 @@ class SprawdzWydzielenia():
                     message.addButton('Kontynuuj', QMessageBox.ActionRole)
                     pok_rap = message.exec_()
 
-                    if pok_rap == 1:
+                    if pok_rap == 0:
                         self.wypis_sprawdzenia_wydz += \
                             '[BŁĄD] w bazie lub warstwie są niepołączone ' + \
                             'wydzielenia!\n'
+                        return False
+
+                if i == 6:
+                    message = QMessageBox()
+                    message.setIcon(QMessageBox.Information)
+                    message.setWindowTitle('Błąd')
+                    message.setText(
+                        'W bazie są wydzielenia na użytkach nieleśnych'
+                        ', kontynuować?')
+                    message.addButton('Przerwij', QMessageBox.ActionRole)
+                    message.addButton('Kontynuuj', QMessageBox.ActionRole)
+                    pok_rap = message.exec_()
+
+                    if pok_rap == 0:
+                        self.wypis_sprawdzenia_wydz += \
+                            '[BŁĄD] wydzielenia na użytkach nieleśnych\n'
                         return False
 
                 # jeżeli są inne rozbieżności, kończymy
@@ -176,8 +192,8 @@ class SprawdzWydzielenia():
                                      Qgis.Critical)
             self.wypis_sprawdzenia_wydz += 'Brakujące wydzielenia w bazie:\n'
             for b in brakiw:
-                QgsMessageLog.logMessage(b, 'Las-R', Qgis.Critical)
-                self.wypis_sprawdzenia_wydz += b + '\n'
+                QgsMessageLog.logMessage(str(b), 'Las-R', Qgis.Critical)
+                self.wypis_sprawdzenia_wydz += str(b) + '\n'
 
         if len(brakib) > 0:
             self.iface.messageBar().pushMessage(
@@ -610,7 +626,7 @@ def sprawdz_powierzchnie_wydz(wydz, baza=False):
 
     request = QgsFeatureRequest().setSubsetOfAttributes(
         ['ADR_LES', 'POW_WYDZ'], wydz.fields())
-    adr_r = [[x['ADR_LES'], x.geometry().area()/10000,]
+    adr_r = [[x['ADR_LES'], x.geometry().area()/10000, ]
              for x in wydz.getFeatures(request)
              if abs(x.geometry().area()/10000-md[x['ADR_LES']]) > 0.3
              ]

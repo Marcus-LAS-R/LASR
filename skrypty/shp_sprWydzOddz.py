@@ -13,18 +13,21 @@ def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
     )
 
     # jezeli nie podajemy warstw to sprawdzamy TOC
-    if wydz is False and oddz is False:
-        spis_warstw = [x.name() for x in
-                       QgsProject.instance().mapLayers().values()]
+    if wydz is False:
+        wydz = iface.activeLayer()
 
         # SPRAWDZ WARUNKI POCZATKOWE ----------------------
         # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
+    if oddz is False:
+        spis_warstw = [x.name() for x in
+                       QgsProject.instance().mapLayers().values()]
         go = False
         policz_warstwy = Counter(spis_warstw)
         if 'ODDZ' in policz_warstwy:
             if policz_warstwy['ODDZ'] == 1:
                 go = True
-                oddz = [x for x in QgsProject.instance().mapLayers().values()
+                oddz = [x for x in
+                        QgsProject.instance().mapLayers().values()
                         if x.name() == 'ODDZ'][0]
 
         if not go:
@@ -40,20 +43,19 @@ def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
                 10)
             return False, -1, -1
 
-        if iface.activeLayer().name() == 'ODDZ':
-            QgsMessageLog.logMessage(
-                'Aktywną warstwą powinny być wydzielenia',
-                'Las-R',
-                Qgis.Critical
-            )
-            iface.messageBar().pushMessage(
-                'Aktywna warstwa',
-                'jako aktywna warstwa powinny być zaznaczone wydzielenia',
-                Qgis.Critical,
-                10)
-            return False, -1, -1
+    if iface.activeLayer().name() == 'ODDZ':
+        QgsMessageLog.logMessage(
+            'Aktywną warstwą powinny być wydzielenia',
+            'Las-R',
+            Qgis.Critical
+        )
+        iface.messageBar().pushMessage(
+            'Aktywna warstwa',
+            'jako aktywna warstwa powinny być zaznaczone wydzielenia',
+            Qgis.Critical,
+            10)
+        return False, -1, -1
 
-        wydz = iface.activeLayer()
 
     pola_w = [x.name() for x in wydz.fields()]
     pola_o = [x.name() for x in oddz.fields()]

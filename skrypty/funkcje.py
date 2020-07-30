@@ -229,7 +229,7 @@ def oblicz_pow_graf(iface):
             )
             return False
 
-    except:  # nopep8
+    except Exception:
         iface.messageBar().pushMessage(
             'BŁĄD',
             'Warstwa niepoprawna!',
@@ -288,7 +288,7 @@ def oblicz_pow_graf(iface):
 
     if len(tabb) > 0:
         bledy = QgsVectorLayer("MultiPolygon?crs=epsg:2180&index=yes",
-                               "Poligony_z_błędą_geom",
+                               "Poligony_z_błędną_geom",
                                "memory"
                                )
 

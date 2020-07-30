@@ -160,8 +160,7 @@ class DopiszPnsw(SprawdzWydzielenia):
             message.setIcon(QMessageBox.Information)
             message.setWindowTitle('Błędy')
             message.setText(
-                'Czy chcesz kontynuować pomimo odnalezionych błędów? \n'
-                'Najprawdopodobniej coś się wysypie')
+                'Czy chcesz kontynuować pomimo odnalezionych błędów? \n')
             message.addButton("Porzuć", QMessageBox.ActionRole)
             message.addButton("Kontynuuj", QMessageBox.ActionRole)
             kont = message.exec_()

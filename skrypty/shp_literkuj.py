@@ -1,5 +1,8 @@
 import os
-from qgis.core import Qgis, QgsMessageLog
+import datetime
+import processing
+from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
+    QgsCoordinateReferenceSystem, QgsVectorLayer
 from operator import itemgetter
 
 
@@ -122,13 +125,51 @@ def Literkuj(iface, lyr=False):  # noqa
     lyr.commitChanges()
 
     if message_trig == 0:
+        sciezka = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
+        kat = os.path.dirname(sciezka)
+        tempkat = os.path.join(kat, 'temp')
+
+        czas = datetime.datetime.now().isoformat(
+                        ).replace(":", "")[:-7].replace('-', '')
+
+        if not os.path.isdir(tempkat):
+            os.mkdir(tempkat)
+
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+
+        # stworz kopie warstwy wydz w tempie
+        QgsVectorFileWriter.writeAsVectorFormat(
+            lyr,
+            os.path.join(tempkat, 'wydz_backup_'+czas+'.shp'),
+            "UTF-8", crs, "ESRI Shapefile")
+
+        # zrob dissolva na warstwie wydz
+        processing.run("native:dissolve", {
+            'INPUT': sciezka+'.shp',
+            'FIELD': ['MUNICIP', 'COMMUNITY', 'ODDZ', 'WYDZ', 'GRP'],
+            'OUTPUT': os.path.join(tempkat,
+                                   'wydz_dissolve_lz_' +
+                                   czas + '.shp')
+        })
+
+        wydz_diss = QgsVectorLayer(
+            os.path.join(tempkat, 'wydz_dissolve_lz_' + czas + '.shp'),
+            'Ls_singleparts', 'ogr')
+
+        lyr.startEditing()
+        lyr.dataProvider().truncate()
+        lyr.dataProvider().addFeatures(
+            [x for x in wydz_diss.dataProvider().getFeatures()]
+        )
+        lyr.commitChanges()
+
         iface.messageBar().pushMessage(
             'OK',
-            'Warstwa zaliterkowana bez problemów',
+            'Warstwa zaliterkowana bez problemów (połączono Lz)',
             Qgis.Success,
             10)
-    else:
 
+    else:
         iface.messageBar().pushMessage(
             'LICZBA WYDZIELEŃ',
             'Przekroczono liczbę wydzieleń obsługiwaną w '

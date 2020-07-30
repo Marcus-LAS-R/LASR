@@ -9,7 +9,7 @@
                               -------------------
         begin                : 2018-07-16
         git sha              : $Format:%H$
-        copyright            : (C) 2018 by Paweł Krąpiec
+        copyright            : (C) 2020 by Paweł Krąpiec
         email                : p.krapiec@lasr.pl
  ***************************************************************************/
 
@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject, Qgis
+from qgis.core import QgsProject
 from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
@@ -42,7 +42,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
     baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
-    baza_napraw_stor_spec
+    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol
 
 
 class LasR:
@@ -292,11 +292,23 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
+        self.lacz_karty = QAction(
+            QIcon(None), 'Polacz karty od taksatorów',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.lacz_karty)
+        self.lacz_karty.triggered.connect(self.polacz_pliki_teren)
+
         self.przyg_klep = QAction(
-            QIcon(None), 'Stwórz listę adresów do klepania',
+            QIcon(None), 'Sprawdź karty w wydzieleniach',
             self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
+
+        self.przyg_rap = QAction(
+            QIcon(None), 'Stwórz raport kart do klepania',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.przyg_rap)
+        self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
         self.zanum = QAction(
             QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
@@ -461,6 +473,11 @@ class LasR:
         self.m_narzedzia.addAction(self.a_dod_adm)
         self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
 
+        self.a_czy_kol = QAction(
+            QIcon(None), 'Usuń zawartość kolumn', self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_czy_kol)
+        self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
+
         self.a_anon = QAction(QIcon(None),
                               "Anonimizuj bazy TPU",
                               self.iface.mainWindow())
@@ -615,11 +632,15 @@ class LasR:
                 self.menu.menuAction())
         for a in self.akcje_toolbara:
             self.iface.removeToolBarIcon(a)
-        del self.toolbar
+        # del self.toolbar
+        self.toolbar.clear()
+        self.toolbar.deleteLater()
 
         for a in self.akcje_toolbar_skr:
             self.iface.removeToolBarIcon(a)
-        del self.toolbar_skr
+        # del self.toolbar_skr
+        self.toolbar_skr.clear()
+        self.toolbar_skr.deleteLater()
 
     def run(self):
         """Run method that performs all the real work"""
@@ -822,12 +843,12 @@ class LasR:
             if p.stworz_docelowa():
                 p.kopiuj()
                 # try:
-                    # p.kopiuj()
+                #     p.kopiuj()
                 # except Exception:
-                    # self.iface.messageBar().clearWidgets()
-                    # self.iface.messageBar().pushMessage(
-                        # 'Błąd', 'Coś się wysypało - krytycznie',
-                        # Qgis.Critical, 0)
+                #     self.iface.messageBar().clearWidgets()
+                #     self.iface.messageBar().pushMessage(
+                #         'Błąd', 'Coś się wysypało - krytycznie',
+                #         Qgis.Critical, 0)
 
     def kontrola_ls_z_baza(self):
         k = baza_kontrola_ls.KontrolaLs(self.iface)
@@ -919,10 +940,18 @@ class LasR:
         sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)
         if not sp.zalozenia_poczatkowe():
             return False
+        if not sp.zbuduj_strukture():
+            return
+        sp.przetworz()
+        sp.raport_rozbieznosci()
+
+    def raport_kart_ciecia(self):
+        sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)
+        if not sp.zalozenia_poczatkowe():
+            return False
         sp.zbuduj_strukture()
         sp.przetworz()
         sp.raport_spis_kart()
-        sp.raport_rozbieznosci()
 
     def pokaz_layout(self):
         funkcje.otworz_kompozycje(self.iface)
@@ -939,3 +968,9 @@ class LasR:
         np.dopisz_poprawki()
         np.raport()
         np.pokaz_wyniki()
+
+    def polacz_pliki_teren(self):
+        shp_polacz_teren.polacz_warstwy(self.iface)
+
+    def przeczysc_kolumny(self):
+        shp_czysc_kol.czysc_kolumny(self.iface)

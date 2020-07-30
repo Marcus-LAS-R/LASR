@@ -663,7 +663,7 @@ class GenerujZabiegi():
             wiek = klWieku[-1]
         else:
             for i in range(1, len(klWieku)):
-                if klWieku[i-1] < self.gat_gl_wiek < klWieku[i]:
+                if klWieku[i-1] < self.gat_gl_wiek <= klWieku[i]:
                     wiek = klWieku[i]
 
         if self.gat_gl_vol < 6:
