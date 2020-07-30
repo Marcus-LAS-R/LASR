@@ -319,10 +319,10 @@ class AnalizujKlus(object):
                     zsq = 'xxx'
                     zau = 'xxx'
             else:
-                zsq = f[self.sq].upper()
+                zsq = isNone(f[self.sq]).upper()
                 zau = f[self.au]
 
-            val_klu = isNone(zau) + isNone(zsq)
+            val_klu = isNone(zau) + zsq
             attr = {iau: zau, isq: zsq, iklu: val_klu}
 
             # dodaj do warstwy polaczone pole z AU i SQ oraz stworz slownik na
@@ -1355,7 +1355,7 @@ class PrzetworzKlu(object):
                     # pow graficzna z uzytku
                     dod = ''
                     if stary in self.sl_klus_pow:
-                        dod = self.sl_klus_pow[stary]
+                        dod = round(self.sl_klus_pow[stary], 4)
                     self.uwagi['podmsq'][landid].append(str(dod))
 
                     uw = 'Podmieniono SQ na zgodny z bazą; '
