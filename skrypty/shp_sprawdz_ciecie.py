@@ -23,7 +23,7 @@ class SprawdzCiecie:
 
     def zalozenia_poczatkowe(self):
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        self.wydz = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
+        self.wydz = [x for x in lyrs if x.name().upper() == 'WYDZ']
         if len(self.wydz) != 1:
             self.iface.messageBar().pushWarning(
                 'Wydzielenia',
@@ -168,48 +168,10 @@ class SprawdzCiecie:
         )
 
     def raport_rozbieznosci(self):
-        wps = '-----RAPORT--------\n\n'
-        wps += 'Liczba wydzieleń: ' + str(len(self.slwydz)) + '\n'
-        wps += 'Liczba kart: ' + str(len(self.slpkt)) + '\n\n'
-
-        if len(self.zdublowane_adr) > 0:
-            wps += '---[ Zdublowane adr_les ]---\n'
-            wps += '\n'.join(self.zdublowane_adr)
-            wps += '\n\n* (wypisuje tylko 30 pierwszych)\n'
-            wps += '\n\n'
-
-        wps += '---[ wydzielenia bez nr roboczego ]---\n'
         wydz_bez = [str(k) for k, v in self.slkart.items() if len(v) == 0]
-        if len(wydz_bez) == 0:
-            wps += '(Brak)\n'
-        else:
-            wps += 'Liczba: '+str(len(wydz_bez)) + '\n\n'
-            wps += '\n'.join(wydz_bez)
-        wps += '\n\n'
-
-        wps += '---[ wydzielenia z kilkoma nr roboczymi ]---\n'
         wydz_wiela = [str(k) for k, v in self.slkart.items() if len(v) > 1]
-        if len(wydz_wiela) == 0:
-            wps += '(Brak)\n'
-        else:
-            wps += 'Liczba: '+str(len(wydz_wiela)) + '\n\n'
-            wps += '\n'.join(wydz_wiela)
-        wps += '\n\n'
-
-        wps += '---[ Pkt leżące poza wydzieleniami ]---\n'
-        lpoz = [str(v['ODDZ']) + '-' + str(v['WYDZ'])
-                for k, v in self.slpkt.items()
+        lpoz = [v for k, v in self.slpkt.items()
                 if k not in self.l_pkt_przec]
-        if len(lpoz) == 0:
-            wps += '(Brak)\n'
-        else:
-            wps += 'Liczba: '+str(len(lpoz)) + '\n\n'
-            wps += '\n'.join([x for x in lpoz])
-        wps += '\n\n'
-
-        open(
-            os.path.join(self.kat, '..', 'raport_spr_ciecia.txt'),
-            'w').write(wps)
 
         plug = os.path.dirname(__file__)
         if len(wydz_bez) > 0:
@@ -245,8 +207,24 @@ class SprawdzCiecie:
             lyrw.loadNamedStyle(os.path.join(
                 plug, '..', 'qml', 'poly_green_outline.qml'))
 
+        if len(lpoz) > 0:
+            lyrpkt = QgsVectorLayer(
+                "MultiPoint?crs=epsg:2180",
+                "Pkt_poza_wydz",
+                "memory")
+            lyrpkt_dp = lyrpkt.dataProvider()
+            lyrpkt.startEditing()
+            lyrpkt_dp.addAttributes(
+                self.akt.dataProvider().fields().toList())
+            lyrpkt.updateFields()
+            lyrpkt_dp.addFeatures(lpoz)
+            lyrpkt.commitChanges()
+            lyrp = QgsProject.instance().addMapLayer(lyrpkt)
+            lyrp.loadNamedStyle(os.path.join(
+                plug, '..', 'qml', 'point_drop_shadow_red.qml'))
+
         self.iface.messageBar().pushSuccess(
             'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +
             str(len(wydz_bez)) + ', wydz z wieloma kartami: ' +
-            str(len(wydz_wiela))
+            str(len(wydz_wiela)) + ', pkt poza wydz: ' + str(len(lpoz))
         )

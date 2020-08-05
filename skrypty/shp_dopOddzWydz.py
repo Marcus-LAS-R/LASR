@@ -4,7 +4,7 @@ from PyQt5.QtCore import QVariant
 
 
 
-def dopOddzWydz(iface):  # noqa
+def dopOddzWydz(iface, oddz=False):  # noqa
     QgsMessageLog.logMessage(
         '------ DOPISZ WYDZIELENIA DO ODDZIAŁÓW --------- ',
         'Las-R',
@@ -15,11 +15,15 @@ def dopOddzWydz(iface):  # noqa
     # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
     go = False
 
-    oddz = [x for x in QgsProject.instance().mapLayers().values()
-            if x.name()[:4] == 'ODDZ']
-    if len(oddz) > 0:
-        oddz = oddz[0]
-        go = True
+    if oddz is False:
+        oddz = [x for x in QgsProject.instance().mapLayers().values()
+                if x.name()[:4] == 'ODDZ']
+        if len(oddz) > 0:
+            oddz = oddz[0]
+
+    if isinstance(oddz, QgsVectorLayer):
+        if oddz.isValid():
+            go = True
 
     if not go:
         QgsMessageLog.logMessage(

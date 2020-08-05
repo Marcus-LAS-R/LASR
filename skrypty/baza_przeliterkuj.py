@@ -1,12 +1,14 @@
-from qgis.core import Qgis, QgsField, QgsFeatureRequest, QgsMessageLog
+from qgis.core import Qgis, QgsField, QgsFeatureRequest, QgsMessageLog, \
+    QgsProject
 from PyQt5.QtCore import QVariant
 
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .shp_literkuj import Literkuj
 from .shp_adr_les import Zaadresuj
-from .shp_sprWydzOddz import spr_wydz_oddz
+# from .shp_sprWydzOddz import spr_wydz_oddz
 from .baza_dopisz_wydz import DopiszWydzielenia
+from .shp_dopOddzWydz import dopOddzWydz
 
 
 class Przeliterkuj(SprawdzWydzielenia):
@@ -16,8 +18,6 @@ class Przeliterkuj(SprawdzWydzielenia):
 
         self.pola = [
             QgsField("ST_ADR_LES", QVariant.String, len=25),
-            QgsField("ST_ODDZ", QVariant.String, len=6),
-            QgsField("ST_WYDZ", QVariant.String, len=4),
         ]
 
         self.request = QgsFeatureRequest().setFlags(
@@ -51,15 +51,15 @@ class Przeliterkuj(SprawdzWydzielenia):
             return False
 
         # Sprawdz zawieranie sie przeliterkowywania w oddzialach
-        spr = spr_wydz_oddz(self.iface, wydz=self.wydz)
-        if spr[1] > 0:
-            self.iface.messageBar().pushMessage(
-                'BŁĄD',
-                'Wydzielenia nie zawierają sie w oddziałach',
-                Qgis.Critical,
-                10
-            )
-            return False
+        # spr = spr_wydz_oddz(self.iface, wydz=self.wydz)
+        # if spr[1] > 0:
+        #     self.iface.messageBar().pushMessage(
+        #         'BŁĄD',
+        #         'Wydzielenia nie zawierają sie w oddziałach',
+        #         Qgis.Critical,
+        #         10
+        #     )
+        #     return False
 
         return True
 
@@ -83,8 +83,6 @@ class Przeliterkuj(SprawdzWydzielenia):
         for feat in self.wydz.getFeatures(self.request):
             attr = {
                 fnm['ST_ADR_LES']: feat['ADR_LES'],
-                fnm['ST_WYDZ']: feat['WYDZ'],
-                fnm['ST_ODDZ']: feat['ODDZ'],
             }
 
             # Jezeli wydzielenie nie jest Lz bedziemy przeliterkowywac
@@ -97,6 +95,23 @@ class Przeliterkuj(SprawdzWydzielenia):
             )
 
         self.wydz.commitChanges()
+
+    def dopisz_oddzialy(self):
+        """Dopisuje numery oddzialow z warstwy oddz odnalezionej w TOC"""
+        oddz = [x for x in QgsProject.instance().mapLayers().values()
+                if x.name()[:4] == 'ODDZ']
+        if len(oddz) == 1:
+            oddz = oddz[0]
+        else:
+            self.iface.messageBar().pushMessage(
+                'ODDZ',
+                'Tylko jedna i aż jedna warstwa ODDZ ma być w TOC!',
+                Qgis.Critical,
+                10)
+            return False
+
+        dopOddzWydz(self.iface, oddz)
+        return True
 
     def zaliterkuj(self):
         """ Literkuje na nowo uprzednio wyczyszczoną kolumnę WYDZ"""

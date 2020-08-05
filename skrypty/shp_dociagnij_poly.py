@@ -700,18 +700,32 @@ class Przyciagnij:
         plyr.dataProvider().addFeatures(self.popr_feat)
         plyr.commitChanges()
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            plyr,
-            os.path.join(os.path.join(self.kat,
-                                      "DOCIAGNIETA.shp")),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
+        processing.run("native:dissolve", {
+            'INPUT': plyr,
+            'FIELD': ['LANDID'],
+            'OUTPUT': os.path.join(os.path.join(self.kat, "DOCIAGNIETA.shp")),
+        })
 
-        self.iface.addVectorLayer(
-            os.path.join(self.kat, 'DOCIAGNIETA.shp'), "DOCIAGNIETA", 'ogr'
+        plyr = QgsVectorLayer('Polygon?crs=epsg:2180&index=yes',
+                              '__POLY_OK', 'memory')
+
+        self.dociag = QgsVectorLayer(
+            os.path.join(os.path.join(self.kat, "DOCIAGNIETA.shp")),
+            "DOCIAGNIETA", 'ogr'
         )
+
+        # oblicz jeszcze raz powgrafiiczna uzytkow
+        sl = {}
+        powind = self.dociag.dataProvider().fieldNameIndex('LAND_POW')
+        for feat in self.dociag.getFeatures():
+            sl[feat.id()] = {powind: round(feat.geometry().area()/10000, 4)}
+
+        self.dociag.startEditing()
+        self.dociag.dataProvider().changeAttributeValues(sl)
+        self.dociag.commitChanges()
+
+        QgsProject.instance().addMapLayer(self.dociag)
+
         self.iface.messageBar().clearWidgets()
         if self.b_inter == 0 and self.b_poly == 0:
             self.iface.messageBar().pushMessage(

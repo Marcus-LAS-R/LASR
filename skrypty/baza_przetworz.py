@@ -125,7 +125,7 @@ class Przetworz(object):
                                               for x in self.baza_uzytki}
             for x in self.baza_uzytki:
                 self.sl_ile_uzytkow_na_dzialce[x[12]] += 1
-        except:  # noqa
+        except Exception:
             self.sl_ile_uzytkow_na_dzialce = {}
             return False
 

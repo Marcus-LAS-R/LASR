@@ -247,29 +247,29 @@ class LasR:
         self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        self.przyg_ls = QAction(
+            QIcon(None), u"Przygotuj Lsy", self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.przyg_ls)
+        self.przyg_ls.triggered.connect(self.przygotuj_ls)
+
         self.a_snapuj = QAction(QIcon(None),
                                 "Przysnapuj do dzałek",
                                 self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.a_snapuj)
         self.a_snapuj.triggered.connect(self.przysnapuj_do_dzewid)
 
-        self.przyg_ls = QAction(
-            QIcon(None), u"Przygotuj Lsy", self.iface.mainWindow())
-        self.m_przyg_danych.addAction(self.przyg_ls)
-        self.przyg_ls.triggered.connect(self.przygotuj_ls)
-
         self.przyg_teren = QAction(
             QIcon(None), 'Przygotuj w teren', self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.przyg_teren)
         self.przyg_teren.triggered.connect(self.przygotuj_do_terenu)
+
+        self.m_przyg_danych.addSeparator()
 
         self.wyz_lz = QAction(QIcon(None),
                               'LZ - wyznacz potencjalne',
                               self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.wyz_lz)
         self.wyz_lz.triggered.connect(self.wyszukaj_lz)
-
-        self.m_przyg_danych.addSeparator()
 
         self.kas_op = QAction(QIcon(None),
                               "Kasuj OP",
@@ -293,7 +293,7 @@ class LasR:
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
         self.lacz_karty = QAction(
-            QIcon(None), 'Polacz karty od taksatorów',
+            QIcon(None), 'Połącz pomiary od taksatorów',
             self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.lacz_karty)
         self.lacz_karty.triggered.connect(self.polacz_pliki_teren)
@@ -303,12 +303,6 @@ class LasR:
             self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
-
-        self.przyg_rap = QAction(
-            QIcon(None), 'Stwórz raport kart do klepania',
-            self.iface.mainWindow())
-        self.m_rozlicz_pow.addAction(self.przyg_rap)
-        self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
         self.zanum = QAction(
             QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
@@ -344,9 +338,16 @@ class LasR:
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
         self.dop_pnsw = QAction(
-            QIcon(None), 'Dopisz PNSW', self.iface.mainWindow())
+            QIcon(None), 'Dopisz/uzupełnij PNSW',
+            self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.dop_pnsw)
         self.dop_pnsw.triggered.connect(self.dopisz_pnsw)
+
+        self.przyg_rap = QAction(
+            QIcon(None), 'Stwórz raport kart do klepania',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addAction(self.przyg_rap)
+        self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
         self.dop_zab = QAction(
             QIcon(None), 'Zabiegi dopisz/sprawdź', self.iface.mainWindow())
@@ -801,6 +802,8 @@ class LasR:
     def przeliterkuj(self):
         p = baza_przeliterkuj.Przeliterkuj(self.iface)
         if not p.sprawdz_warstwe():
+            return
+        if not p.dopisz_oddzialy():
             return
         p.przygotuj_literkacje()
         p.zaliterkuj()

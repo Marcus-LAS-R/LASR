@@ -8,7 +8,7 @@ from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \
     QgsFeatureRequest, QgsVectorFileWriter, QgsCoordinateReferenceSystem, \
-    QgsGeometry, QgsExpression
+    QgsExpression
 
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
@@ -214,6 +214,7 @@ class AnalizujKlus(object):
         for baza in self.bazy:
             b = Baza(baza)
             if b.polacz():
+                b.kapitaliki_w_klasach()
                 self.uzytki += b.uzytki()
                 self.wlasnosci += b.wlasnosci()
             else:
@@ -473,159 +474,7 @@ class AnalizujKlus(object):
             'Ls_singleparts',
             'ogr')
 
-        # self.singleparts.dataProvider().setEncoding('UTF-8')
-        # if platform.system()[:3] == 'Win':
-        #     crs = QgsCoordinateReferenceSystem("epsg:2180")
-        #     QgsVectorFileWriter.writeAsVectorFormat(
-        #         self.singleparts,
-        #         os.path.join(
-        #             self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-        #         "UTF-8",
-        #         crs,
-        #         "ESRI Shapefile")
-
         return True
-
-    def geop_przetworz_old(self):
-        """metoda wykonuje dissolve na warstwie klu nastepnie intersect z
-        dzialkami, a potem rozbija wynik na singleparts, gotowe do analizy
-        porownawczej z baza. Nie zwraca żadnej wartości"""
-
-        # import modulu umieszony w metodzie czasowo, inaczej bruzdzil przy
-        # tesowaniu.
-        # TODO: przeniesc jako import na poczatek pliku po zakonczeniu
-        # testowania
-        import processing
-
-        sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
-        self.kat = os.path.dirname(sciezka)
-        self.tempkat = os.path.join(self.kat, 'temp')
-        if not os.path.isdir(self.tempkat):
-            os.mkdir(self.tempkat)
-
-        processing.run("native:dissolve", {
-                        'INPUT': sciezka+'.shp',
-                        'FIELD': ['AU', 'SQ'],
-                        'OUTPUT': os.path.join(self.tempkat,
-                                               '__klu_dissolve_' +
-                                               self.czas + '.shp')
-        })
-
-        templyr = QgsVectorLayer(
-            os.path.join(self.tempkat, '__klu_dissolve_' + self.czas + '.shp'),
-            'templyr_diss',
-            'ogr')
-
-        if platform.system()[:3] == 'Win':
-            templyr.dataProvider().setEncoding('ISO-8859-2')
-
-        do_usun = [k for k, v in
-                   enumerate(templyr.dataProvider().fields().toList())
-                   if v.name() not in ['SQ', 'AU', ]]
-        templyr.startEditing()
-        templyr.dataProvider().deleteAttributes(do_usun)
-        templyr.commitChanges()
-
-        processing.run("saga:intersect", {
-                        'A': templyr,
-                        'B': self.dzkat,
-                        'SPLIT': False,
-                        'RESULT': os.path.join(
-                            self.tempkat, '__LS_multiparts_'+self.czas+'.shp'
-                        )
-        })
-
-        templyr = QgsVectorLayer(
-            os.path.join(self.tempkat, '__LS_multiparts_'+self.czas+'.shp'),
-            'templyr_multi',
-            'ogr')
-
-        # if platform.system()[:3] == 'Win':
-        #     templyr.dataProvider().setEncoding('ISO-8859-2')
-
-        # narazie pomijamy automatyczne rozbicie na singlepartsy, algorytm nie
-        # uwzględnia samoprzecinających się poligonów i przez to generuj
-        # problemy
-        processing.run("native:multiparttosingleparts", {
-                       'OUTPUT': os.path.join(
-                           self.tempkat,
-                           '__LS_singleparts_'+self.czas+'.shp'),
-                       'INPUT': templyr
-                       })
-
-        # # Rozbij uzytki na single parts
-        # self.singleparts = QgsVectorLayer(
-        #    'Polygon?crs=epsg:2180&index=yes'
-        #    '__LS_singleparts_'+self.czas,
-        #    'ogr')
-
-        self.singleparts = QgsVectorLayer(
-            os.path.join(self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-            'Ls_singleparts',
-            'ogr')
-
-        # if platform.system()[:3] == 'Win':
-        #     self.singleparts.dataProvider().setEncoding('ISO-8859-2')
-
-        self.singleparts.startEditing()
-        feats = []
-        nrf = self.singleparts.featureCount() + 100000
-        print(nrf)
-        fnm = self.singleparts.dataProvider().fieldNameMap()
-        for f in self.singleparts.getFeatures():
-            # rozbij poligony z selfintersect na multipoligony za potem zapisz
-            # jako pojedyncze featurki
-            ng = f.geometry().buffer(0, 0)
-            ng.convertToMultiType()
-
-            # sprawdz wasy w pierwszej czesci poligonu
-            geom_ok = usun_wasy(
-                QgsGeometry().fromMultiPolygonXY(
-                    [ng.asMultiPolygon()[0]]
-                )
-            )
-            self.singleparts.dataProvider().changeAttributeValues(
-                {f.id(): {fnm['SQ']: isNone(f['SQ']).upper()}}
-            )
-
-            if len(ng.asMultiPolygon()) > 1:
-                print('Zmina feat z id: ' + str(nrf))
-                self.singleparts.changeGeometry(f.id(), geom_ok)
-
-                for i, part in enumerate(ng.asMultiPolygon()[1:]):
-                    # nf = QgsFeature(nrf)
-                    # nf.setFields(
-                    #     self.singleparts.dataProvider().fields()
-                    # )
-                    nf = f
-                    nf['SQ'] = isNone(f['SQ']).upper()
-                    geom_n = QgsGeometry().fromMultiPolygonXY([part])
-                    geom_n.convertToMultiType()
-                    geom_ok = usun_wasy(geom_n)
-
-                    nf.clearGeometry()
-                    nf.setGeometry(geom_ok)
-                    nf.setId(nrf)
-                    feats.append(nf)
-                    nrf += 1
-
-            elif len(ng.asMultiPolygon()) == 1:
-                self.singleparts.changeGeometry(f.id(), geom_ok)
-
-        self.singleparts.addFeatures(feats)
-        self.singleparts.commitChanges()
-
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            self.singleparts,
-            os.path.join(
-                self.tempkat, '__LS_singleparts_'+self.czas+'.shp'),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
-
-        # if platform.system()[:3] == 'Win':
-        #     self.singleparts.dataProvider().setEncoding('ISO-8859-2')
 
     def zaladuj_strukture(self):
         """Metoda zestawia do słownika obiekty PrzetworzKlu dla każdej z
@@ -1364,6 +1213,12 @@ class PrzetworzKlu(object):
             # jezeli na dzialce jest tylko jeden inny uzytek, podmien na
             # brakujacy ls, o ile nie jest bledem topo
             elif len(set([x for x in self.sl_klus_pow.keys()])) == 1:
+                # nie przetwarzaj jeżeli na dz w bazie jest wiecej
+                # niz 1 uzytek...
+                if self.pid in self.p.sl_ile_uzytkow_na_dzialce:
+                    if self.p.sl_ile_uzytkow_na_dzialce[self.pid] != 1:
+                        continue
+
                 self.uwagi['podmau'][landid] = [
                     klu['AU'] + self.isNone(klu['SQ']),
                     'Ls' + self.p.sl_ls_na_dz[self.pid][0]

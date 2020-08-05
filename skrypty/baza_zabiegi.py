@@ -758,10 +758,15 @@ class SprawdzZabiegi():
             if self.pods + self.nal + self.podr > 0.49 and \
                     self.struk not in ['KO', 'KDO']:
                 self.uw_raport.append(
-                    'W strukturze powinno być KO/KDO '
+                    'Zmieniono strukture na KO [SPRAWDZIC!]'
                     '(ze zwzgl na pods+nal+podr>=0.5) (' +
                     str(self.pods) + ', ' +
                     str(self.nal)+", "+str(self.podr)+")")
+
+                # zmieniaj w bazie odrazu stand_struct_cd na KO -> PREZES
+                sql = 'update f_subarea set stand_struct_cd=\'KO\'' + \
+                    ' where arodes_int_num=' + str(self.aid) + ';'
+                self.baza.wpisz(sql)
 
     def sprawdz_dopasowanie_reb(self):
         if self.ile_reb == 1:

@@ -812,3 +812,20 @@ class Baza(object):
         """
         wr = {x[0]: x[1] for x in self.cur.execute(SQL).fetchall()}
         return wr
+
+    def kapitaliki_w_klasach(self):
+        """Metoda uaktualnia użytki w klasach IVa, IVb, VIz do dużych liter,
+        należy uruchomić przy przygotowaniu Lsów
+        """
+        tab = [
+            ['IVb', 'IVB'],
+            ['IVa', 'IVA'],
+            ['VIz', 'VIZ'],
+        ]
+
+        for tt in tab:
+            sql = 'update f_parcel_land_use set soil_quality_cd=\'' + tt[1] + \
+                '\' where soil_quality_cd=\'' + tt[0] + '\';'
+
+            self.cur.execute(sql)
+            self.con.commit()
