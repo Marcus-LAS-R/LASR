@@ -1,3 +1,4 @@
+import os
 from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
     QgsVectorLayer, QgsField, QgsFeature
 from PyQt5.QtCore import QVariant
@@ -179,7 +180,11 @@ def dopOddzWydz(iface, oddz=False):  # noqa
 
         polylyr_dp.addFeatures(fs)
         polyLyr.commitChanges()
-        QgsProject.instance().addMapLayer(polyLyr)
+        lyr = QgsProject.instance().addMapLayer(polyLyr)
+
+        plug = os.path.dirname(__file__)
+        lyr.loadNamedStyle(os.path.join(
+            plug, '..', 'qml', 'poly_red_outline.qml'))
         oke = False
 
     # dodaj warstwe z oddzialami z za duza liczba wydzielen

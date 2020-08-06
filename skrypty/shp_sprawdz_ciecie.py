@@ -1,12 +1,15 @@
 import os
+import glob
+import platform
 from collections import Counter
 
 from qgis.core import QgsProject, QgsSpatialIndex, QgsFeatureRequest, \
     QgsMessageLog, QgsWkbTypes, QgsVectorLayer, Qgis, QgsField
 
 from PyQt5.QtCore import QVariant
+from PyQt5.QtWidgets import QFileDialog
 
-from .baza_wrapper import znajdz_baze_do_wydz, Baza
+from .baza_wrapper import Baza
 
 
 class SprawdzCiecie:
@@ -129,14 +132,33 @@ class SprawdzCiecie:
                                                 ]]
 
     def raport_spis_kart(self):
-        sc = znajdz_baze_do_wydz(self.iface, self.wydz, poz=1)
+        bazy_kat = QFileDialog().getExistingDirectory(
+            None,
+            "Katalog z bazami danych",
+            self.kat)
+
+        if platform.system()[:3] == 'Win':
+            bazy = glob.glob(os.path.join(bazy_kat, '*.mdb'))
+            self.ile_baz = len(bazy)
+        else:
+            bazy = glob.glob(os.path.join(bazy_kat, '*.sqlite'))
+            self.ile_baz = len(bazy)
+
+        if self.ile_baz == 0:
+            self.iface.messageBar().pushCritical(
+                'BLAD', 'Nie znalazłem baz TPU!'
+            )
+            return
+
         adm = {}  # slownik z kodami administracyjnymi
-        if sc:
+
+        for sc in bazy:
             b = Baza(sc)
             if b.polacz():
                 pob = b.pobierz_naglowek()
                 pob = [] if pob is False else pob
-            adm = {x[4]+x[5]: x[3] for x in pob}
+            adm.update({x[4]+x[5]: x[3] for x in pob})
+            b.zamknij()
 
         rap_out = 'MUNICIP\tCOMMUNITY\tODDZ\tWYDZ\tNR_ROBO\tOBR\n'
         tab = []
@@ -146,6 +168,9 @@ class SprawdzCiecie:
             if len(val) > 0:
                 if len(val[0][2]) > 20:
                     key = val[0][2]
+            else:
+                if k in self.slwydz:
+                    key = self.slwydz[k]['ADR_LES']
 
             tp = [key[3:6], key[6:10], key[13:17], key[18:20], ]
 
@@ -156,7 +181,7 @@ class SprawdzCiecie:
 
             t = [tp+['-'.join(x[:2])]+[obr] for x in val]
             if len(val) == 0:
-                t = [tp + ['', obr]]
+                t = [tp + ['---', obr]]
             tab += t
         tout = sorted(tab, key=lambda x: ''.join(x[:3])+x[3][::-1])
         rap_out += '\n'.join((['\t'.join(x) for x in tout]))

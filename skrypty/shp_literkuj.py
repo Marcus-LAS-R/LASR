@@ -93,7 +93,7 @@ def Literkuj(iface, lyr=False):  # noqa
             obr = it[6]
 
         if str(it[4]).upper() != 'LZ':
-            if str(it[4]) not in ["", " ", 'NULL']:
+            if str(it[4]) not in ["", " ", 'NULL', None]:
                 # jezeli wydz ma litere, nie zmieniamy
                 pass
             else:

@@ -33,7 +33,7 @@ class DopiszKody(SprawdzWydzielenia):
             self.wydz.dataProvider().dataSourceUri().split("|")[0]
         self.kat = os.path.dirname(self.wydz_path)
 
-        baza_sc = znajdz_baze_do_wydz(self.iface)
+        baza_sc = znajdz_baze_do_wydz(self.iface, poz=1)
 
         if baza_sc:
             self.baza = Baza(baza_sc)
