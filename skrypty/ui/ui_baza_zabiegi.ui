@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>912</width>
-    <height>391</height>
+    <height>489</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -137,7 +137,7 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>320</y>
+     <y>410</y>
      <width>571</width>
      <height>61</height>
     </rect>
@@ -158,7 +158,7 @@
    <property name="geometry">
     <rect>
      <x>670</x>
-     <y>330</y>
+     <y>420</y>
      <width>151</width>
      <height>41</height>
     </rect>
@@ -171,6 +171,45 @@
    <property name="text">
     <string>Porzuć</string>
    </property>
+  </widget>
+  <widget class="QGroupBox" name="groupBox">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>310</y>
+     <width>871</width>
+     <height>80</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Modyfikator dla Trzebieży</string>
+   </property>
+   <widget class="QLabel" name="label_2">
+    <property name="geometry">
+     <rect>
+      <x>40</x>
+      <y>40</y>
+      <width>421</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>O ile procent powiększyć domyślne pozyskanie:</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="spinBox_trz">
+    <property name="geometry">
+     <rect>
+      <x>500</x>
+      <y>30</y>
+      <width>101</width>
+      <height>36</height>
+     </rect>
+    </property>
+    <property name="maximum">
+     <number>30</number>
+    </property>
+   </widget>
   </widget>
  </widget>
  <resources/>

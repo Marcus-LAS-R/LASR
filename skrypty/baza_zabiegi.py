@@ -12,6 +12,7 @@ class Zabiegi():
         self.iface = iface
         self.wybor = ''
         self.baza = False
+        self.mod_trzeb = 0
         self.kat = ''  # katalog z bazą danych
 
         # sl ze struktura przetrzymujaca obkiety dla wydzielen z zabiegami
@@ -42,6 +43,7 @@ class Zabiegi():
             if self.dd.ui.radioButton_dopisz.isChecked():
                 self.wybor = 'Dop'
             self.kopiuj_baze()
+            self.mod_trzeb = self.dd.ui.spinBox_trz.value()
             return True
 
         return False
@@ -59,6 +61,7 @@ class Zabiegi():
 
         for w in self.wydz.values():
             _wydz = Wydzielenie(w)
+            _wydz.dodaj_mod_trzeb(self.mod_trzeb)
             _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
             _wydz.wpisz_wiek_rebnosci(wr)
 
@@ -87,6 +90,7 @@ class Zabiegi():
 
                         del _wydz
                         _wydz = Wydzielenie(w)
+                        _wydz.dodaj_mod_trzeb(self.mod_trzeb)
                         _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
                         _wydz.wpisz_wiek_rebnosci(wr)
                         if not _wydz.generuj_zabiegi():
@@ -683,15 +687,21 @@ class GenerujZabiegi():
             zas = maxZas
 
         zw = {
-              u'UM': 1,
-              u'PRZ': 2,
-              u'PEŁ': 0,
-              u'LUŹ': 3,
+              'PEŁ': 0,
+              'UM': 1,
+              'PRZ': 2,
+              'LUŹ': 3,
               }
 
         if self.zwarcie in zw.keys():
             # zwracamy tablice [procent grub, m3 grub]
             proc = self.cieciaSl[gat][wiek][int(zas)][zw[self.zwarcie]]
+
+            # powieksz % pozyskania jezeli mniejszy od 20%
+            if self.mod_trzeb > 0:
+                if proc + self.mod_trzeb < 21:
+                    proc += self.mod_trzeb
+
             pow_ciecia = self.pow_wydz
             if self.gen_pow_reb > 0:
                 pow_ciecia = self.gen_pow_reb
@@ -880,6 +890,9 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
         # wczytaj wpisy i slowniki
         self.spisy()
 
+        # modyfikator dodawany przy obliczaniu % trzebiezy
+        self.mod_trzeb = 0
+
         # wskaznik do bazy w celu wpisywania danych, wykorzystywany w metodzie
         # dopisz_zabiegi
         self.baza = False
@@ -953,6 +966,11 @@ class Wydzielenie(ZabiegiSlownik, GenerujZabiegi, SprawdzZabiegi):
             return ''
         else:
             return it
+
+    def dodaj_mod_trzeb(self, mod):
+        """dodaje modyfikator trzebiezy"""
+        if isinstance(mod, int):
+            self.mod_trzeb = mod
 
     def dodaj_baze(self, baza):
         ''' jezeli bedzie potrzeba dodawania poprawek badz nowych wpisow do
