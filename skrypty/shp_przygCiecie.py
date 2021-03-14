@@ -203,18 +203,18 @@ def przygotuj_do_terenu(iface):  # noqa
     stworz_pozaewid(ls)
 
     # dodaj przetworzona warstwe oddz
-    # if os.path.isfile(os.path.join(kat, 'OBR.shp')):
-    #     obr = QgsVectorLayer(
-    #         os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
-    #     )
+    if os.path.isfile(os.path.join(kat, 'OBR.shp')):
+        obr = QgsVectorLayer(
+            os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
+        )
 
-    #     crs = QgsCoordinateReferenceSystem("epsg:2180")
-    #     QgsVectorFileWriter.writeAsVectorFormat(
-    #         obr,
-    #         os.path.join(os.path.join(kat, "ODDZ.shp")),
-    #         "UTF-8",
-    #         crs,
-    #         "ESRI Shapefile")
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            obr,
+            os.path.join(os.path.join(kat, "ODDZ.shp")),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
 
     maska = QgsVectorLayer(
         os.path.join(os.path.join(kat, "MASKA.shp")),
@@ -381,68 +381,68 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
     stworz_linie(kat)
     stworz_pozaewid(ls)
 
-    # usuniete na zyczenie wiceprezesa
+    # usuniete  przywrocone na zyczenie wiceprezesa (niezdecydowany jakis?)
     # dodaj przetworzona warstwe oddz
-    # if os.path.isfile(os.path.join(kat, 'OBR.shp')):
-    #     obr = QgsVectorLayer(
-    #         os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
-    #     )
+    if os.path.isfile(os.path.join(kat, 'OBR.shp')):
+        obr = QgsVectorLayer(
+            os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
+        )
 
-    #     adr_adm = ''
-    #     if 'jpt_kod_je' in \
-    #             [x.name() for x in obr.dataProvider().fields().toList()]:
-    #         adr_adm = 'jpt_kod_je'
-    #     if 'G5NRO' in \
-    #             [x.name() for x in obr.dataProvider().fields().toList()]:
-    #         adr_adm = 'G5NRO'
+        adr_adm = ''
+        if 'jpt_kod_je' in \
+                [x.name() for x in obr.dataProvider().fields().toList()]:
+            adr_adm = 'jpt_kod_je'
+        if 'G5NRO' in \
+                [x.name() for x in obr.dataProvider().fields().toList()]:
+            adr_adm = 'G5NRO'
 
-    #     oddz_fields = [
-    #         QgsField("MUNICIP", QVariant.String, len=3),
-    #         QgsField("COMMUNITY", QVariant.String, len=4),
-    #         QgsField("ODDZ", QVariant.String, len=6),
-    #     ]
+        oddz_fields = [
+            QgsField("MUNICIP", QVariant.String, len=3),
+            QgsField("COMMUNITY", QVariant.String, len=4),
+            QgsField("ODDZ", QVariant.String, len=6),
+        ]
 
-    #     crs = QgsCoordinateReferenceSystem("epsg:2180")
-    #     QgsVectorFileWriter.writeAsVectorFormat(
-    #         obr,
-    #         os.path.join(os.path.join(kat, "ODDZ.shp")),
-    #         "UTF-8",
-    #         crs,
-    #         "ESRI Shapefile")
+        crs = QgsCoordinateReferenceSystem("epsg:2180")
+        QgsVectorFileWriter.writeAsVectorFormat(
+            obr,
+            os.path.join(os.path.join(kat, "ODDZ.shp")),
+            "UTF-8",
+            crs,
+            "ESRI Shapefile")
 
-    #     oddz = QgsVectorLayer(
-    #         os.path.join(os.path.join(kat, "ODDZ.shp")), 'ODDZ', 'ogr')
+        oddz = QgsVectorLayer(
+            os.path.join(os.path.join(kat, "ODDZ.shp")), 'ODDZ', 'ogr')
 
-    #     oddz.startEditing()
-    #     oddz.dataProvider().addAttributes(oddz_fields)
-    #     oddz.commitChanges()
-    #     fnm = oddz.dataProvider().fieldNameMap()
+        oddz.startEditing()
+        oddz.dataProvider().addAttributes(oddz_fields)
+        oddz.commitChanges()
+        fnm = oddz.dataProvider().fieldNameMap()
 
-    #     # jezeil mamy kolumne z adr adm dopisz doWarstwy kody z municip i
-    #     # community, oraz wpisz wszedzie oddz 1
-    #     if adr_adm != '':
-    #         for feat in oddz.getFeatures():
-    #             try:
-    #                 municip = feat[adr_adm][4:8].replace('_', '')
-    #             except:  # nopep8
-    #                 municip = ''
-    #             try:
-    #                 comm = feat[adr_adm][-4:]
-    #             except:  # nopep8
-    #                 comm = ''
-    #             oddz.dataProvider().changeAttributeValues(
-    #                 {feat.id(): {
-    #                     fnm['MUNICIP']: municip,
-    #                     fnm['COMMUNITY']: comm,
-    #                 }})
+        # jezeil mamy kolumne z adr adm dopisz doWarstwy kody z municip i
+        # community, oraz wpisz wszedzie oddz 1
+        if adr_adm != '':
+            for feat in oddz.getFeatures():
+                try:
+                    municip = feat[adr_adm][4:8].replace('_', '')
+                except:  # nopep8
+                    municip = ''
+                try:
+                    comm = feat[adr_adm][-4:]
+                except:  # nopep8
+                    comm = ''
+                oddz.dataProvider().changeAttributeValues(
+                    {feat.id(): {
+                        fnm['MUNICIP']: municip,
+                        fnm['COMMUNITY']: comm,
+                    }})
 
-    #     _skasuj = [fnm[x.name()] for x in oddz.fields()
-    #                if x.name() not in [y.name() for y in oddz_fields]]
-    #     oddz.startEditing()
-    #     oddz.dataProvider().deleteAttributes(_skasuj)
-    #     oddz.commitChanges()
+        _skasuj = [fnm[x.name()] for x in oddz.fields()
+                   if x.name() not in [y.name() for y in oddz_fields]]
+        oddz.startEditing()
+        oddz.dataProvider().deleteAttributes(_skasuj)
+        oddz.commitChanges()
 
-    #     QgsProject.instance().addMapLayer(oddz)
+        QgsProject.instance().addMapLayer(oddz)
 
     if bledy_zerowe:
         iface.messageBar().pushMessage(

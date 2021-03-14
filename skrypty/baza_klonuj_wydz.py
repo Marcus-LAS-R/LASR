@@ -1,10 +1,17 @@
 import os
-from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
-from qgis.core import Qgis, QgsMessageLog
+from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox, QDockWidget, \
+    QAction
+from qgis.core import Qgis, QgsMessageLog, QgsRectangle, QgsFeatureRequest
+from qgis.gui import QgsMapToolEmitPoint
 
 from .ui.ui_baza_klonuj import Ui_Ui_Dialog as Ui_Dialog
 from .baza_wrapper import Baza
 from .funkcje import isNone
+
+from qgis.PyQt.uic import loadUiType
+
+FORM_CLASS, _ = loadUiType(os.path.join(
+    os.path.dirname(__file__), 'ui',  'ui_klonuj_dock.ui'))
 
 
 class Klonuj():
@@ -16,6 +23,74 @@ class Klonuj():
         self.instr = []  # [[adr_les_org, adr_les_klon], ...] oba adr w bazie!!
         self.bledy = 0  # liczba bledów podczas klonowania
         self.sklonowano = 0  # liczba poprawnych operacji
+
+    def dane_dock(self, baza, z, do):
+        self.baza = Baza(baza)
+        if not self.baza.polacz():
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Nie mogłem połączyć się z bazą',
+                Qgis.Critical,
+                0
+            )
+            return False
+
+        # wczytaj dane z docka
+        self.instr = [[z, dd] for dd in do]
+
+        # jezeli odnaleziono niepoprawna strukturę...
+        if set([len(x) for x in self.instr]) != set([2]):
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'w pliku z instrukcjami odnaleziono niepoprawną strukturę '
+                'danych. Sprawdź czy wszystkie adresy oddzielone są tab-ami i'
+                ' na końcu nie ma pustej linii!',
+                Qgis.Critical,
+                0
+            )
+            return False
+
+        return True
+
+    def dane_konf(self, baza, plik):
+        self.baza = Baza(baza)
+        if not self.baza.polacz():
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Nie mogłem połączyć się z bazą',
+                Qgis.Critical,
+                0
+            )
+            return False
+
+        # wczytaj dane z pliku
+        instr = open(plik, 'r').readlines()
+
+        if len(instr) > 0:
+            self.instr = [x.rstrip('\r\n ').split('\t') for x in instr]
+
+        # jeżeli nie odnaleziono żadnych instrukcji
+        if len(self.instr) == 0:
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'w pliku z instrukcjami nie odnaleziono żadnych adresów.',
+                Qgis.Critical,
+                0
+            )
+            return False
+
+        # jezeli odnaleziono niepoprawna strukturę...
+        if set([len(x) for x in self.instr]) != set([2]):
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'w pliku z instrukcjami odnaleziono niepoprawną strukturę '
+                'danych. Sprawdź czy wszystkie adresy oddzielone są tab-ami i'
+                ' na końcu nie ma pustej linii!',
+                Qgis.Critical,
+                0
+            )
+            return False
+        return True
 
     def pobierz_dane(self):
         """ Metoda pobiera od użyszkodnia ścieżkę do bazy oraz ścieżkę do pliku
@@ -328,15 +403,6 @@ class Klonuj():
         item = self.baza.pobierz(sql)
 
         for it in item:
-            # sql = '''insert into f_arod_stand_pec(
-                # FOREST_PEC_CD,
-                # ARODES_INT_NUM ,
-                # PEC_RANK_ORDER) values (
-                # \'''' + \
-                # str(isNone(it[0])) + '\', ' + \
-                # str(self.wydz[do]) + ', ' + \
-                # str(it[2]) + ');'
-
             sql = [
                 '''insert into f_arod_stand_pec(
                     FOREST_PEC_CD,
@@ -491,6 +557,157 @@ class Klonuj():
             if not self.baza.wpisz_tab(sql):
                 return False
         return True
+
+
+class PobierzDaneDock(QDockWidget, FORM_CLASS):
+    def __init__(self, iface, parent=None):
+        super(PobierzDaneDock, self).__init__(parent)
+        self.setupUi(self)
+        self.valid = False
+        self.porzucone = True
+        self.iface = iface
+
+        self.pushButton_anuluj.clicked.connect(self.porzuc)
+        self.pushButton_baza.clicked.connect(self.kat_baza)
+        self.pushButton_plik.clicked.connect(self.kat_warstwa)
+        self.toolButton_usun.clicked.connect(self.skasuj)
+
+        self.akcja_z = QAction('wskaż', self.iface.mainWindow())
+        self.akcja_z.triggered.connect(self.klik_zrodlo)
+        self.toolButton_z.setDefaultAction(self.akcja_z)
+
+        self.akcja_do = QAction('wskaż', self.iface.mainWindow())
+        self.akcja_do.triggered.connect(self.klik_do)
+        self.toolButton_do.setDefaultAction(self.akcja_do)
+
+        self.toolButton_usun.clicked.connect(self.usun)
+        self.pushButton_uruchom.clicked.connect(self.klonuj)
+
+    def usun(self):
+        pass
+
+    def kat_baza(self):
+        sc = QFileDialog().getOpenFileName(
+            self, 'Wskaż bazę Taksatora', self.kat, "Access MDB (*.mdb)")[0]
+        if sc != '':
+            self.kat = os.path.dirname(sc)
+            self.lineEdit_baza.setText(sc)
+
+    def kat_warstwa(self):
+        sc = QFileDialog().getOpenFileName(self,
+                                           'Wskaż plik z instrukcjami',
+                                           self.kat,
+                                           "instrukcje (*.txt)")[0]
+        if sc != '':
+            self.kat = os.path.dirname(sc)
+            self.lineEdit_plik.setText(sc)
+
+    def porzuc(self):
+        self.porzucone = True
+        self.hide()
+
+    def sprawdz_ok(self):
+        if self.radioButton_k.isChecked():
+            if os.path.isfile(self.lineEdit_plik.text()) and \
+                    os.path.isfile(self.lineEdit_baza.text()):
+                self.valid = True
+                self.porzucone = False
+            else:
+                message = QMessageBox()
+                message.setIcon(QMessageBox.Information)
+                message.setWindowTitle('Błąd')
+                message.setText(
+                    'Nie udało się odnaleźć wszystkich podanych plików!')
+                message.addButton(u"Zamknij", QMessageBox.ActionRole)
+                message.exec_()
+                return False
+        else:
+            if not os.path.isfile(self.lineEdit_baza.text()):
+                return False
+            if self.lineEdit_z.text() in ['', ' ']:
+                return False
+            if self.listWidget.count() == 0:
+                return False
+
+        return True
+
+    def klik_zrodlo(self):
+        self.tz = QgsMapToolEmitPoint(self.iface.mapCanvas())
+        self.iface.mapCanvas().setMapTool(self.tz)
+        self.tz.canvasClicked.connect(self.pobierz_z)
+
+    def klik_do(self):
+        self.ta = QgsMapToolEmitPoint(self.iface.mapCanvas())
+        self.iface.mapCanvas().setMapTool(self.ta)
+        self.ta.canvasClicked.connect(self.pobierz_do)
+
+    def pobierz_z(self, koord):
+        rec = QgsRectangle(koord[0]-0.1, koord[1]-0.1,
+                           koord[0]+0.1, koord[1]+0.1)
+        req = QgsFeatureRequest().setFilterRect(rec)
+        f = ''
+        for fd in self.iface.activeLayer().getFeatures(req):
+            f = fd['ADR_LES']
+
+        if f in ['', None, 'NULL']:
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Na pewno wskazałeś warstwę z kolumną ADR_LES?',
+                Qgis.Critical,
+                0
+            )
+        self.lineEdit_z.setText(f)
+
+    def pobierz_do(self, koord):
+        rec = QgsRectangle(koord[0]-0.1, koord[1]-0.1,
+                           koord[0]+0.1, koord[1]+0.1)
+        req = QgsFeatureRequest().setFilterRect(rec)
+        f = ''
+        for fd in self.iface.activeLayer().getFeatures(req):
+            f = fd['ADR_LES']
+
+        if f == self.lineEdit_z.text():
+            return
+
+        if f not in ['', None, 'NULL']:
+            self.listWidget.addItem(f)
+        else:
+            self.iface.messageBar().pushMessage(
+                "BŁĄD",
+                'Na pewno wskazałeś warstwę z kolumną ADR_LES?',
+                Qgis.Critical,
+                0
+            )
+
+    def skasuj(self):
+        itms = self.listWidget.selectedItems()
+
+        for i in range(self.listWidget.count()-1, -1, -1):
+            if self.listWidget.item(i) in itms:
+                self.listWidget.takeItem(i)
+
+    def klonuj(self):
+        klon = Klonuj(self.iface)
+        if not self.sprawdz_ok:
+            return
+        if self.radioButton_k:
+            wyn = klon.dane_konf(
+                self.lineEdit_baza.text(), self.lineEdit_plik.text()
+            )
+        else:
+            wyn = klon.dane_dock(
+                self.lineEdit_baza.text(),
+                self.lineEdit_z.text(),
+                [self.listWidget.item(x).text()
+                 for x in range(self.listWidget.count())]
+            )
+            self.listWidget.clear()
+
+        if not wyn:
+            return
+        if klon.sprawdz_dane():
+            klon.klonuj()
+            klon.wyswietl_info()
 
 
 class PobierzDane(QDialog):

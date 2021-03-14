@@ -22,7 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication
+from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QAction, QMenu
 
@@ -42,7 +42,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
     baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
-    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol
+    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi
 
 
 class LasR:
@@ -502,6 +502,11 @@ class LasR:
         self.m_raporty.addAction(self.a_rap_wyles)
         self.a_rap_wyles.triggered.connect(self.generuj_karty_wylesien)
 
+        self.a_wyciagi = QAction(
+            QIcon(None), 'Wyciagi dla właścicieli', self.iface.mainWindow())
+        self.m_raporty.addAction(self.a_wyciagi)
+        self.a_wyciagi.triggered.connect(self.generuj_wyciagi)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(ico_wydz_dopisz,
                                 'Dopisz metadane',
@@ -620,6 +625,10 @@ class LasR:
         #     callback=self.run,
         #     parent=self.iface.mainWindow())
 
+        self.dockWidget = baza_klonuj_wydz.PobierzDaneDock(self.iface)
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockWidget)
+        self.dockWidget.hide()
+
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         # for action in self.actions:
@@ -642,6 +651,8 @@ class LasR:
         # del self.toolbar_skr
         self.toolbar_skr.clear()
         self.toolbar_skr.deleteLater()
+        self.dockWidget.close()
+        self.iface.removeDockWidget(self.dockWidget)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -822,11 +833,12 @@ class LasR:
         p.wyswietl_info()
 
     def klonuj(self):
-        b = baza_klonuj_wydz.Klonuj(self.iface)
-        if b.pobierz_dane():
-            if b.sprawdz_dane():
-                b.klonuj()
-                b.wyswietl_info()
+        self.dockWidget.show()
+        # b = baza_klonuj_wydz.Klonuj(self.iface)
+        # if b.pobierz_dane():
+            # if b.sprawdz_dane():
+                # b.klonuj()
+                # b.wyswietl_info()
 
     def zanumeruj(self):
         shp_numeruj.Numeruj(self.iface)
@@ -977,3 +989,7 @@ class LasR:
 
     def przeczysc_kolumny(self):
         shp_czysc_kol.czysc_kolumny(self.iface)
+
+    def generuj_wyciagi(self):
+        g = raport_wyciagi.GenerujWyciagi(self.iface)
+        g.generowanie()

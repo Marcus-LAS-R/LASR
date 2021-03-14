@@ -829,3 +829,226 @@ class Baza(object):
 
             self.cur.execute(sql)
             self.con.commit()
+
+    def pobierz_wyk_wlasc(self):
+        """Zwraca slownik wszystkich wlascicieli wpisanych do planu w postaci:
+            sl = {addr_nr: {'opis': { tutaj nazwy kolumn z v_address},
+                           'grej':  [lista grej dla tego wlasciciela],
+                           'udzial': {gggoooo.grej: '12/212',},
+                           }}
+            sl_grej = {
+            gggoooo: {'grej': {'pint': [parcel_int_num, …],
+                               'wl': [addr, …],
+                               }
+                     }
+            }
+            sl_pint = {pint: 'gggoooo.ark.dznr', 'gggoooo.dznr', …}
+
+            """
+
+        sl = {}
+        sl_grej = {}
+        sl_pint = {}
+
+        sql = """
+        SELECT distinct V_ADDRESS.ADDR_NR,
+            V_ADDRESS.NAME_1,
+            V_ADDRESS.NAME_2,
+            V_ADDRESS.PLACE,
+            V_ADDRESS.STREET,
+            V_ADDRESS.POST,
+            V_ADDRESS.post_cd,
+            V_ADDRESS.addr_grp_fl,
+            v_parcel_participation.second_addr_nr
+        FROM
+            (F_AROD_LAND_USE
+            INNER JOIN F_PARCEL ON
+                F_AROD_LAND_USE.PARCEL_INT_NUM = F_PARCEL.PARCEL_INT_NUM)
+        INNER JOIN
+            (V_ADDRESS
+            INNER JOIN
+                V_PARCEL_PARTICIPATION ON
+                V_ADDRESS.ADDR_NR = V_PARCEL_PARTICIPATION.addr_nr)
+        ON F_PARCEL.PARCEL_INT_NUM = V_PARCEL_PARTICIPATION.parcel_int_num;
+            """
+
+        dw = self.cur.execute(sql).fetchall()
+
+        sl = {x[0]: {
+            'opis': {
+                'nazwisko': x[1] if x[1] is not None else '',
+                'imie': x[2] if x[2] is not None else '',
+                'miejscowosc': x[3] if x[3] is not None else '',
+                'ulica': x[4] if x[4] is not None else '',
+                'poczta': x[5] if x[5] is not None else '',
+                'kod': x[6] if x[6] is not None else '',
+                'wspl': x[8] if x[8] is not None else '',
+            },
+            'grej': [],
+            'udzial': {}
+        } for x in dw}
+
+        sql = """
+        SELECT V_ADDRESS.ADDR_NR,
+        F_PARCEL.MUNICIPALITY_CD,
+        F_PARCEL.COMMUNITY_CD,
+        F_PARCEL.REG_SHEET_NR2,
+        F_PARCEL.PARCEL_NR,
+        F_PARCEL.LAND_REGISTER_NR,
+        F_PARCEL.PARCEL_INT_NUM,
+        v_parcel_participation.part_numerator,
+        v_parcel_participation.part_denominator
+        FROM
+            ((V_PARCEL_PARTICIPATION
+                    INNER JOIN V_ADDRESS ON
+                    V_PARCEL_PARTICIPATION.addr_nr = V_ADDRESS.ADDR_NR)
+            INNER JOIN F_PARCEL ON
+                V_PARCEL_PARTICIPATION.parcel_int_num=F_PARCEL.PARCEL_INT_NUM)
+            INNER JOIN F_AROD_LAND_USE ON
+                F_PARCEL.PARCEL_INT_NUM = F_AROD_LAND_USE.PARCEL_INT_NUM;
+        """
+        dd = self.cur.execute(sql).fetchall()
+
+        for di in dd:
+            if di[0] not in sl:
+                continue
+
+            # dodaj grej do slownika wlasc
+            if di[1]+di[2]+'.'+di[5] not in sl[di[0]]['grej']:
+                sl[di[0]]['grej'].append(di[1]+di[2]+'.'+di[5])
+                sl[di[0]]['udzial'][di[1]+di[2]+'.'+di[5]] = \
+                    str(int(di[7])) + '/' + str(int(di[8]))
+
+            # sprawdz czy mamy strukture w sl_grej dla obrebu
+            if di[1] + di[2] not in sl_grej:
+                sl_grej[di[1]+di[2]] = {}
+
+            # sprawdz czy jest struktura dla grej
+            if di[5] not in sl_grej[di[1]+di[2]]:
+                sl_grej[di[1]+di[2]][di[5]] = {'dz': [di[6]], 'wl': [di[0]]}
+            else:
+                if di[6] not in sl_grej[di[1]+di[2]][di[5]]['dz']:
+                    sl_grej[di[1]+di[2]][di[5]]['dz'].append(di[6])
+                if di[0] not in sl_grej[di[1]+di[2]][di[5]]['wl']:
+                    sl_grej[di[1]+di[2]][di[5]]['wl'].append(di[0])
+
+            if di[6] not in sl_pint:
+                adr = di[1] + di[2]
+                adr += '.' if di[3] is None else '.' + di[3] + '.'
+                adr += di[4]
+                sl_pint[di[6]] = adr
+
+        return sl, sl_grej, sl_pint
+
+    def pobierz_obr_w_gm(self):
+        """Zwraca slowniki
+            sl = {'obreb nazwa': 'nazwa gminy'}
+            {'GGGOOOO': 'nazwa obrebu'}
+        """
+        sql = '''
+        SELECT F_COMMUNITY.COMMUNITY_NAME,
+            F_MUNICIPALITY.MUNICIPALITY_NAME,
+            F_MUNICIPALITY.MUNICIPALITY_CD,
+            F_COMMUNITY.COMMUNITY_CD
+        FROM F_MUNICIPALITY
+        INNER JOIN
+        F_COMMUNITY ON
+        (F_MUNICIPALITY.MUNICIPALITY_CD = F_COMMUNITY.MUNICIPALITY_CD)
+        AND (F_MUNICIPALITY.DISTRICT_CD = F_COMMUNITY.DISTRICT_CD)
+        AND (F_MUNICIPALITY.COUNTY_CD = F_COMMUNITY.COUNTY_CD);
+        '''
+
+        obr = self.cur.execute(sql).fetchall()
+        return {x[0].upper(): x[1].upper() for x in obr}, \
+            {x[2]+x[3]: x[0] for x in obr}
+
+    def pobierz_wyk_zalec(self):
+        """Pobiera zalecenia zabiegow dla wszystkich wydzielen
+        zwraca slownik w postaci
+        {aint: {'rpow': 'DSTAN',
+                'gat': 'xx',
+                'wiek': 22,
+                'bhd': 'x',
+                'pow': 2.22, # (powierzchnia całego wydzielenia)
+                'miazsz': 333, # (dla calego wydzielenia)
+                'zab': [['zab', %pow, %timber, brutto, netto], …]
+                        # (dla calego wydz)
+                }
+        """
+
+        sql = '''
+        SELECT
+            f_subarea.ARODES_INT_NUM,
+            F_SUBAREA.AREA_TYPE_CD,
+            F_SUBAREA.SUB_AREA,
+            g.SPECIES_CD,
+            g.SPECIES_AGE,
+            g.site_class_cd,
+            h.sum_vol
+        FROM ((F_SUBAREA
+        LEFT JOIN
+        (SELECT F_STOREY_SPECIES.ARODES_INT_NUM,
+                F_STOREY_SPECIES.SPECIES_CD,
+                F_STOREY_SPECIES.SPECIES_AGE,
+                F_STOREY_SPECIES.site_class_cd,
+                F_STOREY_SPECIES.VOLUME
+        FROM F_STOREY_SPECIES
+        WHERE (((F_STOREY_SPECIES.[STOREY_CD])='DRZEW')
+                AND ((F_STOREY_SPECIES.[species_rank_order])=1)) ) AS g
+        ON F_SUBAREA.ARODES_INT_NUM = g.ARODES_INT_NUM)
+        left join
+        (select arodes_int_num, sum(volume) as sum_vol
+        from f_storey_species
+        group by arodes_int_num) as h
+        on f_subarea.arodes_int_num = h.arodes_int_num
+        )
+        ;
+        '''
+        sarea = self.cur.execute(sql).fetchall()
+
+        sql = '''
+        SELECT
+            F_AROD_CUE.ARODES_INT_NUM,
+            F_AROD_CUE.MEASURE_CD,
+            F_AROD_CUE.PROC_AREA,
+            F_AROD_CUE.LARGE_TIMBER_PERC,
+            F_AROD_CUE.LARGE_TIMBER_VALUE,
+            F_AROD_CUE.LARGE_TIMBER_VALUE_NET
+        FROM F_AROD_CUE
+        order by arodes_int_num asc, cue_rank_order asc;
+        '''
+        scue = self.cur.execute(sql).fetchall()
+
+        sl = {x[0]: {
+            'rpow': x[1],
+            'pow': x[2],
+            'gat': x[3] if x[3] not in [None, ''] else '',
+            'wiek': x[4] if x[4] not in [None, ''] else '',
+            'bhd': x[5] if x[5] not in [None, ''] else '',
+            'miazsz': x[6] if x[6] not in [None, ''] else '',
+            'zab': [],
+        } for x in sarea
+        }
+
+        for si in scue:
+            if si[0] not in sl:
+                continue
+            sl[si[0]]['zab'].append(si[1:])
+
+        return sl
+
+    def pobierz_wlascicieli_all(self):
+        """ pobiera wszystkich wlascicieli z tabeli v_address"""
+        sql = 'select addr_nr, name_1, name_2 from v_address;'
+        return self.cur.execute(sql).fetchall()
+
+    def pobierz_wyk_slowniki(self):
+        """Zwraca 2 slowniki z gatunkami i zabiegami"""
+
+        sql = 'select measure_cd, measure_name from f_measure;'
+        slz = {x[0]: x[1] for x in self.cur.execute(sql).fetchall()}
+
+        sql = 'select species_cd, species_name from f_tree_species;'
+        slg = {x[0]: x[1] for x in self.cur.execute(sql).fetchall()}
+
+        return slg, slz

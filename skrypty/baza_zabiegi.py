@@ -62,6 +62,7 @@ class Zabiegi():
         for w in self.wydz.values():
             _wydz = Wydzielenie(w)
             _wydz.dodaj_mod_trzeb(self.mod_trzeb)
+            _wydz.baza = self.baza
             _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
             _wydz.wpisz_wiek_rebnosci(wr)
 
@@ -93,12 +94,14 @@ class Zabiegi():
                         _wydz.dodaj_mod_trzeb(self.mod_trzeb)
                         _wydz.wczytaj_dane(self.baza.pobierz_do_zab(w))
                         _wydz.wpisz_wiek_rebnosci(wr)
+                        _wydz.baza = self.baza
                         if not _wydz.generuj_zabiegi():
                             self.bledy.append(w)
 
                         _wydz.uw_baza += __uw_baza
 
-                    _wydz.sprawdz_zabiegi()
+                    # TODO teraz zawsze zmienia na KO!!! poprawić
+                    _wydz.sprawdz_zabiegi(self.wybor)
 
                     self.sl[w] = _wydz
             except Exception:
@@ -248,7 +251,12 @@ class GenerujZabiegi():
 
         # dla wydzielen o powierzchi powyżej 10 ha
         if self.pow_wydz > 10 and self.ile_dzkat > 1:
-            reb = ['IIB', 50]
+            if self.stl not in [
+                'LGŚW', 'LGW', 'LŁ', 'LŁG', 'LŁWYŻ', 'LMB',
+                'LMGŚW', 'LMGW', 'LMŚW', 'LMW', 'LMWYŻŚW' 'LMWYŻW',
+                'LŚW', 'LW', 'LWYŻŚW', 'LWYŻW',
+            ]:
+                reb = ['IIB', 50]
 
         if self.zadrzew < 0.5 and self.gat_gl_wiek > self.wiekReb - 10:
             reb = self.rebnieSlnowy[self.stl][3]
@@ -701,6 +709,8 @@ class GenerujZabiegi():
             if self.mod_trzeb > 0:
                 if proc + self.mod_trzeb < 21:
                     proc += self.mod_trzeb
+                else:
+                    proc = self.mod_trzeb
 
             pow_ciecia = self.pow_wydz
             if self.gen_pow_reb > 0:
@@ -718,7 +728,7 @@ class GenerujZabiegi():
 
 
 class SprawdzZabiegi():
-    def sprawdz_zabiegi(self):
+    def sprawdz_zabiegi(self, wyb=''):
         '''Metoda sprawdza wpisane do bazy zabiegi z tymi ktore zostały
         wygenerowane prze klase GenerujZabiegi i zapisuje raport sprawdzenia
         w katalogu z baza
@@ -726,7 +736,7 @@ class SprawdzZabiegi():
         self.sprawdz_luki()
         self.sprawdz_halizne()
         self.sprawdz_ile_rebni()
-        self.sprawdz_KO_KDO()
+        self.sprawdz_KO_KDO(wyb)
         self.sprawdz_dopasowanie_reb()
         self.sprawdz_dopasowanie_odn()
         self.sprawdz_pow_rebni()
@@ -760,23 +770,32 @@ class SprawdzZabiegi():
                 'Stwierdzono wpisanie więcej niż jednej rębni w wydzieleniu'
             )
 
-    def sprawdz_KO_KDO(self):
+    def sprawdz_KO_KDO(self, wyb):
         ''' to sprawdzenie powinno byc puszczane tylko wtedy gdy mamy pewnosc
         ze w bazie mamy wpisana tylko 1 rebnie
         '''
         if self.ile_reb == 1:
             if self.pods + self.nal + self.podr > 0.49 and \
                     self.struk not in ['KO', 'KDO']:
-                self.uw_raport.append(
-                    'Zmieniono strukture na KO [SPRAWDZIC!]'
-                    '(ze zwzgl na pods+nal+podr>=0.5) (' +
-                    str(self.pods) + ', ' +
-                    str(self.nal)+", "+str(self.podr)+")")
+                if wyb in ['Dop', 'Uzu']:
+                    self.uw_raport.append(
+                        'Zmieniono strukture na KO [SPRAWDZIC!]' +
+                        '(ze zwzgl na pods+nal+podr>=0.5) (' +
+                        str(self.pods) + ', ' +
+                        str(self.nal)+", "+str(self.podr)+")")
 
-                # zmieniaj w bazie odrazu stand_struct_cd na KO -> PREZES
-                sql = 'update f_subarea set stand_struct_cd=\'KO\'' + \
-                    ' where arodes_int_num=' + str(self.aid) + ';'
-                self.baza.wpisz(sql)
+                    # zmieniaj w bazie odrazu stand_struct_cd na KO -> PREZES
+                    sql = 'update f_subarea set stand_struct_cd=\'KO\'' + \
+                        ' where arodes_int_num=' + str(self.aid) + ';'
+                    self.baza.polacz()
+                    self.baza.wpisz(sql)
+                    self.baza.zamknij()
+                if wyb in ['Spr', '']:
+                    self.uw_raport.append(
+                        'Powinno być KO w strukturze ' +
+                        '(ze zwzgl na pods+nal+podr>=0.5) (' +
+                        str(self.pods) + ', ' +
+                        str(self.nal)+", "+str(self.podr)+")")
 
     def sprawdz_dopasowanie_reb(self):
         if self.ile_reb == 1:
