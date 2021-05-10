@@ -42,7 +42,8 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
     baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
-    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi
+    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi, \
+    shp_konwertuj, shp_uzup_adradm
 
 
 class LasR:
@@ -474,6 +475,13 @@ class LasR:
         self.m_narzedzia.addAction(self.a_dod_adm)
         self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
 
+        self.a_dop_adm = QAction(
+            QIcon(None),
+            'Uzupełnij [MUNICIP, COMMUNITY]',
+            self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_dop_adm)
+        self.a_dop_adm.triggered.connect(self.dopisz_adradm)
+
         self.a_czy_kol = QAction(
             QIcon(None), 'Usuń zawartość kolumn', self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_czy_kol)
@@ -490,6 +498,11 @@ class LasR:
                                  self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_fstspec)
         self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
+
+        self.a_reproj = QAction(
+            QIcon(None), "Reprojekcja warstw", self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_reproj)
+        self.a_reproj.triggered.connect(self.reprojekcja_warstw)
 
         self.a_copy = QAction(QIcon(None),
                               "Połącz bazy TPU",
@@ -836,9 +849,9 @@ class LasR:
         self.dockWidget.show()
         # b = baza_klonuj_wydz.Klonuj(self.iface)
         # if b.pobierz_dane():
-            # if b.sprawdz_dane():
-                # b.klonuj()
-                # b.wyswietl_info()
+        #     if b.sprawdz_dane():
+        #         b.klonuj()
+        #         b.wyswietl_info()
 
     def zanumeruj(self):
         shp_numeruj.Numeruj(self.iface)
@@ -993,3 +1006,11 @@ class LasR:
     def generuj_wyciagi(self):
         g = raport_wyciagi.GenerujWyciagi(self.iface)
         g.generowanie()
+
+    def reprojekcja_warstw(self):
+        rep = shp_konwertuj.KonwertujWarstwy()
+        rep.ustaw_dialog()
+        rep.show()
+
+    def dopisz_adradm(self):
+        shp_uzup_adradm.DopiszAdres()
