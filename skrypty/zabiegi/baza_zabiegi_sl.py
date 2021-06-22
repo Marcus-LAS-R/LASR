@@ -1,0 +1,946 @@
+from collections import defaultdict
+
+
+class recursivedefaultdict(defaultdict):
+    def __init__(self):
+        self.default_factory = type(self)
+
+
+class ZabiegiSlownik():
+    def spisy(self):
+        """ Metoda ze slownikami do generowania zabiegów dla wydzieleń
+        """
+        # absolutnie nie wolno zmieniac kolejnosci tej tabeli!!
+        self.rebnieSpis = [
+            u'IB',
+            u'IC',
+            u'IA',
+            u'IID',
+            u'IIDU',
+            u'IIB',
+            u'IIBU',
+            u'IIC',
+            u'IICU',
+            u'IIA',
+            u'IIAU',
+            u'IIIB',
+            u'IIIBU',
+            u'IIIA',
+            u'IIIAU',
+            u'V',
+            u'IVB',
+            u'IVC',
+            u'IVBU',
+            u'IVCU',
+            u'IVA',
+            u'IVD',
+            u'IVDU',
+            u'IVAU',
+            u'PŁAZ',
+        ]
+
+        # slownik z dopasowaniem rebni i ich powierzchniach do stl w
+        # wydzieleniach
+        self.rebnieSl = {
+            'BB': [['IB', 100, ]],
+            'BGB': [['TP', 19, ]],
+            u'BGŚW': [['IVD', 40, ]],
+            'BGW': [['IVD', 40, ]],
+            'BMB': [['IB', 100, ], ['IIB', 50]],
+            'BMGB': [['TP', 19, ]],
+            u'BMGŚW': [['IVD', 40, ]],
+            u'BMGW': [['IVD', 40, ]],
+            u'BMŚW': [['IB', 100, ], ['IIB', 50]],
+            u'BMW': [['IB', 100, ], ['IIB', 50]],
+            u'BMWYŻŚW': [['IVD', 40, ]],
+            u'BMWYŻW': [['IVD', 40, ]],
+            u'BS': [['IB', 100, ]],
+            u'BŚW': [['IB', 100, ]],
+            u'BW': [['IB', 100, ]],
+            u'BWG': [['IVD', 40, ]],
+            u'LGŚW': [['IVD', 40, ]],
+            u'LGW': [['IVD', 40, ]],
+            u'LŁ': [['IVD', 40, ]],
+            u'LŁG': [['TP', 19, ]],
+            u'LŁWYŻ': [['IVD', 40, ]],
+            u'LMB': [['IB', 100, ], ['IIB', 50]],
+            u'LMGŚW': [['IVD', 40, ]],
+            u'LMGW': [['IVD', 40, ]],
+            u'LMŚW': [['IB', 100, ], ['IIB', 50]],
+            u'LMW': [['IB', 100, ], ['IIB', 50]],
+            u'LMWYŻŚW': [['IVD', 40, ]],
+            u'LMWYŻW': [['IVD', 40, ]],
+            u'LŚW': [['IVD', 40, ]],
+            u'LW': [['IVD', 40, ]],
+            u'LWYŻŚW': [['IVD', 40, ]],
+            u'LWYŻW': [['IVD', 40, ]],
+            u'OL': [['IB', 100, ], ['IIB', 50]],
+            u'OLJ': [['TP', 19, ]],
+            u'OLJG': [['TP', 19, ]],
+            u'OLJWYŻ': [['TP', 19, ]],
+        }
+
+        # kolejnosc dla kazdego siedliska jest wazna i po kolei oznacza:
+        # reb dla d-stanu podstawowego
+        # jezeli pow wydz < 0,5 ha lub 1 dzkat o pow < 4ha
+        # KO i zadrzew >= 0,5 lub jest forma ochr. przyr.
+        # KO i zadrzew < 0,5 lub dstan rebny i zadrzew <= 0,5
+        self.rebnieSlnowy = {
+            'BB': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['V', 40, ],
+                ['IIBU', 100, ],
+            ],
+            'BGB': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMB': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMGB': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMŚW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BMWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BMWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'BS': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+            ],
+            'BŚW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IB', 100, ],
+            ],
+            'BW': [
+                ['IB', 100, ],
+                ['IB', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'BWG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŁWYŻ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMB': [
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+                ['IIB', 50, ],
+                ['IIBU', 100, ],
+            ],
+            'LMGŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMGW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMŚW': [
+                ['IB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMW': [
+                ['IIB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LMWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LWYŻŚW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'LWYŻW': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OL': [
+                ['IB', 100, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJG': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+            'OLJWYŻ': [
+                ['IVD', 40, ],
+                ['IVDU', 100, ],
+                ['IVD', 50, ],
+                ['IVDU', 100, ],
+            ],
+        }
+
+        self.uw_sl = {
+            'uszk': {
+                'c': ' D-stan do przebudowy ze wzg. na uszkodzenia.',
+                's': ' Dstan do przeb. ze wzg. na uszk.',
+                'r': ' Brak możliwości wpisania uwagi o rębni ze wzgl na uszk.'
+            },
+            'reb_zup': {
+                'c': ' Działki ewidencyjne należy traktować jak dz. zrębowe,',
+                's': ' Dz. ewid. traktować jak dz. zręb.',
+                'r': ' Brak możliwości wpisania uwagi o działkach w rębni'
+                'zupełnej,'
+            },
+            'przebud': {
+                'c': ' D-stan przeznaczony do przebudowy,',
+                's': ' D-stan do przebud.,',
+                'r': ' Brak możliwości wpisania uwagi o d-stanie do przebudowy'
+            },
+
+        }
+
+        # slownik z procentami pozyskania grubizny dla TW, TP, CP-P
+        # cieciaSl[gatunek][gorna granica wieku/co 20 lat][zasobnosc/ha] =
+        # [% dla zwarcia pel, um, prze, luz]
+        self.cieciaSl = recursivedefaultdict()
+        self.cieciaSl[u'SO'][41][5] = [16, 12, 10, 8]
+        self.cieciaSl[u'SO'][41][10] = [17, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][20] = [16, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][30] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][40] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][50] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][60] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][70] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][80] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][90] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][100] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][110] = [15, 14, 10, 8]
+        self.cieciaSl[u'SO'][41][120] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][130] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][140] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][150] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][160] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][170] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][180] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][190] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][200] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][41][300] = [15, 13, 10, 8]
+        self.cieciaSl[u'SO'][61][5] = [14, 12, 10, 8]
+        self.cieciaSl[u'SO'][61][10] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][20] = [14, 12, 10, 8]
+        self.cieciaSl[u'SO'][61][30] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][40] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][50] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][60] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][70] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][80] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][90] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][100] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][110] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][120] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][130] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][140] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][150] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][160] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][170] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][180] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][190] = [14, 12, 9, 7]
+        self.cieciaSl[u'SO'][61][200] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][61][300] = [14, 12, 10, 7]
+        self.cieciaSl[u'SO'][81][5] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][81][10] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][20] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][30] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][40] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][50] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][60] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][70] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][80] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][90] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][100] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][110] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][120] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][130] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][140] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][150] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][160] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][170] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][180] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][190] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][200] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][81][300] = [13, 11, 9, 7]
+        self.cieciaSl[u'SO'][101][5] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][10] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][20] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][30] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][40] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][50] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][60] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][70] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][80] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][90] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][100] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][110] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][120] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][130] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][140] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][150] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][160] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][170] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][180] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][190] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][200] = [12, 10, 8, 6]
+        self.cieciaSl[u'SO'][101][300] = [12, 10, 8, 6]
+        self.cieciaSl[u'ŚW'][41][5] = [14, 12, 10, 8]
+        self.cieciaSl[u'ŚW'][41][10] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][20] = [15, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][41][30] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][40] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][50] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][60] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][70] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][80] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][90] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][100] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][110] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][120] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][130] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][140] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][150] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][160] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][170] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][180] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][190] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][200] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][41][300] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][5] = [16, 12, 10, 6]
+        self.cieciaSl[u'ŚW'][61][10] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][20] = [16, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][61][30] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][40] = [15, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][61][50] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][60] = [15, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][61][70] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][80] = [15, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][61][90] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][100] = [15, 13, 10, 7]
+        self.cieciaSl[u'ŚW'][61][110] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][120] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][130] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][140] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][150] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][160] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][170] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][180] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][190] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][200] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][61][300] = [15, 12, 10, 7]
+        self.cieciaSl[u'ŚW'][81][5] = [14, 12, 10, 6]
+        self.cieciaSl[u'ŚW'][81][10] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][20] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][30] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][40] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][50] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][60] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][70] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][80] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][90] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][100] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][110] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][120] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][130] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][140] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][150] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][160] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][170] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][180] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][190] = [15, 64, 9, 6]
+        self.cieciaSl[u'ŚW'][81][200] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][81][300] = [15, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][101][5] = [14, 12, 8, 6]
+        self.cieciaSl[u'ŚW'][101][10] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][20] = [14, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][101][30] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][40] = [14, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][101][50] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][60] = [14, 12, 9, 6]
+        self.cieciaSl[u'ŚW'][101][70] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][80] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][90] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][100] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][110] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][120] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][130] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][140] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][150] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][160] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][170] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][180] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][190] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][200] = [14, 11, 9, 6]
+        self.cieciaSl[u'ŚW'][101][300] = [14, 11, 9, 6]
+        self.cieciaSl[u'JD'][41][5] = [18, 14, 12, 8]
+        self.cieciaSl[u'JD'][41][10] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][20] = [18, 14, 11, 9]
+        self.cieciaSl[u'JD'][41][30] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][40] = [18, 14, 11, 9]
+        self.cieciaSl[u'JD'][41][50] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][60] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][70] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][80] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][90] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][100] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][110] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][120] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][130] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][140] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][150] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][160] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][170] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][180] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][190] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][200] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][41][300] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][5] = [18, 14, 12, 8]
+        self.cieciaSl[u'JD'][61][10] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][20] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][30] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][40] = [18, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][50] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][60] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][70] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][80] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][90] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][100] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][110] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][120] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][130] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][140] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][150] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][160] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][170] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][180] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][190] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][200] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][61][300] = [17, 14, 11, 8]
+        self.cieciaSl[u'JD'][81][5] = [12, 10, 8, 8]
+        self.cieciaSl[u'JD'][81][10] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][20] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][30] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][40] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][50] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][60] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][70] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][80] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][90] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][100] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][110] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][120] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][130] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][140] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][150] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][160] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][170] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][180] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][190] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][200] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][81][300] = [12, 10, 9, 7]
+        self.cieciaSl[u'JD'][101][5] = [8, 8, 8, 6]
+        self.cieciaSl[u'JD'][101][10] = [9, 8, 7, 42]
+        self.cieciaSl[u'JD'][101][20] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][30] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][40] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][50] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][60] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][70] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][80] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][90] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][100] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][110] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][120] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][130] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][140] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][150] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][160] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][170] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][180] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][190] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][200] = [9, 8, 7, 6]
+        self.cieciaSl[u'JD'][101][300] = [9, 8, 7, 6]
+        self.cieciaSl[u'BK'][41][5] = [16, 14, 12, 8]
+        self.cieciaSl[u'BK'][41][10] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][20] = [17, 15, 11, 9]
+        self.cieciaSl[u'BK'][41][30] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][40] = [17, 15, 11, 9]
+        self.cieciaSl[u'BK'][41][50] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][60] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][70] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][80] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][90] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][100] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][110] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][120] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][130] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][140] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][150] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][160] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][170] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][180] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][190] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][200] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][41][300] = [17, 15, 11, 8]
+        self.cieciaSl[u'BK'][61][5] = [16, 14, 10, 8]
+        self.cieciaSl[u'BK'][61][10] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][20] = [16, 13, 11, 9]
+        self.cieciaSl[u'BK'][61][30] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][40] = [15, 13, 11, 9]
+        self.cieciaSl[u'BK'][61][50] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][60] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][70] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][80] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][90] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][100] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][110] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][120] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][130] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][140] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][150] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][160] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][170] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][180] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][190] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][200] = [15, 13, 11, 8]
+        self.cieciaSl[u'BK'][61][300] = [15, 14, 11, 8]
+        self.cieciaSl[u'BK'][81][5] = [14, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][10] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][20] = [15, 13, 10, 8]
+        self.cieciaSl[u'BK'][81][30] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][40] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][50] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][60] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][70] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][80] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][90] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][100] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][110] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][120] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][130] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][140] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][150] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][160] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][170] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][180] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][190] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][200] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][81][300] = [15, 12, 10, 8]
+        self.cieciaSl[u'BK'][101][5] = [14, 12, 10, 8]
+        self.cieciaSl[u'BK'][101][10] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][20] = [13, 12, 10, 8]
+        self.cieciaSl[u'BK'][101][30] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][40] = [13, 11, 9, 8]
+        self.cieciaSl[u'BK'][101][50] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][60] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][70] = [12, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][80] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][90] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][100] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][110] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][120] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][130] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][140] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][150] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][160] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][170] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][180] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][190] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][200] = [13, 11, 9, 7]
+        self.cieciaSl[u'BK'][101][300] = [13, 11, 9, 7]
+        self.cieciaSl[u'DB'][41][5] = [10, 10, 8, 6]
+        self.cieciaSl[u'DB'][41][10] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][20] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][30] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][40] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][50] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][60] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][70] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][80] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][90] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][100] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][110] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][120] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][130] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][140] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][150] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][160] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][170] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][180] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][190] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][200] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][41][300] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][5] = [12, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][10] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][20] = [12, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][30] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][40] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][50] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][60] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][70] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][80] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][90] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][100] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][110] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][120] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][130] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][140] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][150] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][160] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][170] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][180] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][190] = [11, 9, 8, 6]
+        self.cieciaSl[u'DB'][61][200] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][61][300] = [11, 10, 8, 6]
+        self.cieciaSl[u'DB'][81][5] = [10, 8, 8, 6]
+        self.cieciaSl[u'DB'][81][10] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][20] = [11, 9, 7, 6]
+        self.cieciaSl[u'DB'][81][30] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][40] = [11, 9, 7, 6]
+        self.cieciaSl[u'DB'][81][50] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][60] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][70] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][80] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][90] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][100] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][110] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][120] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][130] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][140] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][150] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][160] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][170] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][180] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][190] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][200] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][81][300] = [11, 9, 7, 5]
+        self.cieciaSl[u'DB'][101][5] = [10, 8, 6, 4]
+        self.cieciaSl[u'DB'][101][10] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][20] = [10, 9, 7, 5]
+        self.cieciaSl[u'DB'][101][30] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][40] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][50] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][60] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][70] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][80] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][90] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][100] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][110] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][120] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][130] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][140] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][150] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][160] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][170] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][180] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][190] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][200] = [10, 8, 7, 5]
+        self.cieciaSl[u'DB'][101][300] = [10, 8, 7, 5]
+        self.cieciaSl[u'BRZ'][21][5] = [16, 14, 12, 8]
+        self.cieciaSl[u'BRZ'][21][10] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][20] = [17, 14, 12, 9]
+        self.cieciaSl[u'BRZ'][21][30] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][40] = [17, 14, 12, 8]
+        self.cieciaSl[u'BRZ'][21][50] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][60] = [17, 14, 12, 8]
+        self.cieciaSl[u'BRZ'][21][70] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][80] = [17, 14, 12, 8]
+        self.cieciaSl[u'BRZ'][21][90] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][100] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][110] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][120] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][130] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][140] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][150] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][160] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][170] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][180] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][190] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][200] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][21][300] = [17, 14, 11, 8]
+        self.cieciaSl[u'BRZ'][31][5] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][10] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][20] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][30] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][40] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][50] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][60] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][70] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][80] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][90] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][100] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][110] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][120] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][130] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][140] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][150] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][160] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][170] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][180] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][190] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][200] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][31][300] = [14, 12, 10, 8]
+        self.cieciaSl[u'BRZ'][41][5] = [12, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][10] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][20] = [12, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][30] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][40] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][50] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][60] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][70] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][80] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][90] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][100] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][110] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][120] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][130] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][140] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][150] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][41][160] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][170] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][180] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][190] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][200] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][41][300] = [11, 10, 8, 7]
+        self.cieciaSl[u'BRZ'][51][5] = [10, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][51][10] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][20] = [11, 10, 8, 6]
+        self.cieciaSl[u'BRZ'][51][30] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][40] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][50] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][60] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][70] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][80] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][90] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][100] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][110] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][120] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][130] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][140] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][150] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][160] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][170] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][180] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][190] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][200] = [11, 9, 8, 6]
+        self.cieciaSl[u'BRZ'][51][300] = [11, 9, 8, 6]
+        self.cieciaSl[u'OL'][21][5] = [22, 18, 14, 12]
+        self.cieciaSl[u'OL'][21][10] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][20] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][30] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][40] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][50] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][60] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][70] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][80] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][90] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][100] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][110] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][120] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][130] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][140] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][150] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][160] = [21, 18, 13, 9]
+        self.cieciaSl[u'OL'][21][170] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][180] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][190] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][200] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][21][300] = [21, 17, 13, 9]
+        self.cieciaSl[u'OL'][31][5] = [12, 12, 10, 8]
+        self.cieciaSl[u'OL'][31][10] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][20] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][30] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][40] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][50] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][60] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][70] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][80] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][90] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][100] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][110] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][120] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][130] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][140] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][150] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][160] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][170] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][180] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][190] = [13, 11, 9, 8]
+        self.cieciaSl[u'OL'][31][200] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][31][300] = [13, 11, 10, 8]
+        self.cieciaSl[u'OL'][41][5] = [10, 8, 8, 6]
+        self.cieciaSl[u'OL'][41][10] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][20] = [9, 8, 8, 7]
+        self.cieciaSl[u'OL'][41][30] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][40] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][50] = [9, 8, 7, 6]
+        self.cieciaSl[u'OL'][41][60] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][70] = [9, 8, 7, 6]
+        self.cieciaSl[u'OL'][41][80] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][90] = [9, 8, 7, 6]
+        self.cieciaSl[u'OL'][41][100] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][110] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][120] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][130] = [9, 8, 7, 6]
+        self.cieciaSl[u'OL'][41][140] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][150] = [9, 8, 7, 6]
+        self.cieciaSl[u'OL'][41][160] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][170] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][180] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][190] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][200] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][41][300] = [9, 8, 7, 7]
+        self.cieciaSl[u'OL'][51][5] = [8, 8, 6, 6]
+        self.cieciaSl[u'OL'][51][10] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][20] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][30] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][40] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][50] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][60] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][70] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][80] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][90] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][100] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][110] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][120] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][130] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][140] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][150] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][160] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][170] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][180] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][190] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][200] = [8, 8, 7, 6]
+        self.cieciaSl[u'OL'][51][300] = [8, 8, 7, 6]

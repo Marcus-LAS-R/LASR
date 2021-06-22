@@ -68,7 +68,7 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
             message.setWindowTitle('Błąd')
             message.setText(
                 'Brak warstw shp w podanym katalogu!')
-            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.addButton("Zamknij", QMessageBox.ActionRole)
             message.exec_()
             self.resetuj_tabele()
             return
