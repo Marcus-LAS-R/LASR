@@ -1,9 +1,11 @@
 from typing import Union
 from .baza_zabiegi_sl import ZabiegiSlownik
 from .wpisz import Wpisz
+from .wygeneruj import Generuj
+from .sprawdz import Sprawdz
 
 
-class Wydzielenie(ZabiegiSlownik, Wpisz):
+class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
     def __init__(self):
         # wczytaj wpisy i slowniki
         self.spisy()
@@ -73,6 +75,8 @@ class Wydzielenie(ZabiegiSlownik, Wpisz):
 
         # tab z wpisanymi zabiegami przez taksatorow, brak kolejnosci zabiegow
         self.cue = {}
+        # potrzebna jest zmiana str na KO bo podr+nalot>0.49
+        self.zmien_na_ko = False
 
     def isNone(self, it):
         if it is None:
@@ -103,7 +107,7 @@ class Wydzielenie(ZabiegiSlownik, Wpisz):
             return False
 
     def o_wiek_rebnosci(self, sl: dict) -> None:
-        """ Odczytaj wiek rebności z podanego sl
+        """ Odczytaj wiek rebności z pobranego sl
             Wynik działania Baza.pobierz_wiek_reb()
         """
         if sl:
@@ -147,7 +151,7 @@ class Wydzielenie(ZabiegiSlownik, Wpisz):
             self.cue[t[1]] = t[2]
             if self.max_cue < t[3]:
                 self.max_cue = t[3]
-            if t[1] in self.rebnieSpis:
+            if t[1].upper() in self.rebnieSpis:
                 self.proc_reb = float(self.isNone(t[5]))
                 if self.proc_reb == 0:
                     self.proc_reb = float(self.isNone(t[4]))

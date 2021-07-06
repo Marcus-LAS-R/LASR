@@ -47,7 +47,7 @@ class Wpisz:
             return True, 'OK'
         return False, 'Nie udało się dopisać cięcia do bazy'
 
-    def _zmodyfikuj_pow_rebni(self):
+    def _zmodyfikuj_pow_rebni(self) -> bool:
         """Metoda modyfikuje rebnie, w bazie dla podanego wydz
         """
         trig = False
@@ -83,7 +83,7 @@ class Wpisz:
         if zab[0] in zab_mlode and len(zab_wpisany) > 0:
             self.uw_raport.append(
                 f'Pominięto wpisanie wygenerowanego zabiegu ({zab[0]})'
-                ' znaleziono inny'
+                ' znaleziono inny z grupy (CP-P, CP, CW, TW, TP)'
             )
             return False
 
@@ -201,6 +201,7 @@ class Wpisz:
         odczytuje wartość z tablic
         '''
         # TODO: Zweryfikować tą metode czy dobrze liczy!!!!
+        # WYNIKI INNE OD TYCH Z BAZY!!!!
         # inne wyniki niż w bazie
         if not isinstance(modyf, str):
             modyf = ' '
@@ -226,6 +227,9 @@ class Wpisz:
             if self.mod_trzeb > 0 and modyf in ['TW', 'TP', 'CP-P']:
                 if proc + self.mod_trzeb < 21:
                     proc += self.mod_trzeb
+                # a jak większy to ustaw na 20%
+                else:
+                    proc = 20
 
             pow_ciecia = self.pow_wydz
             if self.gen_pow_reb > 0:

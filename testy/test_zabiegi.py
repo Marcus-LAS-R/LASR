@@ -57,3 +57,64 @@ def test_oblicz_ciecie(baza):
     ww = w._oblicz_ciecie('TW')
     assert w.zwarcie == 'PEŁ'
     assert ww == [15, 10]
+
+
+def test_sprawdz_slowniki_rebni():
+    w = Wydzielenie()
+    w.przygotuj_strukture(87)
+    assert len(w.rebnieSl) == len(w.rebnieSlnowy)
+
+
+def test_generuj_zabieg(baza_pusta):
+    w = Wydzielenie()
+    w.przygotuj_strukture(215)
+    wyn = baza_pusta.pobierz_do_zab(215)
+    w.odczytaj_dane_z_bazy(wyn)
+    w.wiekReb = 95  # zmiana żeby wygenerował rębnie
+    w.generuj_zabiegi()
+    assert w.zabiegi == \
+        [['ODN-ZRB', 1.0972], ['PIEL', 1.0972], ['AGROT', 1.0972]]
+    assert w.gen_reb == 'IB'
+
+
+def test_generuj_zabiegi_z_wpisana_rebnia_zupelna(baza_pusta):
+    w = Wydzielenie()
+    w.przygotuj_strukture(215)
+    wyn = baza_pusta.pobierz_do_zab(215)
+    w.odczytaj_dane_z_bazy(wyn)
+    w.reb = 'IB'
+    w.proc_reb = 50
+    w.wiekReb = 95  # zmiana żeby wygenerował rębnie
+    w.generuj_zabiegi()
+    assert w.zabiegi == \
+        [['ODN-ZRB', 0.5486], ['PIEL', 0.5486], ['AGROT', 0.5486]]
+    assert w.gen_reb == 'IB'
+
+
+def test_generuj_zabiegi_z_wpisana_rebnia_czesciowa(baza_pusta):
+    w = Wydzielenie()
+    w.przygotuj_strukture(215)
+    wyn = baza_pusta.pobierz_do_zab(215)
+    w.odczytaj_dane_z_bazy(wyn)
+    w.reb = 'IIB'
+    w.proc_reb = 50
+    w.wiekReb = 95  # zmiana żeby wygenerował rębnie
+    w.generuj_zabiegi()
+    assert w.zabiegi == \
+        [['ODN-ZŁOŻ', 0.5486], ['PIEL', 0.5486], ['AGROT', 0.5486]]
+    assert w.gen_reb == 'IIB'
+
+
+def test_generuj_zabiegi_ze_zmiana_na_KO(baza_pusta):
+    w = Wydzielenie()
+    w.przygotuj_strukture(215)
+    wyn = baza_pusta.pobierz_do_zab(215)
+    w.odczytaj_dane_z_bazy(wyn)
+    w.wiekReb = 95  # zmiana żeby wygenerował rębnie
+    w.nal = 0.3
+    w.podr = 0.2
+    w.generuj_zabiegi()
+    assert w.zabiegi == \
+        [['ODN-ZŁOŻ', 0.3292], ['PIEL', 0.3292], ['AGROT', 0.3292]]
+    assert w.gen_reb == 'IIB'
+    assert w.zmien_na_ko
