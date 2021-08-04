@@ -1,3 +1,4 @@
+from PyQt5.QtWidgets import QInputDialog
 from qgis.utils import iface
 from qgis.core import QgsFeatureRequest
 
@@ -10,6 +11,7 @@ def DopiszAdres():
             return
     except Exception:
         iface.messageBar().pushWarning('BŁĄD', "Niepoprawna warstwa...")
+        return
 
     flds = [x.name().upper() for x in lyr.dataProvider().fields().toList()]
     pole = None
@@ -24,10 +26,16 @@ def DopiszAdres():
     elif 'IDENTYFIKA' in flds:
         pole = 'IDENTYFIKA'
     else:
-        iface.messageBar().pushWarning(
-            'BŁĄD', "Nie odnaleziono pola 'G5IDD' lub 'IDENTYFIKA' w warstwie"
+        kols = sorted([x for x in lyr.dataProvider().fieldNameMap().keys()])
+        kol, ok = QInputDialog.getItem(
+            None,
+            'Wybierz kolumne z adresem administracyjnym',
+            'Nazwa kloumny',
+            kols, 0, False
         )
-        return
+        if not ok:
+            return
+        pole = kol
 
     sl = {}
     req = QgsFeatureRequest().setFlags(

@@ -10,7 +10,8 @@ from qgis.core import QgsVectorLayer, QgsExpression, QgsPrintLayout, Qgis,  \
     QgsFeatureRequest, QgsProject, QgsLayoutItemPage, QgsLayoutSize, \
     QgsLayoutItemLabel, QgsLayoutItem, QgsUnitTypes, QgsLayoutPoint, QgsField,\
     QgsLayoutItemPolyline, QgsRectangle, QgsLayoutItemMap, \
-    QgsLayoutItemPicture, QgsLayoutExporter
+    QgsLayoutItemPicture, QgsLayoutExporter, QgsMessageLog
+
 import processing
 
 from .baza_wrapper import Baza
@@ -983,8 +984,9 @@ class Wyciag:
 
         nazwisko = self.sl_wl[self.addr]['opis']['nazwisko'] + ' ' + \
             self.sl_wl[self.addr]['opis']['imie']
-        if self.sl_wl[self.addr]['opis']['wspl'] != '':
-            sec = self.sl_wl[self.addr]['opis']['wspl']
+        sec = self.sl_wl[self.addr]['opis']['wspl']
+        if sec not in ['', None, 'NULL', 0]:
+            # if sec in self.wl_all[sec]:
             nazwisko += ', ' + self.wl_all[sec]
 
         adres = ''
@@ -1235,6 +1237,8 @@ class GenerujWyciagi(Struktura, Wyciag):
 
         # lista addr_nr z bazy do wygenerowania
         self.lista_addr = []
+        # lista z błędnymi numerami addr_id, nie zostały wygenerowane
+        self.bledy_generowania = []
 
         self.minOdl = 250
         self.skala = 5000
@@ -1250,6 +1254,8 @@ class GenerujWyciagi(Struktura, Wyciag):
             self.iface.messageBar().pushMessage(
                 'Błąd wejsciowy', mess, Qgis.Critical)
             return
+        self.iface.messageBar().pushMessage(
+            'Generuję wyciągi', '...', Qgis.Success)
 
         self.przygotuj_strukture_baza()
         self.przygotuj_strukture_shp()
@@ -1262,9 +1268,30 @@ class GenerujWyciagi(Struktura, Wyciag):
             l_wl = sorted([x for x in self.lista_addr if int(x) in self.sl_wl])
 
         for adr in l_wl:
-            self.przygotuj_wyciag(int(adr))
-            self.rysuj()
-            self.eksportuj_wyciag()
+            try:
+                self.przygotuj_wyciag(int(adr))
+                self.rysuj()
+                self.eksportuj_wyciag()
+            except Exception:
+                self.bledy_generowania.append(adr)
+
+        self.iface.messageBar().clearWidgets()
+        if len(self.bledy_generowania) > 0:
+            self.iface.messageBar().pushMessage(
+                'BŁĄD', 'Nie udało wygenerować się wszystkich wyciągów'
+                ' (błędy podczas generowania wyciągów: '
+                f'{len(self.bledy_generowania)})'
+                '- pełna lista addr_id w logu Las-R',
+                Qgis.Warning)
+            QgsMessageLog.logMessage(
+                'Niewygenerowane numery właścicieli: ' +
+                ', '.join([str(x) for x in self.bledy_generowania]),
+                'Las-R', Qgis.Warning)
+        else:
+            self.iface.messageBar().pushMessage(
+                'OK', 'Wygenerowano wszystkie zadane wyciągi ' +
+                f'[{len(self.l_wl)}]',
+                Qgis.Success)
 
     def pobierz_dane(self):
         """Pobiera dane od uzytkownika przez wyswietlone okno dialogowe"""

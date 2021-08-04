@@ -13,6 +13,7 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
     def przygotuj_strukture(self, aid: int) -> None:
         # modyfikator dodawany przy obliczaniu % trzebiezy (int)
         self.mod_trzeb = 0
+        self.wybor = 'Spr'  # przeazanie z klasy głównej
 
         # wskaznik do bazy w celu wpisywania danych, wykorzystywany w metodzie
         # dopisz_zabiegi
@@ -28,6 +29,11 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
         self.nal = 0
         self.podr = 0
         self.pods = 0
+        self.cel_hod = 0  # ile jest wpisanych celów hodowl w wydzieleniu
+
+        # czy poprawna bonitacja, jeżeli IA wpisane gdzie indziej niz przy
+        # sosnie to wtedy True
+        self.bonitacja_flag = False
 
         # dane rebni wpisanej do bazy przez taksatora
         self.reb = ''
@@ -49,25 +55,34 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
         self.gat_gl_udz = 0
         self.gat_gl_vol = 0
         self.gat_gl_bhd = 0
+        # opisy dla poszczególnych gat z piętra drzew, IP, IIP
+        self.drzew_gat = []
 
         # ostatnia wartość z jaką coś jest wpisane do bazy
         self.max_cue = 0
+        # ile w wydz jest przeznaczone do wyciecia, nie przeliczona na 1 ha!!!
+        self.sum_cue_volume = 0
 
         self.pow_wydz = 0.0
+        # sprawdz czy wpisany zabieg nie ma zerowerj powierzchni...
+        self.zerowa_powierzchnia = False
 
         self.wiekRebSl = {}  # slownik z bazy z rokiem rebnosci dla poszcz gat.
         self.wiekReb = 120  # wiek rebności standardowo ustawiamy na 120 lat
         self.przest_vol = 0
+        self.przest_pozyskanie = 0  # ile przeznaczone jest do pozyskania
+        self.mlode_pozyskanie = 0  # pozyskanie z TP, TW, CPP
         self.plaz_vol = 0
         self.brak_zad = False
         self.zwarcie = ''
         self.trzebiez = False  # flaga do sprawdzenia luk na trzebiezach
         self.uszk = ''  # stopien uszkodzenia d-stanu
+        self.pokrywa = ''
         self.uw_dopisz = ''  # string z uwagami do dopisania do f_subarea
         self.uw_raport = []  # tablica z uwagami do raportu
         self.uw_baza = []  # tablica z uw. z wpisywana do bazy...
-        self.uwagi = ''  # string z uwagami w bazie+uzup, max dł 255 znaków!!!
-        self.uwagi_org = ''  # string z uwagami w bazie, max dł 255 znaków!!!
+        self.uwagi = ''  # strz uwagami w bazie+uzup, max dł 255 znaków!!!
+        self.uwagi_org = ''  # strz uwagami w bazie, max dł 255 znaków!!!
 
         # tabela z wygenerowanymi zabiegami w postaci:
         # [[zab: pow], ...] kolejnosc ma znaczenie!
@@ -75,6 +90,7 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
 
         # tab z wpisanymi zabiegami przez taksatorow, brak kolejnosci zabiegow
         self.cue = {}
+        self.zdublowane_cue = []  # lista podwojnych wskazowek w bazie
         # potrzebna jest zmiana str na KO bo podr+nalot>0.49
         self.zmien_na_ko = False
 
@@ -147,24 +163,47 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
 
     def o_ist_zab(self, tab: list) -> None:
         for t in tab:
-            # typ_zab: pow zab
-            self.cue[t[1]] = t[2]
+            if t[1] in self.cue:
+                self.zdublowane_cue.append(t[1])
+            else:
+                # typ_zab: pow zab
+                self.cue[t[1]] = t[2]
+
             if self.max_cue < t[3]:
                 self.max_cue = t[3]
+
             if t[1].upper() in self.rebnieSpis:
+                if t[1] != t[1].upper():
+                    self.popraw_rebnie
                 self.proc_reb = float(self.isNone(t[5]))
                 if self.proc_reb == 0:
                     self.proc_reb = float(self.isNone(t[4]))
-                self.reb = t[1]
+                self.reb = t[1].upper()
                 self.pow_reb = self.isNone(t[2])
                 self.ile_reb += 1
+                if t[2] == 0:
+                    self.zerowa_powierzchnia = True
+                if isinstance(t[6], int):
+                    self.sum_cue_volume += t[6]
+
+            if t[1].upper() == 'PRZEST':
+                if isinstance(t[6], int):
+                    self.przest_pozyskanie += t[6]
+
+            if t[1].upper() == 'ZADRZEW':
+                if isinstance(t[6], int):
+                    self.przest_pozyskanie += t[6]
+
+            if t[1].upper() in ['TP', 'TW', 'CP-P']:
+                if str(t[6]).isdigit():
+                    self.mlode_pozyskanie += t[6]
 
     def o_przest(self, tab: list) -> None:
         if len(tab) > 0:
             self.przes = True
 
     def o_gat_gl(self, tab: list) -> None:
-        if not isinstance(tab, type([])):
+        if not isinstance(tab, list):
             return
         if len(tab) > 0:
             self.gat_gl = tab[0][1]
@@ -184,10 +223,11 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
             self.typ = tab[0][1]
             self.stl = tab[0][2]
             self.opis = tab[0][4]
-            self.struk = tab[0][5]
+            self.struk = self.isNoneT(tab[0][5])
             self.uszk = self.isNoneT(tab[0][6])
             self.uwagi = self.isNoneT(tab[0][7])
             self.uwagi_org = self.isNoneT(tab[0][7])
+            self.pokrywa = self.isNoneT(tab[0][8])
 
     def o_luki(self, tab: list) -> None:
         if len(tab) > 0:
@@ -206,6 +246,21 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
             return
         self.ile_dzkat = tab[0][0]
 
+    def o_cel_hod(self, tab):
+        if not isinstance(tab, type([])):
+            return
+        self.cel_hod = tab[0][0]
+
+    def o_opis_drzew(self, tab):
+        if not isinstance(tab, list):
+            return
+        for row in tab:
+            # row = [species_cd, bonintacja, udzial, wiek, piers, wys, vol]
+            # sprawdz czy wpisana bon IA jest poprawna
+            if row[0] != 'SO' and row[1] in ['IA', 'IB']:
+                self.bonitacja_flag = True
+            self.drzew_gat.append(list(row))
+
     def odczytaj_dane_z_bazy(self, tab: list) -> bool:
         """Metoda wczytuje podane przez użytkownika dane w postaci tablicy z
         bazy danych z metody pobierz do zab, i wczytuje wartości do zmiennych.
@@ -219,6 +274,8 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
             self.o_przest_vol(tab[5])
             self.o_luki(tab[6])
             self.o_dzkat(tab[7])
+            self.o_cel_hod(tab[8])
+            self.o_opis_drzew(tab[9])
             return True
         except Exception:
             self.uw_raport.append(

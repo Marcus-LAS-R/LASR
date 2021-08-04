@@ -221,7 +221,7 @@ class Generuj:
             return
 
         dl_uwagi_baza = len(self.uwagi)
-        # uwaga jest już wpisana w uwagach, nie ma co dublować
+        # uwaga jest już wpisana, nie ma co dublować
         for key in ['c', 's']:
             if self.uw_sl[typ][key] in self.uwagi:
                 return

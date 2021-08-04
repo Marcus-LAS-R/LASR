@@ -74,7 +74,7 @@ class Baza(object):
         self.con = False
         self.cur = False
         self.ok = False
-        self.baza = b
+        self.baza = b  # sciezka do bazy, bez normalizacji sciezki...
 
         self.czas = \
             datetime.now().isoformat().replace(':', '')[:-7]
@@ -714,6 +714,13 @@ class Baza(object):
             f.ARODES_INT_NUM;'''
         pp_kwer = self.cur.execute(sql).fetchall()
 
+        # sprawdzenie gatunków w wydzieleniu
+        sql = 'select species_cd, site_class_cd, part_cd, species_age, ' + \
+            'bhd, height, volume_temp from F_STOREY_SPECIES ' + \
+            f'where arodes_int_num = {aid} and STOREY_CD in ' + \
+            '("DRZEW", "IP", "IIP");'
+        gat_opisy = self.cur.execute(sql).fetchall()
+
         # szczegolowe dane o wydzieleniach
         SQL = """
         select
@@ -724,7 +731,8 @@ class Baza(object):
             f.SUBAREA_INFO,
             f.STAND_STRUCT_CD,
             f.DAMAGE_DEGREE_CD,
-            f.SUBAREA_INFO
+            f.SUBAREA_INFO,
+            f.VEG_COVER_CD
         FROM
             F_SUBAREA AS f
         WHERE
@@ -776,8 +784,12 @@ class Baza(object):
 
         # dzialki na ktorych lezy wydzielenie
         sql = 'select count(parcel_int_num) from F_AROD_LAND_USE where ' + \
-            'arodes_int_num = ' + str(aid) + ';'
+            f'arodes_int_num = {aid};'
         wydz_dzkat = self.cur.execute(sql).fetchall()
+
+        sql = 'select count(goal_type_fl) from f_arod_goal where ' + \
+            f'arodes_int_num={aid}'
+        cel_hod = self.cur.execute(sql).fetchall()
 
         tab = [
             podNal_kwer,
@@ -788,6 +800,8 @@ class Baza(object):
             przest_kwer,
             luki_kwer,
             wydz_dzkat,
+            cel_hod,
+            gat_opisy,
         ]
 
         return tab
@@ -1052,3 +1066,22 @@ class Baza(object):
         slg = {x[0]: x[1] for x in self.cur.execute(sql).fetchall()}
 
         return slg, slz
+
+    def usun_zadrzew_w_przes(self):
+        """Usuwa z wszystkich warstw PRZES w tabeli f_arod_storey zadrzewienie
+        """
+        sql = '''
+        update f_arod_storey set standdensity_index = NULL where
+        storey_cd='PRZES';
+        '''
+        return self.wpisz(sql)
+
+    def usun_mase_z_podr_podsz_nal(self):
+        """Usuwa z wszystkich warstw PODR, PODSZ, NAL w tabeli f_storey_species
+        miazszosc
+        """
+        sql = '''
+        update f_storey_species set volume = NULL, volume_temp=NULL where
+        storey_cd in ('PODSZ', 'PODR', 'NAL');
+        '''
+        return self.wpisz(sql)

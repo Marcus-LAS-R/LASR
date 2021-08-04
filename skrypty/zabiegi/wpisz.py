@@ -15,12 +15,19 @@ class Wpisz:
                 wpisane sa procenty.
         """
         # dopisz rebnie
-        status, val = self._dopisz_nowa_rebnie()
-        if not status:
-            self.uw_raport.append(val)
+        if alter == '':
+            status, val = self._dopisz_nowa_rebnie()
+            if not status:
+                self.uw_raport.append(val)
+        else:
+            if not self._zmodyfikuj_pow_rebni():
+                self.uw_raport.append('Nie udało się zmodyfikować powierzchni')
+
+        # metoda sama ogarnia czy zmienic powierzchnie czy nie
+        self._dopisz_zabiegi()
 
     def _dopisz_nowa_rebnie(self) -> Union[bool, str]:
-        """Metoda dopisuje do bazy nowe zabiegi, w bazie dla podanego wydz
+        """Metoda dopisuje do bazy nowe rebnie, w bazie dla podanego wydz
         nie powinny być dopisane żadne zabiegi
         """
         if self.gen_reb in ['', False, None]:
@@ -56,7 +63,7 @@ class Wpisz:
                 trig = True
         if not trig:
             return
-        return self._zmodyfikuj_powierzchnie([self.gen_reb, self.pow_wydz])
+        return self._zmodyfikuj_powierzchnie([self.gen_reb, self.gen_pow_reb])
 
     def _dopisz_zabiegi(self):
         """Metoda dopisuje zabiegi do bazy, lub uzupełnia powierzchnię juz
@@ -69,17 +76,20 @@ class Wpisz:
 
     def _dopisz_zabieg(self, zab: list) -> bool:
         """Dopisuje lub modyfikuje zabieg w bazie na podstawie listy.
-
+            zab: ['TP', pow_zab]
         """
         zab_mlode = ['TP', 'TW', 'CP-P', 'CP', 'CW']
         # zabieg już jest wpisany do bazy
         if zab[0] in self.cue:
             if zab[1] != self.cue[zab[0]]:  # i ma inna powierzchnie
                 return self._zmodyfikuj_powierzchnie(zab)
+            else:
+                return True  # jest i ma taka sama powierzchnie -> ok
 
         # czy zabieg już wpisany w bazie, jak tak pomijam
         # zabezpiecznie na wszelki wypadek...
-        zab_wpisany = [x for x in self.cue.keys() if x in zab_mlode]
+        zab_wpisany = [x for x in self.cue.keys()
+                       if x in zab_mlode and x != zab[0]]
         if zab[0] in zab_mlode and len(zab_wpisany) > 0:
             self.uw_raport.append(
                 f'Pominięto wpisanie wygenerowanego zabiegu ({zab[0]})'
@@ -88,11 +98,36 @@ class Wpisz:
             return False
 
         if zab[0] in ['TP', 'TW', 'CP-P']:
-            self._dopisz_cpp_tw_tp(zab)
+            self._dopisz_ciecie_mlodych(zab)
         elif zab[0] not in ['PRZEST', 'PŁAZ']:
             self._dopisz_inne_zabiegi(zab)
+        elif zab[0] in ['PRZEST', 'PŁAZ']:
+            self._dopisz_przest_plaz(zab)
+
+        self.uzupelnij_uwagi()
+
+    def uzupelnij_uwagi(self) -> bool:
+        """Modyfikuje pole subarea_info w tabeli f_subarea dla aktualnego
+        wydzielenia
+        """
+        if self.uwagi != self.uwagi_org:
+            if len(self.uwagi) > 254:
+                self.uw_baza.append(
+                    'Nie udało się pisać opisu do f_subarea (za długi): ' +
+                    f'{self.uwagi}'
+                )
+                return False
+
+            sql = f'update f_subarea set subarea_info=\'{self.uwagi}\' ' + \
+                f'where arodes_int_num={self.aid};'
+            res = self.baza.wpisz(sql)
+            if not res:
+                self.uw_baza.append(
+                    f'Nie udało się pisać opisu do f_subarea: {self.uwagi}'
+                )
+                return False
         else:
-            pass
+            return True
 
     def _dopisz_ciecie_mlodych(self, zab: list) -> bool:
         """dopisuje CP-P, TW, TP, CW, CP do bazy do konkretnego wydzielenia
@@ -106,7 +141,7 @@ class Wpisz:
             CUE_RANK_ORDER,
             SITE_NR,
             PROC_AREA,
-            LARGE_TIMBER_VALU
+            LARGE_TIMBER_VALUE
             ) values(?, ?, 'N', ?, ?, ?, 0, ?, ?);
             '''
         ciecie = self._oblicz_ciecie(zab[0])
@@ -196,13 +231,14 @@ class Wpisz:
         self.zmodyfikowano += 1
         return True
 
-    def _oblicz_ciecie(self, modyf):
+    def _oblicz_ciecie(self, modyf: str) -> Union[int, int]:
         ''' zwraca % ciecia dla wydz oraz wartosc pozyskania grubizny,
         odczytuje wartość z tablic
+        modyf: zabieg z grupy mlodych ['TP', 'TW', 'CP-P']
+        zwraca [procent, wartość pozyskania grubizny]
         '''
         # TODO: Zweryfikować tą metode czy dobrze liczy!!!!
         # WYNIKI INNE OD TYCH Z BAZY!!!!
-        # inne wyniki niż w bazie
         if not isinstance(modyf, str):
             modyf = ' '
         # zgeneralizuj gatunek drzewa
