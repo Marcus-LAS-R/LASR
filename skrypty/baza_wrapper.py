@@ -718,7 +718,7 @@ class Baza(object):
         sql = 'select species_cd, site_class_cd, part_cd, species_age, ' + \
             'bhd, height, volume_temp from F_STOREY_SPECIES ' + \
             f'where arodes_int_num = {aid} and STOREY_CD in ' + \
-            '("DRZEW", "IP", "IIP");'
+            '(\'DRZEW\', \'IP\', \'IIP\');'
         gat_opisy = self.cur.execute(sql).fetchall()
 
         # szczegolowe dane o wydzieleniach

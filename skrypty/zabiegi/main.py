@@ -166,7 +166,7 @@ class Zabiegi():
             QgsMessageLog.logMessage(
                 'Wystąpiły błędy przy generowaniu zabiegów dla poniższych '
                 'wydzieleń, (patrz plik raportu):\n' +
-                '\n'.join([self.wydz_id[x] for x in self.bledy]),
+                '\n'.join(self.bledy),
                 'Las-R'
             )
             self.iface.messageBar().pushMessage(
