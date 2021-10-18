@@ -122,6 +122,51 @@
         </item>
        </layout>
       </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <item>
+         <widget class="QLabel" name="label_4">
+          <property name="text">
+           <string>Układ wejściowy (o ile warstwa nie ma go zadeklarowanego):</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboBox_crs_in">
+          <item>
+           <property name="text">
+            <string>PUWG-92 (epsg:2180)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000-strefa 5 (epsg:2176)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000-strefa 6 (epsg:2177)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000-strefa 7 (epsg:2178)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2000-strefa 8 (epsg:2179)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>WGS-84 (epsg:4326)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>

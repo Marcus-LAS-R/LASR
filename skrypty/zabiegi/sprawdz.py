@@ -407,9 +407,9 @@ class Sprawdz:
             pozysk += round(self.mlode_pozyskanie * self.pow_wydz, 0)
             pozysk += round(self.przest_pozyskanie, 0)
             pozysk = int(pozysk)
-            if 61 > pozysk:
+            if 61 < pozysk:
                 self.uw_raport.append(
-                    f'Pozyskanie <61m³/ha [{pozysk} m³/ha], ' +
+                    f'Pozyskanie >61m³/ha [{pozysk} m³/ha], ' +
                     f'(pow. wydz: {self.pow_wydz})'
                 )
 

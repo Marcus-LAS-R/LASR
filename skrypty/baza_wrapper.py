@@ -1085,3 +1085,11 @@ class Baza(object):
         storey_cd in ('PODSZ', 'PODR', 'NAL');
         '''
         return self.wpisz(sql)
+
+    def dopisz_ownership(self):
+        """Dopisuje 7.1 w kolumniw ownership_cd w tabeli f_parcel o ile pole
+        puste
+        """
+        sql = 'update f_parcel set ownership_cd=\'7.1\' ' + \
+            'where isnull(ownership_cd);'
+        return self.wpisz(sql)

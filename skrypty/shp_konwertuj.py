@@ -160,8 +160,18 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
             return
 
         crs_to = self.comboBox_crs.currentText().split('(')[-1][:-1]
+        crs_in = self.comboBox_crs_in.currentText().split('(')[-1][:-1]
         for zz in zaz:
             pth = self.sl[zz]
+            if 'unknown' in zz:
+                params = {
+                    'OUTPUT': 'memory',
+                    'INPUT': pth,
+                    'CRS': crs_in,
+                }
+                pth = processing.run(
+                    'native:assignprojection', params
+                )['OUTPUT']
 
             params = {
                 'INPUT': pth,

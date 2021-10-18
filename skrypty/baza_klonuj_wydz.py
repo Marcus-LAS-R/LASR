@@ -566,6 +566,7 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
         self.valid = False
         self.porzucone = True
         self.iface = iface
+        self.kat = ''
 
         self.pushButton_anuluj.clicked.connect(self.porzuc)
         self.pushButton_baza.clicked.connect(self.kat_baza)
@@ -646,6 +647,12 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
                            koord[0]+0.1, koord[1]+0.1)
         req = QgsFeatureRequest().setFilterRect(rec)
         f = ''
+        if not self.iface.activeLayer():
+            self.iface.messageBar().pushMessage(
+                'BŁĄD', 'Niepoprawna warstwa', Qgis.Critical, 10
+            )
+            return False
+
         for fd in self.iface.activeLayer().getFeatures(req):
             f = fd['ADR_LES']
 
@@ -663,6 +670,11 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
                            koord[0]+0.1, koord[1]+0.1)
         req = QgsFeatureRequest().setFilterRect(rec)
         f = ''
+        if not self.iface.activeLayer():
+            self.iface.messageBar().pushMessage(
+                'BŁĄD', 'Niepoprawna warstwa', Qgis.Critical, 10
+            )
+            return False
         for fd in self.iface.activeLayer().getFeatures(req):
             f = fd['ADR_LES']
 
