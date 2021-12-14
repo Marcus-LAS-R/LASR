@@ -43,7 +43,7 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
     baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
     baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi, \
-    shp_konwertuj, shp_uzup_adradm
+    shp_konwertuj, shp_uzup_adradm, baza_dopisz_ownership, baza_dopisz_rosliny
 
 from .skrypty.zabiegi.main import Zabiegi
 
@@ -490,6 +490,16 @@ class LasR:
             self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_dop_adm)
         self.a_dop_adm.triggered.connect(self.dopisz_adradm)
+
+        self.a_dop_own = QAction(
+            QIcon(None), 'Dopisz OWNERSHIP', self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_dop_own)
+        self.a_dop_own.triggered.connect(self.dopisz_ownera)
+
+        self.a_dop_ros = QAction(
+            QIcon(None), 'Dopisz rośliny', self.iface.mainWindow())
+        self.m_narzedzia.addAction(self.a_dop_ros)
+        self.a_dop_ros.triggered.connect(self.dopisz_rosliny)
 
         self.a_czy_kol = QAction(
             QIcon(None), 'Usuń zawartość kolumn', self.iface.mainWindow())
@@ -1030,3 +1040,9 @@ class LasR:
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DopiszAdres()
+
+    def dopisz_ownera(self):
+        baza_dopisz_ownership.dopisz_ownership_do_bazy(self.iface)
+
+    def dopisz_rosliny(self):
+        baza_dopisz_rosliny.dopisz_rosliny(self.iface)

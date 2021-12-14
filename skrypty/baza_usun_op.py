@@ -201,10 +201,4 @@ def CzyscBaze(baza):  # noqa
         Qgis.Info
     )
 
-    if not baza.dopisz_ownership():
-        QgsMessageLog.logMessage(
-            'Nie udało się dopisać własności do OWNERSHIP_CD w F_PARCEL',
-            'Las-R', Qgis.Info
-        )
-
     return [len(bledy_adr)+len(bledy_pid), bledy_pid, bledy_adr]

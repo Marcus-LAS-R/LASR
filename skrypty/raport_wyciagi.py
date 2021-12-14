@@ -1290,7 +1290,7 @@ class GenerujWyciagi(Struktura, Wyciag):
         else:
             self.iface.messageBar().pushMessage(
                 'OK', 'Wygenerowano wszystkie zadane wyciągi ' +
-                f'[{len(self.l_wl)}]',
+                f'[{len(l_wl)}]',
                 Qgis.Success)
 
     def pobierz_dane(self):

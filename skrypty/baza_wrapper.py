@@ -1093,3 +1093,18 @@ class Baza(object):
         sql = 'update f_parcel set ownership_cd=\'7.1\' ' + \
             'where isnull(ownership_cd);'
         return self.wpisz(sql)
+
+    def pobierz_wydzielenia_nielesne(self):
+        """Pobierz adr_les z wydzieleniami nielesnymi"""
+
+        sql = '''
+            SELECT distinct F_ARODES.ADRESS_FOREST
+            FROM F_PARCEL_LAND_USE INNER JOIN
+            (F_ARODES INNER JOIN F_AROD_LAND_USE ON
+            F_ARODES.ARODES_INT_NUM = F_AROD_LAND_USE.ARODES_INT_NUM) ON
+            (F_PARCEL_LAND_USE.SHAPE_NR = F_AROD_LAND_USE.SHAPE_NR) AND
+            (F_PARCEL_LAND_USE.PARCEL_INT_NUM = F_AROD_LAND_USE.PARCEL_INT_NUM)
+            GROUP BY F_ARODES.ADRESS_FOREST, F_PARCEL_LAND_USE.AREA_USE_CD
+            HAVING (((F_PARCEL_LAND_USE.AREA_USE_CD) Not Like "Ls"));
+        '''
+        return self.pobierz(sql)

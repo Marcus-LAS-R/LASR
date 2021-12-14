@@ -17,6 +17,7 @@ class recursivedefaultdict(defaultdict):
 class DopiszKody(SprawdzWydzielenia):
     def __init__(self, iface):
         self.iface = iface
+        self.nielesne = []  # lista z adradm wydz nielesnych
 
         QgsMessageLog.logMessage(
             '--- DOPISZ METADANE DO WYDZIELEŃ ---',
@@ -262,6 +263,9 @@ class DopiszKody(SprawdzWydzielenia):
             self.sl = {x[0]: x[1:] for x in self.dane}
             self.ciecia_raw = self.baza.pobierz_zab_do_mapy()
             self.przetworz_zab()
+            self.nielesne = self.baza.pobierz_wydzielenia_nielesne()
+            self.nielesne = \
+                [x[0] for x in self.nielesne] if self.nielesne else []
             self.baza.zamknij()
 
             QgsMessageLog.logMessage(
@@ -439,7 +443,7 @@ class DopiszKody(SprawdzWydzielenia):
                     fnm['ZADRZEW']: round(
                         self.isNone(self.sl[adr][6], typ='i'), 1),
                     fnm['STRUKTUR']: self.isNone(self.sl[adr][8]),
-                    fnm['L_EWID']: 'T',
+                    fnm['L_EWID']: 'N' if adr in self.nielesne else 'T',
                     fnm['POKRYWA']: self.isNone(self.sl[adr][9]),
                 }
 
