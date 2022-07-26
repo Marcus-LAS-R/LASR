@@ -697,12 +697,14 @@ class Wyciag:
                          isNone(self.sl_wl[self.addr]['opis']['imie'])])
         self.kred = kred
 
-        lab = self._dodaj_lab(self.wl_x, self.wl_y+2.5, 35, 3, kred)
+        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+2.5, 55, 3, kred)
         lab.setFont(QFont("Arial", 7, QFont.Normal))
         lab.setHAlign(Qt.AlignCenter)
         self.lay.addItem(lab)
 
         _adr = ''
+        if self.sl_wl[self.addr]['opis']['miejscowosc'] != '':
+            _adr += self.sl_wl[self.addr]['opis']['miejscowosc'] + ', '
         if self.sl_wl[self.addr]['opis']['ulica'] != '':
             _adr += self.sl_wl[self.addr]['opis']['ulica'].replace(
                 'd:', '').replace('l:', '') + '\n'
@@ -714,8 +716,17 @@ class Wyciag:
             _adr += \
                 self.sl_wl[self.addr]['opis']['miejscowosc'].strip('\n\t\r ')
 
-        lab = self._dodaj_lab(self.wl_x, self.wl_y+7, 35, 9, _adr)
+        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+7, 55, 9, _adr)
         lab.setFont(QFont("Arial", 7, QFont.Normal))
+        lab.setHAlign(Qt.AlignCenter)
+        self.lay.addItem(lab)
+
+        # Wyciag z planu UPUL
+        lab = self._dodaj_lab(
+            20, 160, 170, 8,
+            'Wyciąg z uproszczonego planu urządzenia lasu'
+        )
+        lab.setFont(QFont("Arial", 9, QFont.Bold))
         lab.setHAlign(Qt.AlignCenter)
         self.lay.addItem(lab)
 
@@ -1304,7 +1315,7 @@ class GenerujWyciagi(Struktura, Wyciag):
         self.baza = Baza(dd.baza)
         self.kat = os.path.dirname(dd.baza)
 
-        self.star = dd.starostwo
+        self.star = dd.starostwo.replace('Powiatowe', 'Powiatowe\n')
         self.star_adr = dd.star_adr
         self.star_x = dd.poz_st_x
         self.star_y = dd.poz_st_y

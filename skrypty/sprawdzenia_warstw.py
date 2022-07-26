@@ -122,7 +122,7 @@ class SprawdzWydzielenia():
     def spr_crs(self):
         """Metoda sprwdza układ wspł. warstwy, jeżeli nie jest to EPSG:2180,
         zwraca False"""
-        if self.wydz.crs().authid() != 'EPSG:2180':
+        if self.wydz.crs().authid().upper() != 'EPSG:2180':
             self.iface.messageBar().pushMessage(
                 'Wydzielenia',
                 'Warstwa ma inny układ współrzędnych niż PUWG92 (EPSG:2180)',

@@ -403,8 +403,8 @@ class Sprawdz:
         if self.typ != 'D-STAN':
             return
         if self.pow_wydz > 0:
-            pozysk = round(self.sum_cue_volume * self.pow_wydz, 0)
-            pozysk += round(self.mlode_pozyskanie * self.pow_wydz, 0)
+            pozysk = round(self.sum_cue_volume, 0)
+            pozysk += round(self.mlode_pozyskanie, 0)
             pozysk += round(self.przest_pozyskanie, 0)
             pozysk = int(pozysk)
             if 61 < pozysk:

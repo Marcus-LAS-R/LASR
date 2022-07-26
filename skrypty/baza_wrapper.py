@@ -1,7 +1,7 @@
 import os
 import glob
 import platform
-import pypyodbc as pyodbc
+import pyodbc
 import sqlite3
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtCore import QVariant

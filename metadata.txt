@@ -10,7 +10,7 @@
 name=Las-R
 qgisMinimumVersion=3.10
 description=Plugin do automatyzacji pracy przy Uproszczonych Planach Urządzania Lasu (mdb + shp)
-version=1.07
+version=1.09
 author=Paweł Krąpiec
 email=p.krapiec@lasr.pl
 
