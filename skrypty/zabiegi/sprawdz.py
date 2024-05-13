@@ -286,7 +286,7 @@ class Sprawdz:
                 return
             elif row[3] > 150:
                 self.uw_raport.append(
-                    f'Sprawdź wpisany wiek [{row[4]} lat]'
+                    f'Sprawdź wpisany wiek [{row[3]} lat]'
                 )
 
             # piersnica

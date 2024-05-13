@@ -815,6 +815,23 @@ class Baza(object):
         self.cur.execute(sql)
         self.con.commit()
 
+    def usun_kwerendy(self):
+        pass
+        # nietestowane - trzeba zrobic liste wszystkich nazw kwerend do
+        # usuniecia
+
+        # cxn = pyodbc.connect('DRIVER={Microsoft Access Driver (*.mdb,
+        # *.accdb)};DBQ=C:\\__tmp\\dropTest.accdb;')
+        # cursor = cxn.cursor()
+        # cursor2 = cxn.cursor()
+        # for table in cursor.tables():
+            # if table.table_type == "TABLE":
+                # drop = "DROP TABLE [{0}]".format(table.table_name)
+                # print drop
+                # cursor2.execute(drop)
+        # cxn.commit()
+        # cxn.close()
+
     def pobierz_wiek_reb(self):
         # dane o wieku rebnosci pobranych z bazy
         SQL = """

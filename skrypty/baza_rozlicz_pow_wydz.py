@@ -213,32 +213,34 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                         })
 
         # na win saga generuje mnie bledow i zawsze zapisuje jako utf-8
-        if platform.system()[:3] == 'Win':
-            processing.run(
-                "saga:intersect",
-                {
-                    'A': os.path.join(self.tempkat, '__WYDZ_singleparts.shp'),
-                    'B': self.ls,
-                    'SPLIT': False,
-                    'RESULT': os.path.join(self.tempkat,
-                                           '__ls_wydz_inter.shp')
-                }
-            )
+        # if platform.system()[:3] == 'Win':
+            # processing.run(
+                # "saga:intersect",
+                # {
+                    # 'A': os.path.join(self.tempkat, '__WYDZ_singleparts.shp'),
+                    # 'B': self.ls,
+                    # 'SPLIT': False,
+                    # 'RESULT': os.path.join(self.tempkat,
+                                           # '__ls_wydz_inter.shp')
+                # }
+            # )
 
         # na linuksie nie wiadomo jakie jest kodowanie, wiec stosujemy native'a
         # który generuje wiecej problemów - ale w produkcji nikt tego nie
         # bedzie używał, tylko dev
-        else:
-            processing.run("native:intersection", {
-                            'INPUT': os.path.join(self.tempkat,
-                                                  '__WYDZ_singleparts.shp'),
-                            'OVERLAY': self.ls,
-                            'INPUT_FIELDS': "",
-                            'OVERLAY_FILEDS': "",
-                            'OUTPUT': os.path.join(
-                                self.tempkat, '__ls_wydz_inter.shp'
-                            )
-            })
+        # else:
+
+        # wyciecie sagi z calej procedury
+        processing.run("native:intersection", {
+                        'INPUT': os.path.join(self.tempkat,
+                                                '__WYDZ_singleparts.shp'),
+                        'OVERLAY': self.ls,
+                        'INPUT_FIELDS': "",
+                        'OVERLAY_FILEDS': "",
+                        'OUTPUT': os.path.join(
+                            self.tempkat, '__ls_wydz_inter.shp'
+                        )
+        })
 
         self.inter = QgsVectorLayer(
             os.path.join(self.tempkat, '__ls_wydz_inter.shp'),

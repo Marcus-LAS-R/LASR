@@ -125,10 +125,11 @@ class SprawdzWydzielenia():
         if self.wydz.crs().authid().upper() != 'EPSG:2180':
             self.iface.messageBar().pushMessage(
                 'Wydzielenia',
-                'Warstwa ma inny układ współrzędnych niż PUWG92 (EPSG:2180)',
+                'Warstwa ma inny układ współrzędnych niż PUWG92 (EPSG:2180)'
+                 f' [Ustawiony w warstwie: {self.wydz.crs().authid()}]',
                 Qgis.Critical,
                 10)
-            return False
+            return True
         return True
 
     def spr_kolumn(self):

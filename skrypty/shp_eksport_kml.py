@@ -43,11 +43,19 @@ class EksportujKML():
             self.nowy_temp = True
 
         processing.run(
-            'saga:convertpolygonstolines',
-            {'POLYGONS': self.ls,
-             'LINES': os.path.join(self.tempkat, '__'+self.nazwa+'_lines.shp')
-             }
-        )
+            "native:polygonstolines",
+            {
+                'INPUT':self.ls,
+                'OUTPUT': os.path.join(self.tempkat,
+                                       f'__{self.nazwa}_lines.shp')
+            })
+
+        # processing.run(
+            # 'saga:convertpolygonstolines',
+            # {'POLYGONS': self.ls,
+             # 'LINES': os.path.join(self.tempkat, '__'+self.nazwa+'_lines.shp')
+             # }
+        # )
 
         self.ls_lines = QgsVectorLayer(
             os.path.join(self.tempkat, '__'+self.nazwa+'_lines.shp'),
@@ -56,24 +64,32 @@ class EksportujKML():
         )
 
         processing.run(
-            'saga:polygondissolveallpolygons',
-            {'POLYGONS': self.ls,
-             'BND_KEEP': False,
-             'DISSOLVED': os.path.join(self.tempkat,
-                                       '__'+self.nazwa+'_diss.shp')
-             }
-        )
+            "native:dissolve",
+            {'INPUT': self.ls,
+             'FIELD':[],
+             'SEPARATE_DISJOINT':True,
+             'OUTPUT': os.path.join(self.tempkat,
+                                    f'__{self.nazwa}_diss_single.shp')})
 
-        processing.run(
-            'saga:polygonpartstoseparatepolygons',
-            {
-                'POLYGONS': os.path.join(self.tempkat,
-                                         '__'+self.nazwa+'_diss.shp'),
-                'LAKES': True,
-                'PARTS': os.path.join(self.tempkat,
-                                      '__'+self.nazwa+'_diss_single.shp')
-            }
-        )
+        # processing.run(
+            # 'saga:polygondissolveallpolygons',
+            # {'POLYGONS': self.ls,
+             # 'BND_KEEP': False,
+             # 'DISSOLVED': os.path.join(self.tempkat,
+                                       # '__'+self.nazwa+'_diss.shp')
+             # }
+        # )
+
+        # processing.run(
+            # 'saga:polygonpartstoseparatepolygons',
+            # {
+                # 'POLYGONS': os.path.join(self.tempkat,
+                                         # '__'+self.nazwa+'_diss.shp'),
+                # 'LAKES': True,
+                # 'PARTS': os.path.join(self.tempkat,
+                                      # '__'+self.nazwa+'_diss_single.shp')
+            # }
+        # )
 
         self.ls_diss = QgsVectorLayer(
             os.path.join(self.tempkat, '__'+self.nazwa+'_diss_single.shp'),
@@ -82,13 +98,21 @@ class EksportujKML():
         )
 
         processing.run(
-            'saga:convertpolygonstolines',
-            {'POLYGONS': os.path.join(self.tempkat,
-                                      '__'+self.nazwa+'_diss_single.shp'),
-             'LINES': os.path.join(self.tempkat,
-                                   '__'+self.nazwa+'_diss_single_lines.shp')
-             }
-        )
+            "native:polygonstolines",
+            {
+                'INPUT':self.ls_diss,
+                'OUTPUT': os.path.join(self.tempkat,
+                                       f'__{self.nazwa}_diss_single_lines.shp')
+            })
+
+        # processing.run(
+            # 'saga:convertpolygonstolines',
+            # {'POLYGONS': os.path.join(self.tempkat,
+                                      # '__'+self.nazwa+'_diss_single.shp'),
+             # 'LINES': os.path.join(self.tempkat,
+                                   # '__'+self.nazwa+'_diss_single_lines.shp')
+             # }
+        # )
 
         self.ls_diss_lines = QgsVectorLayer(
             os.path.join(self.tempkat,

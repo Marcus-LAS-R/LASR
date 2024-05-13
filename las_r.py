@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QAction, QMenu
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject
+from qgis.core import QgsProject, Qgis
 from qgis.utils import plugins
 
 from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
@@ -43,9 +43,11 @@ from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
     shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
     baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
     baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi, \
-    shp_konwertuj, shp_uzup_adradm, baza_dopisz_ownership, baza_dopisz_rosliny
+    shp_konwertuj, shp_uzup_adradm, baza_dopisz_ownership, \
+    baza_dopisz_rosliny, okladka_atlas, dopisz_dzkat
 
 from .skrypty.zabiegi.main import Zabiegi
+from .qml_templates.main import QmlCacheModule
 
 
 class LasR:
@@ -81,7 +83,7 @@ class LasR:
         # self.dlg = LasRDialog()
 
         # Declare instance attributes
-        # self.actions = []
+        self.actions = []
         # self.menu = self.tr(u'&Las-R')
         # # TODO: We are going to let the user set this up in a future iteratio
         self.toolbar = self.iface.addToolBar(u'LAS-R')
@@ -115,7 +117,9 @@ class LasR:
             add_to_toolbar=True,
             status_tip=None,
             whats_this=None,
-            parent=None):
+            parent=None,
+            checkable=False,
+    ):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -159,6 +163,7 @@ class LasR:
         action = QAction(icon, text, parent)
         action.triggered.connect(callback)
         action.setEnabled(enabled_flag)
+        action.setCheckable(checkable)
 
         if status_tip is not None:
             action.setStatusTip(status_tip)
@@ -171,7 +176,7 @@ class LasR:
 
         if add_to_menu:
             self.iface.addPluginToMenu(
-                self.menu,
+                'LAS-R',
                 action)
 
         self.actions.append(action)
@@ -307,6 +312,15 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
 
+        self.zbiorcza = QAction(
+            QIcon(None),
+            'Zbiorcza procedura [6 następnych kr.]',
+            self.iface.mainWindow())
+        self.m_rozlicz_pow.addSeparator()
+        self.m_rozlicz_pow.addAction(self.zbiorcza)
+        self.m_rozlicz_pow.addSeparator()
+        self.zbiorcza.triggered.connect(self.zbiorczy_poczatek)
+
         self.zanum = QAction(
             QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.zanum)
@@ -401,12 +415,22 @@ class LasR:
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
+        self.m_kontrola_danych.addSeparator()
+
+        self.dop_dzkat = QAction(QIcon(None),
+                                 'Kontrla DZKAT z bazką',
+                                 self.iface.mainWindow())
+        self.m_kontrola_danych.addAction(self.dop_dzkat)
+        self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
+
         self.spr_kontr_ls = QAction(
             QIcon(None),
             'Kontrola Ls z bazą',
             self.iface.mainWindow())
         self.m_kontrola_danych.addAction(self.spr_kontr_ls)
         self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
+
+        self.m_kontrola_danych.addSeparator()
 
         self.spr_rozlicz_wydz = QAction(
             QIcon(None),
@@ -435,11 +459,18 @@ class LasR:
         self.menu.addAction(self.dop_wydz)
         self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
 
+
         self.nakl = QAction(QIcon(None),
                             'Generuj naklejki',
                             self.iface.mainWindow())
         self.menu.addAction(self.nakl)
         self.nakl.triggered.connect(self.rysuj_naklejki)
+
+        self.okl = QAction(QIcon(None),
+                           'Generuj okładki na atlas',
+                           self.iface.mainWindow())
+        self.menu.addAction(self.okl)
+        self.okl.triggered.connect(self.rysuj_okladki)
 
         # -------------------------------------
 
@@ -554,6 +585,7 @@ class LasR:
         self.toolbar.addAction(self.rys_stl)
         self.toolbar.addAction(self.rys_dz)
         self.toolbar.addAction(self.rys_klu)
+        QmlCacheModule(self)
 
         self.rys_wez = QAction(ico_wezelki,
                                'Pokaż węzełki',
@@ -929,6 +961,17 @@ class LasR:
         if n.pobierz_dane():
             n.generuj_all()
 
+    def rysuj_okladki(self):
+        n = okladka_atlas.GenerujOkladki(self.iface)
+
+        # jeżeli w projekcie sa inne layout i uzytkownik nie chce kontynuowac
+        # to przerywamy procedure
+        if n.inne_layouty():
+            return
+
+        if n.pobierz_dane():
+            n.generuj_okladki()
+
     def generuj_karty_wylesien(self):
         r = raport_wyles.RaportWylesien(self.iface)
         if r.sprawdz_dane():
@@ -1046,3 +1089,67 @@ class LasR:
 
     def dopisz_rosliny(self):
         baza_dopisz_rosliny.dopisz_rosliny(self.iface)
+
+    def dopisanie_dzialek(self):
+        dd = dopisz_dzkat.DopiszDzKat(self.iface)
+        dd.dopisz_dane()
+
+    def zbiorczy_poczatek(self):
+        if self.select_layer_by_name('ODDZ') is False:
+            return
+        self.zanumeruj()
+        if self.select_layer_by_name('WYDZ') is False:
+            return
+        shp_dopOddzWydz.dopOddzWydz(self.iface)
+        self.select_layer_by_name('WYDZ')
+        shp_literkuj.Literkuj(self.iface)
+        self.select_layer_by_name('WYDZ')
+        shp_adr_les.Zaadresuj(self.iface)
+        self.select_layer_by_name('WYDZ')
+        w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)
+        if w.sprawdz_dane():
+            w.wczytaj_wydz_shp()
+            w.wczytaj_wydz_baza()
+            w.dopisz_wydz()
+            w.wyswietl_info()
+        else:
+            self.iface.messageBar().pushMessage(
+                'ZONK', 'Nie dopisano wydzielen do bazy', Qgis.Warning, 10
+            )
+            return
+
+        b = baza_rozlicz_pow_wydz.RozliczPowierzchnieWydz(self.iface)
+        if not b.sprawdz_dane():
+            return
+        else:
+            self.iface.messageBar().pushMessage(
+                'ZONK', 'Sprawdzenie przy rozliczeniu', Qgis.Warning, 10
+            )
+            return
+        b.przetnij_wydz_ls()
+        if b.zbuduj_strukture():
+            b.sprawdz_rozlicz_graf()
+            b.zestaw_rozliczenie()
+            # b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
+            if not b.dopisz_rozliczenie():
+                return
+            else:
+                b.sprawdz_rozlicz_rej()
+            b.skasuj_robocze()
+            b.zapisz_rakkort()
+
+        self.iface.messageBar().pushMessage(
+            'OK', 'Procedura zbiorcza przebiegła bez błędów', Qgis.Success, 10
+        )
+
+    def select_layer_by_name(self, layer_name):
+        root = QgsProject.instance()
+        layers = root.mapLayersByName(layer_name)
+        if len(layers) > 0:
+            self.iface.layerTreeView().setCurrentLayer(layers[0])
+            return True
+        else:
+            self.iface.messageBar().pushMessage(
+                'ZONK', f'Nie znalazłem wartwy: {layer_name}', Qgis.Warning, 10
+            )
+            return False

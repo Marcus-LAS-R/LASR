@@ -105,14 +105,14 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
 
         self.tableWidget.resizeColumnsToContents()
 
-        if trig:
-            message = QMessageBox()
-            message.setIcon(QMessageBox.Information)
-            message.setWindowTitle('UWAGA')
-            message.setText('Znaleziono warstwy bez układu współrzędnych\n'
-                            'Reprojekcja będzie niepoprawna')
-            message.addButton(u"Zamknij", QMessageBox.ActionRole)
-            message.exec_()
+        # if trig:
+            # message = QMessageBox()
+            # message.setIcon(QMessageBox.Information)
+            # message.setWindowTitle('UWAGA')
+            # message.setText('Znaleziono warstwy bez układu współrzędnych\n'
+                            # 'Reprojekcja będzie niepoprawna')
+            # message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            # message.exec_()
 
     def pobierz_zaznaczone_warstwy(self):
         """ pobierz liste zaznaczonych warstw"""
@@ -163,15 +163,15 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
         crs_in = self.comboBox_crs_in.currentText().split('(')[-1][:-1]
         for zz in zaz:
             pth = self.sl[zz]
-            if 'unknown' in zz:
-                params = {
-                    'OUTPUT': 'memory',
-                    'INPUT': pth,
-                    'CRS': crs_in,
-                }
-                pth = processing.run(
-                    'native:assignprojection', params
-                )['OUTPUT']
+            # if 'unknown' in zz:
+                # params = {
+                    # 'OUTPUT': 'TEMPORARY_OUTPUT',
+                    # 'INPUT': pth,
+                    # 'CRS': crs_in,
+                # }
+                # pth = processing.run(
+                    # 'native:assignprojection', params
+                # )['OUTPUT']
 
             params = {
                 'INPUT': pth,

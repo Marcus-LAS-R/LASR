@@ -16,6 +16,11 @@ from .baza_wrapper import Baza
 from .ui.ui_naklejki_dialog import Ui_DialogNaklejki
 from .ui.ui_naklejki_tomy import Ui_DialogTomy
 
+from qgis.PyQt.uic import loadUiType
+
+FORM_CLASS, _ = loadUiType(os.path.join(
+    os.path.dirname(__file__), 'ui',  'ui_naklejki_dialog.ui'))
+
 
 class GenerujNaklejki:
     def __init__(self, iface):
@@ -41,11 +46,11 @@ class GenerujNaklejki:
         self.geod = {}
 
         self.sl_typ = {
-            'ISL': [u'Inwentaryzacja Stanu Lasu',
-                    u'Inwentaryzacja Stanu Lasu'],
-            'UPUL': [u'Uproszczony Plan Urządzenia Lasu',
-                     u'Uproszczone Plany Urządzenia Lasu'],
-            'ANEKS': [u'Aneks', u'Aneks'],
+            'ISL': ['Inwentaryzacja Stanu Lasu',
+                    'Inwentaryzacja Stanu Lasu'],
+            'UPUL': ['Uproszczony Plan Urządzenia Lasu',
+                     'Uproszczone Plany Urządzenia Lasu'],
+            'ANEKS': ['Aneks', 'Aneks'],
         }
 
         self.sl_nfosigw = {
@@ -100,6 +105,7 @@ class GenerujNaklejki:
         self.info.exec_()
 
         if not self.info.go_flag:
+            self.iface.messageBar().clearWidgets()
             return False
 
         # postawowe zmienne pobrane od uzyszkodnika
@@ -110,6 +116,7 @@ class GenerujNaklejki:
         self.tomy = self.info.checkBox_tomy.isChecked()
         self.polacz = False
         self.powierzchnie = self.info.checkBox_powierzchnie.isChecked()
+        self.ile_kopi = self.info.comboBox_kopi.currentText()
 
         self.plyta = self.info.checkBox_plyta.isChecked()
         self.okladka = self.info.checkBox_okladka.isChecked()
@@ -731,9 +738,7 @@ class GenerujNaklejki:
             self.mn.removeLayout(self.mn.layoutByName('Operaty'))
 
         QgsMessageLog.logMessage(
-            u'Generuję naklejki na operaty',
-            "Las-R",
-            Qgis.Info)
+            'Generuję naklejki na operaty', "Las-R", Qgis.Info)
         lay = QgsPrintLayout(QgsProject.instance())
         lay.initializeDefaults()
         lay.setName('Operaty')
@@ -742,7 +747,7 @@ class GenerujNaklejki:
         # przesuniecia dla kafelkow i grzebietow
         xprzes = [0, 125, 0, 125]
         yprzes = [0, 80, 80, 0]
-        xprzes2 = [0, 60, 120, 180]
+        xprzes2 = [0, 60, 120, 179]
 
         # rozpocznij managera stron i dodaj pierwsza strone
         # pages = QgsLayoutPageCollection(lay)
@@ -767,6 +772,7 @@ class GenerujNaklejki:
         # 9 - tom opracowania jako int
 
         si = 0
+        ile_wygen = 0
         for k, val in self.tomy_sl.items():
             t = [0, 0, si, ]
 
@@ -802,25 +808,41 @@ class GenerujNaklejki:
             t.append(0)
 
             # jezeli mamy powierzchnie dla tego obrebu rysuj naklejki
-            for site in range(1, val+1):
-                # QgsMessageLog.logMessage('|'.join(map(str, t)),
-                #    'Las-R'
-                # )
+            if self.ile_kopi == '4':
+                for site in range(1, val+1):
+                    if si > 0:
+                        pages.extendByNewPage()
 
-                if si > 0:
-                    pages.extendByNewPage()
+                    if val > 1:
+                        t[9] = site
 
-                if val > 1:
-                    t[9] = site
+                    for px, py in zip(xprzes, yprzes):
+                        tab = [px, py, si, ] + t[3:]
+                        self.g_kafelek(tab, lay)
+                    for px in xprzes2:
+                        tab = [px, 0, si, ] + t[3:]
+                        self.g_grzebiet(tab, lay)
 
-                for px, py in zip(xprzes, yprzes):
+                    si += 1
+
+            elif self.ile_kopi == '1':
+                for site in range(1, val+1):
+                    if ile_wygen == 4:
+                        pages.extendByNewPage()
+                        si += 1
+                        ile_wygen = 0
+
+                    if val > 1:
+                        t[9] = site
+
+                    px, py = list(zip(xprzes, yprzes))[ile_wygen]
                     tab = [px, py, si, ] + t[3:]
                     self.g_kafelek(tab, lay)
-                for px in xprzes2:
-                    tab = [px, 0, si, ] + t[3:]
+                    tab = [xprzes2[ile_wygen], 0, si, ] + t[3:]
                     self.g_grzebiet(tab, lay)
 
-                si += 1
+                    ile_wygen += 1
+
 
     def g_grzebiet(self, tab, lay):
         """Metoda generuje grzebiety na operaty w zaleznosci od podanego
@@ -855,7 +877,7 @@ class GenerujNaklejki:
             posz = szer - 50
             # jezeli nakl. jest szersza od 5 cm przesun ja w dol o 9mm jezeli
             # jest parzystą
-            if px in [60, 180]:
+            if px in [60, 179]:
                 add = 9
         else:
             l1.attemptResize(
@@ -877,7 +899,7 @@ class GenerujNaklejki:
             ltom.attemptResize(
                 QgsLayoutSize(6, 6, QgsUnitTypes.LayoutMillimeters))
             ltom.attemptMove(
-                QgsLayoutPoint(22+szer+px, 179.7+add,
+                QgsLayoutPoint(22+szer+px, 179+add,
                                QgsUnitTypes.LayoutMillimeters),
                 page=si
             )
@@ -896,7 +918,7 @@ class GenerujNaklejki:
         okl.attemptResize(
             QgsLayoutSize(dlug_calk, 5.4, QgsUnitTypes.LayoutMillimeters))
         okl.attemptMove(
-            QgsLayoutPoint(20+px, 180+add,
+            QgsLayoutPoint(20+px, 179+add,
                            QgsUnitTypes.LayoutMillimeters),
             page=si
         )
@@ -1068,7 +1090,7 @@ class GenerujNaklejki:
         lay.addItem(l1)
 
 
-class PobierzDane(QDialog, Ui_DialogNaklejki):
+class PobierzDane(QDialog, FORM_CLASS):
     def __init__(self):
         super(PobierzDane, self).__init__(None)
         self.setupUi(self)

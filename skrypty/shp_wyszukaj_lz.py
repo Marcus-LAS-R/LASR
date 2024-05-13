@@ -156,7 +156,7 @@ class WyszukajLz():
                 self.oddz_fts[feat.id()] = feat
 
         QgsMessageLog.logMessage(
-            'Wczytano oddziałów: '+str(len(self.oddz_fts)),
+            'Wczytano oddziałów: ' + str(len(self.oddz_fts)),
             'Las-R', Qgis.Info
         )
 
@@ -198,13 +198,20 @@ class WyszukajLz():
             "ogr"
         )
 
-        processing.run(
-            'saga:polygondissolveallpolygons',
-            {'POLYGONS': self.lswybr,
-             'BND_KEEP': False,
-             'DISSOLVED': os.path.join(self.tempkat, 'ls_diss.shp')
-             }
-        )
+        processing.run("native:dissolve",
+                    {'INPUT':self.lswybr,
+                        'FIELD': [],
+                        'SEPARATE_DISJOINT':True,
+                        'OUTPUT': os.path.join(self.tempkat, 'ls_diss.shp')
+                        })
+
+        # processing.run(
+            # 'saga:polygondissolveallpolygons',
+            # {'POLYGONS': self.lswybr,
+             # 'BND_KEEP': False,
+             # 'DISSOLVED': os.path.join(self.tempkat, 'ls_diss.shp')
+             # }
+        # )
 
         processing.run("native:multiparttosingleparts", {
                         'OUTPUT': os.path.join(
@@ -265,13 +272,20 @@ class WyszukajLz():
         )
 
         if len(self.uz_fts.keys()) > 1:
-            processing.run(
-                'saga:polygondissolveallpolygons',
-                {'POLYGONS': self.uzwybr,
-                 'BND_KEEP': False,
-                 'DISSOLVED': os.path.join(self.tempkat, 'uz_diss.shp')
-                 }
-            )
+            processing.run("native:dissolve",
+                        {'INPUT':self.uzwybr,
+                            'FIELD':[],
+                            'SEPARATE_DISJOINT':True,
+                            'OUTPUT': os.path.join(self.tempkat, 'uz_diss.shp')
+                            })
+
+            # processing.run(
+                # 'saga:polygondissolveallpolygons',
+                # {'POLYGONS': self.uzwybr,
+                 # 'BND_KEEP': False,
+                 # 'DISSOLVED': os.path.join(self.tempkat, 'uz_diss.shp')
+                 # }
+            # )
         else:
             for roz in ['shp', 'shx', 'prj', 'dbf']:
                 shutil.copy(os.path.join(self.tempkat, "uz_wybr."+roz),
@@ -290,15 +304,20 @@ class WyszukajLz():
                 shutil.copy(os.path.join(self.tempkat, "uz_diss."+roz),
                             os.path.join(self.tempkat, "uz_diss_single."+roz))
 
-        processing.run("saga:difference", {
-            'A': os.path.join(
-                self.tempkat, 'uz_diss_single.shp'),
-            'B': self.w_ls_diss,
-            'SPLIT': True,
-            'RESULT': os.path.join(
-                self.tempkat,
-                'uz_diss_single_diff.shp')
-        })
+        processing.run(
+            "native:difference",
+            {'INPUT':os.path.join(self.tempkat, 'uz_diss_single.shp'),
+             'OVERLAY':self.w_ls_diss,
+             'OUTPUT': os.path.join(self.tempkat, 'uz_diss_single_diff.shp'),
+             'GRID_SIZE': None
+             })
+
+        # processing.run("saga:difference", {
+            # 'A': os.path.join(self.tempkat, 'uz_diss_single.shp'),
+            # 'B': self.w_ls_diss,
+            # 'SPLIT': True,
+            # 'RESULT': os.path.join(self.tempkat, 'uz_diss_single_diff.shp')
+        # })
 
         # wczytaj warstwe ls single partow
         w_uz_diss = QgsVectorLayer(

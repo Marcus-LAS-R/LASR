@@ -203,18 +203,18 @@ def przygotuj_do_terenu(iface):  # noqa
     stworz_pozaewid(ls)
 
     # dodaj przetworzona warstwe oddz
-    if os.path.isfile(os.path.join(kat, 'OBR.shp')):
-        obr = QgsVectorLayer(
-            os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
-        )
+    # if os.path.isfile(os.path.join(kat, 'OBR.shp')):
+        # obr = qgsvectorlayer(
+            # os.path.join(kat, 'obr.shp'), 'obr', 'ogr'
+        # )
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            obr,
-            os.path.join(os.path.join(kat, "ODDZ.shp")),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
+        # crs = QgsCoordinateReferenceSystem("epsg:2180")
+        # QgsVectorFileWriter.writeAsVectorFormat(
+            # obr,
+            # os.path.join(os.path.join(kat, "ODDZ.shp")),
+            # "UTF-8",
+            # crs,
+            # "ESRI Shapefile")
 
     maska = QgsVectorLayer(
         os.path.join(os.path.join(kat, "MASKA.shp")),
@@ -395,6 +395,9 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         if 'G5NRO' in \
                 [x.name() for x in obr.dataProvider().fields().toList()]:
             adr_adm = 'G5NRO'
+        if 'IDOBREBU' in \
+                [x.name() for x in obr.dataProvider().fields().toList()]:
+            adr_adm = 'IDOBREBU'
 
         oddz_fields = [
             QgsField("MUNICIP", QVariant.String, len=3),

@@ -3,7 +3,7 @@ import platform
 
 from qgis.PyQt.QtWidgets import QFileDialog,  QDialog,  QMessageBox, \
     QApplication
-from ..ui.ui_baza_zabiegi import Ui_Dialog
+from ..ui.ui_baza_zabiegi2 import Ui_Dialog
 from qgis.utils import iface
 from qgis.core import Qgis, QgsMessageLog
 
@@ -30,6 +30,7 @@ class Zabiegi():
         self.wydz = {}  # dict z {adr_les: arodes_int_num}
         self.wydz_id = {}  # {arodes_int_num: adr_les}
         self.wr = {}  # {species_cd: wiek_reb}
+        self.janczulewicz_flag = False
 
     def pobierz_dane(self):
         self.dd = PobierzDane()
@@ -51,6 +52,8 @@ class Zabiegi():
             if self.dd.ui.radioButton_dopisz.isChecked():
                 self.wybor = 'Dop'
 
+            if self.dd.ui.checkBox_janczulewicz.isChecked():
+                self.janczulewicz_flag = True
 
             self.kopiuj_baze()
             self.mod_trzeb = self.dd.ui.spinBox_trz.value()
@@ -228,6 +231,8 @@ class Zabiegi():
             _aid = self.wydz[adr]
             _wydz.przygotuj_strukture(_aid)
             _wydz.dodaj_mod_trzeb(self.mod_trzeb)
+            if self.janczulewicz_flag:
+                _wydz.janczulewicz = True
             _wydz.baza = self.baza
             _wydz.o_wiek_rebnosci(self.wr)
             _wydz.odczytaj_dane_z_bazy(self.baza.pobierz_do_zab(_aid))

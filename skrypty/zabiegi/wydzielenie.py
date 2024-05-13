@@ -46,6 +46,9 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
         self.gen_pow_reb = 0
         self.gen_proc_reb = 0
 
+        # wersja dla janczulewicza - tylko rebnia IB
+        self.janczulewicz = False
+
         self.gat_gl = ''
         self.struk = ''
         self.zadrzew = 0

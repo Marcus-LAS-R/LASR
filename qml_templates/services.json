@@ -1,0 +1,458 @@
+[
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2050_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 1,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2050 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2050_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 2,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2050 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2050_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 3,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2050 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2050_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 4,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2050 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2050_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 5,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2050 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2100_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 6,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2100 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2100_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 7,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2100 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2100_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 8,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2100 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2100_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 9,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2100 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP126_2100_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 10,
+        "format": "image/png",
+        "name": "coastal flooding rcp26 2100 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0002_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 11,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0002"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0005_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 12,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0005"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0010_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 13,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0010"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 14,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 15,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 16,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 17,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2020_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 18,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2020 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2050_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 19,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2050 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2050_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 20,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2050 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2050_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 21,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2050 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2050_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 22,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2050 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2050_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 23,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2050 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2100_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 24,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2100 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2100_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 25,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2100 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2100_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 26,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2100 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2100_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 27,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2100 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP245_2100_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 28,
+        "format": "image/png",
+        "name": "coastal flooding rcp45 2100 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2050_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 29,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2050 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2050_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 30,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2050 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2050_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 31,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2050 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2050_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 32,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2050 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2050_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 33,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2050 1000"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2100_0020_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 34,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2100 0020"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2100_0050_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 35,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2100 0050"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2100_0100_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 36,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2100 0100"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2100_0250_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 37,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2100 0250"
+    },
+    {
+        "source": "paikkatiedot.ymparisto.fi",
+        "url": "https://paikkatiedot.ymparisto.fi/geoserver/meritulvakartat_2022/wms",
+        "tiles_name": "coastal_flood_SSP585_2100_1000_with_protected",
+        "supported_crs": [
+            "EPSG:4326",
+            "EPSG:3067"
+        ],
+        "id": 38,
+        "format": "image/png",
+        "name": "coastal flooding rcp85 2100 1000"
+    }
+]

@@ -311,7 +311,7 @@ class ZabiegiSlownik():
                 'r': ' Brak możliwości wpisania uwagi o rębni ze wzgl na uszk.'
             },
             'reb_zup': {
-                'c': ' Działki ewidencyjne należy traktować jak dz. zrębowe,',
+                'c': ' Dz. ewid. traktować jak dz. zręb.,',
                 's': ' Dz. ewid. traktować jak dz. zręb.',
                 'r': ' Brak możliwości wpisania uwagi o działkach w rębni'
                 'zupełnej,'

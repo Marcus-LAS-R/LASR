@@ -12,12 +12,12 @@ def Anonimizuj(iface):
         "Katalog z bazami danych",
         '')
     bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
-    bazy_sc += glob.glob(os.path.join(bazy_kat, '*.MDB'))
+    # bazy_sc += glob.glob(os.path.join(bazy_kat, '*.MDB'))
     ile_baz = len(bazy_sc)
     if ile_baz == 0:
         iface.messageBar().pushMessage(
             'BŁĄD',
-            'Nie znalazłem żadnej bazy taksatora...',
+            'Nie znalazłem żadnej bazy taksatora... (mdb ma byc malymi literami!)',
             Qgis.Critical,
             10
         )
@@ -38,7 +38,7 @@ def Anonimizuj(iface):
             'Las-R', Qgis.Info
         )
 
-        baza.utworz_kopie('anonimizacja')
+        baza.utworz_kopie('_BDO')
         baza.anonimizuj_vaddress()
         ile_ok += 1
 

@@ -46,7 +46,7 @@ class Generuj:
                 return False
             if self.gat_gl_wiek < self.wiekReb - 20:
                 return False
-            if self.wiekReb-9 > self.gat_gl_wiek:
+            if self.wiekReb - 9 > self.gat_gl_wiek:
                 if self.zadrzew > 0.49:
                     return False
             if self.typ != 'D-STAN':
@@ -192,7 +192,11 @@ class Generuj:
                 self.zabiegi.append(['TP', self.pow_wydz])
                 self.trzebiez = True
 
-        genr = self.generuj_rebnie()
+        if self.janczulewicz:
+            genr = [['IB', 100]]  # wszędzie gdzie ma byc rebnia ma byc tylko I
+        else:
+            genr = self.generuj_rebnie()  # normalne rebnie
+
         # wygeneruj rebnie o ile jest taka mozliwość
         if genr is not False:
             self.gen_reb = genr[0][0]
