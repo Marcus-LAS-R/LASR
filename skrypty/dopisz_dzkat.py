@@ -87,6 +87,8 @@ class DopiszDzKat(object):
                 print("Przetworzono działek: "+str(self.ile_dzkat))
 
         self.dzkat.commitChanges()
+        self.postep.setValue(80)
+        self.generuj_raport()
         self.iface.messageBar().clearWidgets()
         self.iface.messageBar().pushMessage(
             'OK', 'Dopisano atrybuty w warstwie DZKAT!', Qgis.Success, 10
@@ -95,6 +97,9 @@ class DopiszDzKat(object):
     def sprawdz_dane(self):
         try:
             self.dzkat = self.iface.activeLayer()
+            self.kat = os.path.dirname(
+                self.dzkat.dataProvider().dataSourceUri().split("|")[0]
+            )
         except:  # nopep8
             return False
 
@@ -386,3 +391,163 @@ class DopiszDzKat(object):
         for f in self.wszystkie_dzkat.values():
             self.indeks.insertFeature(f)
 
+    def generuj_raport(self):  # noqa
+        """Metoda generuje raport dla uzytkownika, zapisany w katalogu z warst.
+        wyjsciowa w postaci pliku tekstowego z data i godzina w nazwie"""
+
+        raport = '---RAPORT----------------------------\n\n'
+        raport += 'Działek w shp: ' + str(self.ile_dzkat) + '\n'
+        # if self.wl == 'OF':
+            # ile_dz_baza = [x for x in self.dz_lesne if x not in self.tylko_op]
+        # else:
+        ile_dz_baza = [x for x in self.dz_lesne]
+        raport += 'Działek leśnych w bazie: ' + str(len(ile_dz_baza)) + '\n'
+
+        brakujace_dz_les = [x for x in list(self.dz_lesne)
+                            if x not in self.dz_les_spr]
+        # if self.wl == 'OF':
+            # ile_brak = len([x for x in brakujace_dz_les
+                            # if x not in self.tylko_op])
+        # else:
+        ile_brak = len(brakujace_dz_les)
+
+        raport += 'Brakujące działki leśne: ' + str(ile_brak) + '\n\n'
+
+        # if self.wl == 'OF':
+            # dz_les = len([x for x in self.dz_les_spr
+                          # if x not in self.tylko_op])
+        # else:
+        dz_les = len(self.dz_les_spr)
+
+        raport += 'Działek leśnych w shp: ' + str(dz_les) + '\n'
+        raport += 'Działek nieleśnych w shp: ' + \
+            str(len(self.dzkat_nieles)) + '\n'
+
+        duble = [x[0] for x in Counter(
+            self.dz_les_spr+self.dzkat_nieles).most_common()
+            if x[1] > 1]
+        raport += 'Działki Zdublowane: ' + str(len(duble)) + '\n\n'
+
+        # if len(self.bledy_topo) > 0:
+            # raport += 'Działki z błędami topologicznymi: ' + \
+                # str(len(self.bledy_topo)) \
+                # + '\n\n\n'
+
+        if len(self.dzkat_les_pow_zero) > 0:
+            raport += 'Działek z zerowymi powierzchniami w bazie: ' + str(len(
+                self.dzkat_les_pow_zero)) + '\n'
+
+        if len(self.dzkat_brak) > 0:
+            raport += 'Działek z brakiem opisu w bazie: ' + \
+                str(len(self.dzkat_brak)) + '\n'
+
+        # wypisz do logu podstawowy raport
+        QgsMessageLog.logMessage(raport, 'Las-R')
+
+        if ile_brak > 0:
+            raport += '\n\n---BRAKUJACE DZIALKI LEŚNE--------------' + '\n'
+            raport += 'Brakujace dzialki lesne w shp: ' + \
+                str(ile_brak) + '\n\n'
+
+            # if self.wl == 'OF':
+                # braki = [x for x in sorted(brakujace_dz_les)
+                         # if x[4:] not in self.tylko_op]
+            # else:
+            braki = [x for x in sorted(brakujace_dz_les)]
+
+            raport += '\n'.join([
+                '\t'.join([self.county+self.district+x,
+                           str(self.wypiszPow(x, self.dz_dict))])
+                for x in braki
+            ])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        if len(self.dzkat_nieles) > 0:
+            raport += "---DZIALKI NIELESNE--------------------------\n"
+            raport += "Dzialek nielesnych w shp: " + \
+                str(len(self.dzkat_nieles)) + '\n\n'
+            if len(self.dzkat_nieles) < 200:
+                raport += '\n'.join([self.county + self.district + x
+                                    for x in sorted(self.dzkat_nieles)])
+            else:
+                raport += 'Liste dzialek pominieto'
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        # sprawdz brakujace dzialki
+        if len(self.dzkat_brak) > 0:
+            raport += "---DZIALKI BEZ OPISU-------------------------\n"
+            raport += "Dzialki z brakiem opisu w bazie: " + str(
+                len(self.dzkat_brak)) + '\n\n'
+            if len(self.dzkat_brak) < 200:
+                raport += '\n'.join(
+                    [self.county + self.district + x
+                     for x in sorted(self.dzkat_brak)])
+            else:
+                raport += 'liste dzialek pominieto'
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        # sprawdz zdublowane dzialki i wypisz tylko w lesnych
+        if len(duble) > 0:
+            raport += "-----DZIALKI ZDUBLOWANE------------------------\n"
+            raport += "Dzialki zdublowane: " + str(len(duble)) + '\n\n'
+            raport += '\n'.join([self.county + self.district + x for x in
+                                 sorted(duble)])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        if len(self.dzkat_les_pow_zero) > 0:
+            raport += "--DZIALKI Z ZEROWA POWIERZCHNIA----------------\n"
+            raport += "Dzialki z zerowa powierzchnia: "
+            raport += str(len(self.dzkat_les_pow_zero)) + '\n\n'
+            raport += '\n'.join([self.county + self.district + x for x in
+                                sorted(self.dzkat_les_pow_zero)])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        if len(self.dzkat_les_pow) > 0:
+            raport += "--DZIALKI ZE ZNACZNA ROZNICA POWIERZCHNI-------\n"
+            raport += "Dzialki z duza rozbieznoscia powierzchni: " + str(
+                len(self.dzkat_les_pow)) + '\n\n'
+            raport += "Adres adm dzialki\tpow_graf\tpow_rej\troznica" + '\n'
+            rr = sorted([[self.county + self.district + x[0], x[1], x[2],
+                          round(abs(x[1] - x[2]), 4)]
+                         for x in self.dzkat_les_pow],
+                        key=lambda s: s[3], reverse=True)
+            raport += '\n'.join(["\t".join(map(str, x)) for x in rr])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        if len(self.lista_OP) > 0:
+            raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\n"
+            # if self.wl == 'OF':
+                # wl = [x[0] for x in self.lista_OP
+                      # if x[1] not in self.tylko_op and x[1] in self.dz_lesne]
+            # else:
+            wl = [x[0] for x in self.lista_OP if x[1] in self.dz_lesne]
+            raport += "Liczba wlascicieli z kodem OP: " + str(len(set(wl))) + \
+                '\n\n'
+
+            sl_temp = {}
+            for x in self.lista_OP:
+                # przygotuj slownik wlascicieli z liczba dzialek ktorzy nie sa
+                # w tylkoOP
+                # jezeli dopisujemy wszystkie wlasnosci, to raportze wszystkich
+                if x[1] in self.dz_lesne:
+                    # if self.wl == 'OF' and x[1] in self.tylko_op:
+                        # pass
+                    # else:
+                    if x[0] not in sl_temp:
+                        sl_temp[x[0]] = []
+                    sl_temp[x[0]].append(x[1])
+
+            raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat"
+                                 for x in sorted(list(sl_temp.keys()))])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        raport += "---KONIEC RAPORTU----------------------------------"
+
+        # zapisz raport do pliku
+        self.czas = datetime.now().isoformat().replace(
+            ":", "")[:-7].replace('-', '')
+        self.rap_sc = os.path.join(self.kat, '..',
+                                   'dzkat_dopisane_'+self.czas+'.txt')
+        plik = open(self.rap_sc, 'w', encoding='cp1250')
+        plik.write(raport)
+        plik.close()

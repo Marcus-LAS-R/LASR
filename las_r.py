@@ -34,17 +34,52 @@ import os.path
 from qgis.core import QgsProject, Qgis
 from qgis.utils import plugins
 
-from .skrypty import sprawdz_dzkat, shp_dopOddzWydz, sprawdzenia_topo, \
-    baza_dopisz_fochr, shp_dopisz_kody,  shp_symbolizacja, shp_adr_les, \
-    shp_literkuj, shp_numeruj, shp_sprWydzOddz, shp_przygCiecie, \
-    spr_wydzielen, shp_wyszukaj_lz, naklejki, sprawdz_ls, shp_eksport_kml, \
-    baza_rozlicz_pow_wydz, baza_sprawdz_rozl, funkcje, shp_spr_wlasn_wydz, \
-    baza_dopisz_wydz, baza_przeliterkuj, baza_dopisz_pnsw, baza_klonuj_wydz, \
-    shp_atlasuj, baza_usun_op, baza_zabiegi, shp_dociagnij_poly, raport_wyles,\
-    baza_kontrola_ls, baza_anonimizuj, baza_polacz, shp_sprawdz_ciecie, \
-    baza_napraw_stor_spec, shp_polacz_teren, shp_czysc_kol, raport_wyciagi, \
-    shp_konwertuj, shp_uzup_adradm, baza_dopisz_ownership, \
-    baza_dopisz_rosliny, okladka_atlas, dopisz_dzkat
+from .skrypty import (
+    sprawdz_dzkat,
+    shp_dopOddzWydz,
+    sprawdzenia_topo,
+    baza_dopisz_fochr,
+    shp_dopisz_kody,
+    shp_symbolizacja,
+    shp_adr_les,
+    shp_literkuj,
+    shp_numeruj,
+    shp_sprWydzOddz,
+    shp_przygCiecie,
+    spr_wydzielen,
+    shp_wyszukaj_lz,
+    naklejki,
+    sprawdz_ls,
+    shp_eksport_kml,
+    baza_rozlicz_pow_wydz,
+    baza_sprawdz_rozl,
+    funkcje,
+    shp_spr_wlasn_wydz,
+    baza_dopisz_wydz,
+    baza_przeliterkuj,
+    baza_dopisz_pnsw,
+    baza_klonuj_wydz,
+    shp_atlasuj,
+    baza_usun_op,
+    baza_zabiegi,
+    shp_dociagnij_poly,
+    raport_wyles,
+    baza_kontrola_ls,
+    baza_anonimizuj,
+    baza_polacz,
+    shp_sprawdz_ciecie,
+    baza_napraw_stor_spec,
+    shp_polacz_teren,
+    shp_czysc_kol,
+    raport_wyciagi,
+    shp_konwertuj,
+    shp_uzup_adradm,
+    baza_dopisz_ownership,
+    baza_dopisz_rosliny,
+    okladka_atlas,
+    dopisz_dzkat,
+    baza_usun_wydz,
+)
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -66,17 +101,14 @@ class LasR:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'LasR_{}.qm'.format(locale))
+        locale = QSettings().value("locale/userLocale")[0:2]
+        locale_path = os.path.join(self.plugin_dir, "i18n", "LasR_{}.qm".format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
             self.translator.load(locale_path)
 
-            if qVersion() > '4.3.3':
+            if qVersion() > "4.3.3":
                 QCoreApplication.installTranslator(self.translator)
 
         # Create the dialog (after translation) and keep reference
@@ -86,11 +118,11 @@ class LasR:
         self.actions = []
         # self.menu = self.tr(u'&Las-R')
         # # TODO: We are going to let the user set this up in a future iteratio
-        self.toolbar = self.iface.addToolBar(u'LAS-R')
-        self.toolbar.setObjectName(u'LasR')
+        self.toolbar = self.iface.addToolBar("LAS-R")
+        self.toolbar.setObjectName("LasR")
 
-        self.toolbar_skr = self.iface.addToolBar(u'LAS-R skróty')
-        self.toolbar_skr.setObjectName(u'LasR_skrrroty')
+        self.toolbar_skr = self.iface.addToolBar("LAS-R skróty")
+        self.toolbar_skr.setObjectName("LasR_skrrroty")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -105,20 +137,20 @@ class LasR:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('LasR', message)
+        return QCoreApplication.translate("LasR", message)
 
     def add_action(
-            self,
-            icon_path,
-            text,
-            callback,
-            enabled_flag=True,
-            add_to_menu=True,
-            add_to_toolbar=True,
-            status_tip=None,
-            whats_this=None,
-            parent=None,
-            checkable=False,
+        self,
+        icon_path,
+        text,
+        callback,
+        enabled_flag=True,
+        add_to_menu=True,
+        add_to_toolbar=True,
+        status_tip=None,
+        whats_this=None,
+        parent=None,
+        checkable=False,
     ):
         """Add a toolbar icon to the toolbar.
 
@@ -175,9 +207,7 @@ class LasR:
             self.toolbar.addAction(action)
 
         if add_to_menu:
-            self.iface.addPluginToMenu(
-                'LAS-R',
-                action)
+            self.iface.addPluginToMenu("LAS-R", action)
 
         self.actions.append(action)
 
@@ -191,56 +221,46 @@ class LasR:
         # koniec akcji ----------------------
 
         # ikony -----------------------------
-        ico_wydz_dopisz = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_dopisz.png'))
+        ico_wydz_dopisz = QIcon(os.path.join(self.plugin_dir, "ico", "wydz_dopisz.png"))
         ico_wydz_rys_zab = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_zab.png'))
+            os.path.join(self.plugin_dir, "ico", "wydz_rys_zab.png")
+        )
         ico_wydz_rys_gat = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_gat.png'))
+            os.path.join(self.plugin_dir, "ico", "wydz_rys_gat.png")
+        )
         ico_wydz_rys_orto = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_orto.png'))
+            os.path.join(self.plugin_dir, "ico", "wydz_rys_orto.png")
+        )
         ico_wydz_rys_stl = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_rys_stl.png'))
-        ico_topo = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'spr_topo.png'))
-        ico_wydz_spr = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wydz_sprawdz.png'))
-        ico_utf8 = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'utf-8.png'))
-        ico_desel_all = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'deselect_all.png'))
-        ico_check = QIcon(os.path.join(
-            self.plugin_dir, 'ico', 'check_geom.png'))
-        ico_pow_graf = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'pow_graf.png'))
-        ico_dzkat = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'dzkat.png'))
-        ico_klu = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'klu.png'))
-        ico_wezelki = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'wezelki.png'))
-        ico_gen_pola = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'genPola.png'))
-        ico_num_pola = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'numPola.png'))
-        ico_pok_lay = QIcon(
-            os.path.join(self.plugin_dir, 'ico', 'pokazLay.png'))
+            os.path.join(self.plugin_dir, "ico", "wydz_rys_stl.png")
+        )
+        ico_topo = QIcon(os.path.join(self.plugin_dir, "ico", "spr_topo.png"))
+        ico_wydz_spr = QIcon(os.path.join(self.plugin_dir, "ico", "wydz_sprawdz.png"))
+        ico_utf8 = QIcon(os.path.join(self.plugin_dir, "ico", "utf-8.png"))
+        ico_desel_all = QIcon(os.path.join(self.plugin_dir, "ico", "deselect_all.png"))
+        ico_check = QIcon(os.path.join(self.plugin_dir, "ico", "check_geom.png"))
+        ico_pow_graf = QIcon(os.path.join(self.plugin_dir, "ico", "pow_graf.png"))
+        ico_dzkat = QIcon(os.path.join(self.plugin_dir, "ico", "dzkat.png"))
+        ico_klu = QIcon(os.path.join(self.plugin_dir, "ico", "klu.png"))
+        ico_wezelki = QIcon(os.path.join(self.plugin_dir, "ico", "wezelki.png"))
+        ico_gen_pola = QIcon(os.path.join(self.plugin_dir, "ico", "genPola.png"))
+        ico_num_pola = QIcon(os.path.join(self.plugin_dir, "ico", "numPola.png"))
+        ico_pok_lay = QIcon(os.path.join(self.plugin_dir, "ico", "pokazLay.png"))
         # koniec ikon -----------------------
 
         self.menu = QMenu(self.iface.mainWindow())
-        self.menu.setObjectName('LAS-R')
-        self.menu.setTitle('LAS-R')
+        self.menu.setObjectName("LAS-R")
+        self.menu.setTitle("LAS-R")
 
         menuBar = self.iface.mainWindow().menuBar()
-        menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(),
-                           self.menu)
+        menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(), self.menu)
 
-        self.m_przyg_danych = QMenu('Przygotowanie danych', self.menu)
-        self.m_rozlicz_pow = QMenu('Rozliczenie powierzchni', self.menu)
-        self.m_kontrola_danych = QMenu('Kontrola danych', self.menu)
-        self.m_style = QMenu('Style warstw', self.menu)
-        self.m_narzedzia = QMenu('Narzędziowe', self.menu)
-        self.m_raporty = QMenu('Raporty', self.menu)
+        self.m_przyg_danych = QMenu("Przygotowanie danych", self.menu)
+        self.m_rozlicz_pow = QMenu("Rozliczenie powierzchni", self.menu)
+        self.m_kontrola_danych = QMenu("Kontrola danych", self.menu)
+        self.m_style = QMenu("Style warstw", self.menu)
+        self.m_narzedzia = QMenu("Narzędziowe", self.menu)
+        self.m_raporty = QMenu("Raporty", self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
@@ -249,184 +269,191 @@ class LasR:
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
 
-        self.przyg_dzewid = QAction(QIcon(None),
-                                    u"Przygotuj działki ewidencyjne",
-                                    self.iface.mainWindow())
+        self.przyg_dzewid = QAction(
+            QIcon(None), "Przygotuj działki ewidencyjne", self.iface.mainWindow()
+        )
         self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
-        self.przyg_ls = QAction(
-            QIcon(None), u"Przygotuj Lsy", self.iface.mainWindow())
+        self.przyg_ls = QAction(QIcon(None), "Przygotuj Lsy", self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
-        self.a_snapuj = QAction(QIcon(None),
-                                "Przysnapuj do dzałek",
-                                self.iface.mainWindow())
+        self.a_snapuj = QAction(
+            QIcon(None), "Przysnapuj do dzałek", self.iface.mainWindow()
+        )
         self.m_przyg_danych.addAction(self.a_snapuj)
         self.a_snapuj.triggered.connect(self.przysnapuj_do_dzewid)
 
         self.przyg_teren = QAction(
-            QIcon(None), 'Przygotuj w teren', self.iface.mainWindow())
+            QIcon(None), "Przygotuj w teren", self.iface.mainWindow()
+        )
         self.m_przyg_danych.addAction(self.przyg_teren)
         self.przyg_teren.triggered.connect(self.przygotuj_do_terenu)
 
         self.m_przyg_danych.addSeparator()
 
-        self.wyz_lz = QAction(QIcon(None),
-                              'LZ - wyznacz potencjalne',
-                              self.iface.mainWindow())
+        self.wyz_lz = QAction(
+            QIcon(None), "LZ - wyznacz potencjalne", self.iface.mainWindow()
+        )
         self.m_przyg_danych.addAction(self.wyz_lz)
         self.wyz_lz.triggered.connect(self.wyszukaj_lz)
 
-        self.kas_op = QAction(QIcon(None),
-                              "Kasuj OP",
-                              self.iface.mainWindow())
+        self.kas_op = QAction(QIcon(None), "Kasuj OP", self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.kas_op)
 
         self.kas_op.triggered.connect(self.kasuj_wlas_OP)
 
-        self.eksp_kml = QAction(QIcon(None),
-                                u"Wyeksportuj do KML",
-                                self.iface.mainWindow())
+        self.eksp_kml = QAction(
+            QIcon(None), "Wyeksportuj do KML", self.iface.mainWindow()
+        )
         self.m_przyg_danych.addAction(self.eksp_kml)
         self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
 
         # -----------------------------------------
 
         self.przyg_ciec = QAction(
-            QIcon(None), 'Przygotuj wydzielenia do cięcia',
-            self.iface.mainWindow())
+            QIcon(None), "Przygotuj wydzielenia do cięcia", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
         self.lacz_karty = QAction(
-            QIcon(None), 'Połącz pomiary od taksatorów',
-            self.iface.mainWindow())
+            QIcon(None), "Połącz pomiary od taksatorów", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.lacz_karty)
         self.lacz_karty.triggered.connect(self.polacz_pliki_teren)
 
         self.przyg_klep = QAction(
-            QIcon(None), 'Sprawdź karty w wydzieleniach',
-            self.iface.mainWindow())
+            QIcon(None), "Sprawdź karty w wydzieleniach", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
 
         self.zbiorcza = QAction(
             QIcon(None),
-            'Zbiorcza procedura [6 następnych kr.]',
-            self.iface.mainWindow())
+            "Zbiorcza procedura [6 następnych kr.]",
+            self.iface.mainWindow(),
+        )
         self.m_rozlicz_pow.addSeparator()
         self.m_rozlicz_pow.addAction(self.zbiorcza)
         self.m_rozlicz_pow.addSeparator()
         self.zbiorcza.triggered.connect(self.zbiorczy_poczatek)
 
-        self.zanum = QAction(
-            QIcon(None), 'Zanumeruj oddziały', self.iface.mainWindow())
+        self.zanum = QAction(QIcon(None), "Zanumeruj oddziały", self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.zanum)
         self.zanum.triggered.connect(self.zanumeruj)
 
         self.dop_w_o = QAction(
-            QIcon(None), 'Dopisz oddziały do wydzieleń',
-            self.iface.mainWindow())
+            QIcon(None), "Dopisz oddziały do wydzieleń", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_w_o)
         self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
 
         self.zalit = QAction(
-            QIcon(None), 'Zaliterkuj wydzielenia', self.iface.mainWindow())
+            QIcon(None), "Zaliterkuj wydzielenia", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.zalit)
         self.zalit.triggered.connect(self.zaliterkuj)
 
         self.dop_adrles = QAction(
-            QIcon(None), 'Zaadresuj [ADR_LES]', self.iface.mainWindow())
+            QIcon(None), "Zaadresuj [ADR_LES]", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
 
-        self.dopisz_wydz = QAction(QIcon(None),
-                                   'Dopisz/uzupełnij wydzielenia w bazie',
-                                   self.iface.mainWindow())
+        self.dopisz_wydz = QAction(
+            QIcon(None), "Dopisz/uzupełnij wydzielenia w bazie", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dopisz_wydz)
         self.dopisz_wydz.triggered.connect(self.dopisz_wydzielenia)
 
-        self.rozlicz_wydz = QAction(QIcon(None),
-                                    'Rozlicz powierzchnię wydz.',
-                                    self.iface.mainWindow())
+        self.rozlicz_wydz = QAction(
+            QIcon(None), "Rozlicz powierzchnię wydz.", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
         self.dop_pnsw = QAction(
-            QIcon(None), 'Dopisz/uzupełnij PNSW',
-            self.iface.mainWindow())
+            QIcon(None), "Dopisz/uzupełnij PNSW", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_pnsw)
         self.dop_pnsw.triggered.connect(self.dopisz_pnsw)
 
         self.przyg_rap = QAction(
-            QIcon(None), 'Stwórz raport kart do klepania',
-            self.iface.mainWindow())
+            QIcon(None), "Stwórz raport kart do klepania", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.przyg_rap)
         self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
         self.dop_zab = QAction(
-            QIcon(None), 'Zabiegi dopisz/sprawdź (stare)',
-            self.iface.mainWindow())
+            QIcon(None), "Zabiegi dopisz/sprawdź (stare)", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_zab)
         self.dop_zab.triggered.connect(self.zabiegi)
 
         self.dop_zab_nowe = QAction(
-            QIcon(None), 'Zabiegi dopisz/sprawdź (nowe)',
-            self.iface.mainWindow())
+            QIcon(None), "Zabiegi dopisz/sprawdź (nowe)", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
 
         self.m_rozlicz_pow.addSeparator()
 
         self.dop_fo = QAction(
-            QIcon(None), 'Dopisz formy ochrony', self.iface.mainWindow())
+            QIcon(None), "Dopisz formy ochrony", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
 
         self.przelit = QAction(
-            QIcon(None), 'Przeliterkuj (Całość)', self.iface.mainWindow())
+            QIcon(None), "Przeliterkuj (Całość)", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.przelit)
         self.przelit.triggered.connect(self.przeliterkuj)
 
         self.klon = QAction(
-            QIcon(None), 'Klonuj wydzielenia w bazie', self.iface.mainWindow())
+            QIcon(None), "Klonuj wydzielenia w bazie", self.iface.mainWindow()
+        )
         self.m_rozlicz_pow.addAction(self.klon)
         self.klon.triggered.connect(self.klonuj)
 
+        self.kasr = QAction(
+            QIcon(None), "Skasuj wydz w bazie [wydz]", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.kasr)
+        self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
         # ----------------------------------------
 
-        self.spr_odl_wydz = QAction(QIcon(None),
-                                    'Sprawdź odległości w wydzieleniach',
-                                    self.iface.mainWindow())
+        self.spr_odl_wydz = QAction(
+            QIcon(None), "Sprawdź odległości w wydzieleniach", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.spr_odl_wydz)
         self.spr_odl_wydz.triggered.connect(self.sprawdzenie_odl_w_wydz)
 
-        self.spr_wl_wydz = QAction(QIcon(None),
-                                   'Sprawdź własności w wydzieleniach',
-                                   self.iface.mainWindow())
+        self.spr_wl_wydz = QAction(
+            QIcon(None), "Sprawdź własności w wydzieleniach", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.spr_wl_wydz)
         self.spr_wl_wydz.triggered.connect(self.sprawdzenie_wlasnosci_wydz)
 
-        self.spr_w_o = QAction(QIcon(None),
-                               'Sprawdź wydzielenia w oddziałach',
-                               self.iface.mainWindow())
+        self.spr_w_o = QAction(
+            QIcon(None), "Sprawdź wydzielenia w oddziałach", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
         self.m_kontrola_danych.addSeparator()
 
-        self.dop_dzkat = QAction(QIcon(None),
-                                 'Kontrla DZKAT z bazką',
-                                 self.iface.mainWindow())
+        self.dop_dzkat = QAction(
+            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.dop_dzkat)
         self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
 
         self.spr_kontr_ls = QAction(
-            QIcon(None),
-            'Kontrola Ls z bazą',
-            self.iface.mainWindow())
+            QIcon(None), "Kontrola Ls z bazą", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.spr_kontr_ls)
         self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
 
@@ -434,18 +461,19 @@ class LasR:
 
         self.spr_rozlicz_wydz = QAction(
             QIcon(None),
-            'Sprawdz rozliczenie powierzchni wydz.',
-            self.iface.mainWindow())
+            "Sprawdz rozliczenie powierzchni wydz.",
+            self.iface.mainWindow(),
+        )
         self.m_kontrola_danych.addAction(self.spr_rozlicz_wydz)
         self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
 
         self.spr_wydz = QAction(
-            ico_wydz_spr, 'Sprawdź wydzielenia', self.iface.mainWindow())
+            ico_wydz_spr, "Sprawdź wydzielenia", self.iface.mainWindow()
+        )
         self.m_kontrola_danych.addAction(self.spr_wydz)
         self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
 
-        self.spr_topo = QAction(
-            ico_topo, 'Sprawdź topologię', self.iface.mainWindow())
+        self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
         self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
 
@@ -453,127 +481,120 @@ class LasR:
 
         self.menu.addSeparator()
 
-        self.dop_wydz = QAction(ico_wydz_dopisz,
-                                'Dopisz atrybuty do wydzieleń',
-                                self.iface.mainWindow())
+        self.dop_wydz = QAction(
+            ico_wydz_dopisz, "Dopisz atrybuty do wydzieleń", self.iface.mainWindow()
+        )
         self.menu.addAction(self.dop_wydz)
         self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
 
-
-        self.nakl = QAction(QIcon(None),
-                            'Generuj naklejki',
-                            self.iface.mainWindow())
+        self.nakl = QAction(QIcon(None), "Generuj naklejki", self.iface.mainWindow())
         self.menu.addAction(self.nakl)
         self.nakl.triggered.connect(self.rysuj_naklejki)
 
-        self.okl = QAction(QIcon(None),
-                           'Generuj okładki na atlas',
-                           self.iface.mainWindow())
+        self.okl = QAction(
+            QIcon(None), "Generuj okładki na atlas", self.iface.mainWindow()
+        )
         self.menu.addAction(self.okl)
         self.okl.triggered.connect(self.rysuj_okladki)
 
         # -------------------------------------
 
-        self.rys_gat = QAction(ico_wydz_rys_gat,
-                               'Rysuj gatunki',
-                               self.iface.mainWindow())
+        self.rys_gat = QAction(
+            ico_wydz_rys_gat, "Rysuj gatunki", self.iface.mainWindow()
+        )
         self.m_style.addAction(self.rys_gat)
         self.rys_gat.triggered.connect(self.rysuj_gatunki)
 
-        self.rys_zab = QAction(ico_wydz_rys_zab,
-                               'Rysuj zabiegi',
-                               self.iface.mainWindow())
+        self.rys_zab = QAction(
+            ico_wydz_rys_zab, "Rysuj zabiegi", self.iface.mainWindow()
+        )
         self.m_style.addAction(self.rys_zab)
         self.rys_zab.triggered.connect(self.rysuj_zabiegi)
 
-        self.rys_stl = QAction(ico_wydz_rys_stl,
-                               'Rysuj STL',
-                               self.iface.mainWindow())
+        self.rys_stl = QAction(ico_wydz_rys_stl, "Rysuj STL", self.iface.mainWindow())
         self.m_style.addAction(self.rys_stl)
         self.rys_stl.triggered.connect(self.rysuj_stl)
 
-        self.rys_orto = QAction(ico_wydz_rys_orto,
-                                'Rysuj na orto',
-                                self.iface.mainWindow())
+        self.rys_orto = QAction(
+            ico_wydz_rys_orto, "Rysuj na orto", self.iface.mainWindow()
+        )
         self.m_style.addAction(self.rys_orto)
         self.rys_orto.triggered.connect(self.rysuj_orto)
 
-        self.rys_dz = QAction(ico_dzkat,
-                              'Rysuj Działki',
-                              self.iface.mainWindow())
+        self.rys_dz = QAction(ico_dzkat, "Rysuj Działki", self.iface.mainWindow())
         self.m_style.addAction(self.rys_dz)
         self.rys_dz.triggered.connect(self.rysuj_dzkat)
 
-        self.rys_klu = QAction(ico_klu,
-                               'Rysuj KLU',
-                               self.iface.mainWindow())
+        self.rys_klu = QAction(ico_klu, "Rysuj KLU", self.iface.mainWindow())
         self.m_style.addAction(self.rys_klu)
         self.rys_klu.triggered.connect(self.rysuj_klu)
 
         self.a_dod_adm = QAction(
-            QIcon(None), 'Dodaj [MUNICIP, COMUNITY]', self.iface.mainWindow())
+            QIcon(None), "Dodaj [MUNICIP, COMUNITY]", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_dod_adm)
         self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
 
         self.a_dop_adm = QAction(
-            QIcon(None),
-            'Uzupełnij [MUNICIP, COMMUNITY]',
-            self.iface.mainWindow())
+            QIcon(None), "Uzupełnij [MUNICIP, COMMUNITY]", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_dop_adm)
         self.a_dop_adm.triggered.connect(self.dopisz_adradm)
 
         self.a_dop_own = QAction(
-            QIcon(None), 'Dopisz OWNERSHIP', self.iface.mainWindow())
+            QIcon(None), "Dopisz OWNERSHIP", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_dop_own)
         self.a_dop_own.triggered.connect(self.dopisz_ownera)
 
-        self.a_dop_ros = QAction(
-            QIcon(None), 'Dopisz rośliny', self.iface.mainWindow())
+        self.a_dop_ros = QAction(QIcon(None), "Dopisz rośliny", self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_dop_ros)
         self.a_dop_ros.triggered.connect(self.dopisz_rosliny)
 
         self.a_czy_kol = QAction(
-            QIcon(None), 'Usuń zawartość kolumn', self.iface.mainWindow())
+            QIcon(None), "Usuń zawartość kolumn", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_czy_kol)
         self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
 
-        self.a_anon = QAction(QIcon(None),
-                              "Anonimizuj bazy TPU",
-                              self.iface.mainWindow())
+        self.a_anon = QAction(
+            QIcon(None), "Anonimizuj bazy TPU", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_anon)
         self.a_anon.triggered.connect(self.anonimizuj)
 
-        self.a_fstspec = QAction(QIcon(None),
-                                 "Napraw F_STOREY_SPECIES",
-                                 self.iface.mainWindow())
+        self.a_fstspec = QAction(
+            QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_fstspec)
         self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
 
         self.a_reproj = QAction(
-            QIcon(None), "Reprojekcja warstw", self.iface.mainWindow())
+            QIcon(None), "Reprojekcja warstw", self.iface.mainWindow()
+        )
         self.m_narzedzia.addAction(self.a_reproj)
         self.a_reproj.triggered.connect(self.reprojekcja_warstw)
 
-        self.a_copy = QAction(QIcon(None),
-                              "Połącz bazy TPU",
-                              self.iface.mainWindow())
+        self.a_copy = QAction(QIcon(None), "Połącz bazy TPU", self.iface.mainWindow())
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
 
         self.a_rap_wyles = QAction(
-            QIcon(None), 'Karty wylesień na dz.', self.iface.mainWindow())
+            QIcon(None), "Karty wylesień na dz.", self.iface.mainWindow()
+        )
         self.m_raporty.addAction(self.a_rap_wyles)
         self.a_rap_wyles.triggered.connect(self.generuj_karty_wylesien)
 
         self.a_wyciagi = QAction(
-            QIcon(None), 'Wyciagi dla właścicieli', self.iface.mainWindow())
+            QIcon(None), "Wyciagi dla właścicieli", self.iface.mainWindow()
+        )
         self.m_raporty.addAction(self.a_wyciagi)
         self.a_wyciagi.triggered.connect(self.generuj_wyciagi)
 
         # toolbar -----------------------------
-        self.dop_meta = QAction(ico_wydz_dopisz,
-                                'Dopisz metadane',
-                                self.iface.mainWindow())
+        self.dop_meta = QAction(
+            ico_wydz_dopisz, "Dopisz metadane", self.iface.mainWindow()
+        )
         self.toolbar.addAction(self.dop_meta)
         self.dop_meta.triggered.connect(self.dopisanie_wydzielen)
 
@@ -587,85 +608,76 @@ class LasR:
         self.toolbar.addAction(self.rys_klu)
         QmlCacheModule(self)
 
-        self.rys_wez = QAction(ico_wezelki,
-                               'Pokaż węzełki',
-                               self.iface.mainWindow())
+        self.rys_wez = QAction(ico_wezelki, "Pokaż węzełki", self.iface.mainWindow())
         self.m_style.addAction(self.rys_wez)
         self.toolbar.addAction(self.rys_wez)
         self.rys_wez.triggered.connect(self.rysuj_wezelki)
 
-        self.a_pokaz_lay = QAction(ico_pok_lay,
-                                   'Pokaż Layout',
-                                   self.iface.mainWindow())
+        self.a_pokaz_lay = QAction(ico_pok_lay, "Pokaż Layout", self.iface.mainWindow())
         self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
         self.toolbar.addAction(self.a_pokaz_lay)
 
         self.toolbar.addSeparator()
 
-        self.rys_atl = QAction(ico_gen_pola,
-                               'Rysuj pola atlasowe',
-                               self.iface.mainWindow())
+        self.rys_atl = QAction(
+            ico_gen_pola, "Rysuj pola atlasowe", self.iface.mainWindow()
+        )
         self.toolbar.addAction(self.rys_atl)
         self.rys_atl.triggered.connect(self.rysuj_atlas)
 
-        self.num_atl = QAction(ico_num_pola,
-                               'Numeruj pola atlasu',
-                               self.iface.mainWindow())
+        self.num_atl = QAction(
+            ico_num_pola, "Numeruj pola atlasu", self.iface.mainWindow()
+        )
         self.toolbar.addAction(self.num_atl)
         self.num_atl.triggered.connect(self.numeruj_atlas)
 
         self.toolbar.addSeparator()
 
         self.toolbar.addAction(self.spr_topo)
-        self.akcje_toolbara = [self.dop_meta,
-                               self.spr_wydz,
-                               self.rys_dz,
-                               self.rys_klu,
-                               self.rys_gat,
-                               self.rys_wez,
-                               self.rys_atl,
-                               self.spr_topo,
-                               self.a_pokaz_lay,
-                               ]
+        self.akcje_toolbara = [
+            self.dop_meta,
+            self.spr_wydz,
+            self.rys_dz,
+            self.rys_klu,
+            self.rys_gat,
+            self.rys_wez,
+            self.rys_atl,
+            self.spr_topo,
+            self.a_pokaz_lay,
+        ]
         # toolbar koniec ---------------------
 
         # toolbar ze skrotami -----------------------
-        self.spr_geom = QAction(ico_check,
-                                'Sprawdź geometrię',
-                                self.iface.mainWindow())
+        self.spr_geom = QAction(ico_check, "Sprawdź geometrię", self.iface.mainWindow())
         self.toolbar_skr.addAction(self.spr_geom)
         self.spr_geom.triggered.connect(self.sprawdz_geom)
 
-        self.uutf8 = QAction(ico_utf8,
-                             'ustaw kodowanie UTF-8',
-                             self.iface.mainWindow())
+        self.uutf8 = QAction(ico_utf8, "ustaw kodowanie UTF-8", self.iface.mainWindow())
         self.toolbar_skr.addAction(self.uutf8)
         self.uutf8.triggered.connect(self.ustaw_utf8)
 
         self.toolbar_skr.addAction(self.iface.actionSplitFeatures())
 
-        if 'DigitizingTools' in plugins:
+        if "DigitizingTools" in plugins:
             ico_split = QIcon(":/MultiToSingle.png")
-            self.msplit = QAction(ico_split,
-                                  'Rozbij multipoligony',
-                                  self.iface.mainWindow())
+            self.msplit = QAction(
+                ico_split, "Rozbij multipoligony", self.iface.mainWindow()
+            )
             self.toolbar_skr.addAction(self.msplit)
             self.msplit.triggered.connect(self.multipart_split)
 
         self.toolbar_skr.addAction(self.iface.actionAddRing())
         self.toolbar_skr.addAction(self.iface.actionAddFeature())
         self.toolbar_skr.addAction(self.iface.actionSelectRectangle())
-        self.odzn = QAction(ico_desel_all,
-                            'Unselect All',
-                            self.iface.mainWindow())
+        self.odzn = QAction(ico_desel_all, "Unselect All", self.iface.mainWindow())
         self.toolbar_skr.addAction(self.odzn)
         self.odzn.triggered.connect(self.odznacz)
 
         self.toolbar_skr.addAction(self.iface.actionVertexTool())
 
-        self.pg = QAction(ico_pow_graf,
-                          'oblicz powierzchnię graficzną',
-                          self.iface.mainWindow())
+        self.pg = QAction(
+            ico_pow_graf, "oblicz powierzchnię graficzną", self.iface.mainWindow()
+        )
         self.toolbar_skr.addAction(self.pg)
         self.pg.triggered.connect(self.powierzchnia_graf)
 
@@ -702,8 +714,7 @@ class LasR:
         #     self.iface.removeToolBarIcon(action)
         # remove the toolbar
         if self.menu is not None:
-            self.iface.mainWindow().menuBar().removeAction(
-                self.menu.menuAction())
+            self.iface.mainWindow().menuBar().removeAction(self.menu.menuAction())
         for a in self.akcje_toolbara:
             self.iface.removeToolBarIcon(a)
         # del self.toolbar
@@ -837,7 +848,7 @@ class LasR:
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
         if k.wczytaj_wydz():
             k.kontrola_odl()
-            k.zapisz_raport('raport_odl_w_wydz')
+            k.zapisz_raport("raport_odl_w_wydz")
 
     def sprawdzenie_wlasnosci_wydz(self):
         w = shp_spr_wlasn_wydz.SprawdzWlasnosciWydzielen(self.iface)
@@ -979,22 +990,22 @@ class LasR:
         del r
 
     def rysuj_gatunki(self):
-        shp_symbolizacja.rysuj(self.iface, 'gat')
+        shp_symbolizacja.rysuj(self.iface, "gat")
 
     def rysuj_zabiegi(self):
-        shp_symbolizacja.rysuj(self.iface, 'zab')
+        shp_symbolizacja.rysuj(self.iface, "zab")
 
     def rysuj_orto(self):
-        shp_symbolizacja.rysuj(self.iface, 'orto')
+        shp_symbolizacja.rysuj(self.iface, "orto")
 
     def rysuj_stl(self):
-        shp_symbolizacja.rysuj(self.iface, 'stl')
+        shp_symbolizacja.rysuj(self.iface, "stl")
 
     def rysuj_dzkat(self):
-        shp_symbolizacja.rysuj(self.iface, 'dzkat')
+        shp_symbolizacja.rysuj(self.iface, "dzkat")
 
     def rysuj_klu(self):
-        shp_symbolizacja.rysuj(self.iface, 'ls')
+        shp_symbolizacja.rysuj(self.iface, "ls")
 
     def rysuj_wezelki(self):
         shp_symbolizacja.PokazWezly(self.iface)
@@ -1003,7 +1014,7 @@ class LasR:
         funkcje.ustaw_utf8(self.iface)
 
     def multipart_split(self):
-        plugins['DigitizingTools'].multiPartSplitter.process()
+        plugins["DigitizingTools"].multiPartSplitter.process()
 
     def odznacz(self):
         for key, lyr in QgsProject.instance().mapLayers().items():
@@ -1012,7 +1023,7 @@ class LasR:
     def sprawdz_geom(self):
         m = self.iface.vectorMenu()
         menus = [x for x in m.children() if isinstance(x, QMenu)]
-        gmenu = [x for x in menus if x.title() == 'G&eometry Tools'][0]
+        gmenu = [x for x in menus if x.title() == "G&eometry Tools"][0]
         y = [x for x in gmenu.actions() if "Check Validity" in x.text()][0]
         y.trigger()
 
@@ -1059,7 +1070,8 @@ class LasR:
             return
         if not np.pobierz_z_bazy():
             self.iface.messageBar().pushCritical(
-                'BAZA', 'Nie udało się połączyć z bazą')
+                "BAZA", "Nie udało się połączyć z bazą"
+            )
         np.zbuduj_strukture()
         np.popraw()
         np.dopisz_poprawki()
@@ -1095,17 +1107,17 @@ class LasR:
         dd.dopisz_dane()
 
     def zbiorczy_poczatek(self):
-        if self.select_layer_by_name('ODDZ') is False:
+        if self.select_layer_by_name("ODDZ") is False:
             return
         self.zanumeruj()
-        if self.select_layer_by_name('WYDZ') is False:
+        if self.select_layer_by_name("WYDZ") is False:
             return
         shp_dopOddzWydz.dopOddzWydz(self.iface)
-        self.select_layer_by_name('WYDZ')
+        self.select_layer_by_name("WYDZ")
         shp_literkuj.Literkuj(self.iface)
-        self.select_layer_by_name('WYDZ')
+        self.select_layer_by_name("WYDZ")
         shp_adr_les.Zaadresuj(self.iface)
-        self.select_layer_by_name('WYDZ')
+        self.select_layer_by_name("WYDZ")
         w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)
         if w.sprawdz_dane():
             w.wczytaj_wydz_shp()
@@ -1114,7 +1126,7 @@ class LasR:
             w.wyswietl_info()
         else:
             self.iface.messageBar().pushMessage(
-                'ZONK', 'Nie dopisano wydzielen do bazy', Qgis.Warning, 10
+                "ZONK", "Nie dopisano wydzielen do bazy", Qgis.Warning, 10
             )
             return
 
@@ -1123,9 +1135,10 @@ class LasR:
             return
         else:
             self.iface.messageBar().pushMessage(
-                'ZONK', 'Sprawdzenie przy rozliczeniu', Qgis.Warning, 10
+                "ZONK", "Sprawdzenie przy rozliczeniu", Qgis.Warning, 10
             )
             return
+
         b.przetnij_wydz_ls()
         if b.zbuduj_strukture():
             b.sprawdz_rozlicz_graf()
@@ -1139,7 +1152,7 @@ class LasR:
             b.zapisz_rakkort()
 
         self.iface.messageBar().pushMessage(
-            'OK', 'Procedura zbiorcza przebiegła bez błędów', Qgis.Success, 10
+            "OK", "Procedura zbiorcza przebiegła bez błędów", Qgis.Success, 10
         )
 
     def select_layer_by_name(self, layer_name):
@@ -1150,6 +1163,9 @@ class LasR:
             return True
         else:
             self.iface.messageBar().pushMessage(
-                'ZONK', f'Nie znalazłem wartwy: {layer_name}', Qgis.Warning, 10
+                "ZONK", f"Nie znalazłem wartwy: {layer_name}", Qgis.Warning, 10
             )
             return False
+
+    def skasuj_rekordy_w_bazie_lyr(self):
+        baza_usun_wydz.usun_wydz(self.iface)

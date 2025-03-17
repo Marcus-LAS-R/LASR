@@ -55,7 +55,8 @@ class KontrolaWydzielen(SprawdzWydzielenia):
         return True
 
     def wczytaj_baze(self):
-        baza_sc = znajdz_baze_do_wydz(self.iface, poz=1)
+        # baza_sc = znajdz_baze_do_wydz(self.iface, poz=1)
+        baza_sc = znajdz_baze_do_wydz(self.iface, poz=1,  wskaz=True)
         if baza_sc:
             self.baza = Baza(baza_sc)
             if self.baza.polacz():

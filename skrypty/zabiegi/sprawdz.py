@@ -431,7 +431,7 @@ class Sprawdz:
         if self.wybor != 'Uzu':
             return
 
-        nadmiar = [x for x in self.cue if x not in
+        nadmiar = [str(x) for x in self.cue if x not in
                    [y[0] for y in self.zabiegi]+[self.reb, self.gen_reb]]
         if len(nadmiar) > 0:
             self.uw_raport.append(

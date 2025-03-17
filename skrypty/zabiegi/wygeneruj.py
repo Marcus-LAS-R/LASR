@@ -170,6 +170,8 @@ class Generuj:
 
         if self.gat_gl_wiek < 10:
             self.zabiegi.append(['CW', self.pow_wydz])
+            if self.janczulewicz:
+                self.zabiegi.append(['CP', self.pow_wydz])
             if self.gat_gl_wiek < 4:
                 return
 
@@ -192,10 +194,16 @@ class Generuj:
                 self.zabiegi.append(['TP', self.pow_wydz])
                 self.trzebiez = True
 
+        genr = self.generuj_rebnie()  # normalne rebnie
         if self.janczulewicz:
-            genr = [['IB', 100]]  # wszędzie gdzie ma byc rebnia ma byc tylko I
-        else:
-            genr = self.generuj_rebnie()  # normalne rebnie
+            if genr is not False:
+                # wszędzie gdzie ma byc rebnia ma byc tylko I
+                genr = [['IB', 100]]
+                # chyba że bagno to IVD
+                if self.stl in [
+                    'LMB', 'LŁ', 'LŁG', 'BB', 'BGB', 'BMB', 'BMGB'
+                ]:
+                    genr = [['V', 40]]
 
         # wygeneruj rebnie o ile jest taka mozliwość
         if genr is not False:

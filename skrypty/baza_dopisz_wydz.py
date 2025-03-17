@@ -52,7 +52,7 @@ class DopiszWydzielenia():
             )
             return False
 
-        baza_sc = znajdz_baze_do_wydz(self.iface, self.wydz)
+        baza_sc = znajdz_baze_do_wydz(self.iface, self.wydz, wskaz=True)
         if baza_sc is not False:
             self.iface.messageBar().pushMessage(
                 'Przetwarzam',
