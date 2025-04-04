@@ -114,7 +114,7 @@ class Struktura:
 
     def przygotuj_strukture_eks(self):
         """Tworzy strukture katalogów z gmin i obrebow do ktorych wgrywane
-        będą zalecenia dla wlasicicieli,
+        będą zalecenia dla wlasicicieli,
         """
 
         if not self.baza.polacz():
@@ -245,7 +245,7 @@ class Wyciag:
         return ldz, lit
 
     def _klastruj(self, lista):
-        """Klastruje featurki z listy w konglomeraty z ktore bedą mieścić się
+        """Klastruje featurki z listy w konglomeraty z ktore bedą mieścić się
         na mapie wkomponowanej w A4
         return [klaster, klaster]
             """
@@ -343,6 +343,11 @@ class Wyciag:
             # ma byc bez mapy
             if not self.bez_mapy:
                 pp += self.w_generuj_klaster(pp, kl, ram, poz) + 2
+
+            if pp > 277:
+                pp = pp-277+20
+                self.strona += 1
+                self.w_dodaj_strone()
 
             pp = self.w_generuj_tabelke(pp, kl)
             pp += 12
@@ -1017,9 +1022,13 @@ class Wyciag:
             if _gr in self.sl_gr[_obr]:
                 for x in self.sl_gr[_obr][_gr]['wl']:
                     if x in self.sl_wl and x != self.addr:
-                        ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
-                        ww += self.sl_wl[x]['opis']['imie'] + ' ['
-                        ww += self.sl_wl[x]['udzial'][grej] + ']'
+                        ww += self.sl_wl[x]['opis']['imie'] 
+                        if len(ww) > 20:
+                            ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
+                            ims = self.sl_wl[x]['opis']['imie'].strip().split(' ')
+                            if len(ims) > 0:
+                                ww += '. '.join(im[0] for im in ims).strip()
+                        ww += ' [' + self.sl_wl[x]['udzial'][grej] + ']'
                         wwlas.append(ww)
 
         # nazwa obiektu
@@ -1289,7 +1298,7 @@ class GenerujWyciagi(Struktura, Wyciag):
         self.iface.messageBar().clearWidgets()
         if len(self.bledy_generowania) > 0:
             self.iface.messageBar().pushMessage(
-                'BŁĄD', 'Nie udało wygenerować się wszystkich wyciągów'
+                'BŁĄD', 'Nie udało wygenerować się wszystkich wyciągów'
                 ' (błędy podczas generowania wyciągów: '
                 f'{len(self.bledy_generowania)})'
                 '- pełna lista addr_id w logu Las-R',
