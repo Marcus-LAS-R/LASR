@@ -92,25 +92,21 @@ class WyszukajLz():
             return False
 
         if self.uz is not False:
-            pola_uz_wyb = [x.name() for x in
-                           self.uz.dataProvider().fields().toList()
-                           if x.name() in ['AU', 'G5OFU']]
+            wszystkie_pola = [x.name() for x in
+                              self.uz.dataProvider().fields().toList()]
+            pola_uz_wyb = [p for p in wszystkie_pola
+                           if p in ['AU', 'G5OFU', 'OFU']]
 
-            if len(pola_uz_wyb) == 0:
-                self.uz = False
-                self.iface.messageBar().pushMessage(
-                    'UŻYTKI',
-                    'Brak wymaganego pola w tabeli atrybutów [AU] lub [G5OFU]',
-                    Qgis.Critical,
-                    10
-                )
-                QgsMessageLog.logMessage(
-                    'Brak wymaganych pól w tabeli atrybutów [AU]'
-                    '\n---[ KONIEC ]---',
-                    'Las-R', Qgis.Critical
-                )
-                return False
-            self.uz_pole = pola_uz_wyb[0]
+            if len(pola_uz_wyb) == 1:
+                self.uz_pole = pola_uz_wyb[0]
+            else:
+                # 0 znanych kolumn → pytaj o dowolną kolumnę z warstwy
+                # 2+ znanych kolumn → pytaj którą z nich użyć
+                kandydaci = pola_uz_wyb if pola_uz_wyb else wszystkie_pola
+                wybrane = self.pd.wybierz_pole_uz(kandydaci)
+                if not wybrane:
+                    return False
+                self.uz_pole = wybrane
 
         lsc = self.ls.dataProvider().dataSourceUri().split("|")[0]
         self.kat = os.path.dirname(lsc)
@@ -637,27 +633,34 @@ class PobierzDane(QDialog):
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.uz = QgsVectorLayer(warstwa, "uzytki", "ogr")
-            if 'AU' not in [x.name() for x in
-                            self.uz.dataProvider().fields().toList()]:
-                message = QMessageBox()
-                message.setIcon(QMessageBox.Information)
-                message.setWindowTitle('Błąd')
-                message.setText('W warstwie nie ma kolumny AU, proszę '
-                                'ją stworzyć i uzupełnić')
-                message.addButton(u"Zamknij", QMessageBox.ActionRole)
-                message.exec_()
 
-            else:
-                self.ui.lineEdit_uz.setText(
-                    self.uz.dataProvider().dataSourceUri().split("|")[0])
+            self.ui.lineEdit_uz.setText(
+                self.uz.dataProvider().dataSourceUri().split("|")[0])
 
         except:  # nopep8
             message = QMessageBox()
             message.setIcon(QMessageBox.Information)
-            message.setWindowTitle('Błąd')
-            message.setText('Nie udało się otworzyć podanej warstwy')
+            message.setWindowTitle('Bl�d')
+            message.setText('Nie uda�o si� otworzy� podanej warstwy')
             message.addButton(u"Zamknij", QMessageBox.ActionRole)
             message.exec_()
+
+    def wybierz_pole_uz(self, dostepne_pola):
+        """Pyta uzytkownika ktora kolumne uzyc jako klase uzytku gruntowego."""
+        from PyQt5.QtWidgets import QInputDialog
+        if not dostepne_pola:
+            return None
+        opis = ('Wybierz kolumne zawierajaca klase uzytku gruntowego\n'
+                '(szukana wartosc: "Ls"):')
+        pole, ok = QInputDialog.getItem(
+            self,
+            'Kolumna uzytku gruntowego',
+            opis,
+            dostepne_pola,
+            0,
+            False
+        )
+        return pole if ok else None
 
     def sprawdz_oddz(self):
         """ Metoda sprawdza czy użyszkodnik nie chce dodać warstwy oddziałów
