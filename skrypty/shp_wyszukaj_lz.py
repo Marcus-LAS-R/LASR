@@ -105,6 +105,12 @@ class WyszukajLz():
                 kandydaci = pola_uz_wyb if pola_uz_wyb else wszystkie_pola
                 wybrane = self.pd.wybierz_pole_uz(kandydaci)
                 if not wybrane:
+                    self.iface.messageBar().pushMessage(
+                        'UŻYTKI',
+                        'Nie wybrano kolumny z klasą użytku — analiza przerwana',
+                        Qgis.Warning,
+                        10
+                    )
                     return False
                 self.uz_pole = wybrane
 
@@ -133,10 +139,17 @@ class WyszukajLz():
         """Metoda buduje indeksy przestrzenne dla warstw o ile istnieją"""
         self.crs = QgsCoordinateReferenceSystem("epsg:2180")
 
-        # stworz katalog tymczasowy
+        # stworz katalog tymczasowy, wyczysc stare pliki jesli istnieja
         self.tempkat = os.path.join(self.kat, 'temp')
         if not os.path.isdir(self.tempkat):
             os.mkdir(self.tempkat)
+        else:
+            for f in glob.glob(os.path.join(self.tempkat, 'ls*')) + \
+                     glob.glob(os.path.join(self.tempkat, 'uz*')):
+                try:
+                    os.remove(f)
+                except (PermissionError, OSError):
+                    pass
 
         self.struk_oddz()
         self.struk_ls()
@@ -162,10 +175,6 @@ class WyszukajLz():
                 self.ls_si.insertFeature(feat)
                 self.ls_fts[feat.id()] = feat
 
-            # jezeli feature ma pow rejestrowa mniejsza niz 10 ar
-            if str(self.isNone(feat['LAND_AR'])).isdigit():
-                if self.isNone(feat['LAND_AR']) < 0.1:
-                    self.lzp.append(feat)
 
         # stwórz warstwy tymczasowe dla lasów z uzytków i ls
         self.lswybr = QgsVectorLayer(
@@ -383,7 +392,7 @@ class WyszukajLz():
         # sprawdzana jest odleglosc a potem juz z konkretnymi featurami pow
         # rejestrowa.
 
-        lsy = tab_ls  # lista ls w klastrze
+        lsy = list(tab_ls)  # lista ls w klastrze
         lsy_id = [ff.id() for ff in tab_ls]  # lista id ls w klastrze
 
         zmiana = True  # czy w petli nastapila jakakolwiek zmiana
@@ -542,15 +551,24 @@ class WyszukajLz():
             "ogr"
         )
 
+        # zwolnij uchwyty do plikow tymczasowych przed usunieciem
+        if hasattr(self, 'lswybr'):
+            del self.lswybr
+        if hasattr(self, 'uzwybr'):
+            del self.uzwybr
+
         # sprzatamy po sobie
         lista = glob.glob(os.path.join(self.tempkat, 'ls*'))
         lista += glob.glob(os.path.join(self.tempkat, 'uz*'))
         for ll in lista:
-            os.remove(ll)
             try:
-                os.removedirs(self.tempkat)
-            except:  # nopep8
+                os.remove(ll)
+            except (PermissionError, OSError):
                 pass
+        try:
+            os.removedirs(self.tempkat)
+        except:  # nopep8
+            pass
 
         QgsMessageLog.logMessage('---[ KONIEC ]---',
                                  'Las-R', Qgis.Info)
@@ -640,8 +658,8 @@ class PobierzDane(QDialog):
         except:  # nopep8
             message = QMessageBox()
             message.setIcon(QMessageBox.Information)
-            message.setWindowTitle('Bl�d')
-            message.setText('Nie uda�o si� otworzy� podanej warstwy')
+            message.setWindowTitle('Bl�d')
+            message.setText('Nie uda�o si� otworzy� podanej warstwy')
             message.addButton(u"Zamknij", QMessageBox.ActionRole)
             message.exec_()
 
