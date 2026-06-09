@@ -604,6 +604,13 @@ class PobierzDane(QDialog):
 
         if oddz:
             self.sprawdz_oddz()
+        elif self.kat:
+            candidates = glob.glob(os.path.join(self.kat, '*PGLLP*.shp'))
+            if candidates:
+                pgllp = QgsVectorLayer(candidates[0], 'pgllp', 'ogr')
+                if pgllp.isValid():
+                    self.oddz = pgllp
+                    self.sprawdz_oddz()
 
         self.ui.pushButton_ls.clicked.connect(self.wybierz_ls)
         self.ui.pushButton_uz.clicked.connect(self.wybierz_uz)
