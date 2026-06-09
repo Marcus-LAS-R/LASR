@@ -804,7 +804,7 @@ class GenerujNaklejki:
             pp_txt = pp.replace('.', ',') + (4 - len(pp.split('.')[1])) * '0'
             t.append('pow. ' + pp_txt + ' ha')
 
-            t.append('stan ewid. na ' + self.geod[k[:3]] + ' r.')
+            t.append('stan na ' + self.geod[k[:3]] + ' r.')
             t.append(0)
 
             # jezeli mamy powierzchnie dla tego obrebu rysuj naklejki

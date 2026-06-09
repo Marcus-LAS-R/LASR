@@ -490,7 +490,7 @@ class DopiszKody(SprawdzWydzielenia):
                 if self.sl[adr][0] == "D-STAN" and kod > 560:
                     QgsMessageLog.logMessage(
                         adr + " - Blad generowania kodu - " +
-                        self.sl[adr][4] + " - " + kod,
+                        self.sl[adr][4] + " - " + str(kod),
                         "LCH")
                     self.iface.messageBar().pushMessage(
                         'UWAGA',
