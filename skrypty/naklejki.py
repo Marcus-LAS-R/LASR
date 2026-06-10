@@ -69,7 +69,7 @@ class GenerujNaklejki:
             13: 'WFOSIGW_kujawsko-pomorskie.jpg',
             14: 'WFOSIGW_mazowieckie.jpg',
             15: 'WFOSIGW_dolnoslaskie.jpg',
-            16: 'WGOSIGW_lubuskie.jpg',
+            16: 'WFOSIGW_lubuskie.jpg',
         }
 
     def inne_layouty(self):
@@ -90,9 +90,9 @@ class GenerujNaklejki:
                 'W otwartym projekcie wykryto layouty, '
                 'istnieje możliwość ich nadpisania, kontynuować?')
             m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            m.exec_()
+            ret = m.exec_()
 
-            if m == QMessageBox.No:
+            if ret == QMessageBox.No:
                 self.iface.messageBar().clearWidgets()
                 return True
             return False
@@ -427,9 +427,10 @@ class GenerujNaklejki:
 
             if l1.boundingRect().width() // 110 > 0:
                 l1.setHAlign(Qt.AlignCenter)
+                sl_key = min(l1.boundingRect().width() // 110, max(sl.keys()))
                 l1.attemptResize(QgsLayoutSize(
                     110,
-                    sl[l1.boundingRect().width()//110],
+                    sl[sl_key],
                     QgsUnitTypes.LayoutMillimeters))
                 l1.attemptMove(
                     QgsLayoutPoint(90, 38.2+przes,
@@ -801,7 +802,10 @@ class GenerujNaklejki:
                 else:
                     pp = '000.0000'
 
-            pp_txt = pp.replace('.', ',') + (4 - len(pp.split('.')[1])) * '0'
+            if '.' in pp:
+                pp_txt = pp.replace('.', ',') + (4 - len(pp.split('.')[1])) * '0'
+            else:
+                pp_txt = pp.replace('.', ',') + ',0000'
             t.append('pow. ' + pp_txt + ' ha')
 
             t.append('stan na ' + self.geod[k[:3]] + ' r.')
@@ -824,6 +828,26 @@ class GenerujNaklejki:
                         self.g_grzebiet(tab, lay)
 
                     si += 1
+
+            elif self.ile_kopi == '2':
+                for site in range(1, val+1):
+                    if ile_wygen == 2:
+                        pages.extendByNewPage()
+                        si += 1
+                        ile_wygen = 0
+
+                    if val > 1:
+                        t[9] = site
+
+                    col_x = [0, 125][ile_wygen]
+                    for py in [0, 80]:
+                        tab = [col_x, py, si, ] + t[3:]
+                        self.g_kafelek(tab, lay)
+                    for px in xprzes2[ile_wygen * 2: ile_wygen * 2 + 2]:
+                        tab = [px, 0, si, ] + t[3:]
+                        self.g_grzebiet(tab, lay)
+
+                    ile_wygen += 1
 
             elif self.ile_kopi == '1':
                 for site in range(1, val+1):
