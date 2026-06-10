@@ -1,8 +1,8 @@
 import os
 import glob
 import shutil
-from qgis.core import QgsVectorLayer, Qgis, QgsSpatialIndex, QgsRectangle, \
-    QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
+from qgis.core import QgsVectorLayer, QgsFeature, Qgis, QgsSpatialIndex, \
+    QgsRectangle, QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
     QgsMessageLog, QgsProject
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
@@ -31,6 +31,7 @@ class WyszukajLz():
         self.uz_diss_si = QgsSpatialIndex()
 
         self.ls_fts = {}  # slownik z featurami ls
+        self.ls_fts_pow = {}  # proporcjonalna pow rej [ha] per singlepart ls
         self.uz_fts = {}  # slownik z featurami uz
         self.ls_diss = {}  # sl z diss feat ls
         self.oddz_fts = {}  # sl w featsami oddz
@@ -170,11 +171,34 @@ class WyszukajLz():
         )
 
     def struk_ls(self):
+        # Multipolygony dzielimy na singleparty przed indeksem.
+        # LAND_AR na featurach zostaje oryginalne; proporcjonalna pow każdej
+        # części trafia do ls_fts_pow (używanego wyłącznie do obliczeń).
+        next_id = 0
         for feat in self.ls.getFeatures():
-            if feat['AU'] == 'Ls':
-                self.ls_si.insertFeature(feat)
-                self.ls_fts[feat.id()] = feat
+            if feat['AU'] != 'Ls':
+                continue
+            geom = feat.geometry()
+            parts = geom.asGeometryCollection() if geom.isMultipart() else [geom]
+            total_area = geom.area() or 1.0
+            orig_land_ar = feat['LAND_AR'] or 0.0
+            for part_geom in parts:
+                if part_geom.area() == 0:
+                    continue
+                part_feat = QgsFeature(feat.fields())
+                part_feat.setId(next_id)
+                part_feat.setAttributes(feat.attributes())
+                part_feat.setGeometry(part_geom)
+                ratio = part_geom.area() / total_area
+                self.ls_fts_pow[next_id] = orig_land_ar * ratio
+                self.ls_si.insertFeature(part_feat)
+                self.ls_fts[next_id] = part_feat
+                next_id += 1
 
+        QgsMessageLog.logMessage(
+            'Wczytano fragmentów LS (Ls): ' + str(next_id),
+            'Las-R', Qgis.Info
+        )
 
         # stwórz warstwy tymczasowe dla lasów z uzytków i ls
         self.lswybr = QgsVectorLayer(
@@ -360,7 +384,7 @@ class WyszukajLz():
                 if (inter.area()/self.ls_fts[id].geometry().area()) > 0.9:
                     # sprawdzamy tylko i wylacznie ls!!!
                     if self.ls_fts[id]['AU'] == 'Ls':
-                        pow_skl_ls += self.ls_fts[id]['LAND_AR']
+                        pow_skl_ls += self.ls_fts_pow[id]
                         tab_ls.append(self.ls_fts[id])
 
             # pow skladowych ls jest mniejsza niz 10 ar, sprawdz sasiedztwo
@@ -397,7 +421,7 @@ class WyszukajLz():
 
         zmiana = True  # czy w petli nastapila jakakolwiek zmiana
         zmiana_licz = 0  # numer przebiegu, zabezpiecznie przed zapetleniem
-        pow_rej_ls = sum([x['LAND_AR'] for x in lsy])  # pow rej kompleksu
+        pow_rej_ls = sum([self.ls_fts_pow[x.id()] for x in lsy])  # pow rej kompleksu
 
         # iteruj po kolei ls i sprawdzaj sasiedztwo, jezeli nie dojda nowe ls
         # ktore przekraczaja 10 ar, zwroc jako Lz
@@ -467,12 +491,12 @@ class WyszukajLz():
                         ls.geometry().shortestLine(self.ls_fts[id].geometry()
                                                    ).length()
                     if otemp < self.odl_min:
-                        if pow_rej_ls + self.ls_fts[id]['LAND_AR'] > 0.1:
+                        if pow_rej_ls + self.ls_fts_pow[id] > 0.1:
                             return [False, []]
                         else:
                             lsy.append(self.ls_fts[id])
                             lsy_id.append(id)
-                            pow_rej_ls += self.ls_fts[id]['LAND_AR']
+                            pow_rej_ls += self.ls_fts_pow[id]
                             zmiana = True
                             break
 
@@ -531,6 +555,12 @@ class WyszukajLz():
         lzp.startEditing()
         lzp.dataProvider().addAttributes(self.ls.dataProvider().fields())
         lzp.updateFields()
+
+        land_pow_idx = self.ls.dataProvider().fields().indexFromName('LAND_POW')
+        if land_pow_idx >= 0:
+            for f in self.lzp:
+                f.setAttribute(land_pow_idx, round(f.geometry().area() / 10000, 4))
+
         lzp.dataProvider().addFeatures(self.lzp)
         lzp.commitChanges()
 
