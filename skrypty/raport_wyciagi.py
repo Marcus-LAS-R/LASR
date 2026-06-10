@@ -1,6 +1,7 @@
 import os
 import uuid
 import datetime
+import traceback
 
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtGui import QFont, QPolygonF, QColor
@@ -333,7 +334,14 @@ class Wyciag:
 
                 wys_klas, ram, poz = self.w_oblicz_wys_klastra(kl)
 
-            if wys_grej + wys_klas + pp + 27 > 277:
+            geo_wys = ram[3] - ram[1] if not self.bez_mapy else 0
+            pp_po_nag_fresh = 20 + wys_grej + 2
+            avail_fresh = max(277 - pp_po_nag_fresh, 30)
+            skala_fresh = max(geo_wys * 1000 / avail_fresh, 5000) if geo_wys > 0 else 5000
+            map_wys_fresh = geo_wys * 1000 / skala_fresh if geo_wys > 0 else 0
+            content_needs = wys_grej + map_wys_fresh + 27
+
+            if content_needs + pp > 277 and content_needs + 20 <= 277:
                 pp = 20
                 self.strona += 1
                 self.w_dodaj_strone()
@@ -702,7 +710,7 @@ class Wyciag:
                          isNone(self.sl_wl[self.addr]['opis']['imie'])])
         self.kred = kred
 
-        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+2.5, 55, 3, kred)
+        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+2.5, 90, 6, kred)
         lab.setFont(QFont("Arial", 7, QFont.Normal))
         lab.setHAlign(Qt.AlignCenter)
         self.lay.addItem(lab)
@@ -721,7 +729,7 @@ class Wyciag:
             _adr += \
                 self.sl_wl[self.addr]['opis']['miejscowosc'].strip('\n\t\r ')
 
-        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+7, 55, 9, _adr)
+        lab = self._dodaj_lab(self.wl_x-10, self.wl_y+10, 90, 9, _adr)
         lab.setFont(QFont("Arial", 7, QFont.Normal))
         lab.setHAlign(Qt.AlignCenter)
         self.lay.addItem(lab)
@@ -982,7 +990,7 @@ class Wyciag:
             return 13
 
         ww_wys = 3 * int(len(wwlas)/3)
-        if ww_wys % 3 > 0:
+        if len(wwlas) % 3 > 0:
             ww_wys += 3
         return 13 + 3 + ww_wys
 
@@ -1022,7 +1030,8 @@ class Wyciag:
             if _gr in self.sl_gr[_obr]:
                 for x in self.sl_gr[_obr][_gr]['wl']:
                     if x in self.sl_wl and x != self.addr:
-                        ww += self.sl_wl[x]['opis']['imie'] 
+                        ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
+                        ww += self.sl_wl[x]['opis']['imie']
                         if len(ww) > 20:
                             ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
                             ims = self.sl_wl[x]['opis']['imie'].strip().split(' ')
@@ -1142,19 +1151,28 @@ class Wyciag:
         kl - Klaster()
         """
 
-        # dodaj do warstw obrazowane featurki
-        # self._kasuj_feats(self.ls_wyb)
-        # self.ls_wyb.startEditing()
-        # self.ls_wyb.dataProvider().addFeatures(kl.lista)
-        # self.ls_wyb.commitChanges()
-
         war = self.w_dodaj_warstwe_klastra(kl.lista)
 
         if ram != [] and pozycja != '':
-            ramka = ram
+            ramka = list(ram)
             poz = pozycja
         else:
-            ramka, poz = kl.ustaw_ramke()
+            r, poz = kl.ustaw_ramke()
+            ramka = list(r)
+
+        geo_wys = ramka[3] - ramka[1]          # geograficzna wysokość [m]
+        avail_wys = max(277 - pp, 30)           # dostępna wysokość na stronie [mm]
+
+        # Skala tak żeby mapa zmieściła się na stronie; minimum 1:5000
+        skala = max(geo_wys * 1000 / avail_wys, 5000)
+
+        # Rozszerz zasięg X żeby mapa zawsze wypełniała pełne 174mm
+        geo_szer_174 = skala * 174 / 1000
+        x_sr = (ramka[0] + ramka[2]) / 2
+        ramka[0] = x_sr - geo_szer_174 / 2
+        ramka[2] = x_sr + geo_szer_174 / 2
+
+        map_wys = geo_wys * 1000 / skala       # rzeczywista wysokość mapy [mm]
 
         wyn_it = QgsLayoutItemMap(self.lay)
         wyn_it.setLayers([self.wydz, war, self.dz_temp, self.ewid, ])
@@ -1163,13 +1181,10 @@ class Wyciag:
             page=self.strona
         )
         wyn_it.attemptResize(
-            QgsLayoutSize(174, (ramka[3]-ramka[1])/5,
-                          QgsUnitTypes.LayoutMillimeters)
+            QgsLayoutSize(174, map_wys, QgsUnitTypes.LayoutMillimeters)
         )
-        wyn_it.setExtent(
-            QgsRectangle(*ramka)
-        )
-        wyn_it.setScale(5000)
+        wyn_it.setExtent(QgsRectangle(*ramka))
+        wyn_it.setScale(skala)
         wyn_it.setId('wyn '+str(int(ramka[0])))
         wyn_it.setBackgroundColor(QColor('white'))
         wyn_it.setFrameEnabled(True)
@@ -1178,10 +1193,10 @@ class Wyciag:
         # dodaj legende
         if poz.upper() == 'LD':
             legx = 20
-            legy = pp + ((ramka[3]-ramka[1])/5)-30
+            legy = pp + map_wys - 30
         elif poz.upper() == 'PD':
             legx = 158
-            legy = pp + ((ramka[3]-ramka[1])/5)-30
+            legy = pp + map_wys - 30
         elif poz.upper() == 'PG':
             legx = 158
             legy = pp
@@ -1207,7 +1222,7 @@ class Wyciag:
         )
         self.lay.addItem(h)
 
-        return (ramka[3]-ramka[1]) / 5
+        return map_wys
 
     def w_generuj_wiersz(self, pp, zaw, pod=False):
         """ generuj linie tabeli ze wskazowkami
@@ -1293,6 +1308,9 @@ class GenerujWyciagi(Struktura, Wyciag):
                 self.rysuj()
                 self.eksportuj_wyciag()
             except Exception:
+                QgsMessageLog.logMessage(
+                    f'Błąd wyciągu addr_id={adr}:\n' + traceback.format_exc(),
+                    'Las-R', Qgis.Critical)
                 self.bledy_generowania.append(adr)
 
         self.iface.messageBar().clearWidgets()
