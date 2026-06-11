@@ -1,5 +1,5 @@
 from typing import Union
-from .baza_zabiegi_sl import ZabiegiSlownik
+from ..baza_zabiegi_sl import ZabiegiSlownik
 from .wpisz import Wpisz
 from .wygeneruj import Generuj
 from .sprawdz import Sprawdz

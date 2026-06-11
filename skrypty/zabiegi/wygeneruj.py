@@ -101,7 +101,10 @@ class Generuj:
                 'baza: [' + ', '.join([x for x in self.cue]) + ']'
             )
             # dopisz info o przebudowie w uwagach
-            self.wygeneruj_uwagi_do_dopisania('przebud')
+            if self.janczulewicz:
+                self.wygeneruj_uwagi_do_dopisania('zle_prod')
+            else:
+                self.wygeneruj_uwagi_do_dopisania('przebud')
             return [reb]
 
         if self.uszk == '3':
@@ -244,6 +247,7 @@ class Generuj:
             if dl_uwagi_baza + len(uw) < 255:
                 self.uwagi += uw
                 wpis = True
+                break
 
         if not wpis:
             self.uw_raport.append(self.uw_sl[typ]['r'])

@@ -311,7 +311,7 @@ class ZabiegiSlownik():
                 'r': ' Brak możliwości wpisania uwagi o rębni ze wzgl na uszk.'
             },
             'reb_zup': {
-                'c': ' Dz. ewid. traktować jak dz. zręb.,',
+                'c': ' Dz. ewid. traktować jak dz. zręb.',
                 's': ' Dz. ewid. traktować jak dz. zręb.',
                 'r': ' Brak możliwości wpisania uwagi o działkach w rębni'
                 'zupełnej,'
@@ -320,6 +320,11 @@ class ZabiegiSlownik():
                 'c': ' D-stan przeznaczony do przebudowy,',
                 's': ' D-stan do przebud.,',
                 'r': ' Brak możliwości wpisania uwagi o d-stanie do przebudowy'
+            },
+            'zle_prod': {
+                'c': ' Drzewostan źle produkujący,',
+                's': ' D-stan źle prod.,',
+                'r': ' Brak możliwości wpisania uwagi o d-stanie źle produkującym'
             },
 
         }

@@ -76,7 +76,14 @@ class Zabiegi():
 
     def przetworz(self):
         """Metoda zbiorcza dla całego procesu"""
+        self.baza.polacz()
         self.wydz = self.baza.pobierz_wydzielenia()  # {adr_les: arodes_int}
+        if not self.wydz:
+            self.iface.messageBar().pushMessage(
+                'Błąd', 'Nie znaleziono wydzieleń w bazie.',
+                Qgis.Critical, 10
+            )
+            return
         self.wydz_id = {v: k for k, v in self.wydz.items()}
         self.wr = self.baza.pobierz_wiek_reb()
 

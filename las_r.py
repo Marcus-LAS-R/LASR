@@ -61,7 +61,6 @@ from .skrypty import (
     baza_klonuj_wydz,
     shp_atlasuj,
     baza_usun_op,
-    baza_zabiegi,
     shp_dociagnij_poly,
     raport_wyles,
     baza_kontrola_ls,
@@ -386,14 +385,8 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_rap)
         self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
-        self.dop_zab = QAction(
-            QIcon(None), "Zabiegi dopisz/sprawdź (stare)", self.iface.mainWindow()
-        )
-        self.m_rozlicz_pow.addAction(self.dop_zab)
-        self.dop_zab.triggered.connect(self.zabiegi)
-
         self.dop_zab_nowe = QAction(
-            QIcon(None), "Zabiegi dopisz/sprawdź (nowe)", self.iface.mainWindow()
+            QIcon(None), "Zabiegi dopisz/sprawdź", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
@@ -855,13 +848,6 @@ class LasR:
         if w.pobierz_warstwy():
             w.sprawdz_wlasnosci()
             w.wyswietl_info()
-
-    def zabiegi(self):
-        z = baza_zabiegi.Zabiegi(self.iface)
-        if z.pobierz_dane():
-            z.przetworz()
-            z.generuj_raport()
-            z.wyswietl_info()
 
     def zabiegi_nowe(self):
         z = Zabiegi()

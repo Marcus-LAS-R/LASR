@@ -295,7 +295,7 @@ class Sprawdz:
                     f'Brak wpisanej pierśnicy [{row[2]}{row[0]}]'
                 )
                 return
-            elif 120 < row[4] and row[4] < 8:
+            elif row[4] > 120 or row[4] < 8:
                 self.uw_raport.append(
                     f'Sprawdź wpisaną pierśnicę [{row[2]}{row[0]} -'
                     f'{row[4]}cm]'
@@ -306,14 +306,14 @@ class Sprawdz:
                 self.uw_raport.append(
                     f'Brak wpisanej wysokości [{row[2]}{row[0]}]'
                 )
-                return
                 if self.zwarcie != '':
                     self.uw_raport.append(
                         'Brak wpisanej wysokości, a jest zwarcie '
                         f'[{row[2]}{row[0]}]'
                     )
+                return
 
-            elif 120 < row[5] and row[5] < 8:
+            elif row[5] > 35 or row[5] < 8:
                 self.uw_raport.append(
                     f'Sprawdź wpisaną wysokość [{row[2]}{row[0]} -'
                     f'{row[5]}m]'
@@ -403,10 +403,10 @@ class Sprawdz:
         if self.typ != 'D-STAN':
             return
         if self.pow_wydz > 0:
-            pozysk = round(self.sum_cue_volume, 0)
-            pozysk += round(self.mlode_pozyskanie, 0)
-            pozysk += round(self.przest_pozyskanie, 0)
-            pozysk = int(pozysk)
+            pozysk_total = round(self.sum_cue_volume, 0)
+            pozysk_total += round(self.mlode_pozyskanie, 0)
+            pozysk_total += round(self.przest_pozyskanie, 0)
+            pozysk = int(pozysk_total / self.pow_wydz)
             if 61 < pozysk:
                 self.uw_raport.append(
                     f'Pozyskanie >61m³/ha [{pozysk} m³/ha], ' +
@@ -416,7 +416,7 @@ class Sprawdz:
             if pozysk > 500 and len(
                 [1 for x in self.drzew_gat if x[0][:2] in ['SO', 'ŚW']]
             ) == 0:
-                self.uw_raport.append('Pozyskanie >500m³/ha [{pozysk} m³/ha]')
+                self.uw_raport.append(f'Pozyskanie >500m³/ha [{pozysk} m³/ha]')
 
     def sprawdz_pozyskanie_przes(self):
         if 'PRZEST' not in self.cue:
