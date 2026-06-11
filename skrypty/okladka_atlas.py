@@ -28,6 +28,7 @@ class GenerujOkladki:
         # przesuniecie ustawiane przez skrypt gdy nazwa obrebu
         # jest dluzsza niz standard ustawiony przy generowanie grzebietu
         self.poszerzenie = 0
+        self.geod = {}  # {MUNICIPALITY_CD: data_stanu_ewid}
 
         g = {'color': '255, 255, 255, 255', 'color_border': '0, 176, 80, 255'}
         self.g = QgsFillSymbol.createSimple(g)
@@ -309,7 +310,24 @@ class GenerujOkladki:
             naz.setFontColor(QColor("#000000"))
             lay.addItem(naz)
 
-            y += 30
+            if self.info.checkBox_ewid.isChecked():
+                y += 12
+                naz = QgsLayoutItemLabel(lay)
+                naz.setReferencePoint(QgsLayoutItem.UpperLeft)
+                naz.attemptResize(
+                    QgsLayoutSize(190, 8, QgsUnitTypes.LayoutMillimeters))
+                naz.attemptMove(
+                    QgsLayoutPoint(10, y, QgsUnitTypes.LayoutMillimeters),
+                    page=pg)
+                naz.setHAlign(Qt.AlignCenter)
+                naz.setText(
+                    'Stan ewidencji gruntów: ' + self.geod.get(row[4], ''))
+                naz.setFont(QFont("Arial", 10, QFont.Normal))
+                naz.setFontColor(QColor("#000000"))
+                lay.addItem(naz)
+                y += 18
+            else:
+                y += 30
             naz = QgsLayoutItemLabel(lay)
             naz.setReferencePoint(QgsLayoutItem.UpperLeft)
             naz.attemptResize(
