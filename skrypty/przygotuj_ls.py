@@ -31,7 +31,7 @@ class recursivedefaultdict(defaultdict):
         self.default_factory = type(self)
 
 
-class SprawdzLs(object):
+class PrzygotujLs(object):
     def __init__(self, i):
         self.iface = i
 
@@ -965,12 +965,12 @@ class PrzetworzKlu(object):
             self.bez_uzytkow = True
             return False
 
-        self.sl_klus_pow = {self.stworz_landid(x): 0 for x in self.klus}
-        self.sl_klus_grupy = {self.stworz_landid(x): [] for x in self.klus}
-        for f in self.klus:
-            self.sl_klus_pow[self.stworz_landid(f)] += \
-                round(f.geometry().area()/10000, 4)
-            self.sl_klus_grupy[self.stworz_landid(f)].append(f)
+        landids = [self.stworz_landid(x) for x in self.klus]
+        self.sl_klus_pow = {lid: 0 for lid in landids}
+        self.sl_klus_grupy = {lid: [] for lid in landids}
+        for lid, f in zip(landids, self.klus):
+            self.sl_klus_pow[lid] += round(f.geometry().area()/10000, 4)
+            self.sl_klus_grupy[lid].append(f)
 
         if self.pid in self.p.dz_op:
             self.uwagi['op'] = True
@@ -979,8 +979,7 @@ class PrzetworzKlu(object):
             self.uwagi['opif'] = True
 
         # lista zdublowanych ls w bazie na tej dzialce
-        self.uwagi['dubb'] = [x for x in self.p.ls_podwojne
-                              if '.'.join(x.split('.')[:2]) == self.pid]
+        self.uwagi['dubb'] = self.p.ls_podwojne_by_pid.get(self.pid, [])
 
         return True
 
@@ -995,10 +994,21 @@ class PrzetworzKlu(object):
             return
 
         self.do_usun = []
-        for i in range(len(self.klus)-1):
-            for j in range(i+1, len(self.klus)):
-                if self.klus[i].geometry().intersects(self.klus[j].geometry()):
-                    inter = self.klus[i].geometry().intersection(
+
+        idx = QgsSpatialIndex()
+        fid_to_pos = {}
+        for pos, f in enumerate(self.klus):
+            idx.insertFeature(f)
+            fid_to_pos[f.id()] = pos
+
+        for i, klu_i in enumerate(self.klus):
+            kandydaci = idx.intersects(klu_i.geometry().boundingBox())
+            for fid in kandydaci:
+                j = fid_to_pos[fid]
+                if j <= i:
+                    continue
+                if klu_i.geometry().intersects(self.klus[j].geometry()):
+                    inter = klu_i.geometry().intersection(
                         self.klus[j].geometry())
                     if round(inter.area(), 3) < 0.1:
                         pass

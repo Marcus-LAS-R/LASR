@@ -17,7 +17,7 @@ from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
 
 
-class DopiszDzKat(object):
+class KontrolaDzKat(object):
     def __init__(self, iface):
         self.iface = iface
         self.lyr = False
@@ -323,6 +323,12 @@ class DopiszDzKat(object):
         for f in self.wszystkie_dzkat.values():
             self.indeks.insertFeature(f)
 
+    def wypiszPow(self, x, sl):
+        if x in sl:
+            return sl[x][3]
+        else:
+            return "---"
+
     def generuj_raport(self):  # noqa
         """Metoda generuje raport dla uzytkownika, zapisany w katalogu z warst.
         wyjsciowa w postaci pliku tekstowego z data i godzina w nazwie"""
@@ -476,7 +482,7 @@ class DopiszDzKat(object):
         self.czas = datetime.now().isoformat().replace(
             ":", "")[:-7].replace('-', '')
         self.rap_sc = os.path.join(self.kat, '..',
-                                   'dzkat_dopisane_'+self.czas+'.txt')
+                                   'dzkat_kontrola_'+self.czas+'.txt')
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(raport)
         plik.close()

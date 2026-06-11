@@ -17,7 +17,7 @@ from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
 
 
-class SprawdzDzKat(object):
+class PrzygotujDzKat(object):
     def __init__(self, iface):
         self.iface = iface
         self.lyr = False

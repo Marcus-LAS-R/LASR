@@ -29,10 +29,10 @@ class Przetworz(object):
         # {GGGOOOO.NR: ['OP', 'OF' ...]}
         self.sl_kody_wlasciceli_na_dzialce = {}  # wl_dict
 
-        # listy działek z pogrupowanymi własnościami
-        self.dz_op = []
-        self.dz_opif = []  # [GGGOOOO.NR, GGGOOOO.NR, ... ]
-        self.dz_of = []
+        # zbiory działek z pogrupowanymi własnościami
+        self.dz_op = set()
+        self.dz_opif = set()  # {GGGOOOO.NR, GGGOOOO.NR, ... }
+        self.dz_of = set()
 
         # Zbior wszystkich ls
         # (landid, landid, ...)
@@ -41,6 +41,7 @@ class Przetworz(object):
         # lista lsów w bazie, które występują wiecej niz raz - blad zasobu
         # [LANDID, LANDIID, ... ]
         self.ls_podwojne = []
+        self.ls_podwojne_by_pid = {}  # {PARCELID: [LANDID, ...]} — pre-grouped
 
         # Slownik ze wszystkimi uzytkami z bazy w postaci:
         # {LANDID: [
@@ -105,9 +106,14 @@ class Przetworz(object):
                 [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
                  for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
                 if y[1] > 1]
+            self.ls_podwojne_by_pid = {}
+            for x in self.ls_podwojne:
+                pid = '.'.join(x.split('.')[:2])
+                self.ls_podwojne_by_pid.setdefault(pid, []).append(x)
             return True
         except:  # noqa
             self.ls_podwojne = []
+            self.ls_podwojne_by_pid = {}
             return False
 
     @dane_z_bazy
@@ -189,19 +195,19 @@ class Przetworz(object):
                         self.listaOP.append([wlasciciel, wyr1])
 
         # lista dzialek tylko z wlasnoscia OP
-        self.dz_op = [k for k, val in
+        self.dz_op = {k for k, val in
                       self.sl_kody_wlasciceli_na_dzialce.items()
-                      if set(['OP']) == set(val)]
+                      if set(['OP']) == set(val)}
 
-        # lista dzialek z wlasnosciami
-        self.dz_opif = [k for k, val in
+        # zbior dzialek z wlasnosciami OP i OF
+        self.dz_opif = {k for k, val in
                         self.sl_kody_wlasciceli_na_dzialce.items()
-                        if set(['OP', 'OF']) == set(val)]
+                        if set(['OP', 'OF']) == set(val)}
 
-        # lista dzialek tylko z wlasnoscia OF
-        self.dz_of = [k for k, val in
+        # zbior dzialek tylko z wlasnoscia OF
+        self.dz_of = {k for k, val in
                       self.sl_kody_wlasciceli_na_dzialce.items()
-                      if set(['OF']) == set(val)]
+                      if set(['OF']) == set(val)}
 
     def isNone(self, a):
         if a in [None, 'NULL', '', ]:

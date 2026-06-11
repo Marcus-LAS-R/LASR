@@ -35,7 +35,7 @@ from qgis.core import QgsProject, Qgis
 from qgis.utils import plugins
 
 from .skrypty import (
-    sprawdz_dzkat,
+    przygotuj_dzkat,
     shp_dopOddzWydz,
     sprawdzenia_topo,
     baza_dopisz_fochr,
@@ -49,7 +49,7 @@ from .skrypty import (
     spr_wydzielen,
     shp_wyszukaj_lz,
     naklejki,
-    sprawdz_ls,
+    przygotuj_ls,
     shp_eksport_kml,
     baza_rozlicz_pow_wydz,
     baza_sprawdz_rozl,
@@ -77,7 +77,7 @@ from .skrypty import (
     baza_dopisz_ownership,
     baza_dopisz_rosliny,
     okladka_atlas,
-    dopisz_dzkat,
+    baza_kontrola_dzkat,
     baza_usun_wydz,
 )
 
@@ -743,10 +743,10 @@ class LasR:
         pass
 
     def przygotuj_dzewid(self):
-        sprawdz_dzkat.SprawdzDzKat(self.iface)
+        przygotuj_dzkat.PrzygotujDzKat(self.iface)
 
     def przygotuj_ls(self):
-        spr = sprawdz_ls.SprawdzLs(self.iface)
+        spr = przygotuj_ls.PrzygotujLs(self.iface)
         if not spr.sprawdz_warstwy():
             return
         if not spr.wczytaj():
@@ -1099,7 +1099,7 @@ class LasR:
         baza_dopisz_rosliny.dopisz_rosliny(self.iface)
 
     def dopisanie_dzialek(self):
-        dd = dopisz_dzkat.DopiszDzKat(self.iface)
+        dd = baza_kontrola_dzkat.KontrolaDzKat(self.iface)
         dd.dopisz_dane()
 
     def zbiorczy_poczatek(self):
