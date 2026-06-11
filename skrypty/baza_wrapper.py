@@ -872,21 +872,37 @@ class Baza(object):
         self.cur.execute(sql)
         self.con.commit()
 
-    def usun_kwerendy(self):
-        pass
-        # nietestowane - trzeba zrobic liste wszystkich nazw kwerend do
-        # usuniecia
+    def usun_kwerendy(self) -> list:
+        """Usuwa wszystkie kwerendy z bazy MDB z wyjątkiem whitelisty.
+        Zwraca listę nazw usuniętych kwerend.
+        Działa tylko dla plików .mdb (DAO/COM), dla sqlite zwraca [].
+        """
+        WHITELIST = {
+            'VIEW_AROD_GOAL_RULE_SPECIES',
+            'VIEW_AROD_LAND_USE',
+            'VIEW_AROD_LAND_USE_LS',
+            'VIEW_AROD_LAND_USE_NLS',
+            'VIEW_AROD_STOREY_RULE_SPECIES',
+            'VIEW_GAT_PAN',
+            'VIEW_PREB_FL',
+        }
 
-        # cxn = pyodbc.connect('DRIVER={Microsoft Access Driver (*.mdb,
-        # *.accdb)};DBQ=C:\\__tmp\\dropTest.accdb;')
-        # cursor = cxn.cursor()
-        # cursor2 = cxn.cursor()
-        # for table in cursor.tables():
-        # if table.table_type == "TABLE":
-        # drop = "DROP TABLE [{0}]".format(table.table_name)
-        # print drop
-        # cursor2.execute(drop)
-        # cxn.commit()
+        if not self.baza.endswith('.mdb'):
+            return []
+
+        import win32com.client
+        dao = win32com.client.Dispatch('DAO.DBEngine.120')
+        db = dao.OpenDatabase(self.baza)
+
+        do_usuniecia = [
+            q.Name for q in db.QueryDefs
+            if q.Name not in WHITELIST
+        ]
+        for nazwa in do_usuniecia:
+            db.QueryDefs.Delete(nazwa)
+
+        db.Close()
+        return do_usuniecia
         # cxn.close()
 
     def pobierz_wiek_reb(self):

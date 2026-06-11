@@ -65,6 +65,7 @@ from .skrypty import (
     raport_wyles,
     baza_kontrola_ls,
     baza_anonimizuj,
+    baza_usun_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
     baza_napraw_stor_spec,
@@ -556,6 +557,12 @@ class LasR:
         self.m_narzedzia.addAction(self.a_anon)
         self.a_anon.triggered.connect(self.anonimizuj)
 
+        self.a_usun_kw = QAction(
+            QIcon(None), "Usuń kwerendy z baz", self.iface.mainWindow()
+        )
+        self.m_narzedzia.addAction(self.a_usun_kw)
+        self.a_usun_kw.triggered.connect(self.usun_kwerendy)
+
         self.a_fstspec = QAction(
             QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
         )
@@ -766,6 +773,9 @@ class LasR:
 
     def anonimizuj(self):
         baza_anonimizuj.Anonimizuj(self.iface)
+
+    def usun_kwerendy(self):
+        baza_usun_kwerendy.UsunKwerendy(self.iface)
 
     def dopisz_wydzielenia(self):
         w = baza_dopisz_wydz.DopiszWydzielenia(self.iface)

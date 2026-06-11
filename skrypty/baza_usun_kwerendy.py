@@ -1,13 +1,12 @@
 import os
 import glob
-import shutil
 from PyQt5.QtWidgets import QFileDialog
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
 
 
-def Anonimizuj(iface):
+def UsunKwerendy(iface):
     bazy_kat = QFileDialog().getExistingDirectory(
         iface.mainWindow(),
         "Katalog z bazami danych",
@@ -16,41 +15,40 @@ def Anonimizuj(iface):
     if len(bazy_sc) == 0:
         iface.messageBar().pushMessage(
             'BŁĄD',
-            'Nie znalazłem żadnej bazy taksatora... (mdb ma byc malymi literami!)',
+            'Nie znalazłem żadnej bazy taksatora... (mdb ma być małymi literami!)',
             Qgis.Critical,
             10
         )
         return
 
     ile_ok = 0
+    ile_kwerend = 0
     for sc in bazy_sc:
-        nazwa = os.path.splitext(os.path.basename(sc))[0]
-        sc_bdo = os.path.join(os.path.dirname(sc), nazwa + '_BDO.mdb')
-
-        shutil.copy2(sc, sc_bdo)
-
-        baza = Baza(sc_bdo)
+        baza = Baza(sc)
         if not baza.polacz():
             QgsMessageLog.logMessage(
-                'Nie mogłem połączyć się z bazą: ' + sc_bdo,
+                'Nie mogłem połączyć się z bazą: ' + sc,
                 'Las-R'
             )
             continue
 
         QgsMessageLog.logMessage(
-            '\n' + 20*'-' + '\nPrzetwarzam bazę: ' + sc_bdo,
+            '\n' + 20*'-' + '\nPrzetwarzam bazę: ' + sc,
             'Las-R', Qgis.Info
         )
 
-        baza.anonimizuj_vaddress()
-        baza.usun_kwerendy()
+        usuniete = baza.usun_kwerendy()
         ile_ok += 1
+        ile_kwerend += len(usuniete)
 
-        QgsMessageLog.logMessage('\n' + 20*'-', 'Las-R', Qgis.Info)
+        QgsMessageLog.logMessage(
+            f'Usunięto {len(usuniete)} kwerend\n' + 20*'-',
+            'Las-R', Qgis.Info
+        )
 
     iface.messageBar().pushMessage(
         'OK',
-        'Zanonimizowanych baz: ' + str(ile_ok),
+        f'Przetworzono baz: {ile_ok}, usunięto kwerend łącznie: {ile_kwerend}',
         Qgis.Success,
         10
     )
