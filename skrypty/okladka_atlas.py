@@ -57,7 +57,7 @@ class GenerujOkladki:
             13: 'WFOSIGW_kujawsko-pomorskie.jpg',
             14: 'WFOSIGW_mazowieckie.jpg',
             15: 'WFOSIGW_dolnoslaskie.jpg',
-            16: 'WGOSIGW_lubuskie.jpg',
+            16: 'WFOSIGW_lubuskie.jpg',
         }
 
     def inne_layouty(self):
@@ -78,9 +78,9 @@ class GenerujOkladki:
                 'W otwartym projekcie wykryto layouty, '
                 'istnieje możliwość ich nadpisania, kontynuować?')
             m.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            m.exec_()
+            ret = m.exec_()
 
-            if m == QMessageBox.No:
+            if ret == QMessageBox.No:
                 self.iface.messageBar().clearWidgets()
                 return True
             return False
@@ -468,7 +468,7 @@ class PobierzDane(QDialog, FORM_CLASS):
         self.setupUi(self)
         self.go_flag = False
         self.kat = ''  # sciezka do podawania w QFileDialogu
-        self.lineEdit_sciezka.setText('/Users/pawel/lasr/qgis_taksator/')
+        self.lineEdit_sciezka.setText(QgsProject.instance().homePath())
 
         self.pushButton_wybierz.clicked.connect(self.pobierz_katalog_tpu)
         self.pushButton_herb.clicked.connect(self.pobierz_sc_herb)
