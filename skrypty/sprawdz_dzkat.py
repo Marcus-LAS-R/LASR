@@ -165,97 +165,33 @@ class AnalizujDzKat(object):
                     'Nie udało połączyć się z: ' + baza,
                     "Las-R"
                 )
+        self.p = Przetworz()
+        self.p.dodaj_uzytki(self.uzytki)
+        self.p.dodaj_wlasnosci(self.wlasnosci)
+        self.p.przetworz_dzialki()
 
     def przetworz_dane(self):
-        # zbior unikalnych nazw dzialek lesnych
         self.dz_lesne = set([x[-1][4:] for x in self.uzytki if x[9] == "Ls"])
-        # slownik z informacjami o uzytkach na dzialce
-        # {GGOOOONRDZ: [WOJ, POWIAT, WYR1, PARCEL_AREA, PARCEL_INT_NUM]}
         self.dz_dict = {
             x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
             for x in self.uzytki}
 
-        # dopisz kody woj i powiatu
         self.county = self.dz_dict[list(self.dz_dict.keys())[0]][0]
         self.district = self.dz_dict[list(self.dz_dict.keys())[0]][1]
 
-        # slownik z kodami wlasciciel dla kazdej dzialki
-        # {Wyr1: ['OP', 'OF' ...]}
-        self.wl_dict = {}
+        QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)), "Las-R")
+        QgsMessageLog.logMessage("Pobrano własności: "+str(len(self.wlasnosci)), "Las-R")
 
-        QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)),
-                                 "Las-R")
-        QgsMessageLog.logMessage("Pobrano własności: " +
-                                 str(len(self.wlasnosci)),
-                                 "Las-R"
-                                 )
-        # lista wlascicieli z kodami OP
-        # [[wlasciciel, wyr1], ...]
-        self.lista_OP = []
-        # slownik z wlasnosciami wlasciciela
-        # {wlascieciel: [wyr1, ...]}
-        self.sl_wlasnosci = {}
-
-        for item in self.wlasnosci:
-            wyr1 = item[-4] + item[-3] + '.'
-            if item[-2] not in ["", " ", None]:
-                wyr1 += item[-2] + "."
-            wyr1 += item[-1]
-            # oczysc nazwe wlasciciela z pustych znakow
-            wlasciciel = item[1].rstrip(' \t\r\n')
-
-            # dodaj wlasnosci danego wlasciciela do slownika
-            if wlasciciel not in self.sl_wlasnosci:
-                self.sl_wlasnosci[wlasciciel] = []
-            self.sl_wlasnosci[wlasciciel].append(wyr1)
-
-            if wyr1 not in self.wl_dict:
-                self.wl_dict[wyr1] = []
-            if item[2] != "":
-                if re.search('NIEUSTAL', wlasciciel) or \
-                        wlasciciel in ['???', ]:
-                    self.wl_dict[wyr1].append("OF")
-                else:
-                    self.wl_dict[wyr1].append(item[2])
-                    if "OP" in item[2]:
-                        self.lista_OP.append([wlasciciel, wyr1])
-
-        # lista dzialek tylko z wlasnoscia OP
-        self.dz_wlasnosci_op = [k for k, val in self.wl_dict.items()
-                                if set(['OP']) == set(val)]
-
-        # lista dzialek z wlasnosciami
-        self.dz_wlasnosci_opif = [k for k, val in self.wl_dict.items()
-                                  if set(['OP', 'OF']) == set(val)]
-
-        # lista dzialek tylko z wlasnoscia OF
-        self.dz_wlasnosci_of = [k for k, val in self.wl_dict.items()
-                                if set(['OF']) == set(val)]
-
-        # sprawdz czy liczba działek z poszczególnymi własnościami zgadza się z
-        # suma wszystkich działek
-        suma_dz_wlasn = len(self.dz_wlasnosci_of) + \
-            len(self.dz_wlasnosci_op) + \
-            len(self.dz_wlasnosci_opif)
-
+        suma_dz_wlasn = len(self.p.dz_of) + len(self.p.dz_op) + len(self.p.dz_opif)
         if suma_dz_wlasn != len(self.dz_dict.keys()):
             QgsMessageLog.logMessage(
-                "Liczba działek z różnymi własnościami się nie zgadza",
-                "Las-R"
-            )
+                "Liczba działek z różnymi własnościami się nie zgadza", "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z kodami OP: "+str(len(self.dz_wlasnosci_op)),
-                "Las-R"
-            )
+                "Liczba działek z kodami OP: "+str(len(self.p.dz_op)), "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z kodami OF: "+str(len(self.dz_wlasnosci_of)),
-                "Las-R"
-            )
+                "Liczba działek z kodami OF: "+str(len(self.p.dz_of)), "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z współwłasnościami: " +
-                str(len(self.dz_wlasnosci_opif)),
-                "Las-R"
-            )
+                "Liczba działek z współwłasnościami: "+str(len(self.p.dz_opif)), "Las-R")
 
     def przygotuj_warstwe_wyjsciowa(self):
         """Metoda przygotowuj warstwe wyjsciowa razem z ukladem atrybutow
@@ -435,14 +371,13 @@ class AnalizujDzKat(object):
         u = self.dz_uzupelnij_adres(dz)
         lacznik = self.dz_lacznik(u)
 
-        if lacznik in self.dz_wlasnosci_op:
+        if lacznik in self.p.dz_op:
             u = u._replace(GRP='99')
             uwaga += 'Dzialka tylko z wlasnoscia OP; '
             self.tylko_op.append(lacznik)
-        elif lacznik in self.dz_wlasnosci_opif:
+        elif lacznik in self.p.dz_opif:
             u = u._replace(GRP='99')
-        # gdy wlasnosc OF ustaw grupe na 10
-        elif lacznik in self.dz_wlasnosci_of:
+        elif lacznik in self.p.dz_of:
             u = u._replace(GRP='10')
 
         # sprawdz czy dzialka nie byla juz wczesniej sprawdzana, jesli tak
@@ -718,21 +653,18 @@ class AnalizujDzKat(object):
             raport += '\n'.join(["\t".join(map(str, x)) for x in rr])
             raport += '\n' + 45 * '-' + '\n\n\n'
 
-        if len(self.lista_OP) > 0:
+        if len(self.p.listaOP) > 0:
             raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\n"
             if self.wl == 'OF':
-                wl = [x[0] for x in self.lista_OP
+                wl = [x[0] for x in self.p.listaOP
                       if x[1] not in self.tylko_op and x[1] in self.dz_lesne]
             else:
-                wl = [x[0] for x in self.lista_OP if x[1] in self.dz_lesne]
+                wl = [x[0] for x in self.p.listaOP if x[1] in self.dz_lesne]
             raport += "Liczba wlascicieli z kodem OP: " + str(len(set(wl))) + \
                 '\n\n'
 
             sl_temp = {}
-            for x in self.lista_OP:
-                # przygotuj slownik wlascicieli z liczba dzialek ktorzy nie sa
-                # w tylkoOP
-                # jezeli dopisujemy wszystkie wlasnosci, to raportze wszystkich
+            for x in self.p.listaOP:
                 if x[1] in self.dz_lesne:
                     if self.wl == 'OF' and x[1] in self.tylko_op:
                         pass

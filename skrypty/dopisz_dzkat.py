@@ -23,13 +23,14 @@ class DopiszDzKat(object):
         self.lyr = False
         self.indeks = QgsSpatialIndex()
 
+        self.wl = 'OF'
         self.dz_les_spr = []  # lista sprawdzonych dz lesnych
-        self.dz_nieles = []  # lista dzialek nielesnych
         self.dz_sprawdzone = []  # lista sprawdzonych dzialek w shp
         self.dzkat_brak = []  # lista dz niewpisanych do bazy
         self.dzkat_les_pow = []  # lista dz lesnych z roznicami w pow
         self.dzkat_les_pow_zero = []  # lista dz lesnych z zerowymi pow w bazie
         self.dzkat_nieles = []  # sprawdzone dzialki nielesne w shp
+        self.bledy_topo = []
         self.iatr = {}
         self.ile_dzkat = 0  # liczba wszystkich dz w shp
         self.tylko_op = []  # lista dz z kodem OP w shp
@@ -62,6 +63,15 @@ class DopiszDzKat(object):
     def dopisz_dane(self):
         if not self.sprawdz_dane():
             return
+
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Własności')
+        message.setText('Wybierz własności do analizy')
+        message.addButton("OF", QMessageBox.ActionRole)
+        message.addButton("OPiF", QMessageBox.ActionRole)
+        wl = message.exec_()
+        self.wl = 'OF' if wl == 0 else 'OP'
 
         # uaktulalnij pola
         self.dzkatp = self.dzkat.dataProvider()
@@ -125,6 +135,10 @@ class DopiszDzKat(object):
             self.baza.polacz()
             self.uzytki = self.baza.uzytki()
             self.wlasnosci = self.baza.wlasnosci()
+            self.p = Przetworz()
+            self.p.dodaj_uzytki(self.uzytki)
+            self.p.dodaj_wlasnosci(self.wlasnosci)
+            self.p.przetworz_dzialki()
             return True
 
         return False
@@ -187,113 +201,32 @@ class DopiszDzKat(object):
         return lacznik
 
     def przetworz_dane(self):
-        # zbior unikalnych nazw dzialek lesnych
         self.dz_lesne = set([x[-1][4:] for x in self.uzytki if x[9] == "Ls"])
-        # slownik z informacjami o uzytkach na dzialce
-        # {GGOOOONRDZ: [WOJ, POWIAT, WYR1, PARCEL_AREA, PARCEL_INT_NUM]}
         self.dz_dict = {
             x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
             for x in self.uzytki}
 
-        # dopisz kody woj i powiatu
         self.county = self.dz_dict[list(self.dz_dict.keys())[0]][0]
         self.district = self.dz_dict[list(self.dz_dict.keys())[0]][1]
 
-        # slownik z kodami wlasciciel dla kazdej dzialki
-        # {Wyr1: ['OP', 'OF' ...]}
-        self.wl_dict = {}
+        QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)), "Las-R")
+        QgsMessageLog.logMessage("Pobrano własności: "+str(len(self.wlasnosci)), "Las-R")
 
-        QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)),
-                                 "Las-R")
-        QgsMessageLog.logMessage("Pobrano własności: " +
-                                 str(len(self.wlasnosci)),
-                                 "Las-R"
-                                 )
-        # lista wlascicieli z kodami OP
-        # [[wlasciciel, wyr1], ...]
-        self.lista_OP = []
-        # slownik z wlasnosciami wlasciciela
-        # {wlascieciel: [wyr1, ...]}
-        self.sl_wlasnosci = {}
-
-        for item in self.wlasnosci:
-            wyr1 = item[-4] + item[-3] + '.'
-            if item[-2] not in ["", " ", None]:
-                wyr1 += item[-2] + "."
-            wyr1 += item[-1]
-            # oczysc nazwe wlasciciela z pustych znakow
-            wlasciciel = item[1].rstrip(' \t\r\n')
-
-            # dodaj wlasnosci danego wlasciciela do slownika
-            if wlasciciel not in self.sl_wlasnosci:
-                self.sl_wlasnosci[wlasciciel] = []
-            self.sl_wlasnosci[wlasciciel].append(wyr1)
-
-            if wyr1 not in self.wl_dict:
-                self.wl_dict[wyr1] = []
-            if item[2] != "":
-                if re.search('NIEUSTAL', wlasciciel) or \
-                        wlasciciel in ['???', ]:
-                    self.wl_dict[wyr1].append("OF")
-                else:
-                    self.wl_dict[wyr1].append(item[2])
-                    if "OP" in item[2]:
-                        self.lista_OP.append([wlasciciel, wyr1])
-
-        # lista dzialek tylko z wlasnoscia OP
-        self.dz_wlasnosci_op = [k for k, val in self.wl_dict.items()
-                                if set(['OP']) == set(val)]
-
-        # lista dzialek z wlasnosciami
-        self.dz_wlasnosci_opif = [k for k, val in self.wl_dict.items()
-                                  if set(['OP', 'OF']) == set(val)]
-
-        # lista dzialek tylko z wlasnoscia OF
-        self.dz_wlasnosci_of = [k for k, val in self.wl_dict.items()
-                                if set(['OF']) == set(val)]
-
-        # sprawdz czy liczba działek z poszczególnymi własnościami zgadza się z
-        # suma wszystkich działek
-        suma_dz_wlasn = len(self.dz_wlasnosci_of) + \
-            len(self.dz_wlasnosci_op) + \
-            len(self.dz_wlasnosci_opif)
-
+        suma_dz_wlasn = len(self.p.dz_of) + len(self.p.dz_op) + len(self.p.dz_opif)
         if suma_dz_wlasn != len(self.dz_dict.keys()):
             QgsMessageLog.logMessage(
-                "Liczba działek z różnymi własnościami się nie zgadza",
-                "Las-R"
-            )
+                "Liczba działek z różnymi własnościami się nie zgadza", "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z kodami OP: "+str(len(self.dz_wlasnosci_op)),
-                "Las-R"
-            )
+                "Liczba działek z kodami OP: "+str(len(self.p.dz_op)), "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z kodami OF: "+str(len(self.dz_wlasnosci_of)),
-                "Las-R"
-            )
+                "Liczba działek z kodami OF: "+str(len(self.p.dz_of)), "Las-R")
             QgsMessageLog.logMessage(
-                "Liczba działek z współwłasnościami: " +
-                str(len(self.dz_wlasnosci_opif)),
-                "Las-R"
-            )
+                "Liczba działek z współwłasnościami: "+str(len(self.p.dz_opif)), "Las-R")
 
     def indeks_nazw_atryb(self, dz):
         """Zbuduj indeks nazw pół w warstwie wyjściowej"""
         self.iatr = {x.name(): dz.fieldNameIndex(x.name()) for x in
                      self.kolumny}
-
-    def dz_lacznik(self, uzup):
-        # stworz lacznik do danych z bazy
-        if uzup.ARK not in ['', ' ']:
-            lacznik = '.'.join([uzup.MUNICIP+uzup.COMMUNITY,
-                                uzup.ARK,
-                                uzup.PARCELNR,
-                                ]
-                               )
-        else:
-            lacznik = uzup.MUNICIP + uzup.COMMUNITY + "." + uzup.PARCELNR
-
-        return lacznik
 
     def uzupelnij_dzialke(self, dz):  # noqa
         """Metoda uzupełnia pola atrybutów w warstwie ostatecznej oraz sprawdza
@@ -310,14 +243,13 @@ class DopiszDzKat(object):
         u = self.dz_uzupelnij_adres(dz)
         lacznik = self.dz_lacznik(u)
 
-        if lacznik in self.dz_wlasnosci_op:
+        if lacznik in self.p.dz_op:
             u = u._replace(GRP='99')
             uwaga += 'Dzialka tylko z wlasnoscia OP; '
             self.tylko_op.append(lacznik)
-        elif lacznik in self.dz_wlasnosci_opif:
+        elif lacznik in self.p.dz_opif:
             u = u._replace(GRP='99')
-        # gdy wlasnosc OF ustaw grupe na 10
-        elif lacznik in self.dz_wlasnosci_of:
+        elif lacznik in self.p.dz_of:
             u = u._replace(GRP='10')
 
         # sprawdz czy dzialka nie byla juz wczesniej sprawdzana, jesli tak
@@ -336,7 +268,7 @@ class DopiszDzKat(object):
             # badz nie
             if lacznik not in self.dz_lesne:
                 u = u._replace(NIELES='TAK')
-                self.dz_nieles.append(lacznik)
+                self.dzkat_nieles.append(lacznik)
             else:
                 self.dz_les_spr.append(lacznik)
 
@@ -397,27 +329,27 @@ class DopiszDzKat(object):
 
         raport = '---RAPORT----------------------------\n\n'
         raport += 'Działek w shp: ' + str(self.ile_dzkat) + '\n'
-        # if self.wl == 'OF':
-            # ile_dz_baza = [x for x in self.dz_lesne if x not in self.tylko_op]
-        # else:
-        ile_dz_baza = [x for x in self.dz_lesne]
+        if self.wl == 'OF':
+            ile_dz_baza = [x for x in self.dz_lesne if x not in self.tylko_op]
+        else:
+            ile_dz_baza = [x for x in self.dz_lesne]
         raport += 'Działek leśnych w bazie: ' + str(len(ile_dz_baza)) + '\n'
 
         brakujace_dz_les = [x for x in list(self.dz_lesne)
                             if x not in self.dz_les_spr]
-        # if self.wl == 'OF':
-            # ile_brak = len([x for x in brakujace_dz_les
-                            # if x not in self.tylko_op])
-        # else:
-        ile_brak = len(brakujace_dz_les)
+        if self.wl == 'OF':
+            ile_brak = len([x for x in brakujace_dz_les
+                            if x not in self.tylko_op])
+        else:
+            ile_brak = len(brakujace_dz_les)
 
         raport += 'Brakujące działki leśne: ' + str(ile_brak) + '\n\n'
 
-        # if self.wl == 'OF':
-            # dz_les = len([x for x in self.dz_les_spr
-                          # if x not in self.tylko_op])
-        # else:
-        dz_les = len(self.dz_les_spr)
+        if self.wl == 'OF':
+            dz_les = len([x for x in self.dz_les_spr
+                          if x not in self.tylko_op])
+        else:
+            dz_les = len(self.dz_les_spr)
 
         raport += 'Działek leśnych w shp: ' + str(dz_les) + '\n'
         raport += 'Działek nieleśnych w shp: ' + \
@@ -428,10 +360,10 @@ class DopiszDzKat(object):
             if x[1] > 1]
         raport += 'Działki Zdublowane: ' + str(len(duble)) + '\n\n'
 
-        # if len(self.bledy_topo) > 0:
-            # raport += 'Działki z błędami topologicznymi: ' + \
-                # str(len(self.bledy_topo)) \
-                # + '\n\n\n'
+        if len(self.bledy_topo) > 0:
+            raport += 'Działki z błędami topologicznymi: ' + \
+                str(len(self.bledy_topo)) \
+                + '\n\n\n'
 
         if len(self.dzkat_les_pow_zero) > 0:
             raport += 'Działek z zerowymi powierzchniami w bazie: ' + str(len(
@@ -449,11 +381,11 @@ class DopiszDzKat(object):
             raport += 'Brakujace dzialki lesne w shp: ' + \
                 str(ile_brak) + '\n\n'
 
-            # if self.wl == 'OF':
-                # braki = [x for x in sorted(brakujace_dz_les)
-                         # if x[4:] not in self.tylko_op]
-            # else:
-            braki = [x for x in sorted(brakujace_dz_les)]
+            if self.wl == 'OF':
+                braki = [x for x in sorted(brakujace_dz_les)
+                         if x not in self.tylko_op]
+            else:
+                braki = [x for x in sorted(brakujace_dz_les)]
 
             raport += '\n'.join([
                 '\t'.join([self.county+self.district+x,
@@ -514,28 +446,25 @@ class DopiszDzKat(object):
             raport += '\n'.join(["\t".join(map(str, x)) for x in rr])
             raport += '\n' + 45 * '-' + '\n\n\n'
 
-        if len(self.lista_OP) > 0:
+        if len(self.p.listaOP) > 0:
             raport += "--LISTA WLASCICIELI Z KODEM OP-----------------\n"
-            # if self.wl == 'OF':
-                # wl = [x[0] for x in self.lista_OP
-                      # if x[1] not in self.tylko_op and x[1] in self.dz_lesne]
-            # else:
-            wl = [x[0] for x in self.lista_OP if x[1] in self.dz_lesne]
+            if self.wl == 'OF':
+                wl = [x[0] for x in self.p.listaOP
+                      if x[1] not in self.tylko_op and x[1] in self.dz_lesne]
+            else:
+                wl = [x[0] for x in self.p.listaOP if x[1] in self.dz_lesne]
             raport += "Liczba wlascicieli z kodem OP: " + str(len(set(wl))) + \
                 '\n\n'
 
             sl_temp = {}
-            for x in self.lista_OP:
-                # przygotuj slownik wlascicieli z liczba dzialek ktorzy nie sa
-                # w tylkoOP
-                # jezeli dopisujemy wszystkie wlasnosci, to raportze wszystkich
+            for x in self.p.listaOP:
                 if x[1] in self.dz_lesne:
-                    # if self.wl == 'OF' and x[1] in self.tylko_op:
-                        # pass
-                    # else:
-                    if x[0] not in sl_temp:
-                        sl_temp[x[0]] = []
-                    sl_temp[x[0]].append(x[1])
+                    if self.wl == 'OF' and x[1] in self.tylko_op:
+                        pass
+                    else:
+                        if x[0] not in sl_temp:
+                            sl_temp[x[0]] = []
+                        sl_temp[x[0]].append(x[1])
 
             raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat"
                                  for x in sorted(list(sl_temp.keys()))])
@@ -551,3 +480,18 @@ class DopiszDzKat(object):
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(raport)
         plik.close()
+
+        message = QMessageBox()
+        message.setIcon(QMessageBox.Information)
+        message.setWindowTitle('Raport')
+        message.setText('Czy wyświetlić raport z kontroli działek?')
+        message.addButton(u"Zamknij", QMessageBox.ActionRole)
+        message.addButton(u"Zamknij i pokaż raport", QMessageBox.ActionRole)
+        pok_rap = message.exec_()
+
+        if pok_rap == 1:
+            if platform.system()[:3] == 'Win':
+                os.startfile(self.rap_sc)
+            else:
+                import subprocess
+                subprocess.call(['kate', self.rap_sc])
