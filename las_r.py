@@ -82,6 +82,8 @@ from .skrypty import (
 )
 
 from .skrypty import aktualizacja_upul
+from .skrypty import shp_przygDotaks
+from .skrypty import shp_przygCiecieStUPUL
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -428,6 +430,20 @@ class LasR:
         )
         self.m_aktualizacja_upul.addAction(self.a_aktualizacja_baz)
         self.a_aktualizacja_baz.triggered.connect(self.uruchom_aktualizacje_baz)
+
+        self.a_przyg_dotaks = QAction(
+            QIcon(None), "Przygotuj warstwy dotaks",
+            self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_przyg_dotaks)
+        self.a_przyg_dotaks.triggered.connect(self.przygotuj_dotaks)
+
+        self.a_przyg_stare_wydz = QAction(
+            QIcon(None), "Przygotuj stare wydzielenia do cięcia",
+            self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
+        self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
         # ----------------------------------------
 
         self.spr_odl_wydz = QAction(
@@ -1179,3 +1195,11 @@ class LasR:
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)
+
+    def przygotuj_dotaks(self):
+        p = shp_przygDotaks.PrzygotujDotaks(self.iface)
+        p.uruchom()
+
+    def przygotuj_stare_wydz(self):
+        s = shp_przygCiecieStUPUL.PrzygotujCiecieStUPUL(self.iface)
+        s.uruchom()
