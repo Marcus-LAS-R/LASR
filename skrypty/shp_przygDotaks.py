@@ -3,7 +3,8 @@ import os
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from qgis.core import (
-    Qgis, QgsField, QgsFields, QgsMessageLog, QgsProject, QgsVectorLayer,
+    Qgis, QgsFeature, QgsField, QgsFields, QgsMessageLog, QgsProject,
+    QgsSpatialIndex, QgsVectorLayer,
 )
 import processing
 
@@ -11,7 +12,8 @@ from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
 from .ui.ui_przygDotaks import Ui_Dialog
 
-_MIN_POW_HA = 0.1
+_MIN_POW_HA = 0.01
+_CRS = 'epsg:2180'
 
 _TYP_POW_RB = {'INNE WYL', 'SUKCESJA', 'HAL', 'PŁAZ', 'ZRĄB'}
 
@@ -24,30 +26,30 @@ _ZABIEG_RB = {
 }
 
 _POLA_META = [
-    QgsField('COUNTY_L', QVariant.String, len=1),
-    QgsField('COUNTY',   QVariant.String, len=2),
-    QgsField('DISTRICT', QVariant.String, len=2),
-    QgsField('MUNICIP',  QVariant.String, len=3),
-    QgsField('COMMUNITY',QVariant.String, len=4),
-    QgsField('GRP',      QVariant.String, len=2),
-    QgsField('L_EWID',   QVariant.String, len=1),
-    QgsField('UDZIAL',   QVariant.String, len=5),
-    QgsField('GAT',      QVariant.String, len=10),
+    QgsField('COUNTY_L', QVariant.String, '', 1),
+    QgsField('COUNTY',   QVariant.String, '', 2),
+    QgsField('DISTRICT', QVariant.String, '', 2),
+    QgsField('MUNICIP',  QVariant.String, '', 3),
+    QgsField('COMMUNITY',QVariant.String, '', 4),
+    QgsField('GRP',      QVariant.String, '', 2),
+    QgsField('L_EWID',   QVariant.String, '', 1),
+    QgsField('UDZIAL',   QVariant.String, '', 5),
+    QgsField('GAT',      QVariant.String, '', 10),
     QgsField('WIEK',     QVariant.Int),
-    QgsField('ZADRZEW',  QVariant.Double, 'double', 10, 1),
-    QgsField('POW_WYDZ', QVariant.Double, 'double', 10, 2),
-    QgsField('TYP_POW',  QVariant.String, len=20),
-    QgsField('STRUKTUR', QVariant.String, len=20),
+    QgsField('ZADRZEW',  QVariant.Double, '', 10, 1),
+    QgsField('POW_WYDZ', QVariant.Double, '', 10, 2),
+    QgsField('TYP_POW',  QVariant.String, '', 20),
+    QgsField('STRUKTUR', QVariant.String, '', 20),
     QgsField('SLMN_KOL', QVariant.Int),
-    QgsField('STL',      QVariant.String, len=20),
-    QgsField('POKRYWA',  QVariant.String, len=20),
-    QgsField('ZABIEG',   QVariant.String, len=20),
-    QgsField('POW_ZAB',  QVariant.Double, 'double', 10, 4),
-    QgsField('ODNOW',    QVariant.String, len=20),
-    QgsField('POW_ODN',  QVariant.Double, 'double', 10, 4),
-    QgsField('AGROT',    QVariant.Double, 'double', 10, 4),
-    QgsField('PIEL',     QVariant.Double, 'double', 10, 4),
-    QgsField('INNE',     QVariant.String, len=70),
+    QgsField('STL',      QVariant.String, '', 20),
+    QgsField('POKRYWA',  QVariant.String, '', 20),
+    QgsField('ZABIEG',   QVariant.String, '', 20),
+    QgsField('POW_ZAB',  QVariant.Double, '', 10, 4),
+    QgsField('ODNOW',    QVariant.String, '', 20),
+    QgsField('POW_ODN',  QVariant.Double, '', 10, 4),
+    QgsField('AGROT',    QVariant.Double, '', 10, 4),
+    QgsField('PIEL',     QVariant.Double, '', 10, 4),
+    QgsField('INNE',     QVariant.String, '', 70),
 ]
 
 
@@ -103,7 +105,9 @@ class _Dialog(QDialog):
             self.ui.lineEdit_ls.setText(sc)
 
     def _wybierz_stare(self):
-        start = self._kat_proj() or self._folder_startowy()
+        ls_sc = self.ui.lineEdit_ls.text().strip()
+        start = os.path.dirname(ls_sc) if ls_sc and os.path.isfile(ls_sc) \
+            else self._folder_startowy()
         sc = QFileDialog.getOpenFileName(
             self,
             'Wskaż warstwę starych wydzieleń',
@@ -175,9 +179,14 @@ class PrzygotujDotaks:
         QgsMessageLog.logMessage(
             '--- PRZYGOTUJ DOTAKS ---', 'Las-R', Qgis.Info)
 
-        self._stworz_dotaks_nowe(ls, stare, kat_wyj)
-        self._stworz_dotaks_rb_nielas(stare, stare_sc, baza_sc, kat_wyj)
-        self._stworz_dotaks_sprawdzenie(ls.crs().authid(), kat_wyj)
+        bledy_geom = []
+        stare_fixed = self._sprawdz_i_napraw(stare, 'stare', bledy_geom)
+
+        self._stworz_dotaks_nowe(ls, stare_fixed, kat_wyj, bledy_geom)
+        self._stworz_dotaks_rb_nielas(
+            ls, stare_fixed, stare_sc, baza_sc, kat_wyj, bledy_geom)
+        self._stworz_dotaks_sprawdzenie(kat_wyj)
+        self._pokaz_bledy_geom(bledy_geom)
 
         self.iface.messageBar().pushMessage(
             'OK', 'Warstwy DOTAKS utworzone w SHP_dotaks', Qgis.Success, 10)
@@ -187,43 +196,64 @@ class PrzygotujDotaks:
     # DOTAKS_nowe
     # ------------------------------------------------------------------
 
-    def _stworz_dotaks_nowe(self, ls, stare, kat_wyj):
+    def _stworz_dotaks_nowe(self, ls, stare, kat_wyj, bledy_geom):
         diff = processing.run('native:difference', {
             'INPUT': ls,
             'OVERLAY': stare,
             'OUTPUT': 'memory:',
         })['OUTPUT']
+        diff = self._sprawdz_i_napraw(diff, 'diff', bledy_geom)
 
         single = processing.run('native:multiparttosingleparts', {
             'INPUT': diff,
             'OUTPUT': 'memory:',
         })['OUTPUT']
 
-        if 'POW_GRAF' not in [f.name() for f in single.fields()]:
-            single.dataProvider().addAttributes(
-                [QgsField('POW_GRAF', QVariant.Double, 'double', 10, 4)])
-            single.updateFields()
+        single = self._policz_pow_graf(single)
 
-        fnm = single.dataProvider().fieldNameMap()
-        single.dataProvider().changeAttributeValues({
-            f.id(): {fnm['POW_GRAF']: f.geometry().area() / 10000}
-            for f in single.getFeatures()
-        })
-
-        ids_do_usuniecia = [
-            f.id() for f in single.getFeatures()
-            if (f['POW_GRAF'] or 0) < _MIN_POW_HA
-        ]
+        idx = QgsSpatialIndex(single.getFeatures())
+        ids_do_usuniecia = []
+        for feat in single.getFeatures():
+            if (feat['POW_GRAF'] or 0) >= _MIN_POW_HA:
+                continue
+            geom = feat.geometry()
+            kandydaci = idx.intersects(geom.boundingBox())
+            dotyka = any(
+                single.getFeature(k).geometry().intersects(geom)
+                for k in kandydaci if k != feat.id()
+            )
+            if not dotyka:
+                ids_do_usuniecia.append(feat.id())
         if ids_do_usuniecia:
             single.dataProvider().deleteFeatures(ids_do_usuniecia)
 
-        self._eksportuj(single, kat_wyj, 'DOTAKS_nowe')
+        dissolved = processing.run('native:dissolve', {
+            'INPUT': single,
+            'FIELD': [],
+            'OUTPUT': 'memory:',
+        })['OUTPUT']
+
+        merged = processing.run('native:multiparttosingleparts', {
+            'INPUT': dissolved,
+            'OUTPUT': 'memory:',
+        })['OUTPUT']
+
+        merged = self._policz_pow_graf(merged)
+
+        ids_do_usuniecia = [
+            f.id() for f in merged.getFeatures()
+            if (f['POW_GRAF'] or 0) < 0.10
+        ]
+        if ids_do_usuniecia:
+            merged.dataProvider().deleteFeatures(ids_do_usuniecia)
+
+        self._eksportuj(merged, kat_wyj, 'DOTAKS_nowe')
 
     # ------------------------------------------------------------------
     # DOTAKS_rb_nielas
     # ------------------------------------------------------------------
 
-    def _stworz_dotaks_rb_nielas(self, stare, stare_sc, baza_sc, kat_wyj):
+    def _stworz_dotaks_rb_nielas(self, ls, stare, stare_sc, baza_sc, kat_wyj, bledy_geom):
         wpol = self._dopisz_metadane(stare, stare_sc, baza_sc)
         if wpol is None:
             return
@@ -232,14 +262,29 @@ class PrzygotujDotaks:
                     if self._pasuje_rb_nielas(f)]
 
         wynik = QgsVectorLayer(
-            f'MultiPolygon?crs={wpol.crs().authid()}',
-            'DOTAKS_rb_nielas', 'memory')
+            f'MultiPolygon?crs={_CRS}', 'DOTAKS_rb_nielas', 'memory')
         wynik_data = wynik.dataProvider()
         wynik_data.addAttributes(wpol.fields().toList())
         wynik.updateFields()
         wynik_data.addFeatures(pasujace)
 
-        self._eksportuj(wynik, kat_wyj, 'DOTAKS_rb_nielas')
+        clipped = processing.run('native:clip', {
+            'INPUT': wynik,
+            'OVERLAY': ls,
+            'OUTPUT': 'memory:',
+        })['OUTPUT']
+        clipped = self._sprawdz_i_napraw(clipped, 'rb_nielas_clip', bledy_geom)
+
+        clipped = self._policz_pow_graf(clipped)
+
+        ids_do_usuniecia = [
+            f.id() for f in clipped.getFeatures()
+            if (f['POW_GRAF'] or 0) < 0.05
+        ]
+        if ids_do_usuniecia:
+            clipped.dataProvider().deleteFeatures(ids_do_usuniecia)
+
+        self._eksportuj(clipped, kat_wyj, 'DOTAKS_rb_nielas')
 
     def _pasuje_rb_nielas(self, feat):
         typ = (feat['TYP_POW'] or '').strip()
@@ -256,14 +301,49 @@ class PrzygotujDotaks:
     # DOTAKS_sprawdzenie  (TODO)
     # ------------------------------------------------------------------
 
-    def _stworz_dotaks_sprawdzenie(self, crs, kat_wyj):
+    def _stworz_dotaks_sprawdzenie(self, kat_wyj):
         pusty = QgsVectorLayer(
-            f'MultiPolygon?crs={crs}', 'DOTAKS_sprawdzenie', 'memory')
+            f'MultiPolygon?crs={_CRS}', 'DOTAKS_sprawdzenie', 'memory')
         self._eksportuj(pusty, kat_wyj, 'DOTAKS_sprawdzenie')
 
     # ------------------------------------------------------------------
     # Pomocnicze
     # ------------------------------------------------------------------
+
+    def _sprawdz_i_napraw(self, lyr, etykieta, bledy):
+        check = processing.run('native:checkvalidity', {
+            'INPUT_LAYER': lyr,
+            'METHOD': 1,
+            'VALID_OUTPUT': 'memory:',
+            'INVALID_OUTPUT': 'memory:',
+            'ERROR_OUTPUT': 'memory:',
+        })
+        for feat in check['INVALID_OUTPUT'].getFeatures():
+            bledy.append((etykieta, feat.geometry()))
+        return processing.run('native:fixgeometries', {
+            'INPUT': lyr,
+            'OUTPUT': 'memory:',
+        })['OUTPUT']
+
+    def _pokaz_bledy_geom(self, bledy):
+        if not bledy:
+            return
+        warstwa = QgsVectorLayer(
+            f'Polygon?crs={_CRS}', 'DOTAKS_geom_bledy', 'memory')
+        prov = warstwa.dataProvider()
+        prov.addAttributes([QgsField('ZRODLO', QVariant.String, len=20)])
+        warstwa.updateFields()
+        feats = []
+        for etykieta, geom in bledy:
+            f = QgsFeature()
+            f.setGeometry(geom)
+            f.setAttributes([etykieta])
+            feats.append(f)
+        prov.addFeatures(feats)
+        QgsProject.instance().addMapLayer(warstwa)
+        QgsMessageLog.logMessage(
+            f'DOTAKS: {len(bledy)} ficzerów z błędną geometrią → warstwa DOTAKS_geom_bledy',
+            'Las-R', Qgis.Warning)
 
     def _dopisz_metadane(self, wydz, wydz_path, baza_sc):
         d = DopiszKody(self.iface)
@@ -276,8 +356,7 @@ class PrzygotujDotaks:
                 'BŁĄD', 'Nie udało się pobrać danych z bazy', Qgis.Critical, 10)
             return None
 
-        crs = wydz.crs().authid()
-        wpol = QgsVectorLayer(f'MultiPolygon?crs={crs}', 'meta_tmp', 'memory')
+        wpol = QgsVectorLayer(f'MultiPolygon?crs={_CRS}', 'meta_tmp', 'memory')
         wpol_data = wpol.dataProvider()
         wpol_data.addAttributes(wydz.fields().toList())
         wpol.updateFields()
@@ -349,6 +428,18 @@ class PrzygotujDotaks:
             wpol_data.changeAttributeValues({fid: attrs})
 
         return wpol
+
+    def _policz_pow_graf(self, lyr):
+        if 'POW_GRAF' not in [f.name() for f in lyr.fields()]:
+            lyr.dataProvider().addAttributes(
+                [QgsField('POW_GRAF', QVariant.Double, 'double', 10, 4)])
+            lyr.updateFields()
+        fnm = lyr.dataProvider().fieldNameMap()
+        lyr.dataProvider().changeAttributeValues({
+            f.id(): {fnm['POW_GRAF']: f.geometry().area() / 10000}
+            for f in lyr.getFeatures()
+        })
+        return lyr
 
     def _eksportuj(self, lyr, kat_wyj, nazwa):
         wyj_sc = os.path.join(kat_wyj, nazwa + '.shp')

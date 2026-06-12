@@ -136,8 +136,7 @@ class PrzygotujCiecieStUPUL:
                 'BŁĄD', 'Nie udało się pobrać danych z bazy', Qgis.Critical, 10)
             return None
 
-        crs = wydz.crs().authid()
-        wpol = QgsVectorLayer(f'MultiPolygon?crs={crs}', _TEMP, 'memory')
+        wpol = QgsVectorLayer('MultiPolygon?crs=epsg:2180', _TEMP, 'memory')
         wpol_data = wpol.dataProvider()
         wpol_data.addAttributes(wydz.fields().toList())
         wpol.updateFields()
@@ -150,33 +149,33 @@ class PrzygotujCiecieStUPUL:
     def _dodaj_pola(self, wpol, wpol_data, przestoje_flag):
         obecne = [x.name() for x in wpol.fields()]
         pola = [
-            QgsField('COUNTY_L', QVariant.String, len=1),
-            QgsField('COUNTY',   QVariant.String, len=2),
-            QgsField('DISTRICT', QVariant.String, len=2),
-            QgsField('MUNICIP',  QVariant.String, len=3),
-            QgsField('COMMUNITY',QVariant.String, len=4),
-            QgsField('GRP',      QVariant.String, len=2),
-            QgsField('L_EWID',   QVariant.String, len=1),
-            QgsField('UDZIAL',   QVariant.String, len=5),
-            QgsField('GAT',      QVariant.String, len=10),
+            QgsField('COUNTY_L', QVariant.String, '', 1),
+            QgsField('COUNTY',   QVariant.String, '', 2),
+            QgsField('DISTRICT', QVariant.String, '', 2),
+            QgsField('MUNICIP',  QVariant.String, '', 3),
+            QgsField('COMMUNITY',QVariant.String, '', 4),
+            QgsField('GRP',      QVariant.String, '', 2),
+            QgsField('L_EWID',   QVariant.String, '', 1),
+            QgsField('UDZIAL',   QVariant.String, '', 5),
+            QgsField('GAT',      QVariant.String, '', 10),
             QgsField('WIEK',     QVariant.Int),
-            QgsField('ZADRZEW',  QVariant.Double, 'double', 10, 1),
-            QgsField('POW_WYDZ', QVariant.Double, 'double', 10, 2),
-            QgsField('TYP_POW',  QVariant.String, len=20),
-            QgsField('STRUKTUR', QVariant.String, len=20),
+            QgsField('ZADRZEW',  QVariant.Double, '', 10, 1),
+            QgsField('POW_WYDZ', QVariant.Double, '', 10, 2),
+            QgsField('TYP_POW',  QVariant.String, '', 20),
+            QgsField('STRUKTUR', QVariant.String, '', 20),
             QgsField('SLMN_KOL', QVariant.Int),
-            QgsField('STL',      QVariant.String, len=20),
-            QgsField('POKRYWA',  QVariant.String, len=20),
-            QgsField('ZABIEG',   QVariant.String, len=20),
-            QgsField('POW_ZAB',  QVariant.Double, 'double', 10, 4),
-            QgsField('ODNOW',    QVariant.String, len=20),
-            QgsField('POW_ODN',  QVariant.Double, 'double', 10, 4),
-            QgsField('AGROT',    QVariant.Double, 'double', 10, 4),
-            QgsField('PIEL',     QVariant.Double, 'double', 10, 4),
+            QgsField('STL',      QVariant.String, '', 20),
+            QgsField('POKRYWA',  QVariant.String, '', 20),
+            QgsField('ZABIEG',   QVariant.String, '', 20),
+            QgsField('POW_ZAB',  QVariant.Double, '', 10, 4),
+            QgsField('ODNOW',    QVariant.String, '', 20),
+            QgsField('POW_ODN',  QVariant.Double, '', 10, 4),
+            QgsField('AGROT',    QVariant.Double, '', 10, 4),
+            QgsField('PIEL',     QVariant.Double, '', 10, 4),
         ]
         if przestoje_flag:
-            pola.append(QgsField('PRZEST', QVariant.Double, 'double', 10, 4))
-        pola.append(QgsField('INNE', QVariant.String, len=70))
+            pola.append(QgsField('PRZEST', QVariant.Double, '', 10, 4))
+        pola.append(QgsField('INNE', QVariant.String, '', 70))
 
         nowe = QgsFields()
         for p in pola:
