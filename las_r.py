@@ -81,6 +81,8 @@ from .skrypty import (
     baza_usun_wydz,
 )
 
+from .skrypty import aktualizacja_upul
+
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
 
@@ -257,6 +259,7 @@ class LasR:
 
         self.m_przyg_danych = QMenu("Przygotowanie danych", self.menu)
         self.m_rozlicz_pow = QMenu("Rozliczenie powierzchni", self.menu)
+        self.m_aktualizacja_upul = QMenu("Aktualizacja UPUL", self.menu)
         self.m_kontrola_danych = QMenu("Kontrola danych", self.menu)
         self.m_style = QMenu("Style warstw", self.menu)
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
@@ -264,6 +267,7 @@ class LasR:
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
+        self.menu.addMenu(self.m_aktualizacja_upul)
         self.menu.addMenu(self.m_kontrola_danych)
         self.menu.addMenu(self.m_style)
         self.menu.addMenu(self.m_narzedzia)
@@ -417,6 +421,13 @@ class LasR:
         )
         self.m_rozlicz_pow.addAction(self.kasr)
         self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
+        # ----------------------------------------
+
+        self.a_aktualizacja_baz = QAction(
+            QIcon(None), "Aktualizacja baz", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_aktualizacja_baz)
+        self.a_aktualizacja_baz.triggered.connect(self.uruchom_aktualizacje_baz)
         # ----------------------------------------
 
         self.spr_odl_wydz = QAction(
@@ -1165,3 +1176,6 @@ class LasR:
 
     def skasuj_rekordy_w_bazie_lyr(self):
         baza_usun_wydz.usun_wydz(self.iface)
+
+    def uruchom_aktualizacje_baz(self):
+        aktualizacja_upul.uruchom(self.iface)

@@ -1,0 +1,35 @@
+{
+  "f1": {
+    "growth_table": [
+      {"min_age": 11, "max_age": 20,   "height_delta": 4, "bhd_delta": 3},
+      {"min_age": 21, "max_age": 40,   "height_delta": 5, "bhd_delta": 4},
+      {"min_age": 41, "max_age": 60,   "height_delta": 3, "bhd_delta": 6},
+      {"min_age": 61, "max_age": 80,   "height_delta": 2, "bhd_delta": 5},
+      {"min_age": 81, "max_age": 100,  "height_delta": 1, "bhd_delta": 4},
+      {"min_age": 101, "max_age": null,"height_delta": 1, "bhd_delta": 4}
+    ],
+    "volume_multiplier": 1.1,
+    "filter_storey_drzew": false
+  },
+  "f2_f3": {
+    "volume_zero_replacement": 1,
+    "volume_formula_coefficient": 0.1,
+    "bonitacja_scale": ["IA", "I", "II", "III", "IV", "V"],
+    "round_ftr_values": true
+  },
+  "f4": {
+    "fallback_bhd_equals_height": true
+  },
+  "filters": {
+    "storey_drzew": "DRZEW",
+    "part_cd_min": 1,
+    "part_cd_max": 10
+  },
+  "tables": {
+    "fss": "F_STOREY_SPECIES",
+    "ftr": "F_TABLICA_ROZSZERZONA",
+    "fas": "F_AROD_STOREY",
+    "versions": "_LRT_VERSIONS",
+    "snapshots": "_LRT_SNAPSHOTS"
+  }
+}
