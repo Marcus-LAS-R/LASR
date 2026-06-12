@@ -25,6 +25,9 @@ class Wpisz:
 
         # metoda sama ogarnia czy zmienic powierzchnie czy nie
         self._dopisz_zabiegi()
+        # zapisz uwagi niezależnie od tego czy jakiś zabieg był dopisywany
+        # (wygeneruj_uwagi_do_dopisania mogło zmienić self.uwagi bez zapisu)
+        self.uzupelnij_uwagi()
 
     def _dopisz_nowa_rebnie(self) -> Union[bool, str]:
         """Metoda dopisuje do bazy nowe rebnie, w bazie dla podanego wydz
