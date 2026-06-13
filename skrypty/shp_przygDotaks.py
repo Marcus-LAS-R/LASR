@@ -180,13 +180,18 @@ class PrzygotujDotaks:
             '--- PRZYGOTUJ DOTAKS ---', 'Las-R', Qgis.Info)
 
         bledy_geom = []
+        bledy_ls = []
+        self._sprawdz_ls(ls, bledy_ls)
+        ls_proc = processing.run('native:fixgeometries', {
+            'INPUT': ls, 'OUTPUT': 'memory:'})['OUTPUT']
         stare_fixed = self._sprawdz_i_napraw(stare, 'stare', bledy_geom)
 
-        self._stworz_dotaks_nowe(ls, stare_fixed, kat_wyj, bledy_geom)
+        self._stworz_dotaks_nowe(ls_proc, stare_fixed, kat_wyj)
         self._stworz_dotaks_rb_nielas(
-            ls, stare_fixed, stare_sc, baza_sc, kat_wyj, bledy_geom)
+            ls_proc, stare_fixed, stare_sc, baza_sc, kat_wyj)
         self._stworz_dotaks_sprawdzenie(kat_wyj)
-        self._pokaz_bledy_geom(bledy_geom)
+        self._pokaz_bledy_geom(bledy_geom, 'DOTAKS_geom_bledy')
+        self._pokaz_bledy_geom(bledy_ls, 'LS_bledy_geom')
 
         self.iface.messageBar().pushMessage(
             'OK', 'Warstwy DOTAKS utworzone w SHP_dotaks', Qgis.Success, 10)
@@ -196,13 +201,13 @@ class PrzygotujDotaks:
     # DOTAKS_nowe
     # ------------------------------------------------------------------
 
-    def _stworz_dotaks_nowe(self, ls, stare, kat_wyj, bledy_geom):
+    def _stworz_dotaks_nowe(self, ls, stare, kat_wyj):
         diff = processing.run('native:difference', {
             'INPUT': ls,
             'OVERLAY': stare,
             'OUTPUT': 'memory:',
         })['OUTPUT']
-        diff = self._sprawdz_i_napraw(diff, 'diff', bledy_geom)
+        diff = self._napraw_geom(diff)
 
         single = processing.run('native:multiparttosingleparts', {
             'INPUT': diff,
@@ -240,10 +245,19 @@ class PrzygotujDotaks:
 
         merged = self._policz_pow_graf(merged)
 
-        ids_do_usuniecia = [
-            f.id() for f in merged.getFeatures()
-            if (f['POW_GRAF'] or 0) < 0.10
-        ]
+        idx_stare = QgsSpatialIndex(stare.getFeatures())
+        ids_do_usuniecia = []
+        for feat in merged.getFeatures():
+            if (feat['POW_GRAF'] or 0) >= 0.10:
+                continue
+            geom = feat.geometry()
+            kandydaci = idx_stare.intersects(geom.boundingBox())
+            dotyka_stare = any(
+                stare.getFeature(k).geometry().intersects(geom)
+                for k in kandydaci
+            )
+            if dotyka_stare:
+                ids_do_usuniecia.append(feat.id())
         if ids_do_usuniecia:
             merged.dataProvider().deleteFeatures(ids_do_usuniecia)
 
@@ -253,7 +267,7 @@ class PrzygotujDotaks:
     # DOTAKS_rb_nielas
     # ------------------------------------------------------------------
 
-    def _stworz_dotaks_rb_nielas(self, ls, stare, stare_sc, baza_sc, kat_wyj, bledy_geom):
+    def _stworz_dotaks_rb_nielas(self, ls, stare, stare_sc, baza_sc, kat_wyj):
         wpol = self._dopisz_metadane(stare, stare_sc, baza_sc)
         if wpol is None:
             return
@@ -273,7 +287,7 @@ class PrzygotujDotaks:
             'OVERLAY': ls,
             'OUTPUT': 'memory:',
         })['OUTPUT']
-        clipped = self._sprawdz_i_napraw(clipped, 'rb_nielas_clip', bledy_geom)
+        clipped = self._napraw_geom(clipped)
 
         clipped = self._policz_pow_graf(clipped)
 
@@ -310,6 +324,21 @@ class PrzygotujDotaks:
     # Pomocnicze
     # ------------------------------------------------------------------
 
+    def _napraw_geom(self, lyr):
+        return processing.run('native:fixgeometries', {
+            'INPUT': lyr, 'OUTPUT': 'memory:'})['OUTPUT']
+
+    def _sprawdz_ls(self, lyr, bledy):
+        check = processing.run('native:checkvalidity', {
+            'INPUT_LAYER': lyr,
+            'METHOD': 1,
+            'VALID_OUTPUT': 'memory:',
+            'INVALID_OUTPUT': 'memory:',
+            'ERROR_OUTPUT': 'memory:',
+        })
+        for feat in check['INVALID_OUTPUT'].getFeatures():
+            bledy.append(('ls', feat.geometry()))
+
     def _sprawdz_i_napraw(self, lyr, etykieta, bledy):
         check = processing.run('native:checkvalidity', {
             'INPUT_LAYER': lyr,
@@ -325,13 +354,12 @@ class PrzygotujDotaks:
             'OUTPUT': 'memory:',
         })['OUTPUT']
 
-    def _pokaz_bledy_geom(self, bledy):
+    def _pokaz_bledy_geom(self, bledy, nazwa):
         if not bledy:
             return
-        warstwa = QgsVectorLayer(
-            f'Polygon?crs={_CRS}', 'DOTAKS_geom_bledy', 'memory')
+        warstwa = QgsVectorLayer(f'Polygon?crs={_CRS}', nazwa, 'memory')
         prov = warstwa.dataProvider()
-        prov.addAttributes([QgsField('ZRODLO', QVariant.String, len=20)])
+        prov.addAttributes([QgsField('ZRODLO', QVariant.String, '', 20)])
         warstwa.updateFields()
         feats = []
         for etykieta, geom in bledy:

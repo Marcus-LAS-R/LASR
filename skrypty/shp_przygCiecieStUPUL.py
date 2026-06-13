@@ -36,11 +36,16 @@ class _Dialog(QDialog):
                 pass
         return ''
 
+    def _folder_wydz(self):
+        start = self._folder_startowy()
+        shp = os.path.join(os.path.dirname(start), 'SHP')
+        return shp if os.path.isdir(shp) else start
+
     def _wybierz_wydz(self):
         sc = QFileDialog.getOpenFileName(
             self,
             'Wskaż warstwę starych wydzieleń',
-            self._folder_startowy(),
+            self._folder_wydz(),
             'Shapefile (*.shp)',
         )[0]
         if sc:
