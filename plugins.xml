@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugins>
+  <pyqgis_plugin name="Las-R" version="2.0a">
+    <description>Plugin do automatyzacji pracy przy UPUL (mdb + shp)</description>
+    <about>Plugin do automatyzacji pracy przy Uproszczonych Planach Urządzania Lasu</about>
+    <version>2.0a</version>
+    <qgis_minimum_version>3.11</qgis_minimum_version>
+    <homepage>https://github.com/Marcus-LAS-R/LASR</homepage>
+    <file_name>lasr.zip</file_name>
+    <author_name>Paweł Krąpiec, Marek Młynarczyk</author_name>
+    <download_url>https://github.com/Marcus-LAS-R/LASR/releases/download/v2.0a/lasr.zip</download_url>
+    <experimental>False</experimental>
+    <deprecated>False</deprecated>
+    <tracker>https://github.com/Marcus-LAS-R/LASR/issues</tracker>
+    <repository>https://github.com/Marcus-LAS-R/LASR</repository>
+    <tags>las, upul, urządzanie lasu</tags>
+    <category>Plugins</category>
+    <icon></icon>
+  </pyqgis_plugin>
+</plugins>
