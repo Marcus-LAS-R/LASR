@@ -206,8 +206,12 @@ class KontrolaDzKat(object):
             x[-1][4:]: [x[0], x[1], x[-1], x[7], x[6]]
             for x in self.uzytki}
 
-        self.county = self.dz_dict[list(self.dz_dict.keys())[0]][0]
-        self.district = self.dz_dict[list(self.dz_dict.keys())[0]][1]
+        if self.dz_dict:
+            self.county = list(self.dz_dict.values())[0][0]
+            self.district = list(self.dz_dict.values())[0][1]
+        else:
+            self.county = ''
+            self.district = ''
 
         QgsMessageLog.logMessage("Pobrano użytków: "+str(len(self.uzytki)), "Las-R")
         QgsMessageLog.logMessage("Pobrano własności: "+str(len(self.wlasnosci)), "Las-R")

@@ -12,6 +12,8 @@ def sprawdz_rozliczenie_bazy(iface):
 
     # wskaż bazę którą chcesz sprawdzać
     baza_sc = znajdz_baze_do_wydz(iface)
+    if not baza_sc:
+        return
 
     baza = Baza(baza_sc)
     if not baza.polacz():

@@ -130,7 +130,7 @@ class SprawdzWydzielenia():
                  f' [Ustawiony w warstwie: {self.wydz.crs().authid()}]',
                 Qgis.Critical,
                 10)
-            return True
+            return False
         return True
 
     def spr_kolumn(self):
@@ -553,6 +553,9 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
         wyps += \
             'Pamiętaj, że zmiany dotyczą tylko i wyłącznie warstwy!!!\n\n'
 
+    braki_baza = []
+    braki_shp = []
+
     if baza is not False:
 
         bpnsw = baza.pobierz_pnsw()
@@ -630,7 +633,8 @@ def sprawdz_powierzchnie_wydz(wydz, baza=False):
         ['ADR_LES', 'POW_WYDZ'], wydz.fields())
     adr_r = [[x['ADR_LES'], x.geometry().area()/10000, ]
              for x in wydz.getFeatures(request)
-             if abs(x.geometry().area()/10000-md[x['ADR_LES']]) > 0.3
+             if x['ADR_LES'] in md
+             and abs(x.geometry().area()/10000-md[x['ADR_LES']]) > 0.3
              ]
 
     if len(adr_r) == 0:

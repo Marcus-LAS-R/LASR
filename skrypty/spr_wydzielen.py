@@ -195,7 +195,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
 
         if lniezg > 0:
             self.wypis += 'Znaleziono wydzieleń z niezgodnymi ' + \
-                'kodami oddziałów: ' + str(lprzec)
+                'kodami oddziałów: ' + str(lniezg)
             self.wypis += '\n(Patrz warstwa błędów dodana do TOC)\n\n'
 
         if lniezg == 0 and lprzec == 0:

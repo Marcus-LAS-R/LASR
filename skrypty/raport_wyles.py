@@ -327,7 +327,7 @@ class RaportWylesien():
             self.iface.messageBar().pushMessage(
                 'UWAGA',
                 'Wyeksportowano '+str(ile_poly)+', zgłoszono: ' +
-                len(self.uwagi) + ' (patrz log LAS-R)',
+                str(len(self.uwagi)) + ' (patrz log LAS-R)',
                 Qgis.Warning,
                 0
             )

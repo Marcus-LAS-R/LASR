@@ -313,6 +313,9 @@ class Laczenie():
         for id in range(8):
             print(id)
             for row in self.tab[id][0]:
+                arodes_key = row[0] if id in [0, 1, 5, 6, 7] else row[1]
+                if arodes_key not in self.sl_arodes:
+                    continue
 
                 nag = []
                 its = []

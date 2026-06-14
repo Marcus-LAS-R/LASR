@@ -11,12 +11,12 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Ui_Dialog(object):
     def setupUi(self, Ui_Dialog):
         Ui_Dialog.setObjectName("Ui_Dialog")
-        Ui_Dialog.resize(649, 194)
+        Ui_Dialog.resize(649, 234)
         font = QtGui.QFont()
         font.setFamily("Arial")
         Ui_Dialog.setFont(font)
         self.pushButton_ok = QtWidgets.QPushButton(Ui_Dialog)
-        self.pushButton_ok.setGeometry(QtCore.QRect(70, 150, 251, 34))
+        self.pushButton_ok.setGeometry(QtCore.QRect(70, 190, 251, 34))
         font = QtGui.QFont()
         font.setFamily("Arial")
         font.setPointSize(11)
@@ -25,7 +25,7 @@ class Ui_Ui_Dialog(object):
         self.pushButton_ok.setFont(font)
         self.pushButton_ok.setObjectName("pushButton_ok")
         self.pushButton_cancel = QtWidgets.QPushButton(Ui_Dialog)
-        self.pushButton_cancel.setGeometry(QtCore.QRect(380, 150, 181, 34))
+        self.pushButton_cancel.setGeometry(QtCore.QRect(380, 190, 181, 34))
         font = QtGui.QFont()
         font.setFamily("Arial")
         font.setPointSize(8)
@@ -86,6 +86,14 @@ class Ui_Ui_Dialog(object):
         self.pushButton_ls.setFont(font)
         self.pushButton_ls.setObjectName("pushButton_ls")
 
+        self.checkBox_wyczysc = QtWidgets.QCheckBox(Ui_Dialog)
+        self.checkBox_wyczysc.setGeometry(QtCore.QRect(20, 155, 400, 22))
+        font_cb = QtGui.QFont()
+        font_cb.setFamily("Arial")
+        self.checkBox_wyczysc.setFont(font_cb)
+        self.checkBox_wyczysc.setChecked(False)
+        self.checkBox_wyczysc.setObjectName("checkBox_wyczysc")
+
         self.retranslateUi(Ui_Dialog)
         QtCore.QMetaObject.connectSlotsByName(Ui_Dialog)
 
@@ -100,4 +108,5 @@ class Ui_Ui_Dialog(object):
         self.pushButton_wydz.setText(_translate("Ui_Dialog", "Wybierz"))
         self.pushButton_baza.setText(_translate("Ui_Dialog", "Wybierz"))
         self.pushButton_ls.setText(_translate("Ui_Dialog", "Wybierz"))
+        self.checkBox_wyczysc.setText(_translate("Ui_Dialog", "Wyczyść F_AROD_LAND_USE przed rozliczeniem"))
 

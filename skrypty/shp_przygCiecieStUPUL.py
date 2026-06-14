@@ -3,7 +3,7 @@ import os
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from PyQt5.QtCore import QVariant
 from qgis.core import (
-    Qgis, QgsMessageLog, QgsProject, QgsVectorLayer,
+    Qgis, QgsFeature, QgsMessageLog, QgsProject, QgsVectorLayer,
     QgsField, QgsFields,
 )
 import processing
@@ -13,6 +13,29 @@ from .shp_dopisz_kody import DopiszKody
 from .ui.ui_przygCiecieStUPUL import Ui_Dialog
 
 _TEMP = 'WYDZ_POL_stare_multipart'
+
+_KOLUMNY_POL = [
+    QgsField('ADR_LES',  QVariant.String, '', 25),
+    QgsField('ODDZ',     QVariant.String, '', 6),
+    QgsField('WYDZ',     QVariant.String, '', 4),
+    QgsField('TYP_POW',  QVariant.String, '', 20),
+    QgsField('UDZIAL',   QVariant.String, '', 5),
+    QgsField('GAT',      QVariant.String, '', 10),
+    QgsField('WIEK',     QVariant.Int),
+    QgsField('ZADRZEW',  QVariant.Double, '', 10, 1),
+    QgsField('ZABIEG',   QVariant.String, '', 20),
+    QgsField('STL',      QVariant.String, '', 20),
+    QgsField('GRP',      QVariant.String, '', 2),
+    QgsField('POW_WYDZ', QVariant.Double, '', 10, 2),
+]
+
+# mapowanie starych nazw pól (stary UPUL) na nowe
+_MAPA_STARYCH_POL = [
+    ('COUNTY_CD',  'COUNTY',    2),
+    ('DISTRICT_C', 'DISTRICT',  2),
+    ('MUNICIPALI', 'MUNICIP',   3),
+    ('COMMUNITY_', 'COMMUNITY', 4),
+]
 
 
 class _Dialog(QDialog):
@@ -108,18 +131,21 @@ class PrzygotujCiecieStUPUL:
         if wpol_temp is None:
             return
 
-        wydz_pol_sc = os.path.join(kat_wyj, 'WYDZ_POL_stare.shp')
+        temp_full_sc = os.path.join(temp_kat, 'WYDZ_stare_full.shp')
         processing.run('native:multiparttosingleparts', {
             'INPUT': wpol_temp,
-            'OUTPUT': wydz_pol_sc,
+            'OUTPUT': temp_full_sc,
         })
         del wpol_temp
 
         wydz_pkt_sc = os.path.join(kat_wyj, 'WYDZ_PKT_stare.shp')
         processing.run('native:pointonsurface', {
-            'INPUT': wydz_pol_sc,
+            'INPUT': temp_full_sc,
             'OUTPUT': wydz_pkt_sc,
         })
+
+        wydz_pol_sc = os.path.join(kat_wyj, 'WYDZ_POL_stare.shp')
+        self._buduj_pol_uproszczona(temp_full_sc, wydz_pol_sc)
 
         wydz_pol = QgsVectorLayer(wydz_pol_sc, 'WYDZ_POL_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pol)
@@ -129,6 +155,51 @@ class PrzygotujCiecieStUPUL:
         self.iface.messageBar().pushMessage(
             'OK', 'Warstwy utworzone w folderze SHP_stare', Qgis.Success, 10)
         QgsMessageLog.logMessage('--- KONIEC ---', 'Las-R', Qgis.Info)
+
+    def _normalizuj_stara_struktura(self, wpol, wpol_data):
+        obecne = [f.name() for f in wpol.fields()]
+        if 'COUNTY' in obecne or 'COUNTY_CD' not in obecne:
+            return
+        QgsMessageLog.logMessage(
+            'Wykryto starą strukturę warstwy WYDZ — remapowanie pól', 'Las-R', Qgis.Info)
+        nowe = [
+            QgsField(nowe_n, QVariant.String, '', dl)
+            for _, nowe_n, dl in _MAPA_STARYCH_POL
+            if nowe_n not in obecne
+        ]
+        wpol_data.addAttributes(nowe)
+        wpol.updateFields()
+        fnm = wpol_data.fieldNameMap()
+        for feat in wpol.getFeatures():
+            attrs = {}
+            for stare_n, nowe_n, _ in _MAPA_STARYCH_POL:
+                val = feat[stare_n]
+                if isinstance(val, str):
+                    val = val.strip()
+                attrs[fnm[nowe_n]] = val
+            wpol_data.changeAttributeValues({feat.id(): attrs})
+
+    def _buduj_pol_uproszczona(self, src_sc, wyj_sc):
+        src = QgsVectorLayer(src_sc, 'src_full_tmp', 'ogr')
+        wyj = QgsVectorLayer('Polygon?crs=epsg:2180', 'pol_uproszczona', 'memory')
+        wyj_data = wyj.dataProvider()
+        wyj_data.addAttributes(_KOLUMNY_POL)
+        wyj.updateFields()
+
+        nazwy = [f.name() for f in _KOLUMNY_POL]
+        feats = []
+        for feat in src.getFeatures():
+            nf = QgsFeature(wyj.fields())
+            nf.setGeometry(feat.geometry())
+            for n in nazwy:
+                nf[n] = feat[n]
+            feats.append(nf)
+        wyj_data.addFeatures(feats)
+
+        processing.run('native:savefeatures', {
+            'INPUT': wyj,
+            'OUTPUT': wyj_sc,
+        })
 
     def _dopisz_metadane(self, wydz, wydz_path, baza_sc):
         d = DopiszKody(self.iface)
@@ -147,6 +218,7 @@ class PrzygotujCiecieStUPUL:
         wpol.updateFields()
         wpol_data.addFeatures(list(wydz.getFeatures()))
 
+        self._normalizuj_stara_struktura(wpol, wpol_data)
         self._dodaj_pola(wpol, wpol_data, d.przestoje_flag)
         self._zapisz_atrybuty(wpol, wpol_data, d)
         return wpol

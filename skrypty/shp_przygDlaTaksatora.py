@@ -13,6 +13,7 @@ from .ui.ui_przygDlaTaksatora import Ui_Dialog
 
 _WARSTWY_SHP = ['LS', 'DZKAT', 'LZ_potencjalne', 'OBR', '99']
 _WARSTWY_DOTAKS = ['DOTAKS_nowe', 'DOTAKS_rb_nielas', 'DOTAKS_sprawdzenie']
+_WARSTWY_STARE = ['WYDZ_POL_stare']
 _ROZSZERZENIA = ['.shp', '.dbf', '.shx', '.prj', '.cpg', '.qpj', '.qml']
 
 _SQL_UZYTKI = (
@@ -463,6 +464,11 @@ class PrzygotujDlaTaksatora:
         if os.path.isdir(kat_dotaks):
             for nazwa in _WARSTWY_DOTAKS:
                 if self._kopiuj_shp(kat_dotaks, nazwa, kat_shp_wyj):
+                    skopiowane += 1
+        kat_stare = os.path.join(folder_proj, 'SHP_stare')
+        if os.path.isdir(kat_stare):
+            for nazwa in _WARSTWY_STARE:
+                if self._kopiuj_shp(kat_stare, nazwa, kat_shp_wyj):
                     skopiowane += 1
         return skopiowane
 

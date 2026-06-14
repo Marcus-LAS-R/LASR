@@ -150,11 +150,11 @@ class KontrolaLs:
         # z bazy
         if lid not in self.d_ls.keys():
             print('Brak w bazie, LANDID: '+lid)
-            return
+            return {}
 
         if len(lid) < 14:
             print('za krótki LANDID: '+lid)
-            return
+            return {}
 
         s = {}
         if self.d_ls[lid]['COUNTY'] != lid[:2]:
@@ -170,7 +170,7 @@ class KontrolaLs:
         try:
             if len(lid.split('.')) == 4 and \
                     self.d_ls[lid]['ARK'] != lid.split('.')[1]:
-                s['COMMUNITY'] = lid.split('.')[1]
+                s['ARK'] = lid.split('.')[1]
                 ind = 2
         except IndexError:
             print('Niepoprawny LANDID: '+lid)
@@ -330,7 +330,7 @@ class KontrolaLs:
         self.wypis += 'Brakujących Ls-ów [w bazie]: ' + \
             str(len(self.brakujace_ls_w_bazie)) + '\n\n'
 
-        self.wypis == '\n\n'
+        self.wypis += '\n\n'
 
         if len(self.zdublowane_lid) > 0:
             self.wypis += '---ZDUBLOWANE LANDID [SHP]----------\n'

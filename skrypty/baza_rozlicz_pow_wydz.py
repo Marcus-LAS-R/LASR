@@ -198,8 +198,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         sc_ls = self.ls.dataProvider().dataSourceUri().split("|")[0]
         self.wypis += 'Ls:\n  ' + sc_ls + '\n'
         self.wypis += \
-            'Baza:\n  ' + os.path.abspath(baza_sc) + '\n\n'
+            'Baza:\n  ' + os.path.abspath(self.baza.baza) + '\n\n'
 
+        self.wyczysc_land_use = self.pobierz_dane.ui.checkBox_wyczysc.isChecked()
         self.postep.setValue(15)
         return True
 
@@ -534,7 +535,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
                     str(poprawka) + '\n'
 
         return [self.sl_uz_baza[key][:2] + [self.adr_les[tt[0]]] + [tt[1]]
-                for tt in temp_pow]
+                for tt in temp_pow if tt[0] in self.adr_les]
 
     def o_czy_caly_uz(self, key, uz):
         # suma wszystkich uzytkow na pow - GRAFICZNA
@@ -594,6 +595,13 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         plik = open(os.path.join(self.kat, 'wypis_do_spr.csv'), 'w')
         plik.write(wypis)
         plik.close()
+
+    def wyczysc_arod_land_use(self):
+        self.baza.polacz()
+        self.baza.wpisz("DELETE FROM F_AROD_LAND_USE")
+        QgsMessageLog.logMessage(
+            'Wyczyszczono tabelę F_AROD_LAND_USE', 'Las-R', Qgis.Info)
+        self.wypis += 'Wyczyszczono tabelę F_AROD_LAND_USE\n\n'
 
     def dopisz_rozliczenie(self):
         """Metoda tworzy kopie zapasową bazy danych a następnie

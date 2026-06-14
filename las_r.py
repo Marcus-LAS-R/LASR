@@ -828,6 +828,8 @@ class LasR:
             b.sprawdz_rozlicz_graf()
             b.zestaw_rozliczenie()
             # b.zapisz_rozliczenie()  # wypisz do csv do sprawdzenia
+            if b.wyczysc_land_use:
+                b.wyczysc_arod_land_use()
             if not b.dopisz_rozliczenie():
                 return
             else:
