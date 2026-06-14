@@ -84,6 +84,7 @@ from .skrypty import (
 from .skrypty import aktualizacja_upul
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
+from .skrypty import shp_przygDlaTaksatora
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -296,6 +297,12 @@ class LasR:
         )
         self.m_przyg_danych.addAction(self.przyg_teren)
         self.przyg_teren.triggered.connect(self.przygotuj_do_terenu)
+
+        self.a_przyg_dla_taksatora = QAction(
+            QIcon(None), "Spakuj taksatorowi", self.iface.mainWindow()
+        )
+        self.m_przyg_danych.addAction(self.a_przyg_dla_taksatora)
+        self.a_przyg_dla_taksatora.triggered.connect(self.przygotuj_dla_taksatora)
 
         self.m_przyg_danych.addSeparator()
 
@@ -1198,6 +1205,10 @@ class LasR:
 
     def przygotuj_dotaks(self):
         p = shp_przygDotaks.PrzygotujDotaks(self.iface)
+        p.uruchom()
+
+    def przygotuj_dla_taksatora(self):
+        p = shp_przygDlaTaksatora.PrzygotujDlaTaksatora(self.iface)
         p.uruchom()
 
     def przygotuj_stare_wydz(self):

@@ -532,6 +532,16 @@ class WyszukajLz():
     def stworz_warstwe_lz(self):
         """Metoda tworzy warstwę wirtualną Lz i dodaje ją do projektu """
 
+        # usuń duplikaty — ten sam LS może trafić do lzp wielokrotnie
+        # gdy dwa sąsiednie klastry wzajemnie wchłaniają swoje featurki
+        seen = set()
+        lzp_uniq = []
+        for f in self.lzp:
+            if f.id() not in seen:
+                seen.add(f.id())
+                lzp_uniq.append(f)
+        self.lzp = lzp_uniq
+
         self.iface.messageBar().pushMessage(
             'LZ',
             'Zakończono pomyślnie! Odnaleziono Lz : ' + str(len(self.lzp)),
@@ -631,6 +641,11 @@ class PobierzDane(QDialog):
                 )
                 lsc = self.uz.dataProvider().dataSourceUri().split("|")[0]
                 self.kat = os.path.dirname(lsc)
+
+        if not self.ui.lineEdit_uz.text().strip() and self.kat:
+            kandydat = os.path.join(self.kat, 'UZYTKI.shp')
+            if os.path.isfile(kandydat):
+                self.ui.lineEdit_uz.setText(kandydat)
 
         if oddz:
             self.sprawdz_oddz()
