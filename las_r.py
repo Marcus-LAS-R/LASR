@@ -24,7 +24,8 @@
 """
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QAction, QMenu
+from PyQt5.QtWidgets import QAction, QMenu, QToolButton, QPushButton
+import configparser
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -79,6 +80,8 @@ from .skrypty import (
     okladka_atlas,
     baza_kontrola_dzkat,
     baza_usun_wydz,
+    baza_kontrola_slownikow_wgSULMN,
+    baza_kontrola_opisow_wgSULMN,
 )
 
 from .skrypty import aktualizacja_upul
@@ -264,7 +267,7 @@ class LasR:
         self.m_rozlicz_pow = QMenu("Rozliczenie powierzchni", self.menu)
         self.m_aktualizacja_upul = QMenu("Aktualizacja UPUL", self.menu)
         self.m_kontrola_danych = QMenu("Kontrola danych", self.menu)
-        self.m_style = QMenu("Style warstw", self.menu)
+        self.m_kontrola_sulmn = QMenu("Kontrola wg SULMN", self.menu)
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
         self.m_raporty = QMenu("Raporty", self.menu)
 
@@ -272,7 +275,7 @@ class LasR:
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_aktualizacja_upul)
         self.menu.addMenu(self.m_kontrola_danych)
-        self.menu.addMenu(self.m_style)
+        self.menu.addMenu(self.m_kontrola_sulmn)
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
 
@@ -507,6 +510,20 @@ class LasR:
 
         # ------------------------------------
 
+        self.a_kontrola_slownikow = QAction(
+            QIcon(None), "Kontrola słownikowa", self.iface.mainWindow()
+        )
+        self.m_kontrola_sulmn.addAction(self.a_kontrola_slownikow)
+        self.a_kontrola_slownikow.triggered.connect(self.kontrola_slownikow_bazy)
+
+        self.a_kontrola_opisow = QAction(
+            QIcon(None), "Kontrola opisu taksacyjnego", self.iface.mainWindow()
+        )
+        self.m_kontrola_sulmn.addAction(self.a_kontrola_opisow)
+        self.a_kontrola_opisow.triggered.connect(self.kontrola_opisow_taksacyjnych)
+
+        # ------------------------------------
+
         self.menu.addSeparator()
 
         self.dop_wydz = QAction(
@@ -525,36 +542,36 @@ class LasR:
         self.menu.addAction(self.okl)
         self.okl.triggered.connect(self.rysuj_okladki)
 
+        self.menu.addSeparator()
+
+        self.a_co_nowego = QAction(QIcon(None), "Co nowego?", self.iface.mainWindow())
+        self.menu.addAction(self.a_co_nowego)
+        self.a_co_nowego.triggered.connect(self.pokaz_changelog)
+
         # -------------------------------------
 
         self.rys_gat = QAction(
             ico_wydz_rys_gat, "Rysuj gatunki", self.iface.mainWindow()
         )
-        self.m_style.addAction(self.rys_gat)
         self.rys_gat.triggered.connect(self.rysuj_gatunki)
 
         self.rys_zab = QAction(
             ico_wydz_rys_zab, "Rysuj zabiegi", self.iface.mainWindow()
         )
-        self.m_style.addAction(self.rys_zab)
         self.rys_zab.triggered.connect(self.rysuj_zabiegi)
 
         self.rys_stl = QAction(ico_wydz_rys_stl, "Rysuj STL", self.iface.mainWindow())
-        self.m_style.addAction(self.rys_stl)
         self.rys_stl.triggered.connect(self.rysuj_stl)
 
         self.rys_orto = QAction(
             ico_wydz_rys_orto, "Rysuj na orto", self.iface.mainWindow()
         )
-        self.m_style.addAction(self.rys_orto)
         self.rys_orto.triggered.connect(self.rysuj_orto)
 
         self.rys_dz = QAction(ico_dzkat, "Rysuj Działki", self.iface.mainWindow())
-        self.m_style.addAction(self.rys_dz)
         self.rys_dz.triggered.connect(self.rysuj_dzkat)
 
         self.rys_klu = QAction(ico_klu, "Rysuj KLU", self.iface.mainWindow())
-        self.m_style.addAction(self.rys_klu)
         self.rys_klu.triggered.connect(self.rysuj_klu)
 
         self.a_dod_adm = QAction(
@@ -633,23 +650,27 @@ class LasR:
         self.dop_meta.triggered.connect(self.dopisanie_wydzielen)
 
         self.toolbar.addAction(self.spr_wydz)
+        self.toolbar.addAction(self.spr_topo)
+
+        self.spr_geom = QAction(ico_check, "Sprawdź geometrię", self.iface.mainWindow())
+        self.toolbar.addAction(self.spr_geom)
+        self.spr_geom.triggered.connect(self.sprawdz_geom)
 
         self.toolbar.addSeparator()
 
-        self.toolbar.addAction(self.rys_gat)
-        self.toolbar.addAction(self.rys_stl)
-        self.toolbar.addAction(self.rys_dz)
-        self.toolbar.addAction(self.rys_klu)
-        QmlCacheModule(self)
-
         self.rys_wez = QAction(ico_wezelki, "Pokaż węzełki", self.iface.mainWindow())
-        self.m_style.addAction(self.rys_wez)
         self.toolbar.addAction(self.rys_wez)
         self.rys_wez.triggered.connect(self.rysuj_wezelki)
 
-        self.a_pokaz_lay = QAction(ico_pok_lay, "Pokaż Layout", self.iface.mainWindow())
-        self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
-        self.toolbar.addAction(self.a_pokaz_lay)
+        self.uutf8 = QAction(ico_utf8, "ustaw kodowanie UTF-8", self.iface.mainWindow())
+        self.toolbar.addAction(self.uutf8)
+        self.uutf8.triggered.connect(self.ustaw_utf8)
+
+        self.pg = QAction(
+            ico_pow_graf, "oblicz powierzchnię graficzną", self.iface.mainWindow()
+        )
+        self.toolbar.addAction(self.pg)
+        self.pg.triggered.connect(self.powierzchnia_graf)
 
         self.toolbar.addSeparator()
 
@@ -665,31 +686,38 @@ class LasR:
         self.toolbar.addAction(self.num_atl)
         self.num_atl.triggered.connect(self.numeruj_atlas)
 
-        self.toolbar.addSeparator()
+        self.a_pokaz_lay = QAction(ico_pok_lay, "Pokaż Layout", self.iface.mainWindow())
+        self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
 
-        self.toolbar.addAction(self.spr_topo)
         self.akcje_toolbara = [
             self.dop_meta,
             self.spr_wydz,
-            self.rys_dz,
-            self.rys_klu,
-            self.rys_gat,
-            self.rys_wez,
-            self.rys_atl,
             self.spr_topo,
-            self.a_pokaz_lay,
+            self.spr_geom,
+            self.rys_wez,
+            self.uutf8,
+            self.pg,
+            self.rys_atl,
+            self.num_atl,
         ]
         # toolbar koniec ---------------------
 
         # toolbar ze skrotami -----------------------
-        self.spr_geom = QAction(ico_check, "Sprawdź geometrię", self.iface.mainWindow())
-        self.toolbar_skr.addAction(self.spr_geom)
-        self.spr_geom.triggered.connect(self.sprawdz_geom)
+        self.qml_module = QmlCacheModule(self)
+        self.toolbar.removeAction(self.qml_module.action)
+        self.toolbar_skr.addAction(self.qml_module.action)
+        self.qml_module.toolButton = self.toolbar_skr.widgetForAction(self.qml_module.action)
+        self.qml_module.toolButton.setPopupMode(QToolButton.InstantPopup)
+        self.qml_module.actionMenu.addSeparator()
+        self.qml_module.actionMenu.addAction(self.rys_gat)
+        self.qml_module.actionMenu.addAction(self.rys_zab)
+        self.qml_module.actionMenu.addAction(self.rys_stl)
+        self.qml_module.actionMenu.addAction(self.rys_orto)
+        self.qml_module.actionMenu.addAction(self.rys_dz)
+        self.qml_module.actionMenu.addAction(self.rys_klu)
 
-        self.uutf8 = QAction(ico_utf8, "ustaw kodowanie UTF-8", self.iface.mainWindow())
-        self.toolbar_skr.addAction(self.uutf8)
-        self.uutf8.triggered.connect(self.ustaw_utf8)
-
+        self.toolbar_skr.addAction(self.a_pokaz_lay)
+        self.toolbar_skr.addAction(self.iface.actionVertexTool())
         self.toolbar_skr.addAction(self.iface.actionSplitFeatures())
 
         if "DigitizingTools" in plugins:
@@ -707,25 +735,16 @@ class LasR:
         self.toolbar_skr.addAction(self.odzn)
         self.odzn.triggered.connect(self.odznacz)
 
-        self.toolbar_skr.addAction(self.iface.actionVertexTool())
-
-        self.pg = QAction(
-            ico_pow_graf, "oblicz powierzchnię graficzną", self.iface.mainWindow()
-        )
-        self.toolbar_skr.addAction(self.pg)
-        self.pg.triggered.connect(self.powierzchnia_graf)
-
         self.akcje_toolbar_skr = [
-            self.spr_geom,
-            self.uutf8,
+            self.qml_module.action,
+            self.a_pokaz_lay,
+            self.iface.actionVertexTool(),
             self.iface.actionSplitFeatures(),
             self.msplit,
             self.odzn,
-            self.pg,
             self.iface.actionAddRing(),
             self.iface.actionAddFeature(),
             self.iface.actionSelectRectangle(),
-            self.iface.actionVertexTool(),
         ]
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
@@ -738,6 +757,50 @@ class LasR:
         self.dockWidget = baza_klonuj_wydz.PobierzDaneDock(self.iface)
         self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockWidget)
         self.dockWidget.hide()
+
+        self._pokaz_changelog_jesli_nowy()
+
+    def _changelog_sc(self):
+        sc = os.path.join(self.plugin_dir, 'CHANGELOG.txt')
+        if not os.path.exists(sc):
+            sc = os.path.normpath(os.path.join(self.plugin_dir, '..', '..', 'CHANGELOG.txt'))
+        return sc if os.path.exists(sc) else None
+
+    def _pokaz_changelog_jesli_nowy(self):
+        cfg = configparser.ConfigParser()
+        cfg.read(os.path.join(self.plugin_dir, 'metadata.txt'), encoding='utf-8')
+        wersja = cfg.get('general', 'version', fallback=None)
+        if not wersja:
+            return
+
+        ustawienia = QSettings('LasR', 'LasR')
+        ostatnia = ustawienia.value('last_seen_version', '')
+        ustawienia.setValue('last_seen_version', wersja)
+
+        if wersja == ostatnia:
+            return
+
+        sc = self._changelog_sc()
+        widget = self.iface.messageBar().createMessage(
+            'LAS-R',
+            f'Zainstalowano wersję {wersja}.'
+            + ('' if ostatnia == '' else f' (poprzednia: {ostatnia})')
+        )
+        if sc:
+            btn = QPushButton('Zobacz zmiany')
+            btn.pressed.connect(lambda: os.startfile(sc))
+            widget.layout().addWidget(btn)
+        self.iface.messageBar().pushWidget(widget, Qgis.Info, 0)
+
+    def pokaz_changelog(self):
+        sc = self._changelog_sc()
+        if sc:
+            os.startfile(sc)
+        else:
+            self.iface.messageBar().pushMessage(
+                'LAS-R', 'Nie znaleziono pliku CHANGELOG.txt.',
+                Qgis.Warning, 6
+            )
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -978,6 +1041,12 @@ class LasR:
                 #     self.iface.messageBar().pushMessage(
                 #         'Błąd', 'Coś się wysypało - krytycznie',
                 #         Qgis.Critical, 0)
+
+    def kontrola_slownikow_bazy(self):
+        baza_kontrola_slownikow_wgSULMN.KontrolaSlownikow(self.iface)
+
+    def kontrola_opisow_taksacyjnych(self):
+        baza_kontrola_opisow_wgSULMN.KontrolaOpisow(self.iface)
 
     def kontrola_ls_z_baza(self):
         k = baza_kontrola_ls.KontrolaLs(self.iface)

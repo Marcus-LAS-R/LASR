@@ -1,0 +1,328 @@
+LASR - CHANGELOG
+================================================================================
+Format: DATA | SKRYPT | OPIS ZMIAN
+================================================================================
+
+================================================================================
+WERSJA 2.0b (2026-06-16)
+================================================================================
+
+2026-06-16 | metadata.txt                | Wersja 2.0b; CHANGELOG.txt dołączony do
+           | CHANGELOG.txt              | src/lasr/ (dostępny przy instalacji produkcyjnej)
+2026-06-16 | las_r.py                    | Powiadomienie o nowej wersji: przy starcie
+           |                            | porównuje wersję z metadata.txt z ostatnio
+           |                            | widzianą (QSettings); jeśli nowa — pasek
+           |                            | z przyciskiem "Zobacz zmiany" (otwiera
+           |                            | CHANGELOG.txt). Menu: "Co nowego?" zawsze
+           |                            | dostępne na dole menu LAS-R
+2026-06-16 | las_r.py                    | Usunięto submenu "Style warstw"; wszystkie
+           |                            | style (gat, zab, STL, orto, Działki, KLU)
+           |                            | przeniesione do dropdown "Szybkie ładowanie
+           |                            | styli" na pasku skrótów (węzełki pozostają
+           |                            | na pasku głównym)
+2026-06-16 | las_r.py                    | Pasek główny: nowa kolejność akcji + Pokaż
+           |                            | Layout przeniesiony na pasek skrótów
+2026-06-16 | las_r.py                    | Pasek skrótów: przeniesiono Sprawdź geometrię,
+           |                            | UTF-8, Pow. graficzna → pasek główny;
+           |                            | Szybkie ładowanie styli qml przeniesione
+           |                            | z paska głównego → pasek skrótów (na koniec)
+2026-06-16 | las_r.py                    | Pasek narzędziowy: przeniesiono Rysuj gatunki,
+           |                            | STL, Działki, KLU do dropdown QmlCacheModule;
+           |                            | QmlCacheModule (Szybkie ładowanie styli qml)
+           |                            | przeniesiony na koniec paska
+2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Rozszerzenie listy KONTROLE z 11 do 28 pozycji:
+           |                            | F_SUBAREA (+13: CAUSE_CD, POSITION_CD,
+           |                            | RELIEF_CD, DEGRADATION_CD, SILVICULTURE_CD,
+           |                            | FOREST_FUNC_CD, SLOPE_CD, EXPOSURE_CD,
+           |                            | MOISTURY_CD, SOIL_PEC_CD, SOIL_SUBTYPE_CD,
+           |                            | RECONSTR_CD, PHASE_CD);
+           |                            | F_AROD_STOREY (+1: TREE_STOCK_CD);
+           |                            | F_AROD_PHENOMENA (+3: PHENOMENA_CD,
+           |                            | LOCATION_CD, PLANT_CD)
+2026-06-16 | las_r.py                    | Zmiana nazwy pozycji menu: "Kontrola opisów
+           |                            | taksacyjnych" → "Kontrola opisu taksacyjnego"
+2026-06-16 | baza_kontrola_opisow_wgSULMN.py    | Kontrola wersji bazy kontroli przy starcie:
+           |                            | porównuje mtime szablony/baza_kontroli_upul.mdb
+           |                            | z wersją w Mapa_PU; jeśli inna (nowsza lub
+           |                            | starsza) — dialog 3-przyciskowy: TAK (kopia
+           |                            | zapasowa z datą + kopiuj z Mapa_PU i wykonaj
+           |                            | kontrolę), NIE (wykonaj wg bieżącej bazy),
+           |                            | PORZUĆ (przerwij działanie skryptu)
+2026-06-16 | baza_kontrola_opisow_wgSULMN.py    | Nowy skrypt: kontrola opisów taksacyjnych
+           | las_r.py                    | wg metodologii Mapa PU. Ładuje kontrole SQL
+           |                            | z baza_kontroli_upul.mdb (tabele:
+           |                            | grupy_kontroli, kontrole, kwerendy_kontroli).
+           |                            | Kopia bazy do tmp, wykonanie kontroli,
+           |                            | raport TXT (obligatoryjne + pomocnicze).
+           |                            | Auto-find szablony/baza_kontroli_upul.mdb,
+           |                            | fallback do dialogu. Menu: Kontrola wg SULMN
+           |                            | → "Kontrola opisów taksacyjnych"
+2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Kontrola whitelist: F_SUBAREA.AREA_TYPE_CD
+           |                            | (dopuszczalne: D-STAN, INNE WYL, PŁAZ,
+           |                            | SUKCESJA, HAL, L ENERG, ZRĄB, LZ-Ł,
+           |                            | DROGI L, RETEN); funkcja _sprawdz_whitelist
+           |                            | generyczna — gotowa na kolejne kontrole
+2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Dodano kontrolę F_PARAMETER.ObjectFullName
+           |                            | (wg metodologii Mapa PU: błąd gdy pole puste,
+           |                            | null lub brak rekordu)
+2026-06-16 | las_r.py                    | Nowe menu "Kontrola wg SULMN" (po "Kontrola danych");
+           |                            | pozycja "Kontrola słowników" → baza_kontrola_slownikow
+2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Nowy skrypt: kontrola słownikowa bazy Taksatora.
+           |                            | 11 kontroli: F_SUBAREA (AREA_TYPE_CD,
+           |                            | SITE_TYPE_CD, STAND_STRUCT_CD, VEG_COVER_CD),
+           |                            | F_STOREY_SPECIES (SPECIES_CD, SITE_CLASS_CD,
+           |                            | PART_CD), F_AROD_STOREY (DENSITY_CD, MIXTURE_CD),
+           |                            | F_SPECIES_SPAREA (SPECIES_CD), F_AROD_CUE
+           |                            | (MEASURE_CD). SQL z LEFT JOIN zwraca niezgodne
+           |                            | wartości z adresem leśnym. Raport TXT obok bazy.
+2026-06-16 | baza_anonimizuj.py          | Checkbox "Usuń kwerendy z baz" (domyślnie włączony):
+           | ui/ui_baza_anonimizuj.py    | nowy dialog opcji przed wyborem folderu;
+           |                            | usun_kwerendy() wywoływane warunkowo
+
+================================================================================
+WERSJA 2.0a (2026-06-14)
+================================================================================
+
+2026-06-14 | metadata.txt                | Wersja 2.0a; dodano autora Marek Młynarczyk
+           |                            | z adresem m.mlynarczyk@las-r.pl
+2026-06-14 | shp_przygCiecieStUPUL.py    | Obsługa starej struktury warstwy WYDZ (stary UPUL):
+           |                            | detekcja po obecności pola COUNTY_CD;
+           |                            | remapowanie: COUNTY_CD→COUNTY, DISTRICT_C→DISTRICT,
+           |                            | MUNICIPALI→MUNICIP, COMMUNITY_→COMMUNITY;
+           |                            | nowa metoda _normalizuj_stara_struktura()
+2026-06-14 | shp_przygCiecieStUPUL.py    | Restructura warstw wyjściowych: WYDZ_POL_stare
+           |                            | uproszczona do 12 kolumn w ustalonej kolejności
+           |                            | (ADR_LES, ODDZ, WYDZ, TYP_POW, UDZIAL, GAT,
+           |                            | WIEK, ZADRZEW, ZABIEG, STL, GRP, POW_WYDZ);
+           |                            | WYDZ_PKT_stare ma pełne dane — tworzona z temp
+           |                            | pełnego (przed redukcją POL); nowa metoda
+           |                            | _buduj_pol_uproszczona(); zmiana sekwencji w uruchom()
+2026-06-14 | baza_rozlicz_pow_wydz.py    | Nowa funkcja: checkbox "Wyczyść
+           | ui/ui_baza_rozlicz_pow.py  | F_AROD_LAND_USE przed rozliczeniem"
+           |                            | (domyślnie wyłączony); wykonywany po
+           |                            | kontrolach a przed dopisz_rozliczenie()
+2026-06-14 | baza_rozlicz_pow_wydz.py    | Naprawa: TypeError w sprawdz_dane() —
+           |                            | os.path.abspath(baza_sc=False) gdy baza
+           |                            | nie wykryta auto, zmieniono na self.baza.baza;
+           |                            | KeyError w oblicz_rozl_uzytku() — filtr
+           |                            | tt[0] in self.adr_les w list comprehension
+2026-06-14 | baza_kontrola_dzkat.py      | Naprawa: IndexError w przetworz_dane()
+           | przygotuj_dzkat.py          | gdy baza pusta (dz_dict pusty słownik);
+           |                            | guard + fallback county/district = ''
+           |                            | (przygotuj_dzkat.py: też wyciek połączeń
+           |                            | ODBC — dodano b.zamknij() w pętli baz)
+2026-06-14 | baza_polacz.py              | Naprawa: KeyError w d_tabele() gdy
+           |                            | ARODES_INT_NUM tabeli podrzędnej nie ma
+           |                            | w sl_arodes (rekord już istniał w bazie
+           |                            | docelowej); pre-check przed pętlą kolumn
+2026-06-14 | spr_wydzielen.py            | Naprawa: spr_oddz() raportowała lprzec
+           |                            | zamiast lniezg w komunikacie o niezgodnych
+           |                            | kodach oddziałów
+2026-06-14 | sprawdzenia_warstw.py       | Naprawa: spr_crs() zawsze zwracała True
+           |                            | zamiast False przy błędnym CRS — wszystkie
+           |                            | klasy dziedziczące ignorowały zły układ
+           |                            | współrzędnych; inicjalizacja braki_baza/shp
+           |                            | przed blokiem if baza (NameError gdy
+           |                            | baza=False); guard x['ADR_LES'] in md
+           |                            | w sprawdz_powierzchnie_wydz (KeyError)
+2026-06-14 | baza_kontrola_ls.py         | Naprawa: sprawdz_puste() zwracała None
+           |                            | zamiast {} dla krótkiego/nieznanego LANDID
+           |                            | → AttributeError w callerze; fix == na +=
+           |                            | w generuj_raport(); fix s['ARK'] zamiast
+           |                            | s['COMMUNITY'] przy 4-częściowym LANDID
+2026-06-14 | baza_sprawdz_rozl.py        | Naprawa: crash przy anulowaniu wyboru bazy
+           |                            | (znajdz_baze_do_wydz zwraca False →
+           |                            | Baza(False).polacz() → TypeError); guard
+2026-06-14 | raport_wyles.py             | Naprawa: TypeError (int+str) w komunikacie
+           |                            | końcowym gdy były uwagi — str(len(uwagi))
+2026-06-14 | shp_przygDlaTaksatora.py   | Kopiowanie warstwy SHP_stare/WYDZ_POL_stare
+           |                            | (jeśli folder istnieje)
+2026-06-14 | shp_przygDlaTaksatora.py   | Nowy skrypt: "Spakuj taksatorowi" w menu
+           | ui/ui_przygDlaTaksatora.py | Przygotowanie danych; kopiuje whitelist
+           |                            | warstw (SHP: LS, DZKAT, LZ_potencjalne,
+           |                            | OBR, 99; SHP_dotaks: DOTAKS_nowe,
+           |                            | DOTAKS_rb_nielas, DOTAKS_sprawdzenie)
+           |                            | do podfolderu SHP/ w folderze wynikowym;
+           |                            | eksportuje xlsx z kwerendy zestawienia
+           |                            | powierzchni z bazy MDB
+2026-06-14 | shp_przygDlaTaksatora.py   | Tryb wsadowy (checkbox "Wiele gmin"):
+           |                            | skan bezpośrednich podfolderów powiatu,
+           |                            | lista gmin z checkboxami, auto-tryb
+           |                            | nazewnictwa (COMMUNITY_NAME gdy każda
+           |                            | baza ma 1 rekord w F_COMMUNITY, inaczej
+           |                            | MUNICIPALITY_NAME), alert przy duplikatach
+2026-06-14 | shp_przygDlaTaksatora.py   | Dynamiczne nazwy folderów i plików xlsx
+           |                            | z bazy (MUNICIPALITY_NAME / DISTRICT_NAME
+           |                            | / COMMUNITY_NAME); normalizacja: polskie
+           |                            | znaki → ASCII, "obszar wiejski" i
+           |                            | "ob. wiej" → OW; auto-wykrycie bazy
+           |                            | (.mdb najnowsza) i folderu powiatu
+           |                            | (2 poziomy wyżej niż załadowane warstwy)
+2026-06-14 | shp_wyszukaj_lz.py         | Naprawa: duplikaty na warstwie wynikowej
+           |                            | Lz — dedupl. po f.id() przed zapisem;
+           |                            | przyczyna: dwa sąsiednie klastry mogły
+           |                            | wzajemnie wchłaniać swoje featurki
+2026-06-14 | shp_wyszukaj_lz.py         | Nowe: auto-wykrycie UZYTKI.shp w folderze
+           |                            | LS gdy pole użytków jest puste w dialogu
+2026-06-13 | shp_przygDotaks.py         | Naprawa: duplikaty w DOTAKS_geom_bledy
+           |                            | — warstwy pośrednie (diff, rb_nielas_
+           |                            | clip) są tylko naprawiane (_napraw_geom)
+           |                            | bez raportowania błędów; błędy tylko
+           |                            | z warstw wejściowych (LS, stare)
+2026-06-13 | shp_przygDotaks.py         | Zmiana: podział warstwy błędów geometrii
+           |                            | — błędy z LS → LS_bledy_geom (check
+           |                            | bez fix); błędy z diff/stare/rb_nielas
+           |                            | → DOTAKS_geom_bledy; naprawa QgsField
+           |                            | len= w _pokaz_bledy_geom
+2026-06-13 | shp_przygDotaks.py         | Zmiana: krok 6 DOTAKS_nowe — fragment
+           |                            | <0,10 ha usuwany tylko gdy styka się
+           |                            | z warstwą stare (sliver graniczny);
+           |                            | izolowane nowe obszary są chronione
+2026-06-12 | shp_przygDotaks.py         | Nowe: kontrola geometrii — checkvalidity
+           |                            | (GEOS) na warstwie stare, wyniku diff
+           |                            | i clip rb_nielas; fixgeometries naprawia
+           |                            | warstwę przed dalszym przetwarzaniem;
+           |                            | ficzery błędne trafiają do tymczasowej
+           |                            | warstwy DOTAKS_geom_bledy (pole ZRODLO)
+2026-06-12 | shp_przygDotaks.py         | Zmiana: krok 4 DOTAKS_nowe — usuwa
+           |                            | ficzery <0,01 ha TYLKO gdy nie stykają
+           |                            | się z żadnym innym poligonem warstwy
+           |                            | (QgsSpatialIndex + geometry.intersects)
+2026-06-12 | shp_przygDotaks.py         | Nowy skrypt: tworzenie warstw DOTAKS
+           | ui/ui_przygDotaks.py       | (nowe, rb_nielas, sprawdzenie-TODO);
+           |                            | dialog: LS nowe + wydzielenia stare
+           |                            | + baza; auto-wykrycie LS i bazy
+2026-06-13 | shp_przygCiecieStUPUL.py | Naprawa: dialog WYDZ domyślnie otwiera
+           |                          | folder SHP (nie SHP_dotaks) — szuka
+           |                          | siostrzanego SHP względem folderu
+           |                          | aktualnie załadowanej warstwy
+2026-06-12 | shp_przygCiecieStUPUL.py | Nowy skrypt: przygotowanie warstw SHP
+           | ui/ui_przygCiecieStUPUL.py | do cięcia ST UPUL — dopisuje metadane
+           |                            | z bazy do WYDZ, rozbija na singlepart
+           |                            | (WYDZ_POL_stare), tworzy warstwę
+           |                            | punktową (WYDZ_PKT_stare); wynik
+           |                            | w folderze SHP_stare obok bazy
+2026-06-10 | shp_wyszukaj_lz.py | Naprawa problemu z 0 Lz — poprawka logiki
+           |                    | wykrywania działek Lz; obsługa multipolygon
+           |                    | <10 arów; brakujące OFU; G5OFU
+2026-06-10 | shp_wyszukaj_lz.py | Naprawa: fragmenty multipolygonu LS <10 arów
+           |                    | były pomijane — struk_ls() dzieli teraz
+           |                    | multipolygony na singleparty z proporcjonalnym
+           |                    | LAND_AR (w ls_fts_pow) przed wstawieniem do
+           |                    | indeksu przestrzennego
+2026-06-10 | shp_wyszukaj_lz.py | Nowe: LAND_POW w LZ_potencjalne.shp wypełniane
+           |                    | automatycznie powierzchnią graficzną [ha]
+2026-06-10 | raport_wyciagi.py | Naprawa: mapka skalowana dynamicznie do
+           |                   | dostępnej wysokości strony zamiast stałego
+           |                   | 1:5000; mapka zawsze mieści się na stronie
+2026-06-10 | raport_wyciagi.py | Naprawa: pusta strona przy dużych klastrach
+           |                   | — pre-check tworzy nową stronę tylko gdy
+           |                   | treść zmieści się na świeżej stronie
+2026-06-10 | raport_wyciagi.py | Naprawa: UnboundLocalError w nag_grej dla
+           |                   | właścicieli ze współwłasnością (ww nie było
+           |                   | inicjalizowane przed +=)
+2026-06-10 | raport_wyciagi.py | Naprawa: błędna wysokość nagłówka grej gdy
+           |                   | len(wwlas) % 3 > 0 (ww_wys zamiast len)
+2026-06-10 | raport_wyciagi.py | Naprawa: ramka z imieniem/nazwiskiem/adresem
+           |                   | właściciela poszerzona (55→90mm) na str. tyt.
+2026-06-10 | naklejki.py       | Naprawa: wynik QMessageBox.exec_() nie był
+           |                   | zapisywany — kliknięcie "Nie" w inne_layouty()
+           |                   | nigdy nie było wykrywane (m zamiast ret)
+2026-06-10 | naklejki.py       | Naprawa: literówka WGOSIGW→WFOSIGW w nazwie
+           |                   | pliku logo dla województwa lubuskiego
+2026-06-10 | naklejki.py       | Naprawa: IndexError gdy powierzchnia była
+           |                   | liczbą całkowitą bez kropki dziesiętnej
+           |                   | (pp.split('.')[1] rzucało wyjątek)
+2026-06-10 | naklejki.py       | Naprawa: KeyError w gen_okladke() gdy szerokość
+           |                   | nazwy obrębów przekraczała klucz 12 w słowniku
+           |                   | sl — klucz jest teraz ograniczony do max(sl)
+2026-06-10 | naklejki.py       | Nowe: opcja 2 naklejek na stronę — 2 różne
+           | ui_naklejki_dialog| obreby obok siebie (2 kolumny jak w trybie 4),
+           |                   | pakowane kolejno po 2 na stronę
+2026-06-11 | las_r.py            | Porządki: usunięto stary monolityczny skrypt
+           | baza_zabiegi.py    | baza_zabiegi.py; aktywny pozostaje moduł
+           |                    | zabiegi/ (nowe); akcja w menu przemianowana
+           |                    | na "Zabiegi dopisz/sprawdź"
+2026-06-11 | baza_zabiegi_sl.py | Porządki: usunięto zduplikowany słownik z
+           | zabiegi/           | zabiegi/baza_zabiegi_sl.py; zabiegi/wydzielenie
+           |                    | importuje teraz ze wspólnego skrypty/baza_zabiegi_sl.py;
+           |                    | naprawiono błędny przecinek w uw_sl['reb_zup']['c']
+2026-06-11 | zabiegi/wygeneruj  | Naprawa: duplikowany komunikat w uwagach do bazy
+           |                    | (np. "D-stan do przebudowy, D-stan do przebud.") —
+           |                    | brak break w pętli wygeneruj_uwagi_do_dopisania()
+           |                    | powodował dopisanie obu wariantów 'c' i 's'
+2026-06-11 | zabiegi/sprawdz    | Naprawa: sprawdz_pozyskanie_na_1ha() raportowało
+           |                    | całkowite m³ zamiast m³/ha — dodano dzielenie
+           |                    | przez pow_wydz; naprawiono brak f-stringa
+           |                    | w komunikacie >500m³/ha
+2026-06-11 | zabiegi/main.py    | Naprawa: crash gdy pobierz_wydzielenia() zwróci
+           |                    | False (pusta baza) — guard z komunikatem błędu
+2026-06-11 | baza_zabiegi_sl.py | Nowe: uwaga 'zle_prod' ("Drzewostan źle
+           | zabiegi/wygeneruj  | produkujący") dla trybu Janczulewicz —
+           |                    | zastępuje 'przebud' gdy checkbox aktywny
+2026-06-11 | zabiegi/sprawdz    | Naprawa: warunki sprawdzania pierśnicy i
+           |                    | wysokości używały `and` zamiast `or` — nigdy
+           |                    | nie generowały raportu; próg wys. zmieniony
+           |                    | na >35 m (zamiast >120 m)
+2026-06-11 | zabiegi/sprawdz    | Naprawa: martwy kod — return przed blokiem
+           |                    | ze zwarciem powodował, że komunikat
+           |                    | "Brak wpisanej wysokości, a jest zwarcie"
+           |                    | nigdy nie był generowany
+2026-06-11 | baza_usun_kwerendy | Nowe: skrypt "Usuń kwerendy z baz" w menu
+           | baza_wrapper.py    | Narzędziowe — usuwa wszystkie kwerendy MDB
+           | baza_anonimizuj.py | z wyjątkiem 7 kwerend z whitelisty (DAO/COM);
+           | las_r.py           | tworzy kopię _usun_kw przed usunięciem;
+           |                    | anonimizacja: nowy przepływ — oryginał
+           |                    | nienaruszony, wynik to nazwa_BDO.mdb
+           |                    | z zanonimizowanymi danymi i usuniętymi
+           |                    | kwerendami
+2026-06-11 | dopisz_dzkat.py    | Naprawa: brak inicjalizacji self.bledy_topo
+           |                    | powodował AttributeError gdy działki
+           |                    | nachodzą na siebie — skrypt crashował w
+           |                    | połowie przetwarzania; odkomentowano sekcję
+           |                    | raportu z liczbą błędów topologicznych
+2026-06-11 | dopisz_dzkat.py    | Naprawa: dz_nieles → dzkat_nieles — sekcja
+           |                    | "Działki nieleśne" w raporcie zawsze zwracała
+           |                    | 0 bo dane trafiały do złej listy
+2026-06-11 | dopisz_dzkat.py    | Porządki: usunięto duplikat metody dz_lacznik()
+2026-06-11 | dopisz_dzkat.py    | Nowe: dialog "Czy wyświetlić raport?" po
+           |                    | zakończeniu kontroli (jak w sprawdz_dzkat.py)
+2026-06-11 | dopisz_dzkat.py    | Refaktor: własna logika przetworz_dane()
+           | sprawdz_dzkat.py   | zastąpiona przez baza_przetworz.Przetworz
+           |                    | (spójne z baza_kontrola_ls i sprawdz_ls);
+           |                    | dopisz_dzkat: dodano dialog OF/OPiF i
+           |                    | aktywowano filtrowanie w raporcie
+2026-06-11 | przygotuj_ls.py    | Optymalizacja: QgsSpatialIndex w sprawdz_topologie()
+           | baza_przetworz.py  | zamiast O(n²) pętli — pełne testy GEOS tylko dla
+           |                    | par z nakładającym się bounding boxem;
+           |                    | stworz_landid() wywoływana 1× zamiast 4× per klu
+           |                    | w przetworz(); dz_op/dz_opif/dz_of zmienione z list
+           |                    | na zbiory (O(1) lookup); ls_podwojne pre-grupowane
+           |                    | wg PARCELID w ls_podwojne_by_pid
+2026-06-11 | dopisz_dzkat.py    | Zmiana nazw skryptów i klas:
+           | sprawdz_dzkat.py   | dopisz_dzkat → baza_kontrola_dzkat (KontrolaDzKat)
+           | sprawdz_ls.py      | sprawdz_dzkat → przygotuj_dzkat (PrzygotujDzKat)
+           | las_r.py           | sprawdz_ls → przygotuj_ls (PrzygotujLs)
+2026-06-12 | okladka_atlas.py   | Naprawa: literówka WGOSIGW→WFOSIGW w nazwie
+           |                    | pliku logo dla województwa lubuskiego
+2026-06-12 | okladka_atlas.py   | Naprawa: hardkodowana ścieżka deweloperska
+           |                    | zastąpiona QgsProject.instance().homePath()
+2026-06-12 | okladka_atlas.py   | Naprawa: inne_layouty() — wynik exec_() nie był
+           |                    | zapisywany; kliknięcie "Nie" nigdy nie działało
+2026-06-12 | okladka_atlas.py   | Naprawa: AttributeError self.geod (brak init)
+           | ui_okladki_dialog  | Nowe: checkbox "Stan ewidencji gruntów na
+           |                    | okładce" (domyślnie wyłączony); gdy włączony
+           |                    | wyświetla DD.MM.YYYY z F_PARAMETER.EWID_STATE
+           |                    | poniżej Województwa, wyśrodkowane, 10pt
+2026-06-12 | zabiegi/wpisz.py   | Naprawa: uwagi (subarea_info) nie były zapisywane
+           |                    | do bazy gdy wszystkie zabiegi już istniały w cue
+           |                    | (uzupelnij_uwagi nie była wołana przy early-return
+           |                    | z _dopisz_zabieg); fix: jawne wywołanie na końcu
+           |                    | modyfikuj_zabiegi
+2026-06-12 | las_r.py           | Nowe menu "Aktualizacja UPUL" > "Aktualizacja
+           | aktualizacja_upul/ | baz" — integracja pakietu LAS_R_TOOL (Cleaner):
+           |                    | operacje F1–F4 na bazie MDB z historią wersji
+           |                    | i rollbackiem; pakiet skopiowany do skrypty/
+           |                    | aktualizacja_upul/ (core, gui, config)
+
+================================================================================

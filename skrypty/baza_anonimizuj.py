@@ -1,17 +1,30 @@
 import os
 import glob
 import shutil
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QDialog
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from .ui.ui_baza_anonimizuj import Ui_Dialog
 
 
 def Anonimizuj(iface):
+    dlg = QDialog(iface.mainWindow())
+    ui = Ui_Dialog()
+    ui.setupUi(dlg)
+    ui.pushButton_ok.clicked.connect(dlg.accept)
+    ui.pushButton_cancel.clicked.connect(dlg.reject)
+    if dlg.exec_() != QDialog.Accepted:
+        return
+
+    usun_kwerendy = ui.checkBox_kwerendy.isChecked()
+
     bazy_kat = QFileDialog().getExistingDirectory(
         iface.mainWindow(),
         "Katalog z bazami danych",
         '')
+    if not bazy_kat:
+        return
     bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
     if len(bazy_sc) == 0:
         iface.messageBar().pushMessage(
@@ -43,7 +56,8 @@ def Anonimizuj(iface):
         )
 
         baza.anonimizuj_vaddress()
-        baza.usun_kwerendy()
+        if usun_kwerendy:
+            baza.usun_kwerendy()
         ile_ok += 1
 
         QgsMessageLog.logMessage('\n' + 20*'-', 'Las-R', Qgis.Info)
