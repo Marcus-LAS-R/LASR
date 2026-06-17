@@ -5,6 +5,8 @@ from qgis.core import Qgis, QgsRasterLayer, QgsProject
 from os import path
 import glob
 
+from ..skrypty import funkcje
+
 
 class QmlCacheModule():
     module_name = "Szybkie ładowanie styli qml"
@@ -31,11 +33,15 @@ class QmlCacheModule():
         self.action.setMenu(QMenu())
         self.actionMenu = self.action.menu()
 
-        fls = glob.glob(path.join(path.dirname(__file__), 'qml', '*.qml'))
+        fls = sorted(glob.glob(path.join(path.dirname(__file__), 'qml', '*.qml')))
 
         for service in fls:
             nm = os.path.basename(service)
-            action = self.actionMenu.addAction(nm)
+            ikona = funkcje.podglad_ikony_qml(service)
+            if ikona is not None:
+                action = self.actionMenu.addAction(ikona, nm)
+            else:
+                action = self.actionMenu.addAction(nm)
             action.setData(service)
             action.triggered.connect(
                 lambda checked,

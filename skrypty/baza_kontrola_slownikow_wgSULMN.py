@@ -1,6 +1,6 @@
 import os
 import platform
-from datetime import date
+from datetime import date, datetime
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
@@ -14,17 +14,13 @@ KONTROLE = [
     ('F_SUBAREA',        'VEG_COVER_CD',    'F_VEG_COVER_DIC',      'VEG_COVER_CD',    'F_SUBAREA.VEG_COVER_CD — pokrycie roślinne'),
     ('F_SUBAREA',        'CAUSE_CD',        'F_END_CAUSE_DIC',      'CAUSE_CD',        'F_SUBAREA.CAUSE_CD — przyczyna uszkodzeń'),
     ('F_SUBAREA',        'POSITION_CD',     'F_POSITION_DIC',       'POSITION_CD',     'F_SUBAREA.POSITION_CD — położenie'),
-    ('F_SUBAREA',        'RELIEF_CD',       'F_POSITION_DIC',       'RELIEF_CD',       'F_SUBAREA.RELIEF_CD — rzeźba terenu'),
+    ('F_SUBAREA',        'RELIEF_CD',       'F_RELIEF_DIC',         'RELIEF_CD',       'F_SUBAREA.RELIEF_CD — rzeźba terenu'),
     ('F_SUBAREA',        'DEGRADATION_CD',  'F_DEGRADATION_DIC',    'DEGRADATION_CD',  'F_SUBAREA.DEGRADATION_CD — degradacja'),
-    ('F_SUBAREA',        'SILVICULTURE_CD', 'F_SILVICULTURE_DIC',   'SILVICULTURE_CD', 'F_SUBAREA.SILVICULTURE_CD — gospodarstwo'),
-    ('F_SUBAREA',        'FOREST_FUNC_CD',  'F_FOREST_FUNC_DIC',    'FOREST_FUNC_CD',  'F_SUBAREA.FOREST_FUNC_CD — funkcja lasu'),
     ('F_SUBAREA',        'SLOPE_CD',        'F_SLOPE_DIC',          'SLOPE_CD',        'F_SUBAREA.SLOPE_CD — opis stoku'),
     ('F_SUBAREA',        'EXPOSURE_CD',     'F_EXPOSURE_DIC',       'EXPOSURE_CD',     'F_SUBAREA.EXPOSURE_CD — wystawa'),
-    ('F_SUBAREA',        'MOISTURY_CD',     'F_MOISTENING_DIC',     'MOISTURY_CD',     'F_SUBAREA.MOISTURY_CD — uwilgotnienie'),
+    ('F_SUBAREA',        'MOISTURE_CD',     'F_MOISTENING_DIC',     'MOISTURE_CD',     'F_SUBAREA.MOISTURE_CD — uwilgotnienie'),
     ('F_SUBAREA',        'SOIL_PEC_CD',     'F_SOIL_PEC_DIC',       'SOIL_PEC_CD',     'F_SUBAREA.SOIL_PEC_CD — cecha gleby'),
     ('F_SUBAREA',        'SOIL_SUBTYPE_CD', 'F_SOIL_SUBTYPE_DIC',   'SOIL_SUBTYPE_CD', 'F_SUBAREA.SOIL_SUBTYPE_CD — podtyp gleby'),
-    ('F_SUBAREA',        'RECONSTR_CD',     'F_RECONSTRUCTION_DIC', 'RECONSTR_CD',     'F_SUBAREA.RECONSTR_CD — przebudowa drzewostanu'),
-    ('F_SUBAREA',        'PHASE_CD',        'F_GROWTH_PHASE_DIC',   'PHASE_CD',        'F_SUBAREA.PHASE_CD — faza drzewostanu'),
     # F_STOREY_SPECIES
     ('F_STOREY_SPECIES', 'SPECIES_CD',      'F_TREE_SPECIES',       'SPECIES_CD',      'F_STOREY_SPECIES.SPECIES_CD — gatunek'),
     ('F_STOREY_SPECIES', 'SITE_CLASS_CD',   'F_SITE_CLASS_DIC',     'SITE_CLASS_CD',   'F_STOREY_SPECIES.SITE_CLASS_CD — bonitacja'),
@@ -54,12 +50,14 @@ def _sprawdz_whitelist(baza: Baza, tab_d: str, pole_d: str, whitelist: tuple):
     """Zwraca listę (adr_les, wartość) dla wartości spoza whitelisty.
     Pusta lista = brak błędów. False = nie udało się wykonać zapytania.
     """
-    wartosci = ', '.join(f"'{w}'" for w in whitelist)
+    warunki = ' AND '.join(
+        f"StrComp(RTrim(d.{pole_d}), '{w}', 0) <> 0" for w in whitelist
+    )
     sql = (
         f"SELECT DISTINCT a.ADRESS_FOREST, d.{pole_d} "
         f"FROM F_ARODES AS a "
         f"INNER JOIN {tab_d} AS d ON a.ARODES_INT_NUM = d.ARODES_INT_NUM "
-        f"WHERE d.{pole_d} IS NOT NULL AND d.{pole_d} NOT IN ({wartosci}) "
+        f"WHERE d.{pole_d} IS NOT NULL AND {warunki} "
         f"ORDER BY a.ADRESS_FOREST;"
     )
     return baza.pobierz(sql)
@@ -83,9 +81,10 @@ def _sprawdz(baza: Baza, tab_d: str, pole_d: str, tab_sl: str, pole_sl: str):
     """
     sql = (
         f"SELECT DISTINCT a.ADRESS_FOREST, d.{pole_d} "
-        f"FROM F_ARODES AS a "
-        f"INNER JOIN {tab_d} AS d ON a.ARODES_INT_NUM = d.ARODES_INT_NUM "
-        f"LEFT JOIN {tab_sl} AS s ON d.{pole_d} = s.{pole_sl} "
+        f"FROM (F_ARODES AS a "
+        f"INNER JOIN {tab_d} AS d ON a.ARODES_INT_NUM = d.ARODES_INT_NUM) "
+        f"LEFT JOIN {tab_sl} AS s ON "
+        f"StrComp(RTrim(d.{pole_d}), RTrim(s.{pole_sl}), 0) = 0 "
         f"WHERE d.{pole_d} IS NOT NULL AND s.{pole_sl} IS NULL "
         f"ORDER BY a.ADRESS_FOREST;"
     )
@@ -135,7 +134,7 @@ def KontrolaSlownikow(iface):
             f'Kontrola słowników — pominięto: {opis_param}', 'Las-R', Qgis.Warning
         )
 
-    czas = baza.czas
+    czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
     baza.zamknij()
 
     ile_blednych = sum(len(b) for _, b in wyniki if b is not False and len(b) > 0)

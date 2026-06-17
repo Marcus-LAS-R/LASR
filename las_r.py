@@ -129,7 +129,7 @@ class LasR:
         self.toolbar = self.iface.addToolBar("LAS-R")
         self.toolbar.setObjectName("LasR")
 
-        self.toolbar_skr = self.iface.addToolBar("LAS-R skróty")
+        self.toolbar_skr = self.iface.addToolBar("LAS-R KP")
         self.toolbar_skr.setObjectName("LasR_skrrroty")
 
     # noinspection PyMethodMayBeStatic
@@ -574,6 +574,29 @@ class LasR:
         self.rys_klu = QAction(ico_klu, "Rysuj KLU", self.iface.mainWindow())
         self.rys_klu.triggered.connect(self.rysuj_klu)
 
+        # dodatkowe style wczytywane wprost na pasek LAS-R KP, po "Rysuj..."
+        self.akcje_dod_style = []
+        for nazwa_pliku, etykieta in [
+            ('FOP.qml', 'Rysuj FOP'),
+            ('LS.qml', 'Rysuj LS'),
+            ('OBR.qml', 'Rysuj OBR'),
+            ('PNSW.qml', 'Rysuj PNSW'),
+            ('WYDZ_POL_3_KOLORY.qml', 'Rysuj WYDZ_POL (3 kolory)'),
+            ('linie.qml', 'Rysuj linie'),
+        ]:
+            sciezka = os.path.join(self.plugin_dir, 'qml', nazwa_pliku)
+            ikona = funkcje.podglad_ikony_qml(sciezka) or QIcon(None)
+            akcja = QAction(ikona, etykieta, self.iface.mainWindow())
+            akcja.triggered.connect(
+                lambda checked, sc=sciezka: funkcje.wczytaj_styl(self.iface, sc)
+            )
+            self.akcje_dod_style.append(akcja)
+
+        self.a_dopasuj_style = QAction(
+            QIcon(None), "Dopasuj style", self.iface.mainWindow()
+        )
+        self.a_dopasuj_style.triggered.connect(self.dopasuj_style)
+
         self.a_dod_adm = QAction(
             QIcon(None), "Dodaj [MUNICIP, COMUNITY]", self.iface.mainWindow()
         )
@@ -703,18 +726,22 @@ class LasR:
         # toolbar koniec ---------------------
 
         # toolbar ze skrotami -----------------------
+        self.toolbar_skr.addAction(self.rys_gat)
+        self.toolbar_skr.addAction(self.rys_zab)
+        self.toolbar_skr.addAction(self.rys_stl)
+        self.toolbar_skr.addAction(self.rys_orto)
+        self.toolbar_skr.addAction(self.rys_dz)
+        self.toolbar_skr.addAction(self.rys_klu)
+        for akcja in self.akcje_dod_style:
+            self.toolbar_skr.addAction(akcja)
+        self.toolbar_skr.addAction(self.a_dopasuj_style)
+        self.toolbar_skr.addSeparator()
+
         self.qml_module = QmlCacheModule(self)
         self.toolbar.removeAction(self.qml_module.action)
         self.toolbar_skr.addAction(self.qml_module.action)
         self.qml_module.toolButton = self.toolbar_skr.widgetForAction(self.qml_module.action)
         self.qml_module.toolButton.setPopupMode(QToolButton.InstantPopup)
-        self.qml_module.actionMenu.addSeparator()
-        self.qml_module.actionMenu.addAction(self.rys_gat)
-        self.qml_module.actionMenu.addAction(self.rys_zab)
-        self.qml_module.actionMenu.addAction(self.rys_stl)
-        self.qml_module.actionMenu.addAction(self.rys_orto)
-        self.qml_module.actionMenu.addAction(self.rys_dz)
-        self.qml_module.actionMenu.addAction(self.rys_klu)
 
         self.toolbar_skr.addAction(self.a_pokaz_lay)
         self.toolbar_skr.addAction(self.iface.actionVertexTool())
@@ -736,6 +763,14 @@ class LasR:
         self.odzn.triggered.connect(self.odznacz)
 
         self.akcje_toolbar_skr = [
+            self.rys_gat,
+            self.rys_zab,
+            self.rys_stl,
+            self.rys_orto,
+            self.rys_dz,
+            self.rys_klu,
+            *self.akcje_dod_style,
+            self.a_dopasuj_style,
             self.qml_module.action,
             self.a_pokaz_lay,
             self.iface.actionVertexTool(),
@@ -1107,6 +1142,9 @@ class LasR:
 
     def rysuj_klu(self):
         shp_symbolizacja.rysuj(self.iface, "ls")
+
+    def dopasuj_style(self):
+        shp_symbolizacja.dopasuj_style(self.iface)
 
     def rysuj_wezelki(self):
         shp_symbolizacja.PokazWezly(self.iface)

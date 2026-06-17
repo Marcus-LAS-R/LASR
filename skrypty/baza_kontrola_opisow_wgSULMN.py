@@ -295,7 +295,7 @@ def KontrolaOpisow(iface):
 
     # połącz z kopią
     baza_upul = Baza(tmp_baza)
-    czas = baza_upul.czas
+    czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
     if not baza_upul.polacz():
         iface.messageBar().pushMessage(
             'BŁĄD', f'Nie można połączyć się z kopią bazy: {tmp_baza}',

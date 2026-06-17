@@ -8,23 +8,44 @@ from .baza_wrapper import Baza
 from .ui.ui_baza_anonimizuj import Ui_Dialog
 
 
+class _Dialog(QDialog):
+    def __init__(self, iface):
+        super().__init__(iface.mainWindow())
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)
+
+        self.ui.pushButton_folder.clicked.connect(self._wybierz_folder)
+        self.ui.lineEdit_folder.textChanged.connect(self._aktualizuj)
+        self.ui.pushButton_ok.clicked.connect(self.accept)
+        self.ui.pushButton_cancel.clicked.connect(self.reject)
+
+        self._aktualizuj()
+
+    def _wybierz_folder(self):
+        sc = QFileDialog.getExistingDirectory(
+            self, 'Katalog z bazami danych', self.ui.lineEdit_folder.text())
+        if sc:
+            self.ui.lineEdit_folder.setText(sc)
+
+    def _aktualizuj(self):
+        self.ui.pushButton_ok.setEnabled(
+            os.path.isdir(self.ui.lineEdit_folder.text().strip()))
+
+    def folder(self):
+        return self.ui.lineEdit_folder.text().strip()
+
+    def usun_kwerendy(self):
+        return self.ui.checkBox_kwerendy.isChecked()
+
+
 def Anonimizuj(iface):
-    dlg = QDialog(iface.mainWindow())
-    ui = Ui_Dialog()
-    ui.setupUi(dlg)
-    ui.pushButton_ok.clicked.connect(dlg.accept)
-    ui.pushButton_cancel.clicked.connect(dlg.reject)
+    dlg = _Dialog(iface)
     if dlg.exec_() != QDialog.Accepted:
         return
 
-    usun_kwerendy = ui.checkBox_kwerendy.isChecked()
+    bazy_kat = dlg.folder()
+    usun_kwerendy = dlg.usun_kwerendy()
 
-    bazy_kat = QFileDialog().getExistingDirectory(
-        iface.mainWindow(),
-        "Katalog z bazami danych",
-        '')
-    if not bazy_kat:
-        return
     bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
     if len(bazy_sc) == 0:
         iface.messageBar().pushMessage(

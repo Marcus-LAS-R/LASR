@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
 import numpy as np
-from qgis.core import QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField
-from PyQt5.QtCore import QVariant
+from qgis.core import (
+    QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField,
+    QgsFeatureRenderer, QgsReadWriteContext, QgsRenderContext,
+    QgsSymbolLayerUtils,
+)
+from qgis.PyQt.QtXml import QDomDocument
+from PyQt5.QtCore import QVariant, QSize, QFile, QIODevice
 
 
 def poprawna_topo(poly):
@@ -351,3 +357,58 @@ def otworz_kompozycje(iface):
         iface.openLayoutDesigner(lays[0])
     else:
         iface.showLayoutManager()
+
+
+def podglad_ikony_qml(sciezka):
+    """Generuje QIcon z pierwszego symbolu renderera zapisanego w pliku .qml
+    (działa dla singleSymbol/categorized/graduated/RuleRenderer).
+    Zwraca None jeśli nie da się odczytać/wyrenderować.
+    """
+    try:
+        qfile = QFile(sciezka)
+        if not qfile.open(QIODevice.ReadOnly):
+            return None
+        doc = QDomDocument()
+        ok = doc.setContent(qfile)
+        qfile.close()
+        if not ok:
+            return None
+
+        wezly = doc.elementsByTagName('renderer-v2')
+        if wezly.length() == 0:
+            return None
+
+        renderer = QgsFeatureRenderer.load(
+            wezly.at(0).toElement(), QgsReadWriteContext()
+        )
+        if renderer is None:
+            return None
+
+        symbole = renderer.symbols(QgsRenderContext())
+        if not symbole:
+            return None
+
+        return QgsSymbolLayerUtils.symbolPreviewIcon(symbole[0], QSize(24, 24))
+    except Exception:
+        return None
+
+
+def wczytaj_styl(iface, sciezka):
+    """Wczytuje plik .qml jako styl aktywnej warstwy."""
+    lyr = iface.activeLayer()
+    if lyr is None:
+        iface.messageBar().pushMessage(
+            'Brak warstwy', 'Zaznacz warstwę przed wczytaniem stylu',
+            Qgis.Critical, 10
+        )
+        return
+    try:
+        lyr.loadNamedStyle(sciezka)
+        lyr.triggerRepaint()
+        iface.mapCanvas().refresh()
+    except Exception as e:
+        iface.messageBar().pushMessage(
+            'Wczytanie stylu',
+            f'Nie udało się wczytać stylu {os.path.basename(sciezka)}: {e}',
+            Qgis.Critical, 10
+        )

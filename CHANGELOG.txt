@@ -3,6 +3,116 @@ LASR - CHANGELOG
 Format: DATA | SKRYPT | OPIS ZMIAN
 ================================================================================
 
+2026-06-17 | baza_anonimizuj.py | Scalono dialog w jedno okno: katalog z bazami
+           | ui_baza_anonimizuj | (pole + przycisk "Wybierz") razem z checkboxem
+           |                    | "Usuń kwerendy z baz" — wcześniej katalog był
+           |                    | wybierany w osobnym, kolejnym oknie systemowym
+
+2026-06-17 | baza_kontrola_     | Naprawa: wszystkie 28 kontroli słownikowych
+           | slownikow_wgSULMN  | (LEFT JOIN) były pomijane z błędem "Syntax error
+           |                    | (missing operator)" — Access/Jet wymaga nawiasów
+           |                    | przy łączeniu INNER JOIN + LEFT JOIN w jednym
+           |                    | FROM; dodano: FROM (A INNER JOIN B ON ...)
+           |                    | LEFT JOIN C ON ...
+           |                    | Naprawa: RELIEF_CD wskazywało błędnie na
+           |                    | F_POSITION_DIC (brak kolumny RELIEF_CD) →
+           |                    | poprawiono na F_RELIEF_DIC
+           |                    | Naprawa: literówka MOISTURY_CD → MOISTURE_CD
+           |                    | (taka jest rzeczywista nazwa kolumny w
+           |                    | F_SUBAREA i F_MOISTENING_DIC)
+           |                    | Usunięto z listy KONTROLE 4 pozycje
+           |                    | (SILVICULTURE_CD, FOREST_FUNC_CD, RECONSTR_CD,
+           |                    | PHASE_CD) — testowe bazy nie mają odpowiednich
+           |                    | tabel/kolumn słownikowych (wariant schematu
+           |                    | bazy), więc kontrole te i tak były bezużyteczne
+           |                    | (zawsze pomijane). Lista KONTROLE: 24 pozycje
+
+2026-06-17 | baza_kontrola_     | Zmiana formatu znacznika czasu w nazwie pliku
+           | slownikow_wgSULMN  | raportu: z ISO (RRRR-MM-DDTHHMMSS) na
+           | baza_kontrola_     | DD-MM-RRRR_gHH-MM-SS (np. 17-06-2026_g12-26-12)
+           | opisow_wgSULMN     | — dotyczy obu raportów (kontrola słownikowa
+           |                    | i kontrola opisu taksacyjnego wg SULMN)
+
+2026-06-17 | baza_kontrola_     | Naprawa: porównanie wartości ze słownikiem
+           | slownikow_wgSULMN  | używało domyślnego porównania Access/Jet, które
+           |                    | ignoruje wielkość liter i spacje na końcu — np.
+           |                    | "d-stan" vs "D-STAN" albo "ABC " vs "ABC" było
+           |                    | uznawane za zgodne, błąd NIE był wykrywany.
+           |                    | Zmieniono na StrComp(RTrim(...), RTrim(...), 0)
+           |                    | — porównanie binarne (wykrywa wielkość liter
+           |                    | i białe znaki na początku/w środku), ale RTrim
+           |                    | usuwa spacje dopełniające z prawej strony, bo
+           |                    | część kolumn (np. F_STOREY_SPECIES.SITE_CLASS_CD)
+           |                    | jest fizycznie zapisana jako pole o stałej
+           |                    | szerokości (np. "I  " miejsto "I") — bez RTrim
+           |                    | dawało to 2500+ fałszywych błędów na pustej
+           |                    | bazie. Dotyczy _sprawdz() i _sprawdz_whitelist()
+
+2026-06-17 | las_r.py           | Pasek "LAS-R skróty" przemianowany na "LAS-R KP"
+           |                    | (sama nazwa widoczna w QGIS, objectName bez zmian)
+
+2026-06-17 | las_r.py           | Pasek LAS-R KP: 6 przycisków "Rysuj..." (gatunki,
+           |                    | zabiegi, STL, na orto, Działki, KLU) przeniesione
+           |                    | z menu rozwijanego "Szybkie ładowanie styli qml"
+           |                    | wprost na pasek, na początek (w kolejności jak
+           |                    | w dropdownie) + separator przed modułem stylów qml
+
+2026-06-17 | qml_templates/     | Dodano 31 stylów z materialy/STYLE_WARSTWY_QGIS/
+           | qml/*.qml          | jako_lista do dropdownu "Szybkie ładowanie styli qml"
+           |                    | (m.in. WYDZ, DZKAT, KLU, ZREBY, AMBONY, IP, SKDR,
+           |                    | SULN, PTLZ/PTWP/PTZB, SWRM/SWRS, SKRP i inne);
+           |                    | nadpisano starszy SKDR.qml (2019→2020)
+
+2026-06-17 | qml_templates/     | Dodano ikony podglądu w dropdownie stylów qml:
+           | main.py            | dla każdego pliku .qml parsowany jest <renderer-v2>
+           |                    | (QgsFeatureRenderer.load) i renderowana ikona
+           |                    | pierwszego symbolu (QgsSymbolLayerUtils.
+           |                    | symbolPreviewIcon) — działa dla singleSymbol,
+           |                    | categorizedSymbol, graduatedSymbol i RuleRenderer.
+           |                    | Lista plików w dropdownie sortowana alfabetycznie
+           |                    | (wcześniej kolejność z glob, niezdefiniowana).
+           |                    | Przetestowano headless na QGIS 3.44 LTR: 35/35
+           |                    | plików .qml — ikony wygenerowane poprawnie
+
+2026-06-17 | las_r.py           | Pasek LAS-R KP: 6 nowych przycisków wprost na
+           | skrypty/funkcje.py | pasku, po "Rysuj..." (Rysuj FOP, LS, OBR, PNSW,
+           | qml/*.qml          | WYDZ_POL (3 kolory), linie) — style skopiowane
+           |                    | z materialy/STYLE_WARSTWY_QGIS/ (bez folderu
+           |                    | jako_lista) do src/lasr/qml/. Każdy przycisk
+           |                    | wczytuje swój .qml na aktywną warstwę (funkcje.
+           |                    | wczytaj_styl). Ikony generowane tą samą metodą
+           |                    | co w dropdownie (funkcje.podglad_ikony_qml) —
+           |                    | wydzielona ze qml_templates/main.py do funkcje.py,
+           |                    | żeby nie duplikować kodu między dropdownem
+           |                    | i przyciskami na pasku. Przetestowano headless
+           |                    | na QGIS 3.44 LTR: 6/6 ikon wygenerowanych poprawnie
+
+2026-06-17 | shp_symbolizacja.py | "Rysuj KLU" — dodano możliwość kategoryzacji
+           |                    | po G5OFU i OFU, nie tylko po AU (różne wersje/
+           |                    | źródła warstwy KLU mają tę kolumnę pod różną
+           |                    | nazwą — patrz shp_wyszukaj_lz.py, gdzie ten
+           |                    | sam zestaw kolumn był już rozpoznawany).
+           |                    | Jeśli warstwa ma tylko jedną z [AU, G5OFU, OFU]
+           |                    | — używana automatycznie; jeśli więcej niż jedną
+           |                    | — pyta która; jeśli żadnej — komunikat błędu
+           |                    | (wcześniej ten przypadek był całkowicie pomijany
+           |                    | bez sprawdzania kolumny). KLU.qml wczytywany jak
+           |                    | dotychczas, a renderer.setClassAttribute()
+           |                    | przepisuje istniejące kategorie/kolory na
+           |                    | wybraną kolumnę. Przetestowano headless na
+           |                    | QGIS 3.44 LTR: AU/OFU/G5OFU/brak kolumny — OK
+
+2026-06-17 | las_r.py           | Nowy przycisk "Dopasuj style" na pasku LAS-R KP
+           | shp_symbolizacja.py| (po "Rysuj..." i dodatkowych stylach). Przechodzi
+           |                    | przez wszystkie warstwy w projekcie (TOC) i dla
+           |                    | każdej, której nazwa ZAWIERA klucz ze słownika
+           |                    | DOPASOWANIE_STYLI (bez rozróżniania wielkości
+           |                    | liter), wczytuje wskazany plik .qml. Słownik
+           |                    | jest na razie PUSTY (TODO w kodzie) — czeka na
+           |                    | mapowanie warstwa→styl od użytkownika. Funkcja
+           |                    | shp_symbolizacja.dopasuj_style(iface);
+           |                    | przetestowana headless na QGIS 3.44 LTR
+
 ================================================================================
 WERSJA 2.0b (2026-06-16)
 ================================================================================
