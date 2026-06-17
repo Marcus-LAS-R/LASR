@@ -10,3 +10,5 @@ __pycache_/
 skrypty/__pycache_/**
 skrypty/.pytest_cache/*
 *.pyc
+qgis-auth.db
+.DS_Store

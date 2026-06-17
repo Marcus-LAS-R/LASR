@@ -7,6 +7,13 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 WERSJA 2.0c (2026-06-17)
 ================================================================================
 
+2026-06-17 | qgis-auth.db                | Usunięto ze śledzenia w repo (plik bazy
+           | .gitignore                  | autoryzacji QGIS — mógł zawierać dane
+           |                             | logowania) — trafiał do każdego
+           |                             | publicznego release'u na GitHub. Plik
+           |                             | zostaje lokalnie na dysku, ale nie jest
+           |                             | już pakowany do zipa wtyczki
+
 2026-06-17 | raport_wyciagi.py           | Naprawa łamania stron w wyciągach dla
            |                             | właścicieli: 1) mapki klastrów czasem
            |                             | renderowały się bardzo małe/nieczytelne
