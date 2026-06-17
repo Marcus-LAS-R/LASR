@@ -3,6 +3,49 @@ LASR - CHANGELOG
 Format: DATA | SKRYPT | OPIS ZMIAN
 ================================================================================
 
+================================================================================
+WERSJA 2.0c (2026-06-17)
+================================================================================
+
+2026-06-17 | raport_wyciagi.py           | Naprawa łamania stron w wyciągach dla
+           |                             | właścicieli: 1) mapki klastrów czasem
+           |                             | renderowały się bardzo małe/nieczytelne
+           |                             | albo ucinały się na granicy stron —
+           |                             | pre-check łamania strony przed
+           |                             | nagłówkiem+mapą był wadliwy (nigdy nie
+           |                             | wymuszał nowej strony dla większych
+           |                             | klastrów); zamieniono na proste
+           |                             | porównanie miejsca dostępnego na
+           |                             | stronie z wysokością mapy przy skali
+           |                             | 1:5000 — mapa zawsze dostaje pełną
+           |                             | wolną stronę, gdy obecna nie wystarcza;
+           |                             | 2) wiersz tabeli, który po złamaniu
+           |                             | strony trafiał na nową stronę w środku
+           |                             | wielowierszowej działki, miał puste
+           |                             | pole nr działki/użytek (osierocony
+           |                             | wiersz) — teraz jest odtwarzane
+
+2026-06-17 | las_r.py                    | "Napraw F_STOREY_SPECIES" przeniesione
+           |                             | z menu "Narzędziowe" do submenu
+           |                             | "Rozliczenie powierzchni", przed
+           |                             | "Zabiegi dopisz/sprawdź"
+
+2026-06-17 | shp_symbolizacja.py         | Dopasuj style: dodano do słownika
+           | qml/99.qml                  | DOPASOWANIE_STYLI wpisy 'LS'->LS.qml
+           |                             | i '99'->99.qml (nowy plik, kopia
+           |                             | qml_templates/qml/99_w_teren.qml)
+
+2026-06-17 | shp_dopisz_kody.py          | POW_WYDZ: wartość z bazy (SUB_AREA)
+           | shp_przygCiecieStUPUL.py    | zaokrąglana teraz do 4 miejsc po
+           | shp_przygDotaks.py          | przecinku i zapisywana jako tekst
+           |                             | (wcześniej w shp_dopisz_kody.py pole
+           |                             | miało niezgodny typ String/Double; przy
+           |                             | typie Double GDAL/OGR zapisywał liczbę
+           |                             | do .dbf z separatorem zależnym od
+           |                             | locale systemu (przecinek), zamiast
+           |                             | kropki — naprawione jawną konwersją
+           |                             | str(round(..., 4)) do pola tekstowego)
+
 2026-06-17 | baza_anonimizuj.py | Scalono dialog w jedno okno: katalog z bazami
            | ui_baza_anonimizuj | (pole + przycisk "Wybierz") razem z checkboxem
            |                    | "Usuń kwerendy z baz" — wcześniej katalog był

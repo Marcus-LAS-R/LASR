@@ -334,17 +334,17 @@ class Wyciag:
 
                 wys_klas, ram, poz = self.w_oblicz_wys_klastra(kl)
 
-            geo_wys = ram[3] - ram[1] if not self.bez_mapy else 0
-            pp_po_nag_fresh = 20 + wys_grej + 2
-            avail_fresh = max(277 - pp_po_nag_fresh, 30)
-            skala_fresh = max(geo_wys * 1000 / avail_fresh, 5000) if geo_wys > 0 else 5000
-            map_wys_fresh = geo_wys * 1000 / skala_fresh if geo_wys > 0 else 0
-            content_needs = wys_grej + map_wys_fresh + 27
-
-            if content_needs + pp > 277 and content_needs + 20 <= 277:
-                pp = 20
-                self.strona += 1
-                self.w_dodaj_strone()
+            # Jezeli mapa potrzebuje wiecej miejsca (przy bazowej skali
+            # 1:5000) niz zostalo na obecnej stronie, a nie jestesmy juz na
+            # swiezej stronie - zacznij od nowa, zeby mapa dostala
+            # maksymalna mozliwa wysokosc, zamiast byc sciskana w resztki
+            # miejsca (albo ucinac sie na granicy stron).
+            if not self.bez_mapy and wys_klas > 0 and pp > 20:
+                avail_current = max(277 - (pp + wys_grej + 2), 30)
+                if avail_current < wys_klas:
+                    pp = 20
+                    self.strona += 1
+                    self.w_dodaj_strone()
 
             pp += self.w_generuj_nag_grej(pp, grej) + 2
 
@@ -430,6 +430,13 @@ class Wyciag:
                 self.strona += 1
                 self.w_dodaj_strone()
                 pp = 20 + self.w_naglowek_tabeli(20)
+                # po zlamaniu strony przywroc numer dzialki/uzytek w
+                # wierszu kontynuacji - inaczej wiersz na nowej stronie
+                # jest "osierocony"
+                if ti[0] == '':
+                    ti[0] = anr
+                if ti[1] == '':
+                    ti[1] = aklu
 
             if trig is False and ti[0] == anr:
                 ti[0] == ' '

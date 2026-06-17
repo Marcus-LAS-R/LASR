@@ -20,6 +20,8 @@ DOPASOWANIE_STYLI = {
     'OBR': 'OBR.qml',
     'PNSW': 'PNSW.qml',
     'ODDZ': 'OBR.qml',
+    'LS': 'LS.qml',
+    '99': '99.qml',
 }
 
 

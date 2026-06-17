@@ -26,7 +26,7 @@ _KOLUMNY_POL = [
     QgsField('ZABIEG',   QVariant.String, '', 20),
     QgsField('STL',      QVariant.String, '', 20),
     QgsField('GRP',      QVariant.String, '', 2),
-    QgsField('POW_WYDZ', QVariant.Double, '', 10, 2),
+    QgsField('POW_WYDZ', QVariant.String, '', 10, 4),
 ]
 
 # mapowanie starych nazw pól (stary UPUL) na nowe
@@ -237,7 +237,7 @@ class PrzygotujCiecieStUPUL:
             QgsField('GAT',      QVariant.String, '', 10),
             QgsField('WIEK',     QVariant.Int),
             QgsField('ZADRZEW',  QVariant.Double, '', 10, 1),
-            QgsField('POW_WYDZ', QVariant.Double, '', 10, 2),
+            QgsField('POW_WYDZ', QVariant.String, '', 10, 4),
             QgsField('TYP_POW',  QVariant.String, '', 20),
             QgsField('STRUKTUR', QVariant.String, '', 20),
             QgsField('SLMN_KOL', QVariant.Int),
@@ -278,7 +278,8 @@ class PrzygotujCiecieStUPUL:
             dop = {
                 fnm['TYP_POW']:  d.isNone(d.sl[adr][0]),
                 fnm['STL']:      d.isNone(d.sl[adr][1]),
-                fnm['POW_WYDZ']: d.isNone(d.sl[adr][2], typ='i'),
+                fnm['POW_WYDZ']: str(round(
+                    d.isNone(d.sl[adr][2], typ='i'), 4)),
                 fnm['UDZIAL']:   d.isNone(d.sl[adr][3]),
                 fnm['GAT']:      d.isNone(gat),
                 fnm['WIEK']:     d.isNone(d.sl[adr][5], typ='i'),

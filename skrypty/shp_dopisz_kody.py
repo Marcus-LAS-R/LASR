@@ -390,7 +390,7 @@ class DopiszKody(SprawdzWydzielenia):
             QgsField("GAT", QVariant.String, len=10),
             QgsField("WIEK", QVariant.Int),
             QgsField("ZADRZEW", QVariant.Double, 'double', 10, 1),
-            QgsField("POW_WYDZ", QVariant.String, 'double', 10, 2),
+            QgsField("POW_WYDZ", QVariant.String, 'double', 10, 4),
             QgsField("TYP_POW", QVariant.String, len=20),
             QgsField("STRUKTUR", QVariant.String, len=20),
             QgsField("SLMN_KOL", QVariant.Int),
@@ -436,7 +436,8 @@ class DopiszKody(SprawdzWydzielenia):
                 dop = {
                     fnm['TYP_POW']: self.isNone(self.sl[adr][0]),
                     fnm['STL']: self.isNone(self.sl[adr][1]),
-                    fnm['POW_WYDZ']: self.isNone(self.sl[adr][2], typ='i'),
+                    fnm['POW_WYDZ']: str(round(
+                        self.isNone(self.sl[adr][2], typ='i'), 4)),
                     fnm['UDZIAL']: self.isNone(self.sl[adr][3]),
                     fnm['GAT']: self.isNone(gat),
                     fnm['WIEK']: self.isNone(self.sl[adr][5], typ='i'),

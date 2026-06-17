@@ -402,6 +402,12 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_rap)
         self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
+        self.a_fstspec = QAction(
+            QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.a_fstspec)
+        self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
+
         self.dop_zab_nowe = QAction(
             QIcon(None), "Zabiegi dopisz/sprawdź", self.iface.mainWindow()
         )
@@ -636,12 +642,6 @@ class LasR:
         )
         self.m_narzedzia.addAction(self.a_usun_kw)
         self.a_usun_kw.triggered.connect(self.usun_kwerendy)
-
-        self.a_fstspec = QAction(
-            QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_fstspec)
-        self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
 
         self.a_reproj = QAction(
             QIcon(None), "Reprojekcja warstw", self.iface.mainWindow()
