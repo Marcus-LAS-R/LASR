@@ -20,29 +20,6 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
     bTemp = []
     kat = ""
 
-    # ma byc wskazana baza przez uzytkownika
-    if wskaz:
-        bTemp = [
-            QFileDialog().getOpenFileName(
-                iface.mainWindow(),
-                "Wskaż baze Taksatora",
-                kat,
-                "Access MDB (*.mdb);;SQLite (*.sqlite)",
-            )[0]
-        ]
-        print(bTemp)
-
-        if len(bTemp) == 1 and bTemp[0] != "":
-            baza = Baza(bTemp[0])
-            if baza.polacz():
-                baza.zamknij()
-                return os.path.abspath(bTemp[0])
-        else:
-            iface.messageBar().pushMessage(
-                "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
-            )
-            return False
-
     if wydz is not None:
         wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
         kat = os.path.dirname(wydz_sc)
@@ -52,6 +29,34 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
         else:
             poziom = "../.."
 
+    # ma byc wskazana baza przez uzytkownika - pytamy zawsze, a dialog
+    # otwieramy w katalogu aktywnej warstwy, a nie tam, gdzie po raz ostatni
+    # byla otwierana jakakolwiek baza w tej sesji QGIS-a (natywny dialog
+    # Windows z pustym katalogiem startowym sam wraca do ostatnio
+    # uzywanego folderu, co wyglada jak "zapamietywanie" pierwotnej bazy)
+    if wskaz:
+        kat_start = os.path.normpath(os.path.join(kat, poziom)) if kat else ""
+        bTemp = [
+            QFileDialog().getOpenFileName(
+                iface.mainWindow(),
+                "Wskaż bazę Taksatora",
+                kat_start,
+                "Access MDB (*.mdb);;SQLite (*.sqlite)",
+            )[0]
+        ]
+
+        if bTemp[0] != "":
+            baza = Baza(bTemp[0])
+            if baza.polacz():
+                baza.zamknij()
+                return os.path.abspath(bTemp[0])
+
+        iface.messageBar().pushMessage(
+            "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
+        )
+        return False
+
+    if wydz is not None:
         try:
             if platform.system()[:3] == "Win":
                 bTemp = glob.glob(os.path.join(kat, poziom, "*.mdb"))
@@ -67,7 +72,7 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
         bTemp = [
             QFileDialog().getOpenFileName(
                 iface.mainWindow(),
-                "Wskaż baze Taksatora",
+                "Wskaż bazę Taksatora",
                 kat,
                 "Access MDB (*.mdb);;SQLite (*.sqlite)",
             )[0]
@@ -316,6 +321,13 @@ class Baza(object):
         if ile_wydz[0][0] == 0 and ile_obsz[0][0] == 0:
             return False
         return True
+
+    def wyczysc_fo(self):
+        """Czyści wcześniej dopisane formy ochrony przyrody (tabele F_SET
+        i F_LAND_PROTECT), przed ponownym dopisaniem danych od zera"""
+        self.cur.execute("DELETE FROM F_SET;")
+        self.cur.execute("DELETE FROM F_LAND_PROTECT;")
+        self.con.commit()
 
     def pobierz_sl_fo(self):
         """Metoda pobiera słownik form ochrony z bazy i zwraca je w postaci
@@ -872,6 +884,20 @@ class Baza(object):
         self.cur.execute(sql)
         self.con.commit()
 
+    def usun_tabele(self, nazwy) -> list:
+        """Usuwa podane tabele z bazy, jeśli istnieją.
+        Zwraca listę faktycznie usuniętych tabel.
+        """
+        usuniete = []
+        for nazwa in nazwy:
+            try:
+                self.cur.execute('DROP TABLE ' + nazwa + ';')
+            except (pyodbc.Error, sqlite3.Error):
+                continue
+            usuniete.append(nazwa)
+        self.con.commit()
+        return usuniete
+
     def usun_kwerendy(self) -> list:
         """Usuwa wszystkie kwerendy z bazy MDB z wyjątkiem whitelisty.
         Zwraca listę nazw usuniętych kwerend.
@@ -902,6 +928,9 @@ class Baza(object):
             db.QueryDefs.Delete(nazwa)
 
         db.Close()
+
+        self.usun_tabele(['F_TABLICA', 'F_TABLICA_ROZSZERZONA'])
+
         return do_usuniecia
         # cxn.close()
 

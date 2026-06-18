@@ -388,16 +388,18 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
             os.path.join(kat, 'OBR.shp'), 'OBR', 'ogr'
         )
 
+        # nazwy pola z kodem TERYT obrebu roznia sie miedzy zrodlami danych,
+        # ale maja te sama strukture - dopasowanie bez wzgledu na wielkosc
+        # liter, bo stare shp/dbf czesto wymuszaja same wielkie litery
+        nazwy_pol = {
+            x.name().lower(): x.name()
+            for x in obr.dataProvider().fields().toList()
+        }
         adr_adm = ''
-        if 'jpt_kod_je' in \
-                [x.name() for x in obr.dataProvider().fields().toList()]:
-            adr_adm = 'jpt_kod_je'
-        if 'G5NRO' in \
-                [x.name() for x in obr.dataProvider().fields().toList()]:
-            adr_adm = 'G5NRO'
-        if 'IDOBREBU' in \
-                [x.name() for x in obr.dataProvider().fields().toList()]:
-            adr_adm = 'IDOBREBU'
+        for kandydat in ('idobrebu', 'jpt_kod_je', 'g5nro'):
+            if kandydat in nazwy_pol:
+                adr_adm = nazwy_pol[kandydat]
+                break
 
         oddz_fields = [
             QgsField("MUNICIP", QVariant.String, len=3),

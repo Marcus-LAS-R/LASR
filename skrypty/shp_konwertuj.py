@@ -1,7 +1,9 @@
 import os
 import glob
 
-from qgis.core import QgsProject, QgsVectorLayer
+from qgis.core import (
+    QgsProject, QgsVectorLayer, QgsMessageLog, QgsProcessingOutputLayerDefinition
+)
 from qgis.PyQt.uic import loadUiType
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, \
     QTableWidgetItem
@@ -12,8 +14,6 @@ from qgis.utils import iface
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'ui_konwertuj_shp.ui'))
 project = QgsProject.instance()
-
-LastStateRole = Qt.UserRole
 
 
 class KonwertujWarstwy(QDialog, FORM_CLASS):
@@ -73,9 +73,6 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
             self.resetuj_tabele()
             return
 
-        mod = self.tableWidget.model()
-        cnt = mod.rowCount()
-
         self.tableWidget.setRowCount(len(lista))
         for row, it in enumerate(lista):
             lyr = QgsVectorLayer(it, 'wtemp', 'ogr')
@@ -94,25 +91,26 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
                 item.setCheckState(Qt.Checked)
             else:
                 item.setCheckState(Qt.Unchecked)
-            item.setData(LastStateRole, item.checkState())
             self.tableWidget.setItem(row, 0, item)
 
             item2 = QTableWidgetItem(f'{name} | ({crs})')
             self.tableWidget.setItem(row, 1, item2)
 
             self.sl[f'{name} | ({crs})'] = it
-            cnt += 1
 
         self.tableWidget.resizeColumnsToContents()
 
-        # if trig:
-            # message = QMessageBox()
-            # message.setIcon(QMessageBox.Information)
-            # message.setWindowTitle('UWAGA')
-            # message.setText('Znaleziono warstwy bez układu współrzędnych\n'
-                            # 'Reprojekcja będzie niepoprawna')
-            # message.addButton(u"Zamknij", QMessageBox.ActionRole)
-            # message.exec_()
+        if trig:
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('UWAGA')
+            message.setText(
+                'Znaleziono warstwy bez zadeklarowanego układu '
+                'współrzędnych.\nPrzed konwersją zaznacz je i wybierz dla '
+                'nich poprawny "Układ wejściowy" — zostanie im przypisany '
+                'przed reprojekcją.')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
 
     def pobierz_zaznaczone_warstwy(self):
         """ pobierz liste zaznaczonych warstw"""
@@ -134,7 +132,6 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
             new_item = QTableWidgetItem()
             new_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
             new_item.setCheckState(state)
-            new_item.setData(LastStateRole, state)
             self.tableWidget.setItem(row, 0, new_item)
 
     def konwertuj(self):
@@ -159,30 +156,63 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
             message.exec_()
             return
 
+        folder_in = os.path.normcase(os.path.abspath(self.lineEdit_in.text()))
+        folder_out = os.path.normcase(os.path.abspath(self.lineEdit_out.text()))
+        if folder_in == folder_out:
+            message = QMessageBox()
+            message.setIcon(QMessageBox.Information)
+            message.setWindowTitle('Błąd')
+            message.setText(
+                'Katalog docelowy musi być inny niż katalog z warstwami '
+                'źródłowymi (zapis nadpisałby wczytywany plik).')
+            message.addButton(u"Zamknij", QMessageBox.ActionRole)
+            message.exec_()
+            return
+
         crs_to = self.comboBox_crs.currentText().split('(')[-1][:-1]
         crs_in = self.comboBox_crs_in.currentText().split('(')[-1][:-1]
+
+        bledy = []
         for zz in zaz:
             pth = self.sl[zz]
-            # if 'unknown' in zz:
-                # params = {
-                    # 'OUTPUT': 'TEMPORARY_OUTPUT',
-                    # 'INPUT': pth,
-                    # 'CRS': crs_in,
-                # }
-                # pth = processing.run(
-                    # 'native:assignprojection', params
-                # )['OUTPUT']
+            try:
+                if zz.endswith('(unknown)'):
+                    pth = processing.run(
+                        'native:assignprojection',
+                        {
+                            'INPUT': pth,
+                            'CRS': crs_in,
+                            'OUTPUT': 'TEMPORARY_OUTPUT',
+                        }
+                    )['OUTPUT']
 
-            params = {
-                'INPUT': pth,
-                'OUTPUT': os.path.join(
-                    self.lineEdit_out.text(), zz.split(' | ')[0]+'.shp'
-                ),
-                'TARGET_CRS': crs_to,
-            }
-            processing.run('native:reprojectlayer', params)
+                output_def = QgsProcessingOutputLayerDefinition(
+                    os.path.join(
+                        self.lineEdit_out.text(), zz.split(' | ')[0]+'.shp'
+                    )
+                )
+                output_def.createOptions = {'fileEncoding': 'UTF-8'}
+                params = {
+                    'INPUT': pth,
+                    'OUTPUT': output_def,
+                    'TARGET_CRS': crs_to,
+                }
+                processing.run('native:reprojectlayer', params)
+            except Exception as e:
+                bledy.append(zz)
+                QgsMessageLog.logMessage(
+                    f'Błąd reprojekcji warstwy {zz}: {e}', 'Las-R'
+                )
 
-        iface.messageBar().pushSuccess(
-            'Sukces', f'Przetworzono {len(zaz)} warstw')
+        ile_ok = len(zaz) - len(bledy)
+        if bledy:
+            iface.messageBar().pushWarning(
+                'Uwaga',
+                f'Przetworzono {ile_ok}/{len(zaz)} warstw. Nie udało się: '
+                + ', '.join(b.split(' | ')[0] for b in bledy)
+                + ' (szczegóły w logu komunikatów "Las-R")')
+        else:
+            iface.messageBar().pushSuccess(
+                'Sukces', f'Przetworzono {ile_ok} warstw')
         self.accept()
         self.hide()

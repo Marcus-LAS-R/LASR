@@ -222,12 +222,29 @@ class DopiszFO(SprawdzWydzielenia):
 
     def spr_fo_baza(self):
         if self.baza.dopisane_fo():
-            self.iface.messageBar().pushMessage(
+            odp = QMessageBox.question(
+                self.iface.mainWindow(),
                 'BAZA',
-                'W bazie znajdują się już dopisane formy ochrony!',
-                Qgis.Critical,
-                10)
-            return False
+                'W bazie znajdują się już dopisane formy ochrony!\n'
+                'Czy usunąć je i dopisać na nowo?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if odp != QMessageBox.Yes:
+                self.iface.messageBar().pushMessage(
+                    'BAZA',
+                    'W bazie znajdują się już dopisane formy ochrony!',
+                    Qgis.Critical,
+                    10)
+                return False
+
+            self.baza.wyczysc_fo()
+            QgsMessageLog.logMessage(
+                'Usunięto wcześniej dopisane formy ochrony (F_SET, '
+                'F_LAND_PROTECT), dopisuję na nowo',
+                'Las-R',
+                Qgis.Info
+            )
         return True
 
     def spr_fo_typy(self):

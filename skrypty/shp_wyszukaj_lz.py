@@ -234,14 +234,6 @@ class WyszukajLz():
                         'OUTPUT': os.path.join(self.tempkat, 'ls_diss.shp')
                         })
 
-        # processing.run(
-            # 'saga:polygondissolveallpolygons',
-            # {'POLYGONS': self.lswybr,
-             # 'BND_KEEP': False,
-             # 'DISSOLVED': os.path.join(self.tempkat, 'ls_diss.shp')
-             # }
-        # )
-
         processing.run("native:multiparttosingleparts", {
                         'OUTPUT': os.path.join(
                             self.tempkat,
@@ -308,13 +300,6 @@ class WyszukajLz():
                             'OUTPUT': os.path.join(self.tempkat, 'uz_diss.shp')
                             })
 
-            # processing.run(
-                # 'saga:polygondissolveallpolygons',
-                # {'POLYGONS': self.uzwybr,
-                 # 'BND_KEEP': False,
-                 # 'DISSOLVED': os.path.join(self.tempkat, 'uz_diss.shp')
-                 # }
-            # )
         else:
             for roz in ['shp', 'shx', 'prj', 'dbf']:
                 shutil.copy(os.path.join(self.tempkat, "uz_wybr."+roz),
@@ -340,13 +325,6 @@ class WyszukajLz():
              'OUTPUT': os.path.join(self.tempkat, 'uz_diss_single_diff.shp'),
              'GRID_SIZE': None
              })
-
-        # processing.run("saga:difference", {
-            # 'A': os.path.join(self.tempkat, 'uz_diss_single.shp'),
-            # 'B': self.w_ls_diss,
-            # 'SPLIT': True,
-            # 'RESULT': os.path.join(self.tempkat, 'uz_diss_single_diff.shp')
-        # })
 
         # wczytaj warstwe ls single partow
         w_uz_diss = QgsVectorLayer(

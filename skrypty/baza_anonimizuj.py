@@ -77,6 +77,7 @@ def Anonimizuj(iface):
         )
 
         baza.anonimizuj_vaddress()
+        baza.usun_tabele(['V_ADDRESS_second'])
         if usun_kwerendy:
             baza.usun_kwerendy()
         ile_ok += 1

@@ -7,6 +7,83 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 WERSJA 2.0c (2026-06-17)
 ================================================================================
 
+2026-06-18 | baza_dopisz_fochr.py        | Dopisz formy ochrony przyrody: jeśli
+           | baza_wrapper.py             | w bazie są już dopisane formy ochrony
+           | (Dopisz FOP)                | (F_SET/F_LAND_PROTECT), skrypt już
+           |                             | nie tylko blokuje z błędem — pyta
+           |                             | (Tak/Nie), czy je usunąć i dopisać na
+           |                             | nowo. Po "Tak" czyści obie tabele
+           |                             | (nowa metoda Baza.wyczysc_fo) i
+           |                             | kontynuuje dopisywanie; po "Nie"
+           |                             | przerywa jak dotychczas. Kopia bazy
+           |                             | (kopia_formyOchrony) wciąż robiona
+           |                             | jest na starcie, niezależnie od tego
+
+2026-06-18 | baza_wrapper.py             | znajdz_baze_do_wydz: dialog "Wskaż
+           | (Dopisz/uzupełnij           | bazę Taksatora" (Dopisz/uzupełnij
+           |  wydzielenia w bazie,       | wydzielenia w bazie, Rozlicz
+           |  Rozlicz powierzchnię,      | powierzchnię, Sprawdź wydzielenia —
+           |  Sprawdź wydzielenia)       | wszystkie już wcześniej pytały o bazę
+           |                             | przy każdym uruchomieniu) otwiera się
+           |                             | teraz w katalogu aktywnej warstwy, a
+           |                             | nie z pustym katalogiem startowym —
+           |                             | wcześniej natywny dialog Windows w
+           |                             | takim wypadku sam wracał do ostatnio
+           |                             | używanego folderu, co wyglądało jak
+           |                             | "zapamiętywanie" pierwotnej bazy;
+           |                             | poprawiono też literówkę "Wskaż baze"
+           |                             | -> "Wskaż bazę"
+
+2026-06-18 | shp_przygCiecie.py          | Przygotuj wydzielenia do cięcia: dopa-
+           | (Przygotuj wydzielenia      | sowanie pola z kodem obrębu (IDOBREBU/
+           |  do cięcia)                 | jpt_kod_je/G5NRO) do warstwy OBR jest
+           |                             | teraz niezależne od wielkości liter —
+           |                             | stare shp/dbf często wymuszają same
+           |                             | wielkie litery, więc 'jpt_kod_je'
+           |                             | (zwykle małymi) mogło się nie dopaso-
+           |                             | wać i MUNICIP/COMMUNITY w ODDZ
+           |                             | zostawały puste; priorytet przy kilku
+           |                             | obecnych polach: IDOBREBU >
+           |                             | jpt_kod_je > G5NRO
+
+2026-06-18 | baza_anonimizuj.py          | Anonimizacja bazy usuwa teraz również
+           | baza_wrapper.py             | tabelę V_ADDRESS_second, jeśli istnieje
+           |                             | (nowa metoda Baza.usun_tabele)
+
+2026-06-18 | baza_wrapper.py             | Usuwanie kwerend (Baza.usun_kwerendy,
+           | baza_usun_kwerendy.py       | używane też przez "Usuń kwerendy z baz"
+           |                             | i opcjonalnie przez Anonimizuj bazę)
+           |                             | usuwa teraz też tabele F_TABLICA i
+           |                             | F_TABLICA_ROZSZERZONA, jeśli istnieją
+
+2026-06-18 | baza_rozlicz_pow_wydz.py    | Sprzątanie: usunięto martwy, zakomen-
+           | shp_eksport_kml.py          | towany kod ze starych wariantów na
+           | shp_wyszukaj_lz.py          | algorytmach SAGA (dawno zamienionych
+           |                             | na native:/grass7:) — bez zmian w
+           |                             | działaniu skryptów
+
+2026-06-18 | shp_konwertuj.py            | Reprojekcja warstw: naprawiono kilka
+           | (Reprojekcja warstw)        | problemów: 1) odkomentowano i napra-
+           |                             | wiono przypisywanie "Układu wejścio-
+           |                             | wego" warstwom bez zadeklarowanego
+           |                             | CRS (wcześniej pole było martwe —
+           |                             | takie warstwy szły do reprojekcji
+           |                             | bez układu źródłowego); 2) wraca
+           |                             | ostrzeżenie o warstwach bez CRS po
+           |                             | wczytaniu katalogu; 3) dodano blokadę
+           |                             | wyboru tego samego katalogu jako
+           |                             | wejściowy i docelowy (nadpisywałoby
+           |                             | plik wejściowy); 4) błąd reprojekcji
+           |                             | jednej warstwy nie przerywa już całej
+           |                             | partii — błędne warstwy trafiają do
+           |                             | logu "Las-R" i podsumowania; 5) usu-
+           |                             | nięto martwe zmienne (LastStateRole,
+           |                             | nieużywany licznik cnt); 6) wymuszono
+           |                             | kodowanie UTF-8 dla zapisywanych shp
+           |                             | (przez createOptions=fileEncoding na
+           |                             | OUTPUT) — wcześniej zależało od
+           |                             | domyślnego kodowania w QGIS
+
 2026-06-17 | qgis-auth.db                | Usunięto ze śledzenia w repo (plik bazy
            | .gitignore                  | autoryzacji QGIS — mógł zawierać dane
            |                             | logowania) — trafiał do każdego
