@@ -168,10 +168,10 @@ class KontrolaLs:
 
         ind = 1
         try:
-            if len(lid.split('.')) == 4 and \
-                    self.d_ls[lid]['ARK'] != lid.split('.')[1]:
-                s['ARK'] = lid.split('.')[1]
+            if len(lid.split('.')) == 4:
                 ind = 2
+                if self.d_ls[lid]['ARK'] != lid.split('.')[1]:
+                    s['ARK'] = lid.split('.')[1]
         except IndexError:
             print('Niepoprawny LANDID: '+lid)
 

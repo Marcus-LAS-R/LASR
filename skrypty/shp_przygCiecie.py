@@ -6,6 +6,8 @@ from qgis.core import QgsVectorLayer, Qgis, QgsField, QgsMessageLog, \
 from PyQt5.QtCore import QVariant
 import processing
 
+from . import shp_wyszukaj_lz
+
 
 def stworz_linie(kat):
     lin = QgsVectorLayer("LineString?crs=epsg:2180&field=ID:integer"
@@ -233,6 +235,12 @@ def przygotuj_do_terenu(iface):  # noqa
     if pozaewidencyjne.isValid():
         QgsProject.instance().addMapLayer(pozaewidencyjne)
 
+    lz = shp_wyszukaj_lz.WyszukajLz(iface)
+    if lz.pobierz_dane():
+        lz.zabuduj_strukt()
+        lz.wybierz_potencjalne_lz()
+        lz.stworz_warstwe_lz()
+
     QgsMessageLog.logMessage(
         '------ KONIEC --------- ',
         'Las-R',
@@ -317,10 +325,14 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         return
 
     # rozbij do singlepartow
+    # UWAGA: jako INPUT podajemy obiekt warstwy (ls), nie samą ścieżkę
+    # (ls_sciezka) - processing otwiera ścieżkę od nowa z domyślnym
+    # kodowaniem, gubiąc ręczne ustawienie kodowania (np. UTF-8) zrobione
+    # przez użytkownika we właściwościach warstwy LS
     wydz_sc = os.path.join(kat, 'WYDZ.shp')
     processing.run("native:multiparttosingleparts", {
         'OUTPUT': wydz_sc,
-        'INPUT': ls_sciezka,
+        'INPUT': ls,
     })
 
     wydz = QgsVectorLayer(wydz_sc, 'WYDZ', 'ogr')

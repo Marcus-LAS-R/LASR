@@ -7,6 +7,197 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 WERSJA 2.0c (2026-06-17)
 ================================================================================
 
+2026-06-19 | shp_polacz_teren.py         | "Połącz pomiary od taksatorów":
+           | (Połącz pomiary od         | dodano kontrolę i naprawę
+           |  taksatorów)               | duplikatów (_znajdz_duplikaty,
+           |                            | _usun_duplikaty). Po scaleniu
+           |                            | każdej z 6 warstw sprawdzane są
+           |                            | obiekty o identycznej geometrii
+           |                            | (WKT) i identycznych atrybutach —
+           |                            | to typowy skutek wysłania tego
+           |                            | samego pomiaru przez taksatora do
+           |                            | dwóch folderów. Jeśli wykryto
+           |                            | duplikaty w danej warstwie, pytanie
+           |                            | Tak/Nie czy je usunąć (zostaje
+           |                            | jeden egzemplarz na unikalny
+           |                            | zestaw geometria+atrybuty); ta sama
+           |                            | geometria z różnymi atrybutami NIE
+           |                            | jest traktowana jako duplikat.
+           |                            | Liczba usuniętych duplikatów per
+           |                            | warstwa trafia do komunikatu
+           |                            | końcowego i logu Las-R
+
+2026-06-19 | shp_polacz_teren.py         | "Połącz pomiary od taksatorów":
+           | (Połącz pomiary od         | naprawiono kilka błędów: 1) brak
+           |  taksatorów)               | obsługi anulowania dialogu wyboru
+           |                            | katalogu (puste 'projects_folder'
+           |                            | jechało dalej w niezdefiniowane
+           |                            | zachowanie) — teraz wczesny return;
+           |                            | 2) brak jednego typu pliku (np.
+           |                            | nikt nie zrobił "kasowniki.shp")
+           |                            | wywalał processing.run na pustej
+           |                            | liście LAYERS i przerywał całą
+           |                            | resztę bez komunikatu — teraz dany
+           |                            | typ jest pomijany z wpisem w logu
+           |                            | i w komunikacie końcowym
+           |                            | ("pominięto: ..."); 3) błąd merge
+           |                            | pojedynczego typu (try/except)
+           |                            | nie przerywa już pętli dla
+           |                            | pozostałych typów; 4) dodano
+           |                            | logowanie (QgsMessageLog) liczby
+           |                            | znalezionych/połączonych plików;
+           |                            | 5) kontrola pola ODDZ pomijana,
+           |                            | jeśli adr_upul nie został
+           |                            | scalony (zamiast fałszywego "OK").
+           |                            | Folder wyjściowy zmieniony z
+           |                            | "teren_polaczone" na "pomiary"
+           |                            | (lokalizacja — jeden poziom wyżej
+           |                            | niż wskazany katalog — bez zmian);
+           |                            | jeśli już istnieje i ma zawartość,
+           |                            | pyta Tak/Nie czy nadpisać
+
+2026-06-19 | shp_przygCiecie.py          | "Przygotuj w teren" wykonuje teraz
+           | las_r.py                    | też wyznaczanie potencjalnych Lz
+           | (Przygotuj w teren)         | (dawniej osobna pozycja menu "LZ -
+           |                             | wyznacz potencjalne") - krok
+           |                             | dodany na końcu, po MASKA/99/
+           |                             | pozaewidencyjne; pokazuje ten sam
+           |                             | dialog co dawniej (autodetekcja
+           |                             | warstw Użytki/ODDZ PGLLP,
+           |                             | odległość min. - domyślnie 15m),
+           |                             | użytkownik może poprawić dane lub
+           |                             | zaakceptować domyślne. Jeśli
+           |                             | użytkownik porzuci dialog LZ,
+           |                             | reszta "Przygotuj w teren" i tak
+           |                             | jest już zakończona. Osobna
+           |                             | pozycja menu "LZ - wyznacz
+           |                             | potencjalne" usunięta (była
+           |                             | zbędna, funkcja shp_wyszukaj_lz.
+           |                             | WyszukajLz nie zmieniona)
+
+2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": przed pytaniem o
+           |                             | naprawę sprawdza czy F_AROD_
+           |                             | LAND_USE (tabela rozliczenia
+           |                             | powierzchni wydz., kluczowana
+           |                             | też przez PARCEL_INT_NUM+
+           |                             | SHAPE_NR) ma jakieś dane - jeśli
+           |                             | tak, wyświetla monit (OK):
+           |                             | "W tabeli F_AROD_LAND_USE
+           |                             | znaleziono dane. Pamiętaj po
+           |                             | naprawie ponownie rozliczyć
+           |                             | powierzchnię" i dopisuje uwagę
+           |                             | do raportu txt. Sama naprawa
+           |                             | (przenumerowanie SHAPE_NR) i tak
+           |                             | przebiega normalnie - to tylko
+           |                             | przypomnienie, nie blokada
+
+2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": dodano moduł
+           |                             | naprawy (po kontroli, jeśli
+           |                             | znaleziono błędy, pytanie Tak/Nie
+           |                             | osobno dla każdego rodzaju):
+           |                             | 1) duplikaty AREA_USE_CD+
+           |                             | SOIL_QUALITY_CD - sumuje
+           |                             | LAND_USE_AREA do rekordu z
+           |                             | najniższym SHAPE_NR, usuwa
+           |                             | nadmiarowe rekordy
+           |                             | (NaprawDuplikaty); 2) rekordy z
+           |                             | LAND_USE_AREA=0 - usuwa je
+           |                             | (NaprawZerowe). Po obu naprawach
+           |                             | domykane są dziury w numeracji
+           |                             | SHAPE_NR powstałe z usunięcia
+           |                             | (nowa funkcja
+           |                             | _renumeruj_shape_nr) - dotyczy
+           |                             | tylko dziur powstałych w tym
+           |                             | przebiegu, nie ingeruje w
+           |                             | wcześniej istniejące. Backup
+           |                             | bazy ("popraw_ls") tworzony
+           |                             | tylko gdy użytkownik faktycznie
+           |                             | zatwierdzi jakąś naprawę.
+           |                             | Zweryfikowano na kopii
+           |                             | 042_Debica_OW_BDO.mdb: suma
+           |                             | LAND_USE_AREA (wszystkie kody)
+           |                             | identyczna przed/po naprawie
+           |                             | (7951.58090000075), 0 kolizji
+           |                             | SHAPE_NR po przenumerowaniu
+
+2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": kontrola zerowych
+           | las_r.py                    | powierzchni (LAND_USE_AREA=0)
+           | (Kontroluj Ls)              | respektuje teraz checkbox
+           |                             | "wszystkie użytki" tak samo jak
+           |                             | kontrola duplikatów - domyślnie
+           |                             | tylko AREA_USE_CD='Ls', po
+           |                             | zaznaczeniu wszystkie kody.
+           |                             | Pozycja menu przeniesiona z
+           |                             | "Kontrola danych" do
+           |                             | "Przygotowanie danych" (jako
+           |                             | "Kontroluj Ls"). W tym menu
+           |                             | przeniesiono też na samą górę i
+           |                             | zmieniono nazwę "Usuń działki bez
+           |                             | Ls" -> "Kasuj nie-Ls"; nowa
+           |                             | kolejność na górze menu: Kasuj
+           |                             | OP, Kasuj nie-Ls, Kontroluj Ls,
+           |                             | separator, reszta bez zmian
+
+2026-06-19 | baza_popraw_LS.py           | Nowy skrypt "Kontrola Ls w bazie
+           | ui_baza_popraw_ls.py/.ui    | (duplikaty/zera)" (menu przy
+           | las_r.py                    | "Kontrola Ls z bazą"). Na razie
+           | (Kontrola Ls w bazie)       | tylko kontrola, bez automatycznej
+           |                             | naprawy. Sprawdza wybrany katalog
+           |                             | baz pod kątem: 1) zdublowanych
+           |                             | zestawów AREA_USE_CD+
+           |                             | SOIL_QUALITY_CD na jednej działce
+           |                             | w F_PARCEL_LAND_USE (domyślnie
+           |                             | tylko dla Ls, opcjonalny checkbox
+           |                             | rozszerza kontrolę na wszystkie
+           |                             | użytki); 2) rekordów w
+           |                             | F_PARCEL_LAND_USE z LAND_USE_AREA
+           |                             | = 0 (zawsze, dla wszystkich
+           |                             | użytków). Generuje raport txt w
+           |                             | katalogu z bazami, nie modyfikuje
+           |                             | danych
+
+2026-06-19 | baza_usun_nieLs.py          | Nowy skrypt "Usuń działki bez Ls"
+           | las_r.py                    | (menu przy "Kasuj OP"). Usuwa z bazy
+           | (Usuń działki bez Ls)       | wszystkie działki, na których nie
+           |                             | występuje żaden użytek Ls w
+           |                             | F_PARCEL_LAND_USE.AREA_USE_CD, wraz
+           |                             | z powiązanymi wpisami w F_PARCEL,
+           |                             | V_PARCEL_PARTICIPATION i
+           |                             | F_PARCEL_LAND_USE. Dodatkowo czyści
+           |                             | osierocone wpisy w V_ADDRESS i
+           |                             | F_COMMUNITY (analogicznie do
+           |                             | baza_usun_op.py). Przed czyszczeniem
+           |                             | tworzona jest kopia bazy
+           |                             | ("kasuj_nieLs")
+
+2026-06-19 | shp_przygCiecie.py          | Przygotuj wydzielenia do cięcia:
+           | (Przygotuj wydzielenia      | naprawiono błąd kodowania przy
+           |  do cięcia)                 | tworzeniu warstwy WYDZ z warstwy LS —
+           |                             | multiparttosingleparts dostawało jako
+           |                             | wejście samą ścieżkę do pliku LS, więc
+           |                             | QGIS otwierał ją od nowa z domyślnym
+           |                             | kodowaniem, ignorując ręcznie
+           |                             | ustawione (we właściwościach warstwy)
+           |                             | kodowanie UTF-8 na warstwie LS — WYDZ
+           |                             | wychodziło zapisane w windows-1250, a
+           |                             | znaki w WYDZ_POL wyświetlały się
+           |                             | błędnie. Teraz jako wejście do
+           |                             | algorytmu podawany jest obiekt warstwy
+           |                             | LS, więc kodowanie jest zachowane
+
+2026-06-18 | baza_kontrola_ls.py         | Sprawdź Ls z bazą: naprawiono błąd
+           | (Sprawdź Ls z bazą)         | przy działkach z arkuszem (np. "AR_3"
+           |                             | w LANDID) — gdy ARK był już poprawnie
+           |                             | zapisany, skrypt mylnie traktował
+           |                             | token arkusza jako numer działki i
+           |                             | nadpisywał nim PARCELNR oraz obcinał
+           |                             | PARCELID (ucinając prawdziwy numer
+           |                             | działki). Indeks segmentu numeru
+           |                             | działki w LANDID jest teraz ustawiany
+           |                             | zawsze na podstawie liczby segmentów,
+           |                             | niezależnie od tego, czy ARK wymagał
+           |                             | aktualizacji
+
 2026-06-18 | baza_dopisz_fochr.py        | Dopisz formy ochrony przyrody: jeśli
            | baza_wrapper.py             | w bazie są już dopisane formy ochrony
            | (Dopisz FOP)                | (F_SET/F_LAND_PROTECT), skrypt już

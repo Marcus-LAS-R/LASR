@@ -48,7 +48,6 @@ from .skrypty import (
     shp_sprWydzOddz,
     shp_przygCiecie,
     spr_wydzielen,
-    shp_wyszukaj_lz,
     naklejki,
     przygotuj_ls,
     shp_eksport_kml,
@@ -62,9 +61,11 @@ from .skrypty import (
     baza_klonuj_wydz,
     shp_atlasuj,
     baza_usun_op,
+    baza_usun_nieLs,
     shp_dociagnij_poly,
     raport_wyles,
     baza_kontrola_ls,
+    baza_popraw_LS,
     baza_anonimizuj,
     baza_usun_kwerendy,
     baza_polacz,
@@ -279,6 +280,24 @@ class LasR:
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
 
+        self.kas_op = QAction(QIcon(None), "Kasuj OP", self.iface.mainWindow())
+        self.m_przyg_danych.addAction(self.kas_op)
+        self.kas_op.triggered.connect(self.kasuj_wlas_OP)
+
+        self.kas_niels = QAction(
+            QIcon(None), "Kasuj nie-Ls", self.iface.mainWindow()
+        )
+        self.m_przyg_danych.addAction(self.kas_niels)
+        self.kas_niels.triggered.connect(self.kasuj_dzialki_bez_ls)
+
+        self.spr_popraw_ls = QAction(
+            QIcon(None), "Kontroluj Ls", self.iface.mainWindow()
+        )
+        self.m_przyg_danych.addAction(self.spr_popraw_ls)
+        self.spr_popraw_ls.triggered.connect(self.kontrola_ls_w_bazie)
+
+        self.m_przyg_danych.addSeparator()
+
         self.przyg_dzewid = QAction(
             QIcon(None), "Przygotuj działki ewidencyjne", self.iface.mainWindow()
         )
@@ -308,17 +327,6 @@ class LasR:
         self.a_przyg_dla_taksatora.triggered.connect(self.przygotuj_dla_taksatora)
 
         self.m_przyg_danych.addSeparator()
-
-        self.wyz_lz = QAction(
-            QIcon(None), "LZ - wyznacz potencjalne", self.iface.mainWindow()
-        )
-        self.m_przyg_danych.addAction(self.wyz_lz)
-        self.wyz_lz.triggered.connect(self.wyszukaj_lz)
-
-        self.kas_op = QAction(QIcon(None), "Kasuj OP", self.iface.mainWindow())
-        self.m_przyg_danych.addAction(self.kas_op)
-
-        self.kas_op.triggered.connect(self.kasuj_wlas_OP)
 
         self.eksp_kml = QAction(
             QIcon(None), "Wyeksportuj do KML", self.iface.mainWindow()
@@ -903,6 +911,9 @@ class LasR:
     def kasuj_wlas_OP(self):
         baza_usun_op.UsunOP(self.iface)
 
+    def kasuj_dzialki_bez_ls(self):
+        baza_usun_nieLs.UsunNieLs(self.iface)
+
     def anonimizuj(self):
         baza_anonimizuj.Anonimizuj(self.iface)
 
@@ -1090,12 +1101,8 @@ class LasR:
             k.zestawienia()
             k.generuj_raport()
 
-    def wyszukaj_lz(self):
-        lz = shp_wyszukaj_lz.WyszukajLz(self.iface)
-        if lz.pobierz_dane():
-            lz.zabuduj_strukt()
-            lz.wybierz_potencjalne_lz()
-            lz.stworz_warstwe_lz()
+    def kontrola_ls_w_bazie(self):
+        baza_popraw_LS.SprawdzBazy(self.iface)
 
     def rysuj_naklejki(self):
         n = naklejki.GenerujNaklejki(self.iface)
