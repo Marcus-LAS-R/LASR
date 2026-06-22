@@ -70,6 +70,8 @@ from .skrypty import (
     baza_usun_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
+    shp_obszary_ciecia,
+    shp_atlasuj_auto,
     baza_napraw_stor_spec,
     shp_polacz_teren,
     shp_czysc_kol,
@@ -254,6 +256,8 @@ class LasR:
         ico_wezelki = QIcon(os.path.join(self.plugin_dir, "ico", "wezelki.png"))
         ico_gen_pola = QIcon(os.path.join(self.plugin_dir, "ico", "genPola.png"))
         ico_num_pola = QIcon(os.path.join(self.plugin_dir, "ico", "numPola.png"))
+        ico_gen_pola_auto = QIcon(
+            os.path.join(self.plugin_dir, "ico", "genPolaAuto.png"))
         ico_pok_lay = QIcon(os.path.join(self.plugin_dir, "ico", "pokazLay.png"))
         # koniec ikon -----------------------
 
@@ -522,6 +526,12 @@ class LasR:
         self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
 
+        self.a_obszary_ciecia = QAction(
+            QIcon(None), "Obszary do przeglądu cięcia", self.iface.mainWindow()
+        )
+        self.m_kontrola_danych.addAction(self.a_obszary_ciecia)
+        self.a_obszary_ciecia.triggered.connect(self.obszary_ciecia)
+
         # ------------------------------------
 
         self.a_kontrola_slownikow = QAction(
@@ -717,6 +727,12 @@ class LasR:
         self.toolbar.addAction(self.num_atl)
         self.num_atl.triggered.connect(self.numeruj_atlas)
 
+        self.atl_auto = QAction(
+            ico_gen_pola_auto, "Atlasuj automatycznie", self.iface.mainWindow()
+        )
+        self.toolbar.addAction(self.atl_auto)
+        self.atl_auto.triggered.connect(self.atlasuj_automatycznie)
+
         self.a_pokaz_lay = QAction(ico_pok_lay, "Pokaż Layout", self.iface.mainWindow())
         self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
 
@@ -730,6 +746,7 @@ class LasR:
             self.pg,
             self.rys_atl,
             self.num_atl,
+            self.atl_auto,
         ]
         # toolbar koniec ---------------------
 
@@ -967,6 +984,20 @@ class LasR:
         if n.poprawnie_rozlozone():
             n.zanumeruj_pola()
             n.wyswietl_info()
+
+    def atlasuj_automatycznie(self):
+        g = shp_atlasuj_auto.GenerujAtlasAuto(self.iface)
+        if not g.wybierz_warstwe():
+            return
+        if not g.pobierz_dane():
+            return
+        ile = g.generuj_pola()
+        if ile == 0:
+            g.wyswietl_info(ile)
+            return
+        if not g.zapisz_warstwe():
+            return
+        g.wyswietl_info(ile)
 
     def sprawdz_topologie(self):
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
@@ -1206,6 +1237,18 @@ class LasR:
         sp.zbuduj_strukture()
         sp.przetworz()
         sp.raport_spis_kart()
+
+    def obszary_ciecia(self):
+        o = shp_obszary_ciecia.ObszaryCiecia(self.iface)
+        if not o.wybierz_warstwe():
+            return
+        ile = o.generuj_siatke()
+        if ile == 0:
+            o.wyswietl_info(ile)
+            return
+        if not o.zapisz_warstwe():
+            return
+        o.wyswietl_info(ile)
 
     def pokaz_layout(self):
         funkcje.otworz_kompozycje(self.iface)

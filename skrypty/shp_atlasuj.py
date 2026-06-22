@@ -1,6 +1,7 @@
 import os
 from qgis.core import QgsField, QgsVectorLayer, QgsPointXY, QgsGeometry, Qgis,\
-    QgsFeature, QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsProject
+    QgsFeature, QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
+    QgsProject, QgsSpatialIndex
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDialog, QMessageBox
 from .ui.ui_atlasuj import Ui_Dialog
@@ -73,6 +74,13 @@ class GenerujAtlas():
         ymin = self.lyr.extent().yMinimum()
         ymax = self.lyr.extent().yMaximum()
 
+        # indeks warstwy wejsciowej, do odsiania kafli, ktore nic nie
+        # przecinaja (np. nad pustymi obszarami)
+        feats = {f.id(): f for f in self.lyr.getFeatures()}
+        si = QgsSpatialIndex()
+        for f in feats.values():
+            si.insertFeature(f)
+
         self.pola.startEditing()
         x = xmin
         y = ymin
@@ -80,8 +88,6 @@ class GenerujAtlas():
         ita = 0
         while x < xmax and ita < 999:
             while y < ymax and ita < 999:
-                f = QgsFeature()
-                f.setFields(self.pola.fields())
                 poly = [
                     QgsPointXY(x, y),
                     QgsPointXY(x, y+self.rozm[1]),
@@ -91,8 +97,15 @@ class GenerujAtlas():
                 ]
 
                 g = QgsGeometry().fromPolygonXY([poly])
-                f.setGeometry(g)
-                polaPoly.append(f)
+
+                kandydaci = si.intersects(g.boundingBox())
+                if any(g.intersects(feats[fid].geometry())
+                       for fid in kandydaci):
+                    f = QgsFeature()
+                    f.setFields(self.pola.fields())
+                    f.setGeometry(g)
+                    polaPoly.append(f)
+
                 y += self.rozm[1]
                 ita += 1
 

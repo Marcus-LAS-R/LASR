@@ -7,6 +7,40 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 WERSJA 2.0c (2026-06-17)
 ================================================================================
 
+2026-06-22 | shp_obszary_ciecia.py       | Nowy skrypt "Obszary do przeglądu
+           |                             | cięcia" (menu Kontrola danych):
+           |                             | generuje warstwę OBSZARY_CIECIA -
+           |                             | kafle A3/poziomo, 1:12000 do
+           |                             | przeglądu wydzieleń WYDZ feature-by-
+           |                             | feature wtyczką Go2NextFeature.
+           |                             | Każde wydzielenie w całości w jednym
+           |                             | kaflu (kafle mogą się nachodzić).
+
+2026-06-22 | kafelkowanie.py             | Nowy, wspólny moduł z logiką
+           |                             | pokrywania zbioru bbox minimalną
+           |                             | liczbą kafli o ustalonym rozmiarze
+           |                             | (pokryj_kaflami, rozmiar_kafla_z_
+           |                             | skali) - bez zależności od qgis.core.
+           |                             | Algorytm zachłanny max-coverage
+           |                             | (sweep-line) + centrowanie kafla na
+           |                             | obwiedni faktycznie pokrytych
+           |                             | obiektów. Używane przez
+           |                             | shp_obszary_ciecia.py i
+           |                             | shp_atlasuj_auto.py.
+
+2026-06-22 | shp_atlasuj_auto.py         | Nowy skrypt "Atlasuj automatycznie"
+           |                             | (pasek, za "Numeruj pola atlasu"):
+           |                             | jak "Rysuj pola atlasowe", ale kafle
+           |                             | liczone przez kafelkowanie.pokryj_
+           |                             | kaflami - numeracja STRONA powstaje
+           |                             | automatycznie, bez ręcznego
+           |                             | digitalizowania linii.
+
+2026-06-22 | shp_atlasuj.py              | "Rysuj pola atlasowe": kafle, które
+           |                             | nie przecinają warstwy wejściowej
+           |                             | (QgsSpatialIndex), są teraz pomijane
+           |                             | - mniej pustych stron do numeracji.
+
 2026-06-19 | shp_polacz_teren.py         | "Połącz pomiary od taksatorów":
            | (Połącz pomiary od         | dodano kontrolę i naprawę
            |  taksatorów)               | duplikatów (_znajdz_duplikaty,
