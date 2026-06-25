@@ -7,6 +7,45 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 WERSJA 2.0d (2026-06-25)
 ================================================================================
 
+2026-06-25 | raport_wyciagi.py            | 1) Lista współwłaścicieli: wysokość
+            |                             | wiersza była liczona z heurystyki
+            |                             | długość_tekstu>33 znaki, która źle
+            |                             | przewidywała realne zawijanie tekstu w
+            |                             | Arial 7pt (czcionka nie jest
+            |                             | monospace) - większość wierszy
+            |                             | dostawała niepotrzebnie 6mm wysokości,
+            |                             | co dawało puste miejsce pod krótszymi
+            |                             | podpisami w tym wierszu. Teraz
+            |                             | mierzona jest realna szerokość tekstu
+            |                             | (QFontMetricsF, kalibrowane na 300
+            |                             | DPI) i porównywana z faktycznie
+            |                             | dostępną szerokością kolumny (49mm) -
+            |                             | to samo dotyczy decyzji o skracaniu
+            |                             | imienia do inicjału (wcześniej brała
+            |                             | pod uwagę tylko długość
+            |                             | nazwiska+imienia, ignorując długość
+            |                             | samego udziału w nawiasie). 2)
+            |                             | _wybierz_feats robił pełny skan
+            |                             | atrybutowy warstwy inter/dz
+            |                             | (QgsExpression+getFeatures) dla każdej
+            |                             | działki każdego właściciela - bardzo
+            |                             | kosztowne przy wielu właścicielach.
+            |                             | Zamieniono na jednorazowy indeks
+            |                             | (słownik MUNICIP/COMMUNITY/PARCELNR ->
+            |                             | featurki) budowany raz na starcie
+            |                             | generowania - wyszukiwanie działki to
+            |                             | teraz lookup O(1) zamiast skanu całej
+            |                             | warstwy. 3) naprawiono też wyciek
+            |                             | pamięci w rysuj() - "for x in
+            |                             | warstwy_klastrow: del x" nie usuwało
+            |                             | nic z listy (czyściło tylko lokalną
+            |                             | referencję w pętli), więc tymczasowe
+            |                             | warstwy mapowe tworzone dla każdego
+            |                             | klastra rosły bez końca w pamięci przy
+            |                             | generowaniu wielu właścicieli pod
+            |                             | rząd; teraz listy są realnie
+            |                             | czyszczone (.clear()).
+
 2026-06-25 | baza_wrapper.py             | Baza.utworz_kopie() (kopia bazy
            |                             | przed ryzykowną operacją, używana w
            |                             | 13 skryptach: dopisz_ownership,

@@ -4,11 +4,11 @@ import datetime
 import traceback
 
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
-from PyQt5.QtGui import QFont, QPolygonF, QColor
+from PyQt5.QtGui import QFont, QPolygonF, QColor, QFontMetricsF, QImage
 from PyQt5.QtCore import Qt, QPointF, QVariant
 
-from qgis.core import QgsVectorLayer, QgsExpression, QgsPrintLayout, Qgis,  \
-    QgsFeatureRequest, QgsProject, QgsLayoutItemPage, QgsLayoutSize, \
+from qgis.core import QgsVectorLayer, QgsPrintLayout, Qgis,  \
+    QgsProject, QgsLayoutItemPage, QgsLayoutSize, \
     QgsLayoutItemLabel, QgsLayoutItem, QgsUnitTypes, QgsLayoutPoint, QgsField,\
     QgsLayoutItemPolyline, QgsRectangle, QgsLayoutItemMap, \
     QgsLayoutItemPicture, QgsLayoutExporter, QgsMessageLog
@@ -17,6 +17,12 @@ import processing
 
 from .baza_wrapper import Baza
 from .ui.ui_raport_wyciagi import Ui_Dialog
+
+# kolumna podpisu wspolwlasciciela ma box 51mm, ale realnie miesci ok.
+# 49mm tekstu (marginesy etykiety) - zmierzone empirycznie na czcionce
+# Arial 7pt
+_SZER_KOLUMNY_WSPOLWL = 49
+_DPI_METRYKI = 300
 
 
 def isNone(a):
@@ -221,27 +227,51 @@ class Wyciag:
             self.w_sl_fdz_grej[gi] = pdz
             self.w_sl_fwy_grej[gi] = pli
 
+    def _buduj_indeksy_dzialek(self):
+        """Buduje jednorazowo slowniki (MUNICIP, COMMUNITY, PARCELNR) ->
+        [featurki] dla warstw inter i dz. Wyszukiwanie dzialek po
+        atrybutach przez QgsExpression/getFeatures(req) wymaga pelnego
+        skanu warstwy przy kazdym wywolaniu (shapefile/.dbf nie ma
+        indeksu atrybutowego) - przy wielu wlascicielach x wielu
+        dzialkach to sie mnozy do bardzo kosztownego O(N*M). Indeks
+        budowany raz zamienia kazde kolejne wyszukanie w lookup O(1).
+        """
+        self._idx_inter = {}
+        for feat in self.inter.getFeatures():
+            if feat.geometry().area() <= 0.5:
+                continue
+            key = (feat['MUNICIP'], feat['COMMUNITY'], feat['PARCELNR'])
+            self._idx_inter.setdefault(key, []).append(feat)
+
+        self._idx_dz = {}
+        for feat in self.dz.getFeatures():
+            key = (feat['MUNICIP'], feat['COMMUNITY'], feat['PARCELNR'])
+            self._idx_dz.setdefault(key, []).append(feat)
+
     def _wybierz_feats(self, lista):
         """Wybiera z inter i dz odpowiednie featurki i zwraca je w postaci
         2 list posortowanych wg wysuniecia najbardziej na N
         return [dz_feats], [inter_feats]
         """
+        if not hasattr(self, '_idx_inter'):
+            self._buduj_indeksy_dzialek()
+
         ldz = []
         lit = []
         for li in lista:
-            zaz = '"MUNICIP"=\'' + li[:3] + '\' and "COMMUNITY"=\''
-            zaz += li[3:7] + '\' and '
-            if li.count('.') == 2:
-                zaz += '"ARK"=\'' + li.split('.')[1] + '\' and '
-            zaz += '"PARCELNR"=\'' + li.split('.')[-1] + '\''
+            key = (li[:3], li[3:7], li.split('.')[-1])
+            cand_it = self._idx_inter.get(key, [])
+            cand_dz = self._idx_dz.get(key, [])
 
-            exp = QgsExpression(zaz)
-            req = QgsFeatureRequest(exp)
-            lit += sorted([x for x in self.inter.getFeatures(req)
-                           if x.geometry().area() > 0.5],
+            if li.count('.') == 2:
+                ark = li.split('.')[1]
+                cand_it = [x for x in cand_it if x['ARK'] == ark]
+                cand_dz = [x for x in cand_dz if x['ARK'] == ark]
+
+            lit += sorted(cand_it,
                           key=lambda x: x.geometry().boundingBox().yMaximum(),
                           reverse=True)
-            ldz += [x for x in self.dz.getFeatures(req)]
+            ldz += cand_dz
 
         return ldz, lit
 
@@ -296,10 +326,12 @@ class Wyciag:
         self.w_dodaj_layout()
         self.w_strona_tytulowa()
 
-        for x in self.warstwy_klastrow:
-            del x
-        for y in self.warstwy_dzialek:
-            del y
+        # warstwy tymczasowe poprzedniego wlasciciela - wyczysc liste, by
+        # zwolnic referencje (samo "del x" w petli nie usuwa ich z listy,
+        # przez co po calym przebiegu generowania zostawalyby trwale w
+        # pamieci)
+        self.warstwy_klastrow.clear()
+        self.warstwy_dzialek.clear()
 
         # zawsze zaczynaj 20 mm od gory strony
         pp = 20
@@ -978,9 +1010,12 @@ class Wyciag:
             page=st)
         return lab
 
-    def w_oblicz_wys_nag_grej(self, grej):
-        """Zwraca int z wysokoscia naglowka dla podanej grej
-        gggoooo.grej
+    def w_lista_wspolwl(self, grej):
+        """Zwraca liste podpisow wspolwlascicieli (bez numeracji) dla
+        jednostki rejestrowej grej (gggoooo.grej), z imieniem skroconym do
+        inicjalow gdy 'nazwisko imie [udzial]' nie zmiesci sie w jednej
+        linii kolumny (sprawdzane realna szerokoscia tekstu, nie liczba
+        znakow - inaczej heurystyka czesto myli sie w obie strony).
         """
         wwlas = []
         _obr, _gr = grej.split('.')
@@ -989,17 +1024,63 @@ class Wyciag:
                 for x in self.sl_gr[_obr][_gr]['wl']:
                     if x in self.sl_wl and x != self.addr:
                         ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
-                        ww += self.sl_wl[x]['opis']['imie'] + ' ['
-                        ww += self.sl_wl[x]['udzial'][grej] + ']'
-                        wwlas.append(ww)
+                        ww += self.sl_wl[x]['opis']['imie']
+                        udzial = ' [' + self.sl_wl[x]['udzial'][grej] + ']'
 
+                        idx = len(wwlas) + 1
+                        if self._szer_tekstu(
+                                f'{idx}. {ww}{udzial}'
+                        ) > _SZER_KOLUMNY_WSPOLWL:
+                            ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
+                            ims = self.sl_wl[x]['opis']['imie'].strip().split(' ')
+                            if len(ims) > 0:
+                                ww += '. '.join(im[0] for im in ims).strip()
+
+                        ww += udzial
+                        wwlas.append(ww)
+        return wwlas
+
+    def _szer_tekstu(self, txt):
+        """Zwraca realna szerokosc tekstu w mm dla czcionki Arial 7pt
+        (jak na liscie wspolwlascicieli), mierzona na kalibrowanym
+        urzadzeniu o znanym DPI - zeby ocenic, czy podpis zmiesci sie w
+        jednej linii kolumny.
+        """
+        if not hasattr(self, '_fm_wspolwl'):
+            img = QImage(1, 1, QImage.Format_ARGB32)
+            dpm = int(_DPI_METRYKI / 25.4 * 1000)
+            img.setDotsPerMeterX(dpm)
+            img.setDotsPerMeterY(dpm)
+            self._fm_wspolwl = QFontMetricsF(
+                QFont("Arial", 7, QFont.Normal), img)
+
+        return self._fm_wspolwl.horizontalAdvance(txt) / _DPI_METRYKI * 25.4
+
+    def w_wiersze_wspolwl(self, wwlas):
+        """Wysokosci (w mm) kolejnych wierszy listy wspolwlascicieli (3
+        kolumny w wierszu). Wiersz dostaje 6mm zamiast 3mm, gdy ktorys z
+        podpisow jest na tyle dlugi, ze zawinie sie na 2 linie w kolumnie
+        (51mm, Arial 7pt) - inaczej zawinieta druga linia nakladalaby sie
+        na wiersz pod nim.
+        """
+        wiersze = []
+        for start in range(0, len(wwlas), 3):
+            zawija = any(
+                self._szer_tekstu(str(i) + '. ' + wi) > _SZER_KOLUMNY_WSPOLWL
+                for i, wi in enumerate(wwlas[start:start+3], start+1)
+            )
+            wiersze.append(6 if zawija else 3)
+        return wiersze
+
+    def w_oblicz_wys_nag_grej(self, grej):
+        """Zwraca int z wysokoscia naglowka dla podanej grej
+        gggoooo.grej
+        """
+        wwlas = self.w_lista_wspolwl(grej)
         if len(wwlas) == 0:
             return 13
 
-        ww_wys = 3 * int(len(wwlas)/3)
-        if len(wwlas) % 3 > 0:
-            ww_wys += 3
-        return 13 + 3 + ww_wys
+        return 13 + 3 + sum(self.w_wiersze_wspolwl(wwlas))
 
     def w_generuj_nag_grej(self, pp, grej):  # noqa
         """Generuje nagloweka dla jednostki rejestrowej w przesunieciu od gory
@@ -1031,21 +1112,7 @@ class Wyciag:
         if grej in self.sl_wl[self.addr]['udzial']:
             udzial = self.sl_wl[self.addr]['udzial'][grej]
 
-        wwlas = []
-        _obr, _gr = grej.split('.')
-        if _obr in self.sl_gr:
-            if _gr in self.sl_gr[_obr]:
-                for x in self.sl_gr[_obr][_gr]['wl']:
-                    if x in self.sl_wl and x != self.addr:
-                        ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
-                        ww += self.sl_wl[x]['opis']['imie']
-                        if len(ww) > 20:
-                            ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
-                            ims = self.sl_wl[x]['opis']['imie'].strip().split(' ')
-                            if len(ims) > 0:
-                                ww += '. '.join(im[0] for im in ims).strip()
-                        ww += ' [' + self.sl_wl[x]['udzial'][grej] + ']'
-                        wwlas.append(ww)
+        wwlas = self.w_lista_wspolwl(grej)
 
         # nazwa obiektu
         lab = self._dodaj_lab(20, 1.5+pp, 10, 3, 'obiekt:', st=self.strona)
@@ -1111,26 +1178,21 @@ class Wyciag:
         # przesuniecia poszczegolnych kolumn wspolw
         offset = [25, 79, 133]
 
-        kol = 0
+        wiersze = self.w_wiersze_wspolwl(wwlas)
         wiersz = 0
-        for i, wi in enumerate(wwlas):
-            lab = self._dodaj_lab(
-                offset[kol], 16.65+pp+wiersz, 51, 3,
-                str(i+1)+'. '+wi, st=self.strona
-            )
-            lab.setFont(QFont("Arial", 7, QFont.Normal))
-            lab.setHAlign(Qt.AlignLeft)
-            self.lay.addItem(lab)
+        for r, h in enumerate(wiersze):
+            for kol, wi in enumerate(wwlas[r*3:r*3+3]):
+                i = r * 3 + kol
+                lab = self._dodaj_lab(
+                    offset[kol], 16.65+pp+wiersz, 51, h,
+                    str(i+1)+'. '+wi, st=self.strona
+                )
+                lab.setFont(QFont("Arial", 7, QFont.Normal))
+                lab.setHAlign(Qt.AlignLeft)
+                self.lay.addItem(lab)
+            wiersz += h
 
-            kol += 1
-            if kol == 3:
-                wiersz += 3
-            kol = 0 if kol == 3 else kol
-
-        ww_wys = 3 * int(len(wwlas)/3)
-        if len(wwlas) % 3 > 0:
-            ww_wys += 3
-        return 13 + 3 + ww_wys
+        return 13 + 3 + wiersz
 
     def w_oblicz_wys_klastra(self, kl):
         """Oblicza wysokosc podanego klastra w mm
