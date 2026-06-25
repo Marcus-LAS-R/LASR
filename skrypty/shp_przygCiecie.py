@@ -7,6 +7,7 @@ from PyQt5.QtCore import QVariant
 import processing
 
 from . import shp_wyszukaj_lz
+from . import shp_obszary_ciecia
 
 
 def stworz_linie(kat):
@@ -496,6 +497,15 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         'pozaewidencyjne', 'ogr')
     if pozaewidencyjne.isValid():
         QgsProject.instance().addMapLayer(pozaewidencyjne)
+
+    # warstwa OBSZARY_CIECIA - kafle do przegladu feature-by-feature
+    # poprawnosci podzialu na poletka/etaty ciecia, na swiezo utworzonej
+    # warstwie WYDZ
+    obszary = shp_obszary_ciecia.ObszaryCiecia(iface)
+    if obszary.wybierz_warstwe(wydz):
+        ile = obszary.generuj_siatke()
+        if ile > 0 and obszary.zapisz_warstwe():
+            obszary.wyswietl_info(ile)
 
     QgsMessageLog.logMessage(
         '------ KONIEC --------- ',

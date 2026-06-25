@@ -1,41 +1,43 @@
 import os
 import datetime
 import processing
-from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
-    QgsCoordinateReferenceSystem, QgsVectorLayer
 from operator import itemgetter
 
-# kolejnosc liter przydzielanych wydzieleniom w obrebie grupy (oddz/gmina/
-# obreb) - uzywana tez przez shp_doliterkuj.py do kontynuacji literacji
-LITERY = [
-    "a", "b", "c", "d", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
-    "p", "r", "s", "t", "w", "x", "y", "z", "ax", "bx", "cx", "dx", "fx",
-    "gx", "hx", "ix", "jx", "kx", "lx", "mx", "nx", "ox", "px", "rx", "sx",
-    "tx", "wx", "xx", "yx", "zx", "ay", "by", "cy", "dy", "fy", "gy", "hy",
-    "iy", "jy", "ky", "ly", "my", "ny", "oy", "py", "ry", "sy", "ty", "wy",
-    "xy", "yy", "zy", "az", "bz", "cz", "dz", "fz", "gz", "hz", "iz", "jz",
-    "kz", "mz", "nz", "oz", "pz", "rz", "sz", "tz", "wz", "xz", "yz", "zz"
-]
+from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
+    QgsCoordinateReferenceSystem, QgsVectorLayer
+
+from .shp_literkuj import LITERY
 
 
-def _puste(wartosc):
-    """ Czy wartosc pola WYDZ oznacza brak przypisanej litery? `str(None)`
-    daje 'None', ktore nie jest rownoznaczne literalowi None ani 'NULL' -
-    porownanie trzeba zrobic przed rzutowaniem na str, inaczej prawdziwy
-    NULL zostaje pomylony z "wydz ma juz litere". """
-    if wartosc is None:
-        return True
-    return str(wartosc) in ["", " ", "NULL"]
+def _ma_juz_litere(wartosc):
+    """ Czy pole WYDZ jest juz wypelnione (nie jest puste/NULL)? Wzorowane
+    1:1 na warunku z shp_literkuj.Literkuj, dla zgodnosci zachowania na
+    tych samych danych (shapefile/DBF). """
+    return str(wartosc) not in ["", " ", 'NULL', None]
 
 
-def Literkuj(iface, lyr=False):  # noqa
+def _nastepna_wolna_litera(uzyte):
+    """ Pierwsza litera z LITERY jeszcze nie uzyta w danej grupie
+    (MUNICIP, COMMUNITY, ODDZ) - albo None, jesli wszystkie 87 zajete. """
+    for l in LITERY:
+        if l not in uzyte:
+            return l
+    return None
+
+
+def Doliterkuj(iface, lyr=False):  # noqa
+    """ Kontynuacja literacji wydzielen - w odroznieniu od
+    shp_literkuj.Literkuj NIE dotyka wydzielen, ktore juz maja litere
+    (lub 'Lz') - przypisuje litery tylko nowo dodanym poligonom z pustym
+    polem WYDZ, pomijajac przy wyborze litery te, ktore w danej grupie
+    (MUNICIP, COMMUNITY, ODDZ) sa juz w uzyciu. Dziala na warstwie
+    przygotowanej tak samo jak do Literkuj (te same kolumny), na koniec
+    rowniez robi backup do temp/ i dissolve (scala fragmenty 'Lz'). """
     if lyr is False:
         lyr = iface.activeLayer()
 
-    lit = LITERY
-
     QgsMessageLog.logMessage(
-        '------ LITERKUJ WYDZIELENIA --------- ',
+        '------ DOLITERUJ WYDZIELENIA --------- ',
         'Las-R',
         Qgis.Info
     )
@@ -53,17 +55,13 @@ def Literkuj(iface, lyr=False):  # noqa
         )
         return False
 
-    # zdefiniuj nizbedne pola w warstwie
     pola = [
         'COMMUNITY',
         'MUNICIP',
         'WYDZ',
         'ODDZ',
     ]
-    sl = {}  # slownik z zaliterkowanymi wydz {feat.id: 'lit', ...}
-    tab = []  # tabela z danymi do sortowania kolejnosci wydz
 
-    # sprawdz czy mamy wszystkie pola w bazie
     braki = [x for x in pola if x not in [y.name() for y in lyr.fields()]]
     if len(braki) > 0:
         iface.messageBar().pushMessage(
@@ -73,7 +71,8 @@ def Literkuj(iface, lyr=False):  # noqa
             10)
         return False
 
-    fnm = lyr.dataProvider().fieldNameMap()  # slownik kolejnosci nazw w shp
+    fnm = lyr.dataProvider().fieldNameMap()
+    tab = []
     for f in lyr.getFeatures():
         tab.append([
             f.id(),
@@ -85,54 +84,69 @@ def Literkuj(iface, lyr=False):  # noqa
             f['COMMUNITY'],
         ])
 
+    # przebieg wstepny - litery juz uzyte w kazdej grupie (ODDZ, MUNICIP,
+    # COMMUNITY), zeby doliterowywanie nie nadpisalo/zduplikowalo
+    # istniejacej literacji
+    uzyte_w_grupie = {}
+    for it in tab:
+        if _ma_juz_litere(it[4]):
+            klucz = (it[3], it[5], it[6])
+            uzyte_w_grupie.setdefault(klucz, set()).add(str(it[4]))
+
     tab = sorted(tab, key=itemgetter(1), reverse=True)
     tab = sorted(tab, key=itemgetter(5))
     tab = sorted(tab, key=itemgetter(6))
     tab = sorted(tab, key=itemgetter(3))
 
-    obr = ""
-    gmi = ""
-    oddz = ""
-    iwydz = 0
+    sl = {}  # slownik z nowo doliterowanymi wydz {feat.id: {pole: wartosc}}
     message_trig = 0
 
     for it in tab:
-        if oddz != it[3]:
-            iwydz = 0
-            oddz = it[3]
-        if gmi != it[5]:
-            iwydz = 0
-            gmi = it[5]
-        if obr != it[6]:
-            iwydz = 0
-            obr = it[6]
+        wartosc = it[4]
 
-        if str(it[4]).upper() != 'LZ':
-            if not _puste(it[4]):
-                # jezeli wydz ma litere, nie zmieniamy
-                pass
-            else:
-                if iwydz < 87:
-                    wpis = lit[iwydz]
-                    iwydz += 1
-                else:
-                    wpis = "xxx"
-                    if message_trig == 0:
-                        QgsMessageLog.logMessage(
-                            'Lista wydzielen z błędnymi kodami:',
-                            'Las-R',
-                            Qgis.Warning
-                        )
-
-                    message_trig += 1
-                    QgsMessageLog.logMessage(
-                        ' '.join([str(gmi), str(obr), str(oddz), 'xxx']),
-                        'Las-R',
-                        Qgis.Warning
-                    )
-                sl[it[0]] = {fnm['WYDZ']: wpis}
-        else:
+        if str(wartosc).upper() == 'LZ':
             sl[it[0]] = {fnm['WYDZ']: 'Lz'}
+            continue
+
+        if _ma_juz_litere(wartosc):
+            # wydzielenie ma juz litere - nie ruszamy oryginalnej literacji
+            continue
+
+        klucz = (it[3], it[5], it[6])
+        uzyte = uzyte_w_grupie.setdefault(klucz, set())
+        wolna = _nastepna_wolna_litera(uzyte)
+        if wolna is None:
+            wpis = "xxx"
+            if message_trig == 0:
+                QgsMessageLog.logMessage(
+                    'Lista wydzielen z błędnymi kodami:',
+                    'Las-R',
+                    Qgis.Warning
+                )
+            message_trig += 1
+            QgsMessageLog.logMessage(
+                ' '.join([str(it[5]), str(it[6]), str(it[3]), 'xxx']),
+                'Las-R',
+                Qgis.Warning
+            )
+        else:
+            wpis = wolna
+            uzyte.add(wolna)
+
+        sl[it[0]] = {fnm['WYDZ']: wpis}
+
+    if len(sl) == 0:
+        iface.messageBar().pushMessage(
+            'OK',
+            'Nie znaleziono nowych (pustych) wydzieleń do doliterowania',
+            Qgis.Info,
+            10)
+        QgsMessageLog.logMessage(
+            '------ KONIEC -------- \n',
+            'Las-R',
+            Qgis.Info
+        )
+        return True
 
     lyr.startEditing()
     for key, val in sl.items():
@@ -152,13 +166,13 @@ def Literkuj(iface, lyr=False):  # noqa
 
         crs = QgsCoordinateReferenceSystem("epsg:2180")
 
-        # stworz kopie warstwy wydz w tempie
+        # stworz kopie warstwy wydz w tempie (przed dissolve)
         QgsVectorFileWriter.writeAsVectorFormat(
             lyr,
             os.path.join(tempkat, 'wydz_backup_'+czas+'.shp'),
             "UTF-8", crs, "ESRI Shapefile")
 
-        # zrob dissolva na warstwie wydz
+        # zrob dissolva na warstwie wydz (scala fragmenty Lz)
         processing.run("native:dissolve", {
             'INPUT': sciezka+'.shp',
             'FIELD': ['MUNICIP', 'COMMUNITY', 'ODDZ', 'WYDZ', 'GRP'],
@@ -180,7 +194,8 @@ def Literkuj(iface, lyr=False):  # noqa
 
         iface.messageBar().pushMessage(
             'OK',
-            'Warstwa zaliterkowana bez problemów (połączono Lz)',
+            'Doliterowano ' + str(len(sl)) + ' wydzieleń bez problemów '
+            '(połączono Lz)',
             Qgis.Success,
             10)
 
@@ -203,3 +218,4 @@ def Literkuj(iface, lyr=False):  # noqa
         'Las-R',
         Qgis.Info
     )
+    return True

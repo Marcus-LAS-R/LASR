@@ -44,6 +44,7 @@ from .skrypty import (
     shp_symbolizacja,
     shp_adr_les,
     shp_literkuj,
+    shp_doliterkuj,
     shp_numeruj,
     shp_sprWydzOddz,
     shp_przygCiecie,
@@ -70,7 +71,6 @@ from .skrypty import (
     baza_usun_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
-    shp_obszary_ciecia,
     shp_atlasuj_auto,
     baza_napraw_stor_spec,
     shp_polacz_teren,
@@ -83,6 +83,7 @@ from .skrypty import (
     okladka_atlas,
     baza_kontrola_dzkat,
     baza_usun_wydz,
+    shp_usun_wydz,
     baza_kontrola_slownikow_wgSULMN,
     baza_kontrola_opisow_wgSULMN,
 )
@@ -340,17 +341,17 @@ class LasR:
 
         # -----------------------------------------
 
-        self.przyg_ciec = QAction(
-            QIcon(None), "Przygotuj wydzielenia do cięcia", self.iface.mainWindow()
-        )
-        self.m_rozlicz_pow.addAction(self.przyg_ciec)
-        self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
-
         self.lacz_karty = QAction(
             QIcon(None), "Połącz pomiary od taksatorów", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.lacz_karty)
         self.lacz_karty.triggered.connect(self.polacz_pliki_teren)
+
+        self.przyg_ciec = QAction(
+            QIcon(None), "Przygotuj wydzielenia do cięcia", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.przyg_ciec)
+        self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
         self.przyg_klep = QAction(
             QIcon(None), "Sprawdź karty w wydzieleniach", self.iface.mainWindow()
@@ -358,15 +359,7 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
 
-        self.zbiorcza = QAction(
-            QIcon(None),
-            "Zbiorcza procedura [6 następnych kr.]",
-            self.iface.mainWindow(),
-        )
         self.m_rozlicz_pow.addSeparator()
-        self.m_rozlicz_pow.addAction(self.zbiorcza)
-        self.m_rozlicz_pow.addSeparator()
-        self.zbiorcza.triggered.connect(self.zbiorczy_poczatek)
 
         self.zanum = QAction(QIcon(None), "Zanumeruj oddziały", self.iface.mainWindow())
         self.m_rozlicz_pow.addAction(self.zanum)
@@ -414,11 +407,19 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_rap)
         self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
+        self.m_rozlicz_pow.addSeparator()
+
         self.a_fstspec = QAction(
             QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.a_fstspec)
         self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
+
+        self.dop_fo = QAction(
+            QIcon(None), "Dopisz formy ochrony", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.dop_fo)
+        self.dop_fo.triggered.connect(self.dopisz_f_ochr)
 
         self.dop_zab_nowe = QAction(
             QIcon(None), "Zabiegi dopisz/sprawdź", self.iface.mainWindow()
@@ -428,17 +429,23 @@ class LasR:
 
         self.m_rozlicz_pow.addSeparator()
 
-        self.dop_fo = QAction(
-            QIcon(None), "Dopisz formy ochrony", self.iface.mainWindow()
+        self.dolit = QAction(
+            QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
         )
-        self.m_rozlicz_pow.addAction(self.dop_fo)
-        self.dop_fo.triggered.connect(self.dopisz_f_ochr)
+        self.m_rozlicz_pow.addAction(self.dolit)
+        self.dolit.triggered.connect(self.doliterkuj_wydzielenia)
 
-        self.przelit = QAction(
-            QIcon(None), "Przeliterkuj (Całość)", self.iface.mainWindow()
+        self.kasr = QAction(
+            QIcon(None), "Skasuj wydz w bazie [wydz]", self.iface.mainWindow()
         )
-        self.m_rozlicz_pow.addAction(self.przelit)
-        self.przelit.triggered.connect(self.przeliterkuj)
+        self.m_rozlicz_pow.addAction(self.kasr)
+        self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
+
+        self.kasw = QAction(
+            QIcon(None), "Skasuj wydzielenia w warstwie", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.kasw)
+        self.kasw.triggered.connect(self.skasuj_wydzielenia_z_warstwy)
 
         self.klon = QAction(
             QIcon(None), "Klonuj wydzielenia w bazie", self.iface.mainWindow()
@@ -446,11 +453,11 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.klon)
         self.klon.triggered.connect(self.klonuj)
 
-        self.kasr = QAction(
-            QIcon(None), "Skasuj wydz w bazie [wydz]", self.iface.mainWindow()
+        self.przelit = QAction(
+            QIcon(None), "Przeliterkuj (Całość)", self.iface.mainWindow()
         )
-        self.m_rozlicz_pow.addAction(self.kasr)
-        self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
+        self.m_rozlicz_pow.addAction(self.przelit)
+        self.przelit.triggered.connect(self.przeliterkuj)
         # ----------------------------------------
 
         self.a_aktualizacja_baz = QAction(
@@ -525,12 +532,6 @@ class LasR:
         self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
         self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
-
-        self.a_obszary_ciecia = QAction(
-            QIcon(None), "Obszary do przeglądu cięcia", self.iface.mainWindow()
-        )
-        self.m_kontrola_danych.addAction(self.a_obszary_ciecia)
-        self.a_obszary_ciecia.triggered.connect(self.obszary_ciecia)
 
         # ------------------------------------
 
@@ -1064,6 +1065,9 @@ class LasR:
     def zaliterkuj(self):
         shp_literkuj.Literkuj(self.iface)
 
+    def doliterkuj_wydzielenia(self):
+        shp_doliterkuj.Doliterkuj(self.iface)
+
     def przeliterkuj(self):
         p = baza_przeliterkuj.Przeliterkuj(self.iface)
         if not p.sprawdz_warstwe():
@@ -1238,18 +1242,6 @@ class LasR:
         sp.przetworz()
         sp.raport_spis_kart()
 
-    def obszary_ciecia(self):
-        o = shp_obszary_ciecia.ObszaryCiecia(self.iface)
-        if not o.wybierz_warstwe():
-            return
-        ile = o.generuj_siatke()
-        if ile == 0:
-            o.wyswietl_info(ile)
-            return
-        if not o.zapisz_warstwe():
-            return
-        o.wyswietl_info(ile)
-
     def pokaz_layout(self):
         funkcje.otworz_kompozycje(self.iface)
 
@@ -1358,6 +1350,9 @@ class LasR:
 
     def skasuj_rekordy_w_bazie_lyr(self):
         baza_usun_wydz.usun_wydz(self.iface)
+
+    def skasuj_wydzielenia_z_warstwy(self):
+        shp_usun_wydz.usun_wydz_z_warstwy(self.iface)
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)

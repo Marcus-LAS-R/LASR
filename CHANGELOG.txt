@@ -4,8 +4,117 @@ Format: DATA | SKRYPT | OPIS ZMIAN
 ================================================================================
 
 ================================================================================
-WERSJA 2.0c (2026-06-17)
+WERSJA 2.0d (2026-06-25)
 ================================================================================
+
+2026-06-25 | baza_wrapper.py             | Baza.utworz_kopie() (kopia bazy
+           |                             | przed ryzykowną operacją, używana w
+           |                             | 13 skryptach: dopisz_ownership,
+           |                             | dopisz_rosliny, klonuj_wydz, dopisz_
+           |                             | fochr, dopisz_pnsw, napraw_stor_
+           |                             | spec, przeliterkuj, rozlicz_pow_
+           |                             | wydz, usun_op, usun_nieLs, popraw_LS
+           |                             | x2, zabiegi/main.py x2) zapisuje
+           |                             | teraz kopię do folderu Kopie_
+           |                             | manipulacyjne (w katalogu bazy),
+           |                             | tworzonego jeśli nie istnieje -
+           |                             | wcześniej kopia lądowała płasko w
+           |                             | katalogu bazy. Format nazwy pliku
+           |                             | kopii (sufiks_znacznikczasu) bez
+           |                             | zmian.
+
+2026-06-25 | kopie_manipulacyjne.py      | Nowy wspólny moduł: przed kasowaniem
+           | baza_usun_wydz.py           | wydzieleń (z warstwy lub z bazy)
+           | shp_usun_wydz.py            | tworzy folder Kopie_manipulacyjne/
+           |                             | <nazwa_czynności>_<data_godzina>/
+           |                             | w katalogu bazy (poziom projektu)
+           |                             | i kopiuje tam niezmieniony komplet:
+           |                             | całą bazę + wszystkie pliki SHP
+           |                             | (shp/shx/dbf/prj/...) powiązanych
+           |                             | warstw. Zastąpiono: w shp_usun_wydz
+           |                             | osobny zapis kopii do temp/ (przez
+           |                             | QgsVectorFileWriter), w baza_usun_
+           |                             | wydz wywołanie Baza.utworz_kopie()
+           |                             | (zostaje, używana gdzie indziej).
+           |                             | Jeśli kopia się nie powiedzie, oba
+           |                             | skrypty przerywają - nic nie kasują.
+
+2026-06-25 | shp_usun_wydz.py            | Nowy skrypt "Skasuj wydzielenia w
+           | las_r.py                    | warstwie" (Rozliczenie powierzchni,
+           |                             | zaraz po "Skasuj wydz w bazie
+           |                             | [wydz]") - odwrotność tamtego:
+           |                             | baza jest punktem odniesienia,
+           |                             | usuwa z warstwy WYDZ (i powiązanych
+           |                             | po ADR_BDL=ADR_LES poligonów PNSW,
+           |                             | jeśli wczytana w TOC) wydzielenia,
+           |                             | których nie ma w bazie. Dialog
+           |                             | potwierdzający (Tak/Nie, domyślnie
+           |                             | Nie) z ostrzeżeniem o trwałym
+           |                             | usunięciu + ostrzeżenie, jeśli to
+           |                             | 100% warstwy. Backup do temp/ przed
+           |                             | usunięciem (jak w shp_literkuj.py).
+
+2026-06-25 | baza_usun_wydz.py           | "Skasuj wydz w bazie [wydz]":
+           | baza_wrapper.py             | dialog potwierdzający (Tak/Nie,
+           |                             | domyślnie Nie) przed usunięciem,
+           |                             | wyraźnie ostrzega że wydzielenia
+           |                             | zostaną TRWALE usunięte + ostrzeże-
+           |                             | nie jeśli to 100% wydzieleń w bazie
+           |                             | (jak w shp_usun_wydz.py); walidacja
+           |                             | warstwy/kolumny ADR_LES na wejściu;
+           |                             | usun_rekordy() to teraz jedna
+           |                             | transakcja (rollback przy błędzie,
+           |                             | wcześniej commit po każdym DELETE
+           |                             | bez ochrony w fazach oddz/leśnictwo);
+           |                             | fix substring-match->prefix-match
+           |                             | przy szukaniu pustych oddz/leśnictw;
+           |                             | print()->QgsMessageLog; usunięto
+           |                             | nieużywane importy i martwy kod.
+
+2026-06-25 | shp_literkuj.py             | Literkuj(): fix - brakujący return
+           |                             | False po niepoprawnej warstwie (kod
+           |                             | jechał dalej mimo błędu); fix - sprawd-
+           |                             | zanie "czy WYDZ ma już literę" myliło
+           |                             | prawdziwy NULL z wartością wypełnioną
+           |                             | (str(None) != None/'NULL' w starym
+           |                             | warunku) - nowa funkcja _puste()
+           |                             | sprawdza None przed rzutowaniem na str.
+
+2026-06-25 | shp_doliterkuj.py           | Nowy skrypt "Doliteruj wydzielenia"
+           | shp_literkuj.py             | (Rozliczenie powierzchni, po ostatnim
+           | las_r.py                    | separatorze): kontynuacja literacji -
+           |                             | przypisuje litery TYLKO nowym
+           |                             | poligonom z pustym WYDZ, nie dotyka
+           |                             | już zaliterkowanych wydzieleń. Litery
+           |                             | dobierane z pominięciem tych już
+           |                             | zajętych w grupie (MUNICIP,
+           |                             | COMMUNITY, ODDZ) - bez duplikatów.
+           |                             | Na końcu backup+dissolve jak w
+           |                             | Literkuj. Lista LITERY wyniesiona
+           |                             | z shp_literkuj.py do wspólnego użycia.
+
+2026-06-25 | shp_sprawdz_ciecie.py       | "Stwórz raport kart do klepania"
+           |                             | zapisuje teraz raport_nr_robocze
+           |                             | jako .xlsx (openpyxl) zamiast .csv
+           |                             | (tab-separated).
+
+2026-06-25 | las_r.py                    | Submenu "Rozliczenie powierzchni"
+           |                             | przestawione (nowa kolejność pozycji)
+           |                             | i usunięta pozycja "Zbiorcza
+           |                             | procedura [6 następnych kr.]".
+           |                             | Metoda zbiorczy_poczatek() zostaje
+           |                             | w kodzie jako nieużywana (martwy
+           |                             | kod, na wypadek przywrócenia).
+
+2026-06-25 | shp_przygCiecie.py          | "Przygotuj wydzielenia do cięcia"
+           | shp_obszary_ciecia.py       | generuje teraz automatycznie też
+           | las_r.py                    | warstwę OBSZARY_CIECIA na świeżo
+           |                             | utworzonym WYDZ - usunięto osobną
+           |                             | pozycję menu "Obszary do przeglądu
+           |                             | cięcia" (Kontrola danych), funkcja
+           |                             | działa wyłącznie zintegrowana.
+           |                             | wybierz_warstwe() przyjmuje teraz
+           |                             | opcjonalną warstwę jako argument.
 
 2026-06-22 | shp_obszary_ciecia.py       | Nowy skrypt "Obszary do przeglądu
            |                             | cięcia" (menu Kontrola danych):
@@ -308,6 +417,10 @@ WERSJA 2.0c (2026-06-17)
            |                             | (przez createOptions=fileEncoding na
            |                             | OUTPUT) — wcześniej zależało od
            |                             | domyślnego kodowania w QGIS
+
+================================================================================
+WERSJA 2.0c (2026-06-17)
+================================================================================
 
 2026-06-17 | qgis-auth.db                | Usunięto ze śledzenia w repo (plik bazy
            | .gitignore                  | autoryzacji QGIS — mógł zawierać dane

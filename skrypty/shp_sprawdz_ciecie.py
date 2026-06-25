@@ -3,6 +3,8 @@ import glob
 import platform
 from collections import Counter
 
+import openpyxl
+
 from qgis.core import QgsProject, QgsSpatialIndex, QgsFeatureRequest, \
     QgsMessageLog, QgsWkbTypes, QgsVectorLayer, Qgis, QgsField
 
@@ -160,7 +162,7 @@ class SprawdzCiecie:
             adm.update({x[4]+x[5]: x[3] for x in pob})
             b.zamknij()
 
-        rap_out = 'MUNICIP\tCOMMUNITY\tODDZ\tWYDZ\tNR_ROBO\tOBR\n'
+        naglowki = ['MUNICIP', 'COMMUNITY', 'ODDZ', 'WYDZ', 'NR_ROBO', 'OBR']
         tab = []
 
         for k, val in self.slkart.items():
@@ -184,9 +186,14 @@ class SprawdzCiecie:
                 t = [tp + ['---', obr]]
             tab += t
         tout = sorted(tab, key=lambda x: ''.join(x[:3])+x[3][::-1])
-        rap_out += '\n'.join((['\t'.join(x) for x in tout]))
-        open(os.path.join(self.kat, '..',
-                          'raport_nr_robocze.csv'), 'w').write(rap_out)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Raport kart'
+        ws.append(naglowki)
+        for wiersz in tout:
+            ws.append(wiersz)
+        wb.save(os.path.join(self.kat, '..', 'raport_nr_robocze.xlsx'))
 
         self.iface.messageBar().pushSuccess(
             'OK', 'Zapisano raport z kartami'

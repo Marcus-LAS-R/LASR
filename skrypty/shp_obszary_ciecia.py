@@ -17,6 +17,9 @@ class ObszaryCiecia:
     Go2NextFeature), żeby sprawdzić, czy podział na poletka/etaty cięcia
     wykonano poprawnie. Kafle mogą się nachodzić, jeśli wydzielenia leżą
     blisko siebie - każde wydzielenie zostaje w całości w jednym kaflu.
+
+    Wywoływana automatycznie z shp_przygCiecie.przygotuj_wydz_do_ciecia
+    na świeżo utworzonej warstwie WYDZ (brak osobnej pozycji w menu).
     """
 
     PAPIER_MM = [297, 420]  # A3
@@ -30,8 +33,11 @@ class ObszaryCiecia:
         self.rozm = []  # rozmiar kafla w metrach [x, y], w poziomie
         self.lyr = False
 
-    def wybierz_warstwe(self):
-        self.wydz = self.iface.activeLayer()
+    def wybierz_warstwe(self, wydz=None):
+        """ `wydz` pozwala podać warstwę programowo (np. z poziomu
+        innego skryptu, tuż po jej utworzeniu) - bez tego brana jest
+        aktywna warstwa w QGIS-ie. """
+        self.wydz = wydz if wydz is not None else self.iface.activeLayer()
         if self.wydz is None or self.wydz.wkbType() not in [3, 6]:
             self.iface.messageBar().pushWarning(
                 'Obszary cięcia',

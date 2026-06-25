@@ -5,7 +5,7 @@ import pyodbc
 import sqlite3
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtCore import QVariant
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsMessageLog
 from datetime import datetime
 from shutil import copyfile
 from collections import Counter
@@ -167,20 +167,24 @@ class Baza(object):
             return False
 
     def utworz_kopie(self, wpis="", debug=False):
-        """Metoda tworzy w katalogu z podana baza kopie bezpieczenstwa ze
-        znacznikiem czasu oraz ew podanym wpisem"""
+        """Metoda tworzy kopie bezpieczenstwa bazy (ze znacznikiem czasu
+        oraz ew. podanym wpisem) w folderze Kopie_manipulacyjne, w katalogu
+        z podana baza - folder jest tworzony, jesli jeszcze nie istnieje"""
         katalog, plik = os.path.split(self.baza)
+        kat_kopii = os.path.join(katalog, 'Kopie_manipulacyjne')
+        if not os.path.isdir(kat_kopii):
+            os.mkdir(kat_kopii)
 
         if self.baza[-3:].upper() == "MDB":
             plikn = plik[:-4] + "_" + wpis + "_" + self.czas + ".mdb"
         else:
             plikn = plik[:-7] + "_" + wpis + "_" + self.czas + ".sqlite"
 
-        copyfile(self.baza, os.path.join(katalog, plikn))
+        copyfile(self.baza, os.path.join(kat_kopii, plikn))
 
         # debug
         if debug:
-            self.baza = os.path.join(katalog, plikn)
+            self.baza = os.path.join(kat_kopii, plikn)
 
         self.zamknij()
         self.polacz()
@@ -1239,81 +1243,84 @@ class Baza(object):
         return self.pobierz(sql)
 
     def usun_rekordy(self, do_usun: list) -> bool:
-        try:
-            # Pobierz numery ARODES_INT_NUM do usunięcia
-            wyniki = do_usun
-            if not wyniki:
-                print("Brak rekordów do usunięcia.")
-                return False
-
-            numery = wyniki
-            if not numery:
-                print("Lista numerów do usunięcia jest pusta.")
-                return False
-
-            tabele = [
-                "F_STOREY_SPECIES",
-                "F_AROD_CUE",
-                "F_AROD_STOREY",
-                "F_SUBAREA",
-                "F_ERROR_HEAD",
-                "F_SET",
-                "F_ARODES",
-            ]
-
-            for tabela in tabele:
-                sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
-                for numer in numery:
-                    self.cur.execute(sql_usun, (numer,))
-                    self.con.commit()
-            print(f"Usunięto rekordy z tabeli {tabela}.")
-            # return True
-        except Exception as e:
-            print(f"Błąd: {e}")
+        """ Usuwa z bazy wskazane wydzielenia (po ARODES_INT_NUM), a
+        nastepnie kaskadowo usuwa oddzialy i lesnictwa, ktore przez to
+        zostaly puste (zostal po nich tylko sam rekord adresowy, bez
+        zadnego nizej polozonego wpisu). Cala operacja to JEDNA transakcja
+        - blad w jakiejkolwiek fazie wycofuje wszystkie zmiany (commit
+        tylko raz, na koncu, po powodzeniu wszystkich faz). """
+        if not do_usun:
+            QgsMessageLog.logMessage(
+                'usun_rekordy: brak rekordów do usunięcia', 'Las-R',
+                Qgis.Warning
+            )
             return False
 
-        # usun oddzialy puste
-        sql = """select
-                    ADRESS_FOREST,
-                    ARODES_INT_NUM
-                from
-                    F_ARODES
-              where ARODES_TYP_CD = 'ODDZ' or ARODES_TYP_CD = 'WYDZIEL';
-                    """
-        tab = self.cur.execute(sql).fetchall()
-        oddz = Counter([x[0][:16] for x in tab])
-        oddz_poj = [kk for kk, vv in oddz.items() if vv == 1]
-        usun_oddz = [vi for ki, vi in tab if len([x for x in oddz_poj if x in ki]) > 0]
-
-        sql_usun = f"DELETE FROM F_ARODES WHERE ARODES_INT_NUM = ?"
-        tabele = [
+        tabele_wydz = [
+            "F_STOREY_SPECIES",
+            "F_AROD_CUE",
+            "F_AROD_STOREY",
+            "F_SUBAREA",
             "F_ERROR_HEAD",
             "F_SET",
             "F_ARODES",
         ]
-        for tabela in tabele:
-            sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ? ;"
-            for ki in usun_oddz:
-                self.cur.execute(sql_usun, (ki,))
-                self.con.commit()
+        tabele_oddz_les = [
+            "F_ERROR_HEAD",
+            "F_SET",
+            "F_ARODES",
+        ]
 
-        # usun lesnictwa
-        sql = """select
-                    ADRESS_FOREST,
-                    ARODES_INT_NUM
-                from
-                    F_ARODES
-                    """
-        tab = self.cur.execute(sql).fetchall()
-        les = Counter([x[0][:10] for x in tab])
-        les_poj = [kk for kk, vv in les.items() if vv == 1]
-        print(les_poj)
-        usun_les = [vi for ki, vi in tab if len([x for x in les_poj if x in ki]) == 1]
+        try:
+            for tabela in tabele_wydz:
+                sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
+                for numer in do_usun:
+                    self.cur.execute(sql_usun, (numer,))
 
-        for tabela in tabele:
-            sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
-            for ki in usun_les:
-                self.cur.execute(sql_usun, (ki,))
-                self.con.commit()
+            # usun oddzialy, ktore przez usuniecie wydzielen zostaly puste
+            # (prefiks adresu - 16 pierwszych znakow - identyfikuje oddzial;
+            # jezeli po usunieciu zostal pod nim tylko 1 rekord [sam ODDZ,
+            # bez zadnego WYDZIEL], oddzial jest pusty)
+            tab = self.cur.execute(
+                "select ADRESS_FOREST, ARODES_INT_NUM from F_ARODES "
+                "where ARODES_TYP_CD = 'ODDZ' or ARODES_TYP_CD = 'WYDZIEL'"
+            ).fetchall()
+            oddz = Counter([x[0][:16] for x in tab])
+            oddz_puste = {kk for kk, vv in oddz.items() if vv == 1}
+            usun_oddz = [vi for ki, vi in tab if ki[:16] in oddz_puste]
 
+            for tabela in tabele_oddz_les:
+                sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
+                for numer in usun_oddz:
+                    self.cur.execute(sql_usun, (numer,))
+
+            # usun lesnictwa, ktore przez to zostaly puste (prefiks 10
+            # znakow, ta sama logika co dla oddzialow, ale o poziom wyzej)
+            tab = self.cur.execute(
+                "select ADRESS_FOREST, ARODES_INT_NUM from F_ARODES"
+            ).fetchall()
+            les = Counter([x[0][:10] for x in tab])
+            les_puste = {kk for kk, vv in les.items() if vv == 1}
+            usun_les = [vi for ki, vi in tab if ki[:10] in les_puste]
+
+            for tabela in tabele_oddz_les:
+                sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
+                for numer in usun_les:
+                    self.cur.execute(sql_usun, (numer,))
+
+            self.con.commit()
+        except Exception as e:
+            self.con.rollback()
+            QgsMessageLog.logMessage(
+                f'usun_rekordy: błąd, wycofano wszystkie zmiany: {e}',
+                'Las-R', Qgis.Critical
+            )
+            return False
+
+        QgsMessageLog.logMessage(
+            f'usun_rekordy: usunięto {len(do_usun)} wydzieleń, '
+            f'{len(usun_oddz)} opróżnionych oddziałów, '
+            f'{len(usun_les)} opróżnionych leśnictw',
+            'Las-R', Qgis.Info
+        )
         return True
