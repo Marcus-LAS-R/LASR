@@ -18,20 +18,20 @@
     <icon></icon>
   </pyqgis_plugin>
 
-  <pyqgis_plugin name="LCH LAS-R" version="1.09">
-    <description>Plugin ułatwiający generowanie map dla UPUL</description>
-    <about>Plugin ułatwiający generowanie map dla UPUL</about>
-    <version>1.09</version>
-    <qgis_minimum_version>3.6</qgis_minimum_version>
+  <pyqgis_plugin name="LCH LAS-R" version="2.0a">
+    <description>Plugin ułatwiający generowanie map dla UPUL (Uproszczone Plany Urządzania Lasu)</description>
+    <about>Plugin ułatwiający generowanie map dla UPUL (Uproszczone Plany Urządzania Lasu)</about>
+    <version>2.0a</version>
+    <qgis_minimum_version>3.11</qgis_minimum_version>
     <homepage>https://github.com/Marcus-LAS-R/LCH</homepage>
     <file_name>lch.zip</file_name>
-    <author_name>LAS-R</author_name>
-    <download_url>https://github.com/Marcus-LAS-R/LCH/releases/download/v1.09/lch.zip</download_url>
+    <author_name>Paweł Krąpiec, Marek Młynarczyk</author_name>
+    <download_url>https://github.com/Marcus-LAS-R/LCH/releases/download/v2.0a/lch.zip</download_url>
     <experimental>False</experimental>
     <deprecated>False</deprecated>
     <tracker>https://github.com/Marcus-LAS-R/LCH/issues</tracker>
     <repository>https://github.com/Marcus-LAS-R/LCH</repository>
-    <tags>las, upul, mapy</tags>
+    <tags>las, upul, urządzanie lasu</tags>
     <category>Plugins</category>
     <icon></icon>
   </pyqgis_plugin>
