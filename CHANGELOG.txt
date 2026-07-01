@@ -1,942 +1,353 @@
-LASR - CHANGELOG
-================================================================================
-Format: DATA | SKRYPT | OPIS ZMIAN
-================================================================================
+CHANGELOG — Wtyczka Las-R
+==============================
 
-================================================================================
-WERSJA 2.0d (2026-06-25)
-================================================================================
+Wersja 2.1 — 2026-07-01 — pierwsze wydanie produkcyjne (koniec fazy beta)
+------------------------------------------------
 
-2026-06-25 | raport_wyciagi.py            | 1) Lista współwłaścicieli: wysokość
-            |                             | wiersza była liczona z heurystyki
-            |                             | długość_tekstu>33 znaki, która źle
-            |                             | przewidywała realne zawijanie tekstu w
-            |                             | Arial 7pt (czcionka nie jest
-            |                             | monospace) - większość wierszy
-            |                             | dostawała niepotrzebnie 6mm wysokości,
-            |                             | co dawało puste miejsce pod krótszymi
-            |                             | podpisami w tym wierszu. Teraz
-            |                             | mierzona jest realna szerokość tekstu
-            |                             | (QFontMetricsF, kalibrowane na 300
-            |                             | DPI) i porównywana z faktycznie
-            |                             | dostępną szerokością kolumny (49mm) -
-            |                             | to samo dotyczy decyzji o skracaniu
-            |                             | imienia do inicjału (wcześniej brała
-            |                             | pod uwagę tylko długość
-            |                             | nazwiska+imienia, ignorując długość
-            |                             | samego udziału w nawiasie). 2)
-            |                             | _wybierz_feats robił pełny skan
-            |                             | atrybutowy warstwy inter/dz
-            |                             | (QgsExpression+getFeatures) dla każdej
-            |                             | działki każdego właściciela - bardzo
-            |                             | kosztowne przy wielu właścicielach.
-            |                             | Zamieniono na jednorazowy indeks
-            |                             | (słownik MUNICIP/COMMUNITY/PARCELNR ->
-            |                             | featurki) budowany raz na starcie
-            |                             | generowania - wyszukiwanie działki to
-            |                             | teraz lookup O(1) zamiast skanu całej
-            |                             | warstwy. 3) naprawiono też wyciek
-            |                             | pamięci w rysuj() - "for x in
-            |                             | warstwy_klastrow: del x" nie usuwało
-            |                             | nic z listy (czyściło tylko lokalną
-            |                             | referencję w pętli), więc tymczasowe
-            |                             | warstwy mapowe tworzone dla każdego
-            |                             | klastra rosły bez końca w pamięci przy
-            |                             | generowaniu wielu właścicieli pod
-            |                             | rząd; teraz listy są realnie
-            |                             | czyszczone (.clear()).
+Wtyczka opuszcza fazę beta. Numer wersji podniesiony z 2.0d na 2.1 — wszystkie
+funkcje i poprawki z serii 2.0a–2.0d (patrz niżej) są już częścią tego
+wydania i zostały sprawdzone w codziennej pracy. Brak dodatkowych zmian
+funkcjonalnych względem 2.0d — to wydanie porządkuje numerację przed dalszym
+rozwojem wtyczki.
 
-2026-06-25 | baza_wrapper.py             | Baza.utworz_kopie() (kopia bazy
-           |                             | przed ryzykowną operacją, używana w
-           |                             | 13 skryptach: dopisz_ownership,
-           |                             | dopisz_rosliny, klonuj_wydz, dopisz_
-           |                             | fochr, dopisz_pnsw, napraw_stor_
-           |                             | spec, przeliterkuj, rozlicz_pow_
-           |                             | wydz, usun_op, usun_nieLs, popraw_LS
-           |                             | x2, zabiegi/main.py x2) zapisuje
-           |                             | teraz kopię do folderu Kopie_
-           |                             | manipulacyjne (w katalogu bazy),
-           |                             | tworzonego jeśli nie istnieje -
-           |                             | wcześniej kopia lądowała płasko w
-           |                             | katalogu bazy. Format nazwy pliku
-           |                             | kopii (sufiks_znacznikczasu) bez
-           |                             | zmian.
+==============================
 
-2026-06-25 | kopie_manipulacyjne.py      | Nowy wspólny moduł: przed kasowaniem
-           | baza_usun_wydz.py           | wydzieleń (z warstwy lub z bazy)
-           | shp_usun_wydz.py            | tworzy folder Kopie_manipulacyjne/
-           |                             | <nazwa_czynności>_<data_godzina>/
-           |                             | w katalogu bazy (poziom projektu)
-           |                             | i kopiuje tam niezmieniony komplet:
-           |                             | całą bazę + wszystkie pliki SHP
-           |                             | (shp/shx/dbf/prj/...) powiązanych
-           |                             | warstw. Zastąpiono: w shp_usun_wydz
-           |                             | osobny zapis kopii do temp/ (przez
-           |                             | QgsVectorFileWriter), w baza_usun_
-           |                             | wydz wywołanie Baza.utworz_kopie()
-           |                             | (zostaje, używana gdzie indziej).
-           |                             | Jeśli kopia się nie powiedzie, oba
-           |                             | skrypty przerywają - nic nie kasują.
+Wersja 2.0d — zmiany wprowadzone 18–25.06.2026
+------------------------------------------------
 
-2026-06-25 | shp_usun_wydz.py            | Nowy skrypt "Skasuj wydzielenia w
-           | las_r.py                    | warstwie" (Rozliczenie powierzchni,
-           |                             | zaraz po "Skasuj wydz w bazie
-           |                             | [wydz]") - odwrotność tamtego:
-           |                             | baza jest punktem odniesienia,
-           |                             | usuwa z warstwy WYDZ (i powiązanych
-           |                             | po ADR_BDL=ADR_LES poligonów PNSW,
-           |                             | jeśli wczytana w TOC) wydzielenia,
-           |                             | których nie ma w bazie. Dialog
-           |                             | potwierdzający (Tak/Nie, domyślnie
-           |                             | Nie) z ostrzeżeniem o trwałym
-           |                             | usunięciu + ostrzeżenie, jeśli to
-           |                             | 100% warstwy. Backup do temp/ przed
-           |                             | usunięciem (jak w shp_literkuj.py).
+### Nowe funkcje
 
-2026-06-25 | baza_usun_wydz.py           | "Skasuj wydz w bazie [wydz]":
-           | baza_wrapper.py             | dialog potwierdzający (Tak/Nie,
-           |                             | domyślnie Nie) przed usunięciem,
-           |                             | wyraźnie ostrzega że wydzielenia
-           |                             | zostaną TRWALE usunięte + ostrzeże-
-           |                             | nie jeśli to 100% wydzieleń w bazie
-           |                             | (jak w shp_usun_wydz.py); walidacja
-           |                             | warstwy/kolumny ADR_LES na wejściu;
-           |                             | usun_rekordy() to teraz jedna
-           |                             | transakcja (rollback przy błędzie,
-           |                             | wcześniej commit po każdym DELETE
-           |                             | bez ochrony w fazach oddz/leśnictwo);
-           |                             | fix substring-match->prefix-match
-           |                             | przy szukaniu pustych oddz/leśnictw;
-           |                             | print()->QgsMessageLog; usunięto
-           |                             | nieużywane importy i martwy kod.
+1. SKASUJ WYDZIELENIA W WARSTWIE (shp_usun_wydz.py — nowy plik)
+   - Nowa pozycja menu w "Rozliczenie powierzchni": "Skasuj wydzielenia w warstwie"
+   - Baza jest punktem odniesienia — skrypt usuwa z warstwy WYDZ (i powiązanych
+     poligonów PNSW) te wydzielenia, których nie ma w bazie
+   - Dialog potwierdzający (domyślnie "Nie") z wyraźnym ostrzeżeniem o trwałym
+     usunięciu, dodatkowe ostrzeżenie, jeśli dotyczy 100% warstwy
+   - Kopia bezpieczeństwa tworzona automatycznie przed usunięciem
 
-2026-06-25 | shp_literkuj.py             | Literkuj(): fix - brakujący return
-           |                             | False po niepoprawnej warstwie (kod
-           |                             | jechał dalej mimo błędu); fix - sprawd-
-           |                             | zanie "czy WYDZ ma już literę" myliło
-           |                             | prawdziwy NULL z wartością wypełnioną
-           |                             | (str(None) != None/'NULL' w starym
-           |                             | warunku) - nowa funkcja _puste()
-           |                             | sprawdza None przed rzutowaniem na str.
+2. DOLITERUJ WYDZIELENIA (shp_doliterkuj.py — nowy plik)
+   - Nowa pozycja menu: "Doliteruj wydzielenia" — kontynuacja literowania po
+     dopisaniu nowych poligonów do warstwy
+   - Przypisuje litery TYLKO nowym, pustym wydzieleniom — nie rusza już
+     zaliterowanych
+   - Litery dobierane bez powtórzeń w obrębie tej samej grupy (gmina, obręb,
+     oddział)
 
-2026-06-25 | shp_doliterkuj.py           | Nowy skrypt "Doliteruj wydzielenia"
-           | shp_literkuj.py             | (Rozliczenie powierzchni, po ostatnim
-           | las_r.py                    | separatorze): kontynuacja literacji -
-           |                             | przypisuje litery TYLKO nowym
-           |                             | poligonom z pustym WYDZ, nie dotyka
-           |                             | już zaliterkowanych wydzieleń. Litery
-           |                             | dobierane z pominięciem tych już
-           |                             | zajętych w grupie (MUNICIP,
-           |                             | COMMUNITY, ODDZ) - bez duplikatów.
-           |                             | Na końcu backup+dissolve jak w
-           |                             | Literkuj. Lista LITERY wyniesiona
-           |                             | z shp_literkuj.py do wspólnego użycia.
+3. ZINTEGROWANE OBSZARY DO PRZEGLĄDU CIĘCIA (shp_obszary_ciecia.py,
+   shp_przygCiecie.py)
+   - "Przygotuj wydzielenia do cięcia" generuje teraz automatycznie warstwę
+     OBSZARY_CIECIA — kafle do przeglądu wydzieleń feature-by-feature (np.
+     wtyczką Go2NextFeature)
+   - Osobna pozycja menu "Obszary do przeglądu cięcia" została usunięta —
+     funkcja działa teraz wyłącznie w ramach przygotowania do cięcia
 
-2026-06-25 | shp_sprawdz_ciecie.py       | "Stwórz raport kart do klepania"
-           |                             | zapisuje teraz raport_nr_robocze
-           |                             | jako .xlsx (openpyxl) zamiast .csv
-           |                             | (tab-separated).
+4. ATLASUJ AUTOMATYCZNIE (shp_atlasuj_auto.py — nowy plik)
+   - Nowa pozycja menu (pasek, obok "Numeruj pola atlasu"): numeracja pól
+     atlasowych (STRONA) generowana automatycznie, bez ręcznej digitalizacji
+     linii
+   - Kafle liczone nowym, wspólnym mechanizmem kafelkowania (kafelkowanie.py)
 
-2026-06-25 | las_r.py                    | Submenu "Rozliczenie powierzchni"
-           |                             | przestawione (nowa kolejność pozycji)
-           |                             | i usunięta pozycja "Zbiorcza
-           |                             | procedura [6 następnych kr.]".
-           |                             | Metoda zbiorczy_poczatek() zostaje
-           |                             | w kodzie jako nieużywana (martwy
-           |                             | kod, na wypadek przywrócenia).
+5. KONTROLA LS W BAZIE — DUPLIKATY/ZERA (baza_popraw_LS.py — nowy skrypt,
+   menu "Kontrola Ls z bazą")
+   - Sprawdza wybrany katalog baz pod kątem zdublowanych użytków (domyślnie
+     tylko Ls, opcjonalnie wszystkie) oraz rekordów z zerową powierzchnią
+   - Generuje raport TXT; na razie tylko kontrola, bez automatycznej naprawy
 
-2026-06-25 | shp_przygCiecie.py          | "Przygotuj wydzielenia do cięcia"
-           | shp_obszary_ciecia.py       | generuje teraz automatycznie też
-           | las_r.py                    | warstwę OBSZARY_CIECIA na świeżo
-           |                             | utworzonym WYDZ - usunięto osobną
-           |                             | pozycję menu "Obszary do przeglądu
-           |                             | cięcia" (Kontrola danych), funkcja
-           |                             | działa wyłącznie zintegrowana.
-           |                             | wybierz_warstwe() przyjmuje teraz
-           |                             | opcjonalną warstwę jako argument.
+6. USUŃ DZIAŁKI BEZ LS (baza_usun_nieLs.py — nowy plik, menu "Kasuj nie-Ls")
+   - Usuwa z bazy wszystkie działki, na których nie występuje żaden użytek Ls,
+     wraz z powiązanymi wpisami
+   - Kopia bazy tworzona automatycznie przed czyszczeniem
 
-2026-06-22 | shp_obszary_ciecia.py       | Nowy skrypt "Obszary do przeglądu
-           |                             | cięcia" (menu Kontrola danych):
-           |                             | generuje warstwę OBSZARY_CIECIA -
-           |                             | kafle A3/poziomo, 1:12000 do
-           |                             | przeglądu wydzieleń WYDZ feature-by-
-           |                             | feature wtyczką Go2NextFeature.
-           |                             | Każde wydzielenie w całości w jednym
-           |                             | kaflu (kafle mogą się nachodzić).
+### Poprawki i ulepszenia
 
-2026-06-22 | kafelkowanie.py             | Nowy, wspólny moduł z logiką
-           |                             | pokrywania zbioru bbox minimalną
-           |                             | liczbą kafli o ustalonym rozmiarze
-           |                             | (pokryj_kaflami, rozmiar_kafla_z_
-           |                             | skali) - bez zależności od qgis.core.
-           |                             | Algorytm zachłanny max-coverage
-           |                             | (sweep-line) + centrowanie kafla na
-           |                             | obwiedni faktycznie pokrytych
-           |                             | obiektów. Używane przez
-           |                             | shp_obszary_ciecia.py i
-           |                             | shp_atlasuj_auto.py.
+7. WYCIĄGI DLA WŁAŚCICIELI (raport_wyciagi.py)
+   - Poprawiono wysokość wierszy w liście współwłaścicieli — dotychczasowa
+     heurystyka dawała niepotrzebnie dużo pustego miejsca pod krótszymi
+     podpisami; teraz mierzona jest realna szerokość tekstu
+   - Duże przyspieszenie wyszukiwania działek właściciela (indeks zamiast
+     pełnego skanu warstwy za każdym razem)
+   - Naprawiono wyciek pamięci przy generowaniu wyciągów dla wielu właścicieli
+     pod rząd
 
-2026-06-22 | shp_atlasuj_auto.py         | Nowy skrypt "Atlasuj automatycznie"
-           |                             | (pasek, za "Numeruj pola atlasu"):
-           |                             | jak "Rysuj pola atlasowe", ale kafle
-           |                             | liczone przez kafelkowanie.pokryj_
-           |                             | kaflami - numeracja STRONA powstaje
-           |                             | automatycznie, bez ręcznego
-           |                             | digitalizowania linii.
+8. KOPIE BEZPIECZEŃSTWA PRZED KASOWANIEM (kopie_manipulacyjne.py — nowy
+   wspólny moduł)
+   - Przed każdym kasowaniem wydzieleń (z warstwy lub z bazy) tworzona jest
+     pełna kopia bazy oraz powiązanych plików SHP, w folderze
+     Kopie_manipulacyjne (w katalogu bazy)
+   - Jeśli kopia się nie powiedzie, operacja jest przerywana — nic nie zostaje
+     skasowane
+   - "Skasuj wydz w bazie": dialog potwierdzający, ostrzeżenie przy kasowaniu
+     100% wydzieleń, naprawa działa teraz jako jedna transakcja (z wycofaniem
+     zmian w razie błędu, zamiast częściowych zapisów)
 
-2026-06-22 | shp_atlasuj.py              | "Rysuj pola atlasowe": kafle, które
-           |                             | nie przecinają warstwy wejściowej
-           |                             | (QgsSpatialIndex), są teraz pomijane
-           |                             | - mniej pustych stron do numeracji.
+9. LITERUJ (shp_literkuj.py)
+   - Naprawiono błąd, przez który skrypt kontynuował działanie mimo
+     nieprawidłowej warstwy
+   - Naprawiono mylenie pustego pola z wypełnionym przy sprawdzaniu, czy
+     wydzielenie ma już przypisaną literę
 
-2026-06-19 | shp_polacz_teren.py         | "Połącz pomiary od taksatorów":
-           | (Połącz pomiary od         | dodano kontrolę i naprawę
-           |  taksatorów)               | duplikatów (_znajdz_duplikaty,
-           |                            | _usun_duplikaty). Po scaleniu
-           |                            | każdej z 6 warstw sprawdzane są
-           |                            | obiekty o identycznej geometrii
-           |                            | (WKT) i identycznych atrybutach —
-           |                            | to typowy skutek wysłania tego
-           |                            | samego pomiaru przez taksatora do
-           |                            | dwóch folderów. Jeśli wykryto
-           |                            | duplikaty w danej warstwie, pytanie
-           |                            | Tak/Nie czy je usunąć (zostaje
-           |                            | jeden egzemplarz na unikalny
-           |                            | zestaw geometria+atrybuty); ta sama
-           |                            | geometria z różnymi atrybutami NIE
-           |                            | jest traktowana jako duplikat.
-           |                            | Liczba usuniętych duplikatów per
-           |                            | warstwa trafia do komunikatu
-           |                            | końcowego i logu Las-R
+10. RAPORT KART DO KLEPANIA (shp_sprawdz_ciecie.py)
+    - Raport zapisywany teraz jako .xlsx zamiast .csv
 
-2026-06-19 | shp_polacz_teren.py         | "Połącz pomiary od taksatorów":
-           | (Połącz pomiary od         | naprawiono kilka błędów: 1) brak
-           |  taksatorów)               | obsługi anulowania dialogu wyboru
-           |                            | katalogu (puste 'projects_folder'
-           |                            | jechało dalej w niezdefiniowane
-           |                            | zachowanie) — teraz wczesny return;
-           |                            | 2) brak jednego typu pliku (np.
-           |                            | nikt nie zrobił "kasowniki.shp")
-           |                            | wywalał processing.run na pustej
-           |                            | liście LAYERS i przerywał całą
-           |                            | resztę bez komunikatu — teraz dany
-           |                            | typ jest pomijany z wpisem w logu
-           |                            | i w komunikacie końcowym
-           |                            | ("pominięto: ..."); 3) błąd merge
-           |                            | pojedynczego typu (try/except)
-           |                            | nie przerywa już pętli dla
-           |                            | pozostałych typów; 4) dodano
-           |                            | logowanie (QgsMessageLog) liczby
-           |                            | znalezionych/połączonych plików;
-           |                            | 5) kontrola pola ODDZ pomijana,
-           |                            | jeśli adr_upul nie został
-           |                            | scalony (zamiast fałszywego "OK").
-           |                            | Folder wyjściowy zmieniony z
-           |                            | "teren_polaczone" na "pomiary"
-           |                            | (lokalizacja — jeden poziom wyżej
-           |                            | niż wskazany katalog — bez zmian);
-           |                            | jeśli już istnieje i ma zawartość,
-           |                            | pyta Tak/Nie czy nadpisać
+11. POŁĄCZ POMIARY OD TAKSATORÓW (shp_polacz_teren.py)
+    - Wykrywanie i usuwanie duplikatów (ten sam pomiar wysłany do dwóch
+      folderów) — pytanie Tak/Nie przed usunięciem
+    - Naprawiono: anulowanie wyboru katalogu już nie zawiesza działania; brak
+      jednego typu pliku nie przerywa już całej reszty (dany typ jest pomijany
+      z informacją w komunikacie); błąd scalania jednego typu nie przerywa
+      pozostałych
+    - Folder wyjściowy zmieniony z "teren_polaczone" na "pomiary"
 
-2026-06-19 | shp_przygCiecie.py          | "Przygotuj w teren" wykonuje teraz
-           | las_r.py                    | też wyznaczanie potencjalnych Lz
-           | (Przygotuj w teren)         | (dawniej osobna pozycja menu "LZ -
-           |                             | wyznacz potencjalne") - krok
-           |                             | dodany na końcu, po MASKA/99/
-           |                             | pozaewidencyjne; pokazuje ten sam
-           |                             | dialog co dawniej (autodetekcja
-           |                             | warstw Użytki/ODDZ PGLLP,
-           |                             | odległość min. - domyślnie 15m),
-           |                             | użytkownik może poprawić dane lub
-           |                             | zaakceptować domyślne. Jeśli
-           |                             | użytkownik porzuci dialog LZ,
-           |                             | reszta "Przygotuj w teren" i tak
-           |                             | jest już zakończona. Osobna
-           |                             | pozycja menu "LZ - wyznacz
-           |                             | potencjalne" usunięta (była
-           |                             | zbędna, funkcja shp_wyszukaj_lz.
-           |                             | WyszukajLz nie zmieniona)
+12. PRZYGOTUJ W TEREN (shp_przygCiecie.py)
+    - Wyznaczanie potencjalnych Lz dołączone jako ostatni krok tej funkcji —
+      osobna pozycja menu "LZ - wyznacz potencjalne" nie jest już potrzebna
 
-2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": przed pytaniem o
-           |                             | naprawę sprawdza czy F_AROD_
-           |                             | LAND_USE (tabela rozliczenia
-           |                             | powierzchni wydz., kluczowana
-           |                             | też przez PARCEL_INT_NUM+
-           |                             | SHAPE_NR) ma jakieś dane - jeśli
-           |                             | tak, wyświetla monit (OK):
-           |                             | "W tabeli F_AROD_LAND_USE
-           |                             | znaleziono dane. Pamiętaj po
-           |                             | naprawie ponownie rozliczyć
-           |                             | powierzchnię" i dopisuje uwagę
-           |                             | do raportu txt. Sama naprawa
-           |                             | (przenumerowanie SHAPE_NR) i tak
-           |                             | przebiega normalnie - to tylko
-           |                             | przypomnienie, nie blokada
+13. KONTROLUJ LS (baza_popraw_LS.py)
+    - Ostrzeżenie, jeśli w tabeli rozliczenia powierzchni są już dane —
+      przypomina o ponownym rozliczeniu po naprawie
+    - Nowy moduł naprawy: usuwanie duplikatów użytków (z sumowaniem
+      powierzchni) i rekordów z zerową powierzchnią, z domykaniem powstałych
+      dziur w numeracji
+    - Kontrola zerowych powierzchni respektuje teraz checkbox "wszystkie
+      użytki"; pozycja menu przeniesiona do "Przygotowanie danych"
 
-2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": dodano moduł
-           |                             | naprawy (po kontroli, jeśli
-           |                             | znaleziono błędy, pytanie Tak/Nie
-           |                             | osobno dla każdego rodzaju):
-           |                             | 1) duplikaty AREA_USE_CD+
-           |                             | SOIL_QUALITY_CD - sumuje
-           |                             | LAND_USE_AREA do rekordu z
-           |                             | najniższym SHAPE_NR, usuwa
-           |                             | nadmiarowe rekordy
-           |                             | (NaprawDuplikaty); 2) rekordy z
-           |                             | LAND_USE_AREA=0 - usuwa je
-           |                             | (NaprawZerowe). Po obu naprawach
-           |                             | domykane są dziury w numeracji
-           |                             | SHAPE_NR powstałe z usunięcia
-           |                             | (nowa funkcja
-           |                             | _renumeruj_shape_nr) - dotyczy
-           |                             | tylko dziur powstałych w tym
-           |                             | przebiegu, nie ingeruje w
-           |                             | wcześniej istniejące. Backup
-           |                             | bazy ("popraw_ls") tworzony
-           |                             | tylko gdy użytkownik faktycznie
-           |                             | zatwierdzi jakąś naprawę.
-           |                             | Zweryfikowano na kopii
-           |                             | 042_Debica_OW_BDO.mdb: suma
-           |                             | LAND_USE_AREA (wszystkie kody)
-           |                             | identyczna przed/po naprawie
-           |                             | (7951.58090000075), 0 kolizji
-           |                             | SHAPE_NR po przenumerowaniu
+14. PRZYGOTUJ WYDZIELENIA DO CIĘCIA (shp_przygCiecie.py)
+    - Naprawiono błąd kodowania znaków (polskie znaki wyświetlały się źle w
+      WYDZ_POL)
+    - Dopasowanie kodu obrębu niezależne teraz od wielkości liter
 
-2026-06-19 | baza_popraw_LS.py           | "Kontroluj Ls": kontrola zerowych
-           | las_r.py                    | powierzchni (LAND_USE_AREA=0)
-           | (Kontroluj Ls)              | respektuje teraz checkbox
-           |                             | "wszystkie użytki" tak samo jak
-           |                             | kontrola duplikatów - domyślnie
-           |                             | tylko AREA_USE_CD='Ls', po
-           |                             | zaznaczeniu wszystkie kody.
-           |                             | Pozycja menu przeniesiona z
-           |                             | "Kontrola danych" do
-           |                             | "Przygotowanie danych" (jako
-           |                             | "Kontroluj Ls"). W tym menu
-           |                             | przeniesiono też na samą górę i
-           |                             | zmieniono nazwę "Usuń działki bez
-           |                             | Ls" -> "Kasuj nie-Ls"; nowa
-           |                             | kolejność na górze menu: Kasuj
-           |                             | OP, Kasuj nie-Ls, Kontroluj Ls,
-           |                             | separator, reszta bez zmian
+15. SPRAWDŹ LS Z BAZĄ (baza_kontrola_ls.py)
+    - Naprawiono błąd przy działkach z arkuszem (np. "AR_3") — numer działki
+      mógł zostać błędnie nadpisany i obcięty
 
-2026-06-19 | baza_popraw_LS.py           | Nowy skrypt "Kontrola Ls w bazie
-           | ui_baza_popraw_ls.py/.ui    | (duplikaty/zera)" (menu przy
-           | las_r.py                    | "Kontrola Ls z bazą"). Na razie
-           | (Kontrola Ls w bazie)       | tylko kontrola, bez automatycznej
-           |                             | naprawy. Sprawdza wybrany katalog
-           |                             | baz pod kątem: 1) zdublowanych
-           |                             | zestawów AREA_USE_CD+
-           |                             | SOIL_QUALITY_CD na jednej działce
-           |                             | w F_PARCEL_LAND_USE (domyślnie
-           |                             | tylko dla Ls, opcjonalny checkbox
-           |                             | rozszerza kontrolę na wszystkie
-           |                             | użytki); 2) rekordów w
-           |                             | F_PARCEL_LAND_USE z LAND_USE_AREA
-           |                             | = 0 (zawsze, dla wszystkich
-           |                             | użytków). Generuje raport txt w
-           |                             | katalogu z bazami, nie modyfikuje
-           |                             | danych
+16. DOPISZ FORMY OCHRONY PRZYRODY (baza_dopisz_fochr.py)
+    - Jeśli formy ochrony są już dopisane w bazie, skrypt pyta teraz, czy je
+      usunąć i dopisać na nowo (zamiast tylko blokować błędem)
 
-2026-06-19 | baza_usun_nieLs.py          | Nowy skrypt "Usuń działki bez Ls"
-           | las_r.py                    | (menu przy "Kasuj OP"). Usuwa z bazy
-           | (Usuń działki bez Ls)       | wszystkie działki, na których nie
-           |                             | występuje żaden użytek Ls w
-           |                             | F_PARCEL_LAND_USE.AREA_USE_CD, wraz
-           |                             | z powiązanymi wpisami w F_PARCEL,
-           |                             | V_PARCEL_PARTICIPATION i
-           |                             | F_PARCEL_LAND_USE. Dodatkowo czyści
-           |                             | osierocone wpisy w V_ADDRESS i
-           |                             | F_COMMUNITY (analogicznie do
-           |                             | baza_usun_op.py). Przed czyszczeniem
-           |                             | tworzona jest kopia bazy
-           |                             | ("kasuj_nieLs")
+17. WSKAŻ BAZĘ (baza_wrapper.py)
+    - Dialog wyboru bazy otwiera się teraz w katalogu aktywnej warstwy zamiast
+      pustego katalogu startowego
 
-2026-06-19 | shp_przygCiecie.py          | Przygotuj wydzielenia do cięcia:
-           | (Przygotuj wydzielenia      | naprawiono błąd kodowania przy
-           |  do cięcia)                 | tworzeniu warstwy WYDZ z warstwy LS —
-           |                             | multiparttosingleparts dostawało jako
-           |                             | wejście samą ścieżkę do pliku LS, więc
-           |                             | QGIS otwierał ją od nowa z domyślnym
-           |                             | kodowaniem, ignorując ręcznie
-           |                             | ustawione (we właściwościach warstwy)
-           |                             | kodowanie UTF-8 na warstwie LS — WYDZ
-           |                             | wychodziło zapisane w windows-1250, a
-           |                             | znaki w WYDZ_POL wyświetlały się
-           |                             | błędnie. Teraz jako wejście do
-           |                             | algorytmu podawany jest obiekt warstwy
-           |                             | LS, więc kodowanie jest zachowane
+18. ANONIMIZACJA BAZY / USUŃ KWERENDY Z BAZ (baza_anonimizuj.py,
+    baza_usun_kwerendy.py)
+    - Anonimizacja usuwa teraz też tabelę V_ADDRESS_second, jeśli istnieje
+    - Usuwanie kwerend usuwa teraz też tabele F_TABLICA i
+      F_TABLICA_ROZSZERZONA
 
-2026-06-18 | baza_kontrola_ls.py         | Sprawdź Ls z bazą: naprawiono błąd
-           | (Sprawdź Ls z bazą)         | przy działkach z arkuszem (np. "AR_3"
-           |                             | w LANDID) — gdy ARK był już poprawnie
-           |                             | zapisany, skrypt mylnie traktował
-           |                             | token arkusza jako numer działki i
-           |                             | nadpisywał nim PARCELNR oraz obcinał
-           |                             | PARCELID (ucinając prawdziwy numer
-           |                             | działki). Indeks segmentu numeru
-           |                             | działki w LANDID jest teraz ustawiany
-           |                             | zawsze na podstawie liczby segmentów,
-           |                             | niezależnie od tego, czy ARK wymagał
-           |                             | aktualizacji
+19. REPROJEKCJA WARSTW (shp_konwertuj.py)
+    - Naprawiono przypisywanie układu wejściowego warstwom bez zadeklarowanego
+      CRS
+    - Ostrzeżenie o warstwach bez CRS po wczytaniu katalogu
+    - Zablokowano wybór tego samego katalogu jako źródłowy i docelowy
+    - Błąd reprojekcji jednej warstwy nie przerywa już całej partii — trafia
+      do logu i podsumowania
+    - Wymuszone kodowanie UTF-8 dla zapisywanych plików SHP
 
-2026-06-18 | baza_dopisz_fochr.py        | Dopisz formy ochrony przyrody: jeśli
-           | baza_wrapper.py             | w bazie są już dopisane formy ochrony
-           | (Dopisz FOP)                | (F_SET/F_LAND_PROTECT), skrypt już
-           |                             | nie tylko blokuje z błędem — pyta
-           |                             | (Tak/Nie), czy je usunąć i dopisać na
-           |                             | nowo. Po "Tak" czyści obie tabele
-           |                             | (nowa metoda Baza.wyczysc_fo) i
-           |                             | kontynuuje dopisywanie; po "Nie"
-           |                             | przerywa jak dotychczas. Kopia bazy
-           |                             | (kopia_formyOchrony) wciąż robiona
-           |                             | jest na starcie, niezależnie od tego
+20. RYSUJ POLA ATLASOWE (shp_atlasuj.py)
+    - Kafle, które nie przecinają warstwy wejściowej, są teraz pomijane —
+      mniej pustych stron do numeracji
 
-2026-06-18 | baza_wrapper.py             | znajdz_baze_do_wydz: dialog "Wskaż
-           | (Dopisz/uzupełnij           | bazę Taksatora" (Dopisz/uzupełnij
-           |  wydzielenia w bazie,       | wydzielenia w bazie, Rozlicz
-           |  Rozlicz powierzchnię,      | powierzchnię, Sprawdź wydzielenia —
-           |  Sprawdź wydzielenia)       | wszystkie już wcześniej pytały o bazę
-           |                             | przy każdym uruchomieniu) otwiera się
-           |                             | teraz w katalogu aktywnej warstwy, a
-           |                             | nie z pustym katalogiem startowym —
-           |                             | wcześniej natywny dialog Windows w
-           |                             | takim wypadku sam wracał do ostatnio
-           |                             | używanego folderu, co wyglądało jak
-           |                             | "zapamiętywanie" pierwotnej bazy;
-           |                             | poprawiono też literówkę "Wskaż baze"
-           |                             | -> "Wskaż bazę"
+==============================
 
-2026-06-18 | shp_przygCiecie.py          | Przygotuj wydzielenia do cięcia: dopa-
-           | (Przygotuj wydzielenia      | sowanie pola z kodem obrębu (IDOBREBU/
-           |  do cięcia)                 | jpt_kod_je/G5NRO) do warstwy OBR jest
-           |                             | teraz niezależne od wielkości liter —
-           |                             | stare shp/dbf często wymuszają same
-           |                             | wielkie litery, więc 'jpt_kod_je'
-           |                             | (zwykle małymi) mogło się nie dopaso-
-           |                             | wać i MUNICIP/COMMUNITY w ODDZ
-           |                             | zostawały puste; priorytet przy kilku
-           |                             | obecnych polach: IDOBREBU >
-           |                             | jpt_kod_je > G5NRO
+Wersja 2.0c — zmiany wprowadzone 17.06.2026
+------------------------------------------------
 
-2026-06-18 | baza_anonimizuj.py          | Anonimizacja bazy usuwa teraz również
-           | baza_wrapper.py             | tabelę V_ADDRESS_second, jeśli istnieje
-           |                             | (nowa metoda Baza.usun_tabele)
+### Nowe funkcje
 
-2026-06-18 | baza_wrapper.py             | Usuwanie kwerend (Baza.usun_kwerendy,
-           | baza_usun_kwerendy.py       | używane też przez "Usuń kwerendy z baz"
-           |                             | i opcjonalnie przez Anonimizuj bazę)
-           |                             | usuwa teraz też tabele F_TABLICA i
-           |                             | F_TABLICA_ROZSZERZONA, jeśli istnieją
+1. PASEK LAS-R KP — NOWE PRZYCISKI (las_r.py, qml/*.qml)
+   - Pasek "LAS-R skróty" przemianowany na "LAS-R KP"
+   - 6 przycisków "Rysuj..." (gatunki, zabiegi, STL, na orto, Działki, KLU)
+     przeniesionych wprost na pasek
+   - 6 nowych przycisków: Rysuj FOP, LS, OBR, PNSW, WYDZ_POL (3 kolory), linie
+   - Nowy przycisk "Dopasuj style" — automatycznie dopasowuje styl do nazwy
+     warstwy (na razie pusty słownik dopasowań, czeka na uzupełnienie)
 
-2026-06-18 | baza_rozlicz_pow_wydz.py    | Sprzątanie: usunięto martwy, zakomen-
-           | shp_eksport_kml.py          | towany kod ze starych wariantów na
-           | shp_wyszukaj_lz.py          | algorytmach SAGA (dawno zamienionych
-           |                             | na native:/grass7:) — bez zmian w
-           |                             | działaniu skryptów
+2. BIBLIOTEKA STYLI QML (qml_templates)
+   - Dodano 31 gotowych stylów (WYDZ, DZKAT, KLU, ZREBY, AMBONY, IP, SKDR,
+     SULN, PTLZ/PTWP/PTZB, SWRM/SWRS, SKRP i inne) do dropdownu "Szybkie
+     ładowanie styli qml"
+   - Dodano ikony podglądu przy każdym stylu w dropdownie; lista posortowana
+     alfabetycznie
 
-2026-06-18 | shp_konwertuj.py            | Reprojekcja warstw: naprawiono kilka
-           | (Reprojekcja warstw)        | problemów: 1) odkomentowano i napra-
-           |                             | wiono przypisywanie "Układu wejścio-
-           |                             | wego" warstwom bez zadeklarowanego
-           |                             | CRS (wcześniej pole było martwe —
-           |                             | takie warstwy szły do reprojekcji
-           |                             | bez układu źródłowego); 2) wraca
-           |                             | ostrzeżenie o warstwach bez CRS po
-           |                             | wczytaniu katalogu; 3) dodano blokadę
-           |                             | wyboru tego samego katalogu jako
-           |                             | wejściowy i docelowy (nadpisywałoby
-           |                             | plik wejściowy); 4) błąd reprojekcji
-           |                             | jednej warstwy nie przerywa już całej
-           |                             | partii — błędne warstwy trafiają do
-           |                             | logu "Las-R" i podsumowania; 5) usu-
-           |                             | nięto martwe zmienne (LastStateRole,
-           |                             | nieużywany licznik cnt); 6) wymuszono
-           |                             | kodowanie UTF-8 dla zapisywanych shp
-           |                             | (przez createOptions=fileEncoding na
-           |                             | OUTPUT) — wcześniej zależało od
-           |                             | domyślnego kodowania w QGIS
+3. RYSUJ KLU (shp_symbolizacja.py)
+   - Kategoryzacja obsługuje teraz też kolumny G5OFU i OFU, nie tylko AU —
+     dopasowuje się do różnych wersji/źródeł warstwy KLU
 
-================================================================================
-WERSJA 2.0c (2026-06-17)
-================================================================================
+### Poprawki i ulepszenia
 
-2026-06-17 | qgis-auth.db                | Usunięto ze śledzenia w repo (plik bazy
-           | .gitignore                  | autoryzacji QGIS — mógł zawierać dane
-           |                             | logowania) — trafiał do każdego
-           |                             | publicznego release'u na GitHub. Plik
-           |                             | zostaje lokalnie na dysku, ale nie jest
-           |                             | już pakowany do zipa wtyczki
+4. BEZPIECZEŃSTWO REPOZYTORIUM (qgis-auth.db)
+   - Usunięto ze śledzenia w repo plik bazy autoryzacji QGIS (mógł zawierać
+     dane logowania) — trafiał do każdego publicznego release'u na GitHub;
+     plik zostaje lokalnie na dysku, ale nie jest już pakowany do zipa wtyczki
 
-2026-06-17 | raport_wyciagi.py           | Naprawa łamania stron w wyciągach dla
-           |                             | właścicieli: 1) mapki klastrów czasem
-           |                             | renderowały się bardzo małe/nieczytelne
-           |                             | albo ucinały się na granicy stron —
-           |                             | pre-check łamania strony przed
-           |                             | nagłówkiem+mapą był wadliwy (nigdy nie
-           |                             | wymuszał nowej strony dla większych
-           |                             | klastrów); zamieniono na proste
-           |                             | porównanie miejsca dostępnego na
-           |                             | stronie z wysokością mapy przy skali
-           |                             | 1:5000 — mapa zawsze dostaje pełną
-           |                             | wolną stronę, gdy obecna nie wystarcza;
-           |                             | 2) wiersz tabeli, który po złamaniu
-           |                             | strony trafiał na nową stronę w środku
-           |                             | wielowierszowej działki, miał puste
-           |                             | pole nr działki/użytek (osierocony
-           |                             | wiersz) — teraz jest odtwarzane
+5. WYCIĄGI DLA WŁAŚCICIELI (raport_wyciagi.py)
+   - Naprawiono łamanie stron: mapki klastrów czasem renderowały się bardzo
+     małe albo ucinały się na granicy stron — teraz mapa zawsze dostaje pełną
+     wolną stronę, gdy obecna nie wystarcza
+   - Naprawiono osierocony wiersz tabeli (bez numeru działki/użytku), który
+     powstawał po złamaniu strony w środku wielowierszowej działki
 
-2026-06-17 | las_r.py                    | "Napraw F_STOREY_SPECIES" przeniesione
-           |                             | z menu "Narzędziowe" do submenu
-           |                             | "Rozliczenie powierzchni", przed
-           |                             | "Zabiegi dopisz/sprawdź"
+6. POWIERZCHNIA WYDZIELENIA (shp_dopisz_kody.py i inne)
+   - Naprawiono zapis POW_WYDZ w plikach SHP — przy pewnych ustawieniach
+     systemu liczba zapisywała się z przecinkiem zamiast kropki jako
+     separatorem dziesiętnym
 
-2026-06-17 | shp_symbolizacja.py         | Dopasuj style: dodano do słownika
-           | qml/99.qml                  | DOPASOWANIE_STYLI wpisy 'LS'->LS.qml
-           |                             | i '99'->99.qml (nowy plik, kopia
-           |                             | qml_templates/qml/99_w_teren.qml)
+7. ANONIMIZUJ BAZĘ (baza_anonimizuj.py)
+   - Dialog wyboru katalogu z bazami i checkbox "Usuń kwerendy z baz" scalone
+     w jedno okno (wcześniej katalog wybierało się w osobnym oknie)
 
-2026-06-17 | shp_dopisz_kody.py          | POW_WYDZ: wartość z bazy (SUB_AREA)
-           | shp_przygCiecieStUPUL.py    | zaokrąglana teraz do 4 miejsc po
-           | shp_przygDotaks.py          | przecinku i zapisywana jako tekst
-           |                             | (wcześniej w shp_dopisz_kody.py pole
-           |                             | miało niezgodny typ String/Double; przy
-           |                             | typie Double GDAL/OGR zapisywał liczbę
-           |                             | do .dbf z separatorem zależnym od
-           |                             | locale systemu (przecinek), zamiast
-           |                             | kropki — naprawione jawną konwersją
-           |                             | str(round(..., 4)) do pola tekstowego)
+8. KONTROLA SŁOWNIKOWA WG SULMN (baza_kontrola_slownikow_wgSULMN)
+   - Naprawiono błąd, który blokował wszystkie 28 kontroli słownikowych
+     (błąd składni zapytania)
+   - Naprawiono kontrolę RELIEF_CD (wskazywała na złą tabelę) i literówkę w
+     MOISTURE_CD
+   - Usunięto 4 kontrole, które i tak zawsze były pomijane na testowych bazach
+   - Naprawiono porównanie wartości ze słownikiem — wcześniej różnice w
+     wielkości liter i spacjach na końcu nie były wykrywane jako błąd
+   - Zmieniono format znacznika czasu w nazwie pliku raportu na bardziej
+     czytelny (DD-MM-RRRR_gHH-MM-SS)
 
-2026-06-17 | baza_anonimizuj.py | Scalono dialog w jedno okno: katalog z bazami
-           | ui_baza_anonimizuj | (pole + przycisk "Wybierz") razem z checkboxem
-           |                    | "Usuń kwerendy z baz" — wcześniej katalog był
-           |                    | wybierany w osobnym, kolejnym oknie systemowym
+9. MENU (las_r.py)
+   - "Napraw F_STOREY_SPECIES" przeniesione z menu "Narzędziowe" do
+     "Rozliczenie powierzchni"
 
-2026-06-17 | baza_kontrola_     | Naprawa: wszystkie 28 kontroli słownikowych
-           | slownikow_wgSULMN  | (LEFT JOIN) były pomijane z błędem "Syntax error
-           |                    | (missing operator)" — Access/Jet wymaga nawiasów
-           |                    | przy łączeniu INNER JOIN + LEFT JOIN w jednym
-           |                    | FROM; dodano: FROM (A INNER JOIN B ON ...)
-           |                    | LEFT JOIN C ON ...
-           |                    | Naprawa: RELIEF_CD wskazywało błędnie na
-           |                    | F_POSITION_DIC (brak kolumny RELIEF_CD) →
-           |                    | poprawiono na F_RELIEF_DIC
-           |                    | Naprawa: literówka MOISTURY_CD → MOISTURE_CD
-           |                    | (taka jest rzeczywista nazwa kolumny w
-           |                    | F_SUBAREA i F_MOISTENING_DIC)
-           |                    | Usunięto z listy KONTROLE 4 pozycje
-           |                    | (SILVICULTURE_CD, FOREST_FUNC_CD, RECONSTR_CD,
-           |                    | PHASE_CD) — testowe bazy nie mają odpowiednich
-           |                    | tabel/kolumn słownikowych (wariant schematu
-           |                    | bazy), więc kontrole te i tak były bezużyteczne
-           |                    | (zawsze pomijane). Lista KONTROLE: 24 pozycje
+==============================
 
-2026-06-17 | baza_kontrola_     | Zmiana formatu znacznika czasu w nazwie pliku
-           | slownikow_wgSULMN  | raportu: z ISO (RRRR-MM-DDTHHMMSS) na
-           | baza_kontrola_     | DD-MM-RRRR_gHH-MM-SS (np. 17-06-2026_g12-26-12)
-           | opisow_wgSULMN     | — dotyczy obu raportów (kontrola słownikowa
-           |                    | i kontrola opisu taksacyjnego wg SULMN)
+Wersja 2.0b — zmiany wprowadzone 16.06.2026
+------------------------------------------------
 
-2026-06-17 | baza_kontrola_     | Naprawa: porównanie wartości ze słownikiem
-           | slownikow_wgSULMN  | używało domyślnego porównania Access/Jet, które
-           |                    | ignoruje wielkość liter i spacje na końcu — np.
-           |                    | "d-stan" vs "D-STAN" albo "ABC " vs "ABC" było
-           |                    | uznawane za zgodne, błąd NIE był wykrywany.
-           |                    | Zmieniono na StrComp(RTrim(...), RTrim(...), 0)
-           |                    | — porównanie binarne (wykrywa wielkość liter
-           |                    | i białe znaki na początku/w środku), ale RTrim
-           |                    | usuwa spacje dopełniające z prawej strony, bo
-           |                    | część kolumn (np. F_STOREY_SPECIES.SITE_CLASS_CD)
-           |                    | jest fizycznie zapisana jako pole o stałej
-           |                    | szerokości (np. "I  " miejsto "I") — bez RTrim
-           |                    | dawało to 2500+ fałszywych błędów na pustej
-           |                    | bazie. Dotyczy _sprawdz() i _sprawdz_whitelist()
+### Nowe funkcje
 
-2026-06-17 | las_r.py           | Pasek "LAS-R skróty" przemianowany na "LAS-R KP"
-           |                    | (sama nazwa widoczna w QGIS, objectName bez zmian)
+1. POWIADOMIENIE O NOWEJ WERSJI (las_r.py)
+   - Przy starcie QGIS wtyczka porównuje swoją wersję z ostatnio widzianą —
+     jeśli jest nowsza, na pasku pojawia się przycisk "Zobacz zmiany"
+     (otwiera ten plik)
+   - Pozycja menu "Co nowego?" zawsze dostępna na dole menu LAS-R
 
-2026-06-17 | las_r.py           | Pasek LAS-R KP: 6 przycisków "Rysuj..." (gatunki,
-           |                    | zabiegi, STL, na orto, Działki, KLU) przeniesione
-           |                    | z menu rozwijanego "Szybkie ładowanie styli qml"
-           |                    | wprost na pasek, na początek (w kolejności jak
-           |                    | w dropdownie) + separator przed modułem stylów qml
+2. KONTROLA OPISU TAKSACYJNEGO WG SULMN (baza_kontrola_opisow_wgSULMN.py —
+   nowy plik)
+   - Nowy skrypt kontrolujący opisy taksacyjne wg metodologii Mapa PU
+     (kontrole SQL z bazy szablonu)
+   - Kontrola wersji bazy kontroli przy starcie — jeśli inna niż w Mapa_PU,
+     pyta czy zaktualizować lokalną kopię
+   - Raport TXT (błędy obligatoryjne + pomocnicze)
 
-2026-06-17 | qml_templates/     | Dodano 31 stylów z materialy/STYLE_WARSTWY_QGIS/
-           | qml/*.qml          | jako_lista do dropdownu "Szybkie ładowanie styli qml"
-           |                    | (m.in. WYDZ, DZKAT, KLU, ZREBY, AMBONY, IP, SKDR,
-           |                    | SULN, PTLZ/PTWP/PTZB, SWRM/SWRS, SKRP i inne);
-           |                    | nadpisano starszy SKDR.qml (2019→2020)
+3. KONTROLA SŁOWNIKOWA WG SULMN (baza_kontrola_slownikow_wgSULMN.py — nowy
+   plik)
+   - Nowe menu "Kontrola wg SULMN"; 11 kontroli słownikowych bazy Taksatora
+     (rozszerzone później, w wersji 2.0c, do 28)
+   - Dodatkowo: kontrola whitelisty AREA_TYPE_CD i kontrola pola
+     ObjectFullName
 
-2026-06-17 | qml_templates/     | Dodano ikony podglądu w dropdownie stylów qml:
-           | main.py            | dla każdego pliku .qml parsowany jest <renderer-v2>
-           |                    | (QgsFeatureRenderer.load) i renderowana ikona
-           |                    | pierwszego symbolu (QgsSymbolLayerUtils.
-           |                    | symbolPreviewIcon) — działa dla singleSymbol,
-           |                    | categorizedSymbol, graduatedSymbol i RuleRenderer.
-           |                    | Lista plików w dropdownie sortowana alfabetycznie
-           |                    | (wcześniej kolejność z glob, niezdefiniowana).
-           |                    | Przetestowano headless na QGIS 3.44 LTR: 35/35
-           |                    | plików .qml — ikony wygenerowane poprawnie
+4. ANONIMIZUJ BAZĘ (baza_anonimizuj.py)
+   - Nowy checkbox "Usuń kwerendy z baz" (domyślnie włączony)
 
-2026-06-17 | las_r.py           | Pasek LAS-R KP: 6 nowych przycisków wprost na
-           | skrypty/funkcje.py | pasku, po "Rysuj..." (Rysuj FOP, LS, OBR, PNSW,
-           | qml/*.qml          | WYDZ_POL (3 kolory), linie) — style skopiowane
-           |                    | z materialy/STYLE_WARSTWY_QGIS/ (bez folderu
-           |                    | jako_lista) do src/lasr/qml/. Każdy przycisk
-           |                    | wczytuje swój .qml na aktywną warstwę (funkcje.
-           |                    | wczytaj_styl). Ikony generowane tą samą metodą
-           |                    | co w dropdownie (funkcje.podglad_ikony_qml) —
-           |                    | wydzielona ze qml_templates/main.py do funkcje.py,
-           |                    | żeby nie duplikować kodu między dropdownem
-           |                    | i przyciskami na pasku. Przetestowano headless
-           |                    | na QGIS 3.44 LTR: 6/6 ikon wygenerowanych poprawnie
+### Poprawki i ulepszenia
 
-2026-06-17 | shp_symbolizacja.py | "Rysuj KLU" — dodano możliwość kategoryzacji
-           |                    | po G5OFU i OFU, nie tylko po AU (różne wersje/
-           |                    | źródła warstwy KLU mają tę kolumnę pod różną
-           |                    | nazwą — patrz shp_wyszukaj_lz.py, gdzie ten
-           |                    | sam zestaw kolumn był już rozpoznawany).
-           |                    | Jeśli warstwa ma tylko jedną z [AU, G5OFU, OFU]
-           |                    | — używana automatycznie; jeśli więcej niż jedną
-           |                    | — pyta która; jeśli żadnej — komunikat błędu
-           |                    | (wcześniej ten przypadek był całkowicie pomijany
-           |                    | bez sprawdzania kolumny). KLU.qml wczytywany jak
-           |                    | dotychczas, a renderer.setClassAttribute()
-           |                    | przepisuje istniejące kategorie/kolory na
-           |                    | wybraną kolumnę. Przetestowano headless na
-           |                    | QGIS 3.44 LTR: AU/OFU/G5OFU/brak kolumny — OK
+5. PASKI NARZĘDZI LAS-R (las_r.py)
+   - Reorganizacja paska głównego, paska skrótów i paska narzędziowego —
+     logiczniejsze rozmieszczenie przycisków i dropdownu stylów qml
 
-2026-06-17 | las_r.py           | Nowy przycisk "Dopasuj style" na pasku LAS-R KP
-           | shp_symbolizacja.py| (po "Rysuj..." i dodatkowych stylach). Przechodzi
-           |                    | przez wszystkie warstwy w projekcie (TOC) i dla
-           |                    | każdej, której nazwa ZAWIERA klucz ze słownika
-           |                    | DOPASOWANIE_STYLI (bez rozróżniania wielkości
-           |                    | liter), wczytuje wskazany plik .qml. Słownik
-           |                    | jest na razie PUSTY (TODO w kodzie) — czeka na
-           |                    | mapowanie warstwa→styl od użytkownika. Funkcja
-           |                    | shp_symbolizacja.dopasuj_style(iface);
-           |                    | przetestowana headless na QGIS 3.44 LTR
+6. MENU (las_r.py)
+   - Zmiana nazwy pozycji "Kontrola opisów taksacyjnych" → "Kontrola opisu
+     taksacyjnego"
 
-================================================================================
-WERSJA 2.0b (2026-06-16)
-================================================================================
+7. INSTALACJA
+   - CHANGELOG.txt dołączony teraz do instalacji produkcyjnej wtyczki (jest
+     dostępny bez dostępu do repozytorium)
 
-2026-06-16 | metadata.txt                | Wersja 2.0b; CHANGELOG.txt dołączony do
-           | CHANGELOG.txt              | src/lasr/ (dostępny przy instalacji produkcyjnej)
-2026-06-16 | las_r.py                    | Powiadomienie o nowej wersji: przy starcie
-           |                            | porównuje wersję z metadata.txt z ostatnio
-           |                            | widzianą (QSettings); jeśli nowa — pasek
-           |                            | z przyciskiem "Zobacz zmiany" (otwiera
-           |                            | CHANGELOG.txt). Menu: "Co nowego?" zawsze
-           |                            | dostępne na dole menu LAS-R
-2026-06-16 | las_r.py                    | Usunięto submenu "Style warstw"; wszystkie
-           |                            | style (gat, zab, STL, orto, Działki, KLU)
-           |                            | przeniesione do dropdown "Szybkie ładowanie
-           |                            | styli" na pasku skrótów (węzełki pozostają
-           |                            | na pasku głównym)
-2026-06-16 | las_r.py                    | Pasek główny: nowa kolejność akcji + Pokaż
-           |                            | Layout przeniesiony na pasek skrótów
-2026-06-16 | las_r.py                    | Pasek skrótów: przeniesiono Sprawdź geometrię,
-           |                            | UTF-8, Pow. graficzna → pasek główny;
-           |                            | Szybkie ładowanie styli qml przeniesione
-           |                            | z paska głównego → pasek skrótów (na koniec)
-2026-06-16 | las_r.py                    | Pasek narzędziowy: przeniesiono Rysuj gatunki,
-           |                            | STL, Działki, KLU do dropdown QmlCacheModule;
-           |                            | QmlCacheModule (Szybkie ładowanie styli qml)
-           |                            | przeniesiony na koniec paska
-2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Rozszerzenie listy KONTROLE z 11 do 28 pozycji:
-           |                            | F_SUBAREA (+13: CAUSE_CD, POSITION_CD,
-           |                            | RELIEF_CD, DEGRADATION_CD, SILVICULTURE_CD,
-           |                            | FOREST_FUNC_CD, SLOPE_CD, EXPOSURE_CD,
-           |                            | MOISTURY_CD, SOIL_PEC_CD, SOIL_SUBTYPE_CD,
-           |                            | RECONSTR_CD, PHASE_CD);
-           |                            | F_AROD_STOREY (+1: TREE_STOCK_CD);
-           |                            | F_AROD_PHENOMENA (+3: PHENOMENA_CD,
-           |                            | LOCATION_CD, PLANT_CD)
-2026-06-16 | las_r.py                    | Zmiana nazwy pozycji menu: "Kontrola opisów
-           |                            | taksacyjnych" → "Kontrola opisu taksacyjnego"
-2026-06-16 | baza_kontrola_opisow_wgSULMN.py    | Kontrola wersji bazy kontroli przy starcie:
-           |                            | porównuje mtime szablony/baza_kontroli_upul.mdb
-           |                            | z wersją w Mapa_PU; jeśli inna (nowsza lub
-           |                            | starsza) — dialog 3-przyciskowy: TAK (kopia
-           |                            | zapasowa z datą + kopiuj z Mapa_PU i wykonaj
-           |                            | kontrolę), NIE (wykonaj wg bieżącej bazy),
-           |                            | PORZUĆ (przerwij działanie skryptu)
-2026-06-16 | baza_kontrola_opisow_wgSULMN.py    | Nowy skrypt: kontrola opisów taksacyjnych
-           | las_r.py                    | wg metodologii Mapa PU. Ładuje kontrole SQL
-           |                            | z baza_kontroli_upul.mdb (tabele:
-           |                            | grupy_kontroli, kontrole, kwerendy_kontroli).
-           |                            | Kopia bazy do tmp, wykonanie kontroli,
-           |                            | raport TXT (obligatoryjne + pomocnicze).
-           |                            | Auto-find szablony/baza_kontroli_upul.mdb,
-           |                            | fallback do dialogu. Menu: Kontrola wg SULMN
-           |                            | → "Kontrola opisów taksacyjnych"
-2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Kontrola whitelist: F_SUBAREA.AREA_TYPE_CD
-           |                            | (dopuszczalne: D-STAN, INNE WYL, PŁAZ,
-           |                            | SUKCESJA, HAL, L ENERG, ZRĄB, LZ-Ł,
-           |                            | DROGI L, RETEN); funkcja _sprawdz_whitelist
-           |                            | generyczna — gotowa na kolejne kontrole
-2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Dodano kontrolę F_PARAMETER.ObjectFullName
-           |                            | (wg metodologii Mapa PU: błąd gdy pole puste,
-           |                            | null lub brak rekordu)
-2026-06-16 | las_r.py                    | Nowe menu "Kontrola wg SULMN" (po "Kontrola danych");
-           |                            | pozycja "Kontrola słowników" → baza_kontrola_slownikow
-2026-06-16 | baza_kontrola_slownikow_wgSULMN.py  | Nowy skrypt: kontrola słownikowa bazy Taksatora.
-           |                            | 11 kontroli: F_SUBAREA (AREA_TYPE_CD,
-           |                            | SITE_TYPE_CD, STAND_STRUCT_CD, VEG_COVER_CD),
-           |                            | F_STOREY_SPECIES (SPECIES_CD, SITE_CLASS_CD,
-           |                            | PART_CD), F_AROD_STOREY (DENSITY_CD, MIXTURE_CD),
-           |                            | F_SPECIES_SPAREA (SPECIES_CD), F_AROD_CUE
-           |                            | (MEASURE_CD). SQL z LEFT JOIN zwraca niezgodne
-           |                            | wartości z adresem leśnym. Raport TXT obok bazy.
-2026-06-16 | baza_anonimizuj.py          | Checkbox "Usuń kwerendy z baz" (domyślnie włączony):
-           | ui/ui_baza_anonimizuj.py    | nowy dialog opcji przed wyborem folderu;
-           |                            | usun_kwerendy() wywoływane warunkowo
+==============================
 
-================================================================================
-WERSJA 2.0a (2026-06-14)
-================================================================================
+Wersja 2.0a — zmiany wprowadzone 10–14.06.2026
+------------------------------------------------
 
-2026-06-14 | metadata.txt                | Wersja 2.0a; dodano autora Marek Młynarczyk
-           |                            | z adresem m.mlynarczyk@las-r.pl
-2026-06-14 | shp_przygCiecieStUPUL.py    | Obsługa starej struktury warstwy WYDZ (stary UPUL):
-           |                            | detekcja po obecności pola COUNTY_CD;
-           |                            | remapowanie: COUNTY_CD→COUNTY, DISTRICT_C→DISTRICT,
-           |                            | MUNICIPALI→MUNICIP, COMMUNITY_→COMMUNITY;
-           |                            | nowa metoda _normalizuj_stara_struktura()
-2026-06-14 | shp_przygCiecieStUPUL.py    | Restructura warstw wyjściowych: WYDZ_POL_stare
-           |                            | uproszczona do 12 kolumn w ustalonej kolejności
-           |                            | (ADR_LES, ODDZ, WYDZ, TYP_POW, UDZIAL, GAT,
-           |                            | WIEK, ZADRZEW, ZABIEG, STL, GRP, POW_WYDZ);
-           |                            | WYDZ_PKT_stare ma pełne dane — tworzona z temp
-           |                            | pełnego (przed redukcją POL); nowa metoda
-           |                            | _buduj_pol_uproszczona(); zmiana sekwencji w uruchom()
-2026-06-14 | baza_rozlicz_pow_wydz.py    | Nowa funkcja: checkbox "Wyczyść
-           | ui/ui_baza_rozlicz_pow.py  | F_AROD_LAND_USE przed rozliczeniem"
-           |                            | (domyślnie wyłączony); wykonywany po
-           |                            | kontrolach a przed dopisz_rozliczenie()
-2026-06-14 | baza_rozlicz_pow_wydz.py    | Naprawa: TypeError w sprawdz_dane() —
-           |                            | os.path.abspath(baza_sc=False) gdy baza
-           |                            | nie wykryta auto, zmieniono na self.baza.baza;
-           |                            | KeyError w oblicz_rozl_uzytku() — filtr
-           |                            | tt[0] in self.adr_les w list comprehension
-2026-06-14 | baza_kontrola_dzkat.py      | Naprawa: IndexError w przetworz_dane()
-           | przygotuj_dzkat.py          | gdy baza pusta (dz_dict pusty słownik);
-           |                            | guard + fallback county/district = ''
-           |                            | (przygotuj_dzkat.py: też wyciek połączeń
-           |                            | ODBC — dodano b.zamknij() w pętli baz)
-2026-06-14 | baza_polacz.py              | Naprawa: KeyError w d_tabele() gdy
-           |                            | ARODES_INT_NUM tabeli podrzędnej nie ma
-           |                            | w sl_arodes (rekord już istniał w bazie
-           |                            | docelowej); pre-check przed pętlą kolumn
-2026-06-14 | spr_wydzielen.py            | Naprawa: spr_oddz() raportowała lprzec
-           |                            | zamiast lniezg w komunikacie o niezgodnych
-           |                            | kodach oddziałów
-2026-06-14 | sprawdzenia_warstw.py       | Naprawa: spr_crs() zawsze zwracała True
-           |                            | zamiast False przy błędnym CRS — wszystkie
-           |                            | klasy dziedziczące ignorowały zły układ
-           |                            | współrzędnych; inicjalizacja braki_baza/shp
-           |                            | przed blokiem if baza (NameError gdy
-           |                            | baza=False); guard x['ADR_LES'] in md
-           |                            | w sprawdz_powierzchnie_wydz (KeyError)
-2026-06-14 | baza_kontrola_ls.py         | Naprawa: sprawdz_puste() zwracała None
-           |                            | zamiast {} dla krótkiego/nieznanego LANDID
-           |                            | → AttributeError w callerze; fix == na +=
-           |                            | w generuj_raport(); fix s['ARK'] zamiast
-           |                            | s['COMMUNITY'] przy 4-częściowym LANDID
-2026-06-14 | baza_sprawdz_rozl.py        | Naprawa: crash przy anulowaniu wyboru bazy
-           |                            | (znajdz_baze_do_wydz zwraca False →
-           |                            | Baza(False).polacz() → TypeError); guard
-2026-06-14 | raport_wyles.py             | Naprawa: TypeError (int+str) w komunikacie
-           |                            | końcowym gdy były uwagi — str(len(uwagi))
-2026-06-14 | shp_przygDlaTaksatora.py   | Kopiowanie warstwy SHP_stare/WYDZ_POL_stare
-           |                            | (jeśli folder istnieje)
-2026-06-14 | shp_przygDlaTaksatora.py   | Nowy skrypt: "Spakuj taksatorowi" w menu
-           | ui/ui_przygDlaTaksatora.py | Przygotowanie danych; kopiuje whitelist
-           |                            | warstw (SHP: LS, DZKAT, LZ_potencjalne,
-           |                            | OBR, 99; SHP_dotaks: DOTAKS_nowe,
-           |                            | DOTAKS_rb_nielas, DOTAKS_sprawdzenie)
-           |                            | do podfolderu SHP/ w folderze wynikowym;
-           |                            | eksportuje xlsx z kwerendy zestawienia
-           |                            | powierzchni z bazy MDB
-2026-06-14 | shp_przygDlaTaksatora.py   | Tryb wsadowy (checkbox "Wiele gmin"):
-           |                            | skan bezpośrednich podfolderów powiatu,
-           |                            | lista gmin z checkboxami, auto-tryb
-           |                            | nazewnictwa (COMMUNITY_NAME gdy każda
-           |                            | baza ma 1 rekord w F_COMMUNITY, inaczej
-           |                            | MUNICIPALITY_NAME), alert przy duplikatach
-2026-06-14 | shp_przygDlaTaksatora.py   | Dynamiczne nazwy folderów i plików xlsx
-           |                            | z bazy (MUNICIPALITY_NAME / DISTRICT_NAME
-           |                            | / COMMUNITY_NAME); normalizacja: polskie
-           |                            | znaki → ASCII, "obszar wiejski" i
-           |                            | "ob. wiej" → OW; auto-wykrycie bazy
-           |                            | (.mdb najnowsza) i folderu powiatu
-           |                            | (2 poziomy wyżej niż załadowane warstwy)
-2026-06-14 | shp_wyszukaj_lz.py         | Naprawa: duplikaty na warstwie wynikowej
-           |                            | Lz — dedupl. po f.id() przed zapisem;
-           |                            | przyczyna: dwa sąsiednie klastry mogły
-           |                            | wzajemnie wchłaniać swoje featurki
-2026-06-14 | shp_wyszukaj_lz.py         | Nowe: auto-wykrycie UZYTKI.shp w folderze
-           |                            | LS gdy pole użytków jest puste w dialogu
-2026-06-13 | shp_przygDotaks.py         | Naprawa: duplikaty w DOTAKS_geom_bledy
-           |                            | — warstwy pośrednie (diff, rb_nielas_
-           |                            | clip) są tylko naprawiane (_napraw_geom)
-           |                            | bez raportowania błędów; błędy tylko
-           |                            | z warstw wejściowych (LS, stare)
-2026-06-13 | shp_przygDotaks.py         | Zmiana: podział warstwy błędów geometrii
-           |                            | — błędy z LS → LS_bledy_geom (check
-           |                            | bez fix); błędy z diff/stare/rb_nielas
-           |                            | → DOTAKS_geom_bledy; naprawa QgsField
-           |                            | len= w _pokaz_bledy_geom
-2026-06-13 | shp_przygDotaks.py         | Zmiana: krok 6 DOTAKS_nowe — fragment
-           |                            | <0,10 ha usuwany tylko gdy styka się
-           |                            | z warstwą stare (sliver graniczny);
-           |                            | izolowane nowe obszary są chronione
-2026-06-12 | shp_przygDotaks.py         | Nowe: kontrola geometrii — checkvalidity
-           |                            | (GEOS) na warstwie stare, wyniku diff
-           |                            | i clip rb_nielas; fixgeometries naprawia
-           |                            | warstwę przed dalszym przetwarzaniem;
-           |                            | ficzery błędne trafiają do tymczasowej
-           |                            | warstwy DOTAKS_geom_bledy (pole ZRODLO)
-2026-06-12 | shp_przygDotaks.py         | Zmiana: krok 4 DOTAKS_nowe — usuwa
-           |                            | ficzery <0,01 ha TYLKO gdy nie stykają
-           |                            | się z żadnym innym poligonem warstwy
-           |                            | (QgsSpatialIndex + geometry.intersects)
-2026-06-12 | shp_przygDotaks.py         | Nowy skrypt: tworzenie warstw DOTAKS
-           | ui/ui_przygDotaks.py       | (nowe, rb_nielas, sprawdzenie-TODO);
-           |                            | dialog: LS nowe + wydzielenia stare
-           |                            | + baza; auto-wykrycie LS i bazy
-2026-06-13 | shp_przygCiecieStUPUL.py | Naprawa: dialog WYDZ domyślnie otwiera
-           |                          | folder SHP (nie SHP_dotaks) — szuka
-           |                          | siostrzanego SHP względem folderu
-           |                          | aktualnie załadowanej warstwy
-2026-06-12 | shp_przygCiecieStUPUL.py | Nowy skrypt: przygotowanie warstw SHP
-           | ui/ui_przygCiecieStUPUL.py | do cięcia ST UPUL — dopisuje metadane
-           |                            | z bazy do WYDZ, rozbija na singlepart
-           |                            | (WYDZ_POL_stare), tworzy warstwę
-           |                            | punktową (WYDZ_PKT_stare); wynik
-           |                            | w folderze SHP_stare obok bazy
-2026-06-10 | shp_wyszukaj_lz.py | Naprawa problemu z 0 Lz — poprawka logiki
-           |                    | wykrywania działek Lz; obsługa multipolygon
-           |                    | <10 arów; brakujące OFU; G5OFU
-2026-06-10 | shp_wyszukaj_lz.py | Naprawa: fragmenty multipolygonu LS <10 arów
-           |                    | były pomijane — struk_ls() dzieli teraz
-           |                    | multipolygony na singleparty z proporcjonalnym
-           |                    | LAND_AR (w ls_fts_pow) przed wstawieniem do
-           |                    | indeksu przestrzennego
-2026-06-10 | shp_wyszukaj_lz.py | Nowe: LAND_POW w LZ_potencjalne.shp wypełniane
-           |                    | automatycznie powierzchnią graficzną [ha]
-2026-06-10 | raport_wyciagi.py | Naprawa: mapka skalowana dynamicznie do
-           |                   | dostępnej wysokości strony zamiast stałego
-           |                   | 1:5000; mapka zawsze mieści się na stronie
-2026-06-10 | raport_wyciagi.py | Naprawa: pusta strona przy dużych klastrach
-           |                   | — pre-check tworzy nową stronę tylko gdy
-           |                   | treść zmieści się na świeżej stronie
-2026-06-10 | raport_wyciagi.py | Naprawa: UnboundLocalError w nag_grej dla
-           |                   | właścicieli ze współwłasnością (ww nie było
-           |                   | inicjalizowane przed +=)
-2026-06-10 | raport_wyciagi.py | Naprawa: błędna wysokość nagłówka grej gdy
-           |                   | len(wwlas) % 3 > 0 (ww_wys zamiast len)
-2026-06-10 | raport_wyciagi.py | Naprawa: ramka z imieniem/nazwiskiem/adresem
-           |                   | właściciela poszerzona (55→90mm) na str. tyt.
-2026-06-10 | naklejki.py       | Naprawa: wynik QMessageBox.exec_() nie był
-           |                   | zapisywany — kliknięcie "Nie" w inne_layouty()
-           |                   | nigdy nie było wykrywane (m zamiast ret)
-2026-06-10 | naklejki.py       | Naprawa: literówka WGOSIGW→WFOSIGW w nazwie
-           |                   | pliku logo dla województwa lubuskiego
-2026-06-10 | naklejki.py       | Naprawa: IndexError gdy powierzchnia była
-           |                   | liczbą całkowitą bez kropki dziesiętnej
-           |                   | (pp.split('.')[1] rzucało wyjątek)
-2026-06-10 | naklejki.py       | Naprawa: KeyError w gen_okladke() gdy szerokość
-           |                   | nazwy obrębów przekraczała klucz 12 w słowniku
-           |                   | sl — klucz jest teraz ograniczony do max(sl)
-2026-06-10 | naklejki.py       | Nowe: opcja 2 naklejek na stronę — 2 różne
-           | ui_naklejki_dialog| obreby obok siebie (2 kolumny jak w trybie 4),
-           |                   | pakowane kolejno po 2 na stronę
-2026-06-11 | las_r.py            | Porządki: usunięto stary monolityczny skrypt
-           | baza_zabiegi.py    | baza_zabiegi.py; aktywny pozostaje moduł
-           |                    | zabiegi/ (nowe); akcja w menu przemianowana
-           |                    | na "Zabiegi dopisz/sprawdź"
-2026-06-11 | baza_zabiegi_sl.py | Porządki: usunięto zduplikowany słownik z
-           | zabiegi/           | zabiegi/baza_zabiegi_sl.py; zabiegi/wydzielenie
-           |                    | importuje teraz ze wspólnego skrypty/baza_zabiegi_sl.py;
-           |                    | naprawiono błędny przecinek w uw_sl['reb_zup']['c']
-2026-06-11 | zabiegi/wygeneruj  | Naprawa: duplikowany komunikat w uwagach do bazy
-           |                    | (np. "D-stan do przebudowy, D-stan do przebud.") —
-           |                    | brak break w pętli wygeneruj_uwagi_do_dopisania()
-           |                    | powodował dopisanie obu wariantów 'c' i 's'
-2026-06-11 | zabiegi/sprawdz    | Naprawa: sprawdz_pozyskanie_na_1ha() raportowało
-           |                    | całkowite m³ zamiast m³/ha — dodano dzielenie
-           |                    | przez pow_wydz; naprawiono brak f-stringa
-           |                    | w komunikacie >500m³/ha
-2026-06-11 | zabiegi/main.py    | Naprawa: crash gdy pobierz_wydzielenia() zwróci
-           |                    | False (pusta baza) — guard z komunikatem błędu
-2026-06-11 | baza_zabiegi_sl.py | Nowe: uwaga 'zle_prod' ("Drzewostan źle
-           | zabiegi/wygeneruj  | produkujący") dla trybu Janczulewicz —
-           |                    | zastępuje 'przebud' gdy checkbox aktywny
-2026-06-11 | zabiegi/sprawdz    | Naprawa: warunki sprawdzania pierśnicy i
-           |                    | wysokości używały `and` zamiast `or` — nigdy
-           |                    | nie generowały raportu; próg wys. zmieniony
-           |                    | na >35 m (zamiast >120 m)
-2026-06-11 | zabiegi/sprawdz    | Naprawa: martwy kod — return przed blokiem
-           |                    | ze zwarciem powodował, że komunikat
-           |                    | "Brak wpisanej wysokości, a jest zwarcie"
-           |                    | nigdy nie był generowany
-2026-06-11 | baza_usun_kwerendy | Nowe: skrypt "Usuń kwerendy z baz" w menu
-           | baza_wrapper.py    | Narzędziowe — usuwa wszystkie kwerendy MDB
-           | baza_anonimizuj.py | z wyjątkiem 7 kwerend z whitelisty (DAO/COM);
-           | las_r.py           | tworzy kopię _usun_kw przed usunięciem;
-           |                    | anonimizacja: nowy przepływ — oryginał
-           |                    | nienaruszony, wynik to nazwa_BDO.mdb
-           |                    | z zanonimizowanymi danymi i usuniętymi
-           |                    | kwerendami
-2026-06-11 | dopisz_dzkat.py    | Naprawa: brak inicjalizacji self.bledy_topo
-           |                    | powodował AttributeError gdy działki
-           |                    | nachodzą na siebie — skrypt crashował w
-           |                    | połowie przetwarzania; odkomentowano sekcję
-           |                    | raportu z liczbą błędów topologicznych
-2026-06-11 | dopisz_dzkat.py    | Naprawa: dz_nieles → dzkat_nieles — sekcja
-           |                    | "Działki nieleśne" w raporcie zawsze zwracała
-           |                    | 0 bo dane trafiały do złej listy
-2026-06-11 | dopisz_dzkat.py    | Porządki: usunięto duplikat metody dz_lacznik()
-2026-06-11 | dopisz_dzkat.py    | Nowe: dialog "Czy wyświetlić raport?" po
-           |                    | zakończeniu kontroli (jak w sprawdz_dzkat.py)
-2026-06-11 | dopisz_dzkat.py    | Refaktor: własna logika przetworz_dane()
-           | sprawdz_dzkat.py   | zastąpiona przez baza_przetworz.Przetworz
-           |                    | (spójne z baza_kontrola_ls i sprawdz_ls);
-           |                    | dopisz_dzkat: dodano dialog OF/OPiF i
-           |                    | aktywowano filtrowanie w raporcie
-2026-06-11 | przygotuj_ls.py    | Optymalizacja: QgsSpatialIndex w sprawdz_topologie()
-           | baza_przetworz.py  | zamiast O(n²) pętli — pełne testy GEOS tylko dla
-           |                    | par z nakładającym się bounding boxem;
-           |                    | stworz_landid() wywoływana 1× zamiast 4× per klu
-           |                    | w przetworz(); dz_op/dz_opif/dz_of zmienione z list
-           |                    | na zbiory (O(1) lookup); ls_podwojne pre-grupowane
-           |                    | wg PARCELID w ls_podwojne_by_pid
-2026-06-11 | dopisz_dzkat.py    | Zmiana nazw skryptów i klas:
-           | sprawdz_dzkat.py   | dopisz_dzkat → baza_kontrola_dzkat (KontrolaDzKat)
-           | sprawdz_ls.py      | sprawdz_dzkat → przygotuj_dzkat (PrzygotujDzKat)
-           | las_r.py           | sprawdz_ls → przygotuj_ls (PrzygotujLs)
-2026-06-12 | okladka_atlas.py   | Naprawa: literówka WGOSIGW→WFOSIGW w nazwie
-           |                    | pliku logo dla województwa lubuskiego
-2026-06-12 | okladka_atlas.py   | Naprawa: hardkodowana ścieżka deweloperska
-           |                    | zastąpiona QgsProject.instance().homePath()
-2026-06-12 | okladka_atlas.py   | Naprawa: inne_layouty() — wynik exec_() nie był
-           |                    | zapisywany; kliknięcie "Nie" nigdy nie działało
-2026-06-12 | okladka_atlas.py   | Naprawa: AttributeError self.geod (brak init)
-           | ui_okladki_dialog  | Nowe: checkbox "Stan ewidencji gruntów na
-           |                    | okładce" (domyślnie wyłączony); gdy włączony
-           |                    | wyświetla DD.MM.YYYY z F_PARAMETER.EWID_STATE
-           |                    | poniżej Województwa, wyśrodkowane, 10pt
-2026-06-12 | zabiegi/wpisz.py   | Naprawa: uwagi (subarea_info) nie były zapisywane
-           |                    | do bazy gdy wszystkie zabiegi już istniały w cue
-           |                    | (uzupelnij_uwagi nie była wołana przy early-return
-           |                    | z _dopisz_zabieg); fix: jawne wywołanie na końcu
-           |                    | modyfikuj_zabiegi
-2026-06-12 | las_r.py           | Nowe menu "Aktualizacja UPUL" > "Aktualizacja
-           | aktualizacja_upul/ | baz" — integracja pakietu LAS_R_TOOL (Cleaner):
-           |                    | operacje F1–F4 na bazie MDB z historią wersji
-           |                    | i rollbackiem; pakiet skopiowany do skrypty/
-           |                    | aktualizacja_upul/ (core, gui, config)
+### Nowe funkcje
 
-================================================================================
+1. SPAKUJ TAKSATOROWI (shp_przygDlaTaksatora.py — nowy plik)
+   - Nowa pozycja menu w "Przygotowanie danych" — pakuje komplet warstw (LS,
+     DZKAT, LZ_potencjalne, OBR, 99, warstwy DOTAKS) do przekazania
+     taksatorowi
+   - Eksportuje też xlsx z zestawieniem powierzchni z bazy
+   - Tryb wsadowy — pakowanie wielu gmin naraz, z listą checkboxów
+   - Automatyczne wykrywanie bazy, folderu i nazw (polskie znaki zamieniane
+     na ASCII)
+
+2. TWORZENIE WARSTW DOTAKS (shp_przygDotaks.py — nowy plik)
+   - Nowy skrypt przygotowujący warstwy do przekazania taksatorowi (nowe
+     wydzielenia, rb_nielas, sprawdzenie)
+   - Kontrola i automatyczna naprawa geometrii przed dalszym przetwarzaniem
+   - Osobne raportowanie błędów geometrii w zależności od źródła (warstwa LS
+     vs pozostałe)
+
+3. PRZYGOTOWANIE WARSTW SHP DO CIĘCIA ST UPUL (shp_przygCiecieStUPUL.py —
+   nowy plik)
+   - Dopisuje metadane z bazy do WYDZ, tworzy warstwy pomocnicze
+     (WYDZ_POL_stare, WYDZ_PKT_stare)
+   - Obsługuje starą strukturę warstwy WYDZ (stary UPUL) — automatyczne
+     rozpoznanie i przemapowanie kolumn
+
+4. NAKLEJKI — 2 NA STRONĘ (naklejki.py)
+   - Nowa opcja: 2 różne obręby obok siebie na jednej stronie
+
+5. AKTUALIZACJA UPUL (integracja pakietu Cleaner)
+   - Nowe menu "Aktualizacja UPUL" > "Aktualizacja baz" — operacje na bazie
+     MDB z historią wersji i możliwością cofnięcia zmian (rollback)
+
+6. USUŃ KWERENDY Z BAZ (baza_usun_kwerendy.py — nowy plik)
+   - Nowy skrypt w menu Narzędziowe — usuwa wszystkie kwerendy MDB poza
+     whitelistą
+   - Nowy przepływ anonimizacji: oryginał bazy pozostaje nienaruszony, wynik
+     trafia do osobnego pliku nazwa_BDO.mdb
+
+### Poprawki i ulepszenia
+
+7. WYCIĄGI DLA WŁAŚCICIELI (raport_wyciagi.py)
+   - Mapka skalowana dynamicznie do dostępnej wysokości strony (zamiast
+     sztywnej skali 1:5000)
+   - Naprawiono pustą stronę pojawiającą się przy dużych klastrach
+   - Naprawiono kilka błędów uniemożliwiających generowanie (współwłasność,
+     błędna wysokość nagłówka)
+   - Poszerzono ramkę z danymi właściciela na stronie tytułowej (55→90 mm)
+
+8. NAKLEJKI (naklejki.py)
+   - Naprawiono kilka błędów: nieczułe kliknięcie "Nie", literówka w nazwie
+     logo dla woj. lubuskiego, błąd przy powierzchni bez części dziesiętnej,
+     błąd przy bardzo długich nazwach obrębów
+
+9. WYSZUKAJ LZ (shp_wyszukaj_lz.py)
+   - Naprawiono problem z zerowym wynikiem (0 Lz) — poprawiona logika
+     wykrywania działek Lz
+   - Obsługa fragmentów multipolygonu poniżej 10 arów
+   - Automatyczne wykrywanie warstwy UZYTKI.shp, gdy pole nie jest wskazane
+     w dialogu
+   - Naprawiono duplikaty w warstwie wynikowej
+
+10. ZABIEGI — DOPISZ/SPRAWDŹ (moduł zabiegi/)
+    - Usunięto stary, zastąpiony skrypt baza_zabiegi.py — aktywny pozostaje
+      moduł zabiegi/
+    - Naprawiono: duplikowanie uwag w bazie, błędne raportowanie pozyskania
+      (m³ zamiast m³/ha), warunki sprawdzania pierśnicy/wysokości (nigdy nie
+      działały), martwy kod blokujący komunikat o zwarciu
+    - Nowa uwaga "Drzewostan źle produkujący" dla trybu Janczulewicz
+
+11. DZKAT — DOPISZ/SPRAWDŹ (przemianowane na baza_kontrola_dzkat,
+    przygotuj_dzkat, przygotuj_ls)
+    - Naprawiono kilka błędów: crash przy nachodzących na siebie działkach,
+      błędne liczenie działek nieleśnych w raporcie
+    - Dodano dialog "Czy wyświetlić raport?" po zakończeniu kontroli
+    - Duże przyspieszenie kontroli topologii i przygotowania danych (indeks
+      przestrzenny zamiast pętli sprawdzającej każdą parę działek)
+
+12. OKŁADKA ATLASU (okladka_atlas.py)
+    - Naprawiono literówkę w nazwie logo dla woj. lubuskiego, błędną ścieżkę
+      deweloperską, nieczułe kliknięcie "Nie", brak inicjalizacji pola
+    - Nowy checkbox: "Stan ewidencji gruntów na okładce" (domyślnie
+      wyłączony)
+
+13. Drobne naprawy błędów (crashe przy anulowaniu dialogu, błędne komunikaty
+    końcowe, złe kolumny w raportach) w: baza_rozlicz_pow_wydz.py,
+    baza_kontrola_dzkat.py, baza_polacz.py, spr_wydzielen.py,
+    sprawdzenia_warstw.py, baza_kontrola_ls.py, baza_sprawdz_rozl.py,
+    raport_wyles.py, zabiegi/wpisz.py
+
+==============================
