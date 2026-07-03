@@ -220,7 +220,7 @@ class SprawdzCiecie:
             lyrbez.commitChanges()
             lyrb = QgsProject.instance().addMapLayer(lyrbez)
             lyrb.loadNamedStyle(os.path.join(
-                plug, '..', 'qml', 'poly_red_outline.qml'))
+                plug, '..', 'qml', 'WYDZ_bez_kart.qml'))
 
         if len(wydz_wiela) > 0:
             lyrwiela = QgsVectorLayer(
@@ -237,7 +237,7 @@ class SprawdzCiecie:
             lyrwiela.commitChanges()
             lyrw = QgsProject.instance().addMapLayer(lyrwiela)
             lyrw.loadNamedStyle(os.path.join(
-                plug, '..', 'qml', 'poly_green_outline.qml'))
+                plug, '..', 'qml', 'WYDZ_z_wieloma_kartami.qml'))
 
         if len(lpoz) > 0:
             lyrpkt = QgsVectorLayer(

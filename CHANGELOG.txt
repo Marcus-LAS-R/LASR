@@ -10,6 +10,149 @@ wydania i zostały sprawdzone w codziennej pracy. Brak dodatkowych zmian
 funkcjonalnych względem 2.0d — to wydanie porządkuje numerację przed dalszym
 rozwojem wtyczki.
 
+### Poprawki po wydaniu 2.1
+
+1. WSKAŻ BAZĘ — ZŁY KATALOG STARTOWY (baza_dopisz_wydz.py,
+   baza_rozlicz_pow_wydz.py)
+   - "Dopisz/uzupełnij wydzielenia" i "Rozlicz powierzchnię wydzielenia"
+     wołały znajdz_baze_do_wydz() bez parametru poz, przez co dialog
+     "Wskaż bazę Taksatora" startował dwa poziomy katalogów wyżej od
+     warstwy WYDZ (../..) zamiast jeden (../.), niezgodnie z resztą
+     skryptów operujących na tej warstwie (np. Sprawdź wydzielenia)
+   - Dodano poz=1 do obu wywołań
+
+2. PRZYGOTUJ WYDZIELENIA DO CIĘCIA — MULTIPOLIGONY W OBR (shp_przygCiecie.py)
+   - Warstwa ODDZ tworzona z OBR.shp nie rozbijała ewentualnych
+     multipoligonów na pojedyncze poligony (w przeciwieństwie do warstwy
+     WYDZ tworzonej wcześniej w tej samej funkcji)
+   - Tworzenie ODDZ przepisane na native:multiparttosingleparts zamiast
+     zwykłego zapisu warstwy
+
+3. WYEKSPORTUJ DO KML — PORZĄDEK KATALOGÓW + OPCJA WGS84 (shp_eksport_kml.py)
+   - Pliki KML zapisywane teraz w podkatalogu "kml" (w katalogu warstwy
+     z TOC), zamiast bezpośrednio wśród plików warstwy
+   - Nowy dialog pytający, czy dodatkowo wyeksportować warstwy jako SHP
+     w układzie WGS84 (EPSG:4326); nazwy plików z dopiskiem "_84"
+   - Jeśli tak, eksport trafia do nowego podkatalogu "shp_84"
+
+4. SPRAWDŹ KARTY W WYDZIELENIACH — NOWE STYLE (shp_sprawdz_ciecie.py)
+   - Warstwy "WYDZ_bez_kart" i "WYDZ_z_wieloma_kartami" korzystały z
+     ogólnych styli poly_red_outline.qml / poly_green_outline.qml
+   - Podmienione na dedykowane style WYDZ_bez_kart.qml i
+     WYDZ_z_wieloma_kartami.qml (dodane do qml/, źródło:
+     materialy/Style_shp/_NOWE)
+
+5. ZALITERKUJ WYDZIELENIA — MONIT ZAMIAST ZMIANY STYLU (shp_literkuj.py)
+   - Usunięto automatyczną zmianę stylu warstwy na szaro-czerwony
+     WYDZ_xxx.qml przy przekroczeniu listy literek
+   - Zamiast tego, gdy literkowanie przekroczy dostępną listę literek,
+     wyświetlany jest monit z pytaniem czy kontynuować
+   - "Nie" — literowanie przerwane, żadne zmiany nie są zapisywane do
+     warstwy; "Tak" — literowanie zostaje zapisane tak jak wyliczone
+     (wydzielenia poza listą oznaczone jako "xxx", bez zmian w tej logice)
+
+6. NOWY: KONWERSJA SHP DO NOWEGO STANDARDU (aktualizacja_upul/core/
+   shp_standard.py, aktualizacja_upul/gui/konwersja_shp_dialog.py)
+   - Nowa pozycja menu "Aktualizacja SHP" w podmenu "Aktualizacja UPUL",
+     zaraz po "Aktualizacja baz" (i przed separatorem/resztą pozycji) -
+     osobno od okna F1-F4 (nie dotyczy bazy .mdb)
+   - Dialog z listą warstw do konwersji: domyślnie wypełniona warstwami
+     z bieżącego projektu (TOC), z możliwością dodania dowolnych plików
+     SHP przyciskiem "Dodaj warstwę z pliku…"; dla każdej warstwy wybór
+     typu docelowego (DZKAT/LS/WYDZ_POL/PNSW/OBR/KLU), zgadywanego
+     automatycznie z nazwy
+   - Konwersja przepisuje geometrię i mapuje stare (obcięte do 10 znaków
+     w DBF) nazwy pól na aktualny standard pól, z rzutowaniem typów;
+     PARCEL_POW (DZKAT) i LAND_POW (LS, gdy brak w źródle) liczone wprost
+     z geometrii; PARCELID doliczane ze składowych gdy brak w źródle
+   - Wynik zapisywany do nowego podfolderu "SHP_nowy_standard" obok
+     każdego pliku źródłowego — oryginały nie są zmieniane
+   - Po konwersji raport (okno + plik txt) z listą zmapowanych pól, pól
+     bez źródła (wymagających uzupełnienia inną metodą, np. z bazy
+     taksatora) oraz błędów/przycięć wartości per obiekt
+   - Każde pole docelowe próbuje najpierw dopasować dokładnie swoją własną
+     nazwę (dopiero potem stare warianty) - jeśli źródło ma już kolumny w
+     nowym standardzie (częściowo przekonwertowany plik, mieszany zestaw),
+     zostają przepisane 1:1 zamiast zgłoszone jako brakujące; dotyczy to
+     też pól wyliczanych (PARCEL_POW, LAND_POW, COUNTY_L) - liczone z
+     geometrii/tabeli tylko gdy źródło faktycznie ich nie ma
+   - Dodany osobny typ docelowy "WYDZ" (geometria bazowa, 10 pól - jak
+     tworzy ją shp_przygCiecie.py) obok "WYDZ_POL" (pełny opis taksacyjny,
+     29 pól - po "Dopisz kody"); wcześniej każdy plik z "WYDZ" w nazwie
+     szedł pod WYDZ_POL, co dopisywało dziesiątki pustych kolumn do
+     zwykłego WYDZ.shp bez opisu. Zgadywanie typu sprawdza teraz też
+     obecność pól opisowych (PART_CD/SPECIES_CD/AREA_TYPE/STAND_STRU...)
+     w źródle, nie tylko nazwę pliku
+   - Raport: konwencja "stara_nazwa -> nowa_nazwa" (wcześniej odwrotnie)
+   - Dodany wybór kodowania odczytu źródłowych SHP w dialogu (domyślnie
+     Windows-1250). Wynik zapisu jest zawsze UTF-8, ale to nie chroni przed
+     złym ODCZYTEM starego pliku - sprawdzone na materialy/shp_stary_standard:
+     pliki .cpg w tym zestawie danych błędnie deklarują "UTF-8", podczas
+     gdy surowe bajty w DBF są w rzeczywistości Windows-1250 (potwierdzone
+     próbą dekodowania - jako UTF-8 dają błąd, jako CP1250 poprawny tekst
+     polski). Ufanie samemu .cpg groziło cichym psuciem polskich znaków
+   - Nowy przycisk "Zgadnij kodowanie": próbkuje wartości tekstowe z
+     zaznaczonych warstw (CP1250/UTF-8/ISO-8859-2/CP852) i wybiera to,
+     które daje najwięcej polskich znaków diakrytycznych i najmniej
+     "śmieci" (znaki sterujące, znak zastępczy) - bez błędów dekodowania
+     w pierwszej kolejności. Uruchamiane automatycznie (po cichu) po
+     otwarciu dialogu i po dodaniu plików - wynik zawsze widoczny i do
+     poprawienia w liście rozwijanej przed konwersją
+   - Folder wyjściowy wybierany jawnie przez użytkownika (pole tekstowe +
+     przycisk "Wybierz…"), zamiast automatycznego podfolderu przy każdym
+     pliku źródłowym; podpowiadany domyślnie "SHP_nowy_standard" obok
+     pierwszej warstwy, do dowolnej zmiany. Wszystkie zaznaczone warstwy
+     trafiają teraz do JEDNEGO wspólnego folderu - przed konwersją
+     wykrywane i zgłaszane są kolizje nazw plików (dwie różne warstwy
+     źródłowe o tej samej nazwie pliku by się nadpisały)
+   - Okno wyboru folderu wyjściowego to standardowy, natywny dialog
+     systemowy (przycisk "Wybierz…"); domyślnie otwiera się jeden poziom
+     wyżej niż folder z warstwami wejściowymi
+   - Nowy przycisk "Zobacz próbkę" obok "Zgadnij kodowanie": tabela z tymi
+     samymi przykładowymi wartościami tekstowymi zdekodowanymi każdym z
+     kandydujących kodowań obok siebie (CP1250/UTF-8/ISO-8859-2/CP852) -
+     do ręcznej weryfikacji, gdy automatyczne zgadywanie budzi wątpliwości
+   - Dwa nowe, osobne typy docelowe zamiast wcześniejszego łączenia:
+     "ODDZ" (ten sam układ co OBR - MUNICIP/COMMUNITY/ODDZ - ale dla
+     starych plików nazwanych "ODDZ", które zwykle mają już pole ODDZ
+     wprost) i "UZYTKI" (tylko AU, bez SQ - jak stary UZYTKI_92.shp, węższy
+     od KLU). Zgadywanie typu z nazwy pliku rozpoznaje teraz obie
+   - Naprawiony błąd: gdy pole źródłowe (np. ARK - arkusz) nie zmapowało
+     się z niczego i zostawało NULL, `str(None)` w Pythonie dawało
+     dosłowny tekst "None" zamiast pustego stringa - trafiało to wprost do
+     wyliczanych pól (PARCELID, MUNICIP/COMMUNITY z TERYT, COUNTY_L). Nowa
+     funkcja pomocnicza `_tekst()` zamienia NULL na pusty string wszędzie
+     tam, gdzie te pola są wyliczane
+   - Naprawione zgadywanie typu dla plików z prefiksem w nazwie (np.
+     "0011_OBR_92.shp") - OBR i ODDZ sprawdzały tylko `nazwa.startswith(...)`,
+     więc numeryczny prefiks przed "OBR"/"ODDZ" psuł rozpoznanie; teraz
+     dopasowanie "gdziekolwiek w nazwie", tak jak reszta typów
+   - DUŻA KOREKTA schematów wg wzorcowych plików z materialy/wzory_SHP
+     (autorytatywne źródło struktury nowego standardu - poprzednie
+     definicje OBR/KLU/UZYTKI były błędne, zgadywane z kodu innych
+     skryptów zamiast z gotowego wzorca):
+     * OBR przywrócony do "surowej" warstwy importu SWDE/EGiB (G5NRO/
+       G5PEW/G5NAZ/G5DTW/G5DTU/G5RJEW + LOKID/STARTOB/STARTWOB) zamiast
+       MUNICIP/COMMUNITY/ODDZ - ten układ zostaje wyłącznie przy ODDZ
+     * KLU i UZYTKI zachowują oryginalne pola G5OZU/G5OZK/G5IDK (KLU) i
+       G5OFU/G5IDT (UZYTKI) zamiast MUNICIP/COMMUNITY, z dopisanymi
+       AU/SQ/KLU (KLU liczone jako AU+SQ, gdy brak w źródle)
+     * dodane dwa nowe typy: GMIN i EWID (surowa warstwa działek z
+       importu, przed przetworzeniem na biznesowy DZKAT) - zgadywanie
+       typu rozróżnia teraz "DZKAT" (ma COUNTY/MUNICIP) od "EWID" (ma
+       tylko NUMER/OBREB/G5RZN/G5DWW/G5DZP) mimo identycznej nazwy pliku
+     * dodane brakujące pole ID do WYDZ/WYDZ_POL, oraz ID/MUNICIP/
+       COMMUNITY do PNSW
+     * poprawiona precyzja pól liczbowych (Double 11,4 zamiast 10,4 -
+       zgodnie z wzorcem) w DZKAT/LS/WYDZ/WYDZ_POL/PNSW
+   - Cofnięte rozróżnianie DZKAT/EWID po polach źródła - plik nazwany
+     "DZKAT" zawsze zgaduje się jako DZKAT (nawet z samymi surowymi polami
+     importu, bez COUNTY/MUNICIP), zgodnie z intuicją nazwy pliku; EWID
+     trzeba wybrać ręcznie albo nazwać plik wprost "EWID"
+   - Poprawiona nazwa pola identyfikatora w UZYTKI: IDUZYTKU (nie G5IDT,
+     jak było wcześniej błędnie odczytane) - stare pliki (UZYTKI_92) z
+     G5IDT nadal mapują się poprawnie przez FIELD_MAP
+
 ==============================
 
 Wersja 2.0d — zmiany wprowadzone 18–25.06.2026

@@ -420,16 +420,14 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
             QgsField("ODDZ", QVariant.String, len=6),
         ]
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            obr,
-            os.path.join(os.path.join(kat, "ODDZ.shp")),
-            "UTF-8",
-            crs,
-            "ESRI Shapefile")
+        # rozbij ewentualne multipoligony na pojedyncze poligony
+        oddz_sc = os.path.join(kat, "ODDZ.shp")
+        processing.run("native:multiparttosingleparts", {
+            'INPUT': obr,
+            'OUTPUT': oddz_sc,
+        })
 
-        oddz = QgsVectorLayer(
-            os.path.join(os.path.join(kat, "ODDZ.shp")), 'ODDZ', 'ogr')
+        oddz = QgsVectorLayer(oddz_sc, 'ODDZ', 'ogr')
 
         oddz.startEditing()
         oddz.dataProvider().addAttributes(oddz_fields)

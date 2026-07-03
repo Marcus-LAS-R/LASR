@@ -3,6 +3,7 @@ import datetime
 import processing
 from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsVectorLayer
+from PyQt5.QtWidgets import QMessageBox
 from operator import itemgetter
 
 # kolejnosc liter przydzielanych wydzieleniom w obrebie grupy (oddz/gmina/
@@ -134,6 +135,29 @@ def Literkuj(iface, lyr=False):  # noqa
         else:
             sl[it[0]] = {fnm['WYDZ']: 'Lz'}
 
+    if message_trig > 0:
+        odp = QMessageBox.question(
+            iface.mainWindow(),
+            'Lista literek przekroczona',
+            'Literkowanie przekroczy dostępną listę literek dla ' +
+            str(message_trig) + ' wydzieleń (patrz log Las-R).\n\n'
+            'Kontynuować literowanie?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if odp != QMessageBox.Yes:
+            iface.messageBar().pushMessage(
+                'ANULOWANO',
+                'Literowanie przerwane przez użytkownika',
+                Qgis.Warning,
+                10)
+            QgsMessageLog.logMessage(
+                '------ KONIEC (anulowano) -------- \n',
+                'Las-R',
+                Qgis.Info
+            )
+            return False
+
     lyr.startEditing()
     for key, val in sl.items():
         lyr.dataProvider().changeAttributeValues({key: val})
@@ -191,12 +215,6 @@ def Literkuj(iface, lyr=False):  # noqa
             'jednym oddziale, (Patrz log Las-R)',
             Qgis.Warning,
             10)
-        plugin_dir = os.path.dirname(__file__)
-        lyr.loadNamedStyle(
-            os.path.join(plugin_dir, '..', 'qml', 'WYDZ_xxx.qml'
-                         )
-        )
-        iface.mapCanvas().refreshAllLayers()
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',

@@ -466,6 +466,14 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_aktualizacja_baz)
         self.a_aktualizacja_baz.triggered.connect(self.uruchom_aktualizacje_baz)
 
+        self.a_aktualizacja_shp = QAction(
+            QIcon(None), "Aktualizacja SHP", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_aktualizacja_shp)
+        self.a_aktualizacja_shp.triggered.connect(self.uruchom_aktualizacje_shp)
+
+        self.m_aktualizacja_upul.addSeparator()
+
         self.a_przyg_dotaks = QAction(
             QIcon(None), "Przygotuj warstwy dotaks",
             self.iface.mainWindow()
@@ -1108,6 +1116,7 @@ class LasR:
         s = shp_eksport_kml.EksportujKML(self.iface)
         if s.pobierzDane():
             s.przetworz()
+            s.zapytaj_wgs84()
             s.zapisz_kml()
 
     def lacz_bazy(self):
@@ -1356,6 +1365,9 @@ class LasR:
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)
+
+    def uruchom_aktualizacje_shp(self):
+        aktualizacja_upul.uruchom_konwersja_shp(self.iface)
 
     def przygotuj_dotaks(self):
         p = shp_przygDotaks.PrzygotujDotaks(self.iface)

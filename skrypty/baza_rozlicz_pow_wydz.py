@@ -106,7 +106,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
             # znajdz bazę do danych jeżeli wydzielenia są ok
             # baza_sc = znajdz_baze_do_wydz(self.iface, wydzlyr=self.wydz)
-            baza_sc = znajdz_baze_do_wydz(self.iface, self.wydz, wskaz=True)
+            baza_sc = znajdz_baze_do_wydz(
+                self.iface, self.wydz, poz=1, wskaz=True
+            )
         except:  # nopep8
             wydz_sc = False
             baza_sc = False

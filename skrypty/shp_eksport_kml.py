@@ -1,5 +1,6 @@
 from qgis.core import QgsVectorLayer, Qgis, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsMessageLog
+from PyQt5.QtWidgets import QMessageBox
 import os
 import glob
 import processing
@@ -9,6 +10,7 @@ class EksportujKML():
     def __init__(self, iface):
         self.iface = iface
         self.nowy_temp = True  # trig przy towrzeniu nowego katalogu temp
+        self.eksport_wgs84 = False  # czy dodatkowo eksportowac SHP w WGS84
 
     def pobierzDane(self):
         """Metoda wyświetla dialog dla użytkownika a następnie przepisuje
@@ -32,6 +34,19 @@ class EksportujKML():
         return True
 
         # return self.dd.poprawne
+
+    def zapytaj_wgs84(self):
+        """Pyta użytkownika czy dodatkowo wyeksportować warstwy jako SHP
+        w układzie WGS84, do osobnego katalogu shp_84"""
+        odp = QMessageBox.question(
+            self.iface.mainWindow(),
+            'Eksport WGS84',
+            'Czy dodatkowo wyeksportować warstwy jako SHP '
+            'w układzie WGS84?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        self.eksport_wgs84 = odp == QMessageBox.Yes
 
     def przetworz(self):
         """ Metoda przetwarza warstwy poly na linie."""
@@ -94,6 +109,16 @@ class EksportujKML():
     def zapisz_kml(self):
         """Metoda zapisuje przetworzone warstwy do plików KML"""
 
+        # katalog "kml" na poziomie folderu warstw z TOC
+        self.kmlkat = os.path.join(self.kat, 'kml')
+        if not os.path.isdir(self.kmlkat):
+            os.mkdir(self.kmlkat)
+
+        if self.eksport_wgs84:
+            self.shp84kat = os.path.join(self.kat, 'shp_84')
+            if not os.path.isdir(self.shp84kat):
+                os.mkdir(self.shp84kat)
+
         # nazwy warstw
         war = [
             self.nazwa + '_poly',
@@ -107,6 +132,9 @@ class EksportujKML():
                 definicja = "Polygon?crs=epsg:2180&index=yes"
             else:
                 definicja = "LineString?crs=epsg:2180&index=yes"
+
+            if self.eksport_wgs84:
+                self.zapisz_shp84(lyr, war[ilyr] + '_84.shp')
 
             tab = []
             for feat in lyr.getFeatures():
@@ -162,10 +190,28 @@ class EksportujKML():
         try:
             QgsVectorFileWriter.writeAsVectorFormat(
                 lyrb,
-                os.path.join(self.kat, nazwa),
+                os.path.join(self.kmlkat, nazwa),
                 "UTF-8",
                 crs,
                 "KML")
+        except:  # nopep8
+            QgsMessageLog.logMessage(
+                'Nie udało się zapisać ' + nazwa,
+                "Las-R"
+            )
+
+    def zapisz_shp84(self, lyr, nazwa):
+        """ Metoda zapisuje warstwę jako SHP w układzie WGS84, do
+        katalogu shp_84 """
+        crs = QgsCoordinateReferenceSystem("epsg:4326")
+
+        try:
+            QgsVectorFileWriter.writeAsVectorFormat(
+                lyr,
+                os.path.join(self.shp84kat, nazwa),
+                "UTF-8",
+                crs,
+                "ESRI Shapefile")
         except:  # nopep8
             QgsMessageLog.logMessage(
                 'Nie udało się zapisać ' + nazwa,
@@ -186,9 +232,13 @@ class EksportujKML():
         except:  # nopep8
             pass
 
+        komunikat = 'Warstwy KML zapisane w katalogu "kml"'
+        if self.eksport_wgs84:
+            komunikat += ', warstwy SHP WGS84 w katalogu "shp_84"'
+
         self.iface.messageBar().pushMessage(
             'OK',
-            'Warstwy zapisanow w katalogu z warstwą',
+            komunikat,
             Qgis.Success,
             15
         )
