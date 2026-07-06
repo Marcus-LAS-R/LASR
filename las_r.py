@@ -1074,7 +1074,7 @@ class LasR:
         shp_literkuj.Literkuj(self.iface)
 
     def doliterkuj_wydzielenia(self):
-        shp_doliterkuj.Doliterkuj(self.iface)
+        shp_doliterkuj.uruchom(self.iface)
 
     def przeliterkuj(self):
         p = baza_przeliterkuj.Przeliterkuj(self.iface)

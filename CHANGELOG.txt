@@ -153,6 +153,28 @@ rozwojem wtyczki.
      jak było wcześniej błędnie odczytane) - stare pliki (UZYTKI_92) z
      G5IDT nadal mapują się poprawnie przez FIELD_MAP
 
+7. DOLITERUJ WYDZIELENIA — NOWY DIALOG (shp_doliterkuj.py)
+   - Uruchomienie nie działa już wprost na aktywnej warstwie z TOC, tylko
+     otwiera dialog z polem ścieżki do warstwy (domyślnie wypełnionym
+     ścieżką aktywnej warstwy) i przyciskiem "Wybierz" do wskazania innego
+     pliku SHP
+   - Nowa opcja "Doliterkuj od..." (domyślnie wyłączona): po zaznaczeniu
+     pokazuje tabelę wszystkich oddziałów (kolumny Gmina/MUNICIP,
+     Obręb/COMMUNITY, Oddział/ODDZ, liczba wydzieleń do doliterowania w
+     danym oddziale), z osobnym polem na literę startową dla każdego
+     oddziału - literowanie nowych (pustych) wydzieleń w danym oddziale
+     zaczyna się wtedy od podanej litery zamiast od pierwszej wolnej "a"
+     (litery przed literą startową są całkowicie pomijane, nawet jeśli
+     wolne); oddziały pozostawione bez wpisanej litery są doliterowane
+     normalnie
+   - Jeśli wskazany plik jest już wczytany do projektu, doliterowanie
+     działa na tym samym obiekcie warstwy z TOC (edycje od razu widoczne
+     na mapie), zamiast na osobnej, niewyświetlanej kopii
+   - Nowa opcja "Wpisz oddział ręcznie" (domyślnie wyłączona): po
+     zaznaczeniu i wpisaniu wartości skrypt uzupełnia nią puste pole ODDZ
+     przed doliterowaniem - działa też razem z opcją "Doliterkuj od..."
+     (tabela oddziałów pokazuje wtedy docelowe, ręcznie wpisane ODDZ)
+
 ==============================
 
 Wersja 2.0d — zmiany wprowadzone 18–25.06.2026
