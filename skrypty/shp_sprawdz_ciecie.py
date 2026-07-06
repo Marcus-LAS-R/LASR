@@ -12,6 +12,7 @@ from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QFileDialog
 
 from .baza_wrapper import Baza
+from .funkcje import wybierz_warstwe_z_kandydatow
 
 
 class SprawdzCiecie:
@@ -28,16 +29,15 @@ class SprawdzCiecie:
 
     def zalozenia_poczatkowe(self):
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        self.wydz = [x for x in lyrs if x.name().upper() == 'WYDZ']
-        if len(self.wydz) != 1:
+        kandydaci = [x for x in lyrs if x.name().upper() == 'WYDZ']
+        self.wydz = wybierz_warstwe_z_kandydatow(self.iface, kandydaci, 'WYDZ')
+        if self.wydz is None:
             self.iface.messageBar().pushWarning(
                 'Wydzielenia',
                 'Tylko jedna warstwa w TOC powinna nazywać '
                 'się WYDZ'
             )
             return False
-
-        self.wydz = self.wydz[0]
         self.kat = os.path.dirname(self.wydz.dataProvider().dataSourceUri(
             ).split("|")[0])
 

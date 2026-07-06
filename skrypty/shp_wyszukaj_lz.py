@@ -9,6 +9,7 @@ from PyQt5.QtCore import QVariant
 import processing
 
 from .ui.ui_wyszukaj_lz import Ui_Dialog
+from .funkcje import wyczysc_katalog_temp
 
 
 class WyszukajLz():
@@ -576,17 +577,7 @@ class WyszukajLz():
             del self.uzwybr
 
         # sprzatamy po sobie
-        lista = glob.glob(os.path.join(self.tempkat, 'ls*'))
-        lista += glob.glob(os.path.join(self.tempkat, 'uz*'))
-        for ll in lista:
-            try:
-                os.remove(ll)
-            except (PermissionError, OSError):
-                pass
-        try:
-            os.removedirs(self.tempkat)
-        except:  # nopep8
-            pass
+        wyczysc_katalog_temp(self.tempkat)
 
         QgsMessageLog.logMessage('---[ KONIEC ]---',
                                  'Las-R', Qgis.Info)

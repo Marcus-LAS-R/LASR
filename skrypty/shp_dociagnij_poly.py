@@ -8,6 +8,7 @@ import processing
 
 from .ui.ui_shp_dosnapuj import Ui_Dialog
 from .pw import PasekPostepu
+from .funkcje import wyczysc_katalog_temp
 
 
 class Dosnapuj:
@@ -742,6 +743,13 @@ class Przyciagnij:
                 Qgis.Warning,
                 0
             )
+
+        # posprzataj pliki posrednie z tempkat - ale zostaw "__dz_lines" i
+        # "snapped", bo te dwie warstwy zostaly dodane do TOC (self.dz_lines
+        # wyzej, "snapped" jako osobna warstwa) i nadal wskazuja na pliki
+        # w tym katalogu
+        wyczysc_katalog_temp(
+            self.tempkat, zachowaj_nazwy=['__dz_lines', 'snapped'])
 
 
 class PobierzDane(QDialog):

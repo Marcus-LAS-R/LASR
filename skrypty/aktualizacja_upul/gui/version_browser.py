@@ -65,7 +65,7 @@ class VersionBrowserDialog(QDialog):
         """
         super().__init__(parent)
         self.manager = manager
-        self.setWindowTitle("LAS_R_TOOL — historia wersji")
+        self.setWindowTitle("Aktualizacja bazy UPUL — historia wersji")
         self.resize(900, 600)
         self._build_ui()
         self._reload_versions()
@@ -205,7 +205,7 @@ class VersionBrowserDialog(QDialog):
         if current is None:
             self.current_label.setText(
                 "<b>Wersja bazy:</b> brak wpisów w <code>_LRT_VERSIONS</code> "
-                "(baza jeszcze nietknięta przez LAS_R_TOOL)."
+                "(baza jeszcze nietknięta przez Aktualizację bazy UPUL)."
             )
             return
         self.current_label.setText(

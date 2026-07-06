@@ -3,6 +3,7 @@ from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
     QgsVectorLayer, QgsField, QgsFeature
 from PyQt5.QtCore import QVariant
 
+from .funkcje import wybierz_warstwe_z_kandydatow
 
 
 def dopOddzWydz(iface, oddz=False):  # noqa
@@ -13,14 +14,14 @@ def dopOddzWydz(iface, oddz=False):  # noqa
     )
 
     # SPRAWDZ WARUNKI POCZATKOWE ----------------------
-    # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
+    # Sprawdz czy w TOC jest warstwa z nazwa ODDZ - jesli jest ich wiecej
+    # niz jedna, uzytkownik musi wskazac wlasciwa
     go = False
 
     if oddz is False:
-        oddz = [x for x in QgsProject.instance().mapLayers().values()
-                if x.name()[:4] == 'ODDZ']
-        if len(oddz) > 0:
-            oddz = oddz[0]
+        kandydaci = [x for x in QgsProject.instance().mapLayers().values()
+                     if x.name()[:4] == 'ODDZ']
+        oddz = wybierz_warstwe_z_kandydatow(iface, kandydaci, 'ODDZ')
 
     if isinstance(oddz, QgsVectorLayer):
         if oddz.isValid():

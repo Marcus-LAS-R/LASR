@@ -11,6 +11,7 @@ import processing
 from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
 from .ui.ui_przygCiecieStUPUL import Ui_Dialog
+from .funkcje import wyczysc_katalog_temp
 
 _TEMP = 'WYDZ_POL_stare_multipart'
 
@@ -151,6 +152,10 @@ class PrzygotujCiecieStUPUL:
         QgsProject.instance().addMapLayer(wydz_pol)
         wydz_pkt = QgsVectorLayer(wydz_pkt_sc, 'WYDZ_PKT_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pkt)
+
+        # finalne warstwy leza poza temp_kat (w kat_wyj) - bezpiecznie
+        # czyscimy dane posrednie
+        wyczysc_katalog_temp(temp_kat)
 
         self.iface.messageBar().pushMessage(
             'OK', 'Warstwy utworzone w folderze SHP_stare', Qgis.Success, 10)

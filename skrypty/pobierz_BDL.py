@@ -22,6 +22,7 @@ from qgis.core import (
 )
 
 from .ui.ui_pobierz_BDL import Ui_Dialog
+from .funkcje import wyczysc_katalog_temp
 
 # Zapytanie o geometrie i podstawowe dane wydzielen w zadanej obwiedni.
 # inSR=2180 (obwiednia podawana w ukladzie warstwy wejsciowej), outSR=102100
@@ -466,6 +467,10 @@ def PobierzBDL(iface, lyr, rozmiar=2000, folder=None):  # noqa
         'UTF-8',
         QgsCoordinateReferenceSystem('EPSG:2180'),
         'ESRI Shapefile')
+
+    # surowe geojsony per oczko sa juz scalone do wszystko_BDL.shp - nie sa
+    # ponownie wykorzystywane (kazde uruchomienie sciaga wszystko od nowa)
+    wyczysc_katalog_temp(tempkat)
 
     if not kontynuowac:
         progress.close()

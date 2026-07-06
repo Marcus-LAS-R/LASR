@@ -6,7 +6,7 @@ from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsSpatialIndex, \
 from .baza_wrapper import znajdz_baze_do_wydz, Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .ui.ui_baza_dopisz_pnsw import Ui_Ui_Dialog as Ui_Dialog
-from .funkcje import isNone
+from .funkcje import isNone, wybierz_warstwe_z_kandydatow
 
 
 class DopiszPnsw(SprawdzWydzielenia):
@@ -67,20 +67,23 @@ class DopiszPnsw(SprawdzWydzielenia):
         ( ma być pusta )
         """
 
-        # policz czy w TOC jest po jednej warstwie z LS i WYDZ
+        # znajdz w TOC warstwy z PNSW i WYDZ - jesli jest ich wiecej niz
+        # jedna dla ktorejs z ról, uzytkownik musi wskazac wlasciwa
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        pnsw = [x for x in lyrs if x.name()[:4].upper() == 'PNSW']
-        wydz = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
+        pnsw_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'PNSW']
+        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
 
+        self.pnsw = wybierz_warstwe_z_kandydatow(
+            self.iface, pnsw_kandydaci, 'PNSW')
         try:
-            self.pnsw = pnsw[0]
             self.pnsw.dataProvider().setEncoding('UTF-8')
             pnsw_sc = self.pnsw.dataProvider().dataSourceUri().split("|")[0]
         except Exception:
             pnsw_sc = False
 
+        self.wydz = wybierz_warstwe_z_kandydatow(
+            self.iface, wydz_kandydaci, 'WYDZ')
         try:
-            self.wydz = wydz[0]
             wydz_sc = self.wydz.dataProvider().dataSourceUri().split("|")[0]
 
             # znajdz bazę do danych jeżeli wydzielenia są ok

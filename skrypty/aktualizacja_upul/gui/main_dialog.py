@@ -1,7 +1,7 @@
-"""Główny dialog wtyczki — wybór bazy, uruchamianie F1–F4, rollback, historia.
+"""Główny dialog wtyczki — wybór bazy, uruchamianie F1–F4.
 
 Pojedyncze okno z całym workflowem (zgodnie z decyzją projektową — jeden
-dialog z 5 przyciskami zamiast 4 osobnych wpisów w menu QGIS).
+dialog zamiast 4 osobnych wpisów w menu QGIS).
 
 Układ
 -----
@@ -10,15 +10,11 @@ Układ
   `_LRT_VERSIONS`, jeśli istnieje).
 * **Notatka** — opcjonalny tekst lądujący w `_LRT_VERSIONS.USER_NOTE` dla
   bieżącej operacji (kontekst audytowy, np. „test po Jankowicach").
-* **Dry-run** — domyślnie WŁĄCZONY. Operacje są nieodwracalne na realnej
-  bazie, więc świadomie wymuszamy „najpierw symulacja". Klient wyłącza
-  checkbox dopiero gdy raport wygląda OK.
-* **4 przyciski F1/F2/F3/F4** — uruchamiają odpowiedni moduł z `core/*`.
-* **„Historia / przegląd wersji…"** — otwiera `VersionBrowserDialog` z
-  pełnym widokiem `_LRT_VERSIONS` + snapshotów + historii rekordu.
-* **„Rollback wersji…"** — szybki dropdown do cofnięcia konkretnej wersji
-  (alternatywa: można otworzyć Historię i też zrobić rollback z niej —
-  tutaj zostaje dla szybkiego dostępu).
+* **4 przyciski F1/F2/F3/F4** — uruchamiają odpowiedni moduł z `core/*`,
+  zawsze w trybie commit (z potwierdzeniem przed zapisem) — kopia
+  bezpieczeństwa pliku .mdb (`_backup_mdb`, do `Kopie_manipulacyjne/` obok
+  bazy — ten sam wzorzec co inne operacje niszczące w tej wtyczce) powstaje
+  przed każdą operacją.
 
 Cykl pracy z połączeniem DB
 ---------------------------
@@ -29,20 +25,17 @@ prowadziłoby do locków. Koszt re-connect-u jest pomijalny przy Access.
 """
 
 import os
-import shutil
-from datetime import datetime
 
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import (
-    QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QGroupBox,
-    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
+    QDialog, QDialogButtonBox, QFileDialog, QGroupBox,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QPushButton, QVBoxLayout,
 )
 
 from ..core import f1_aktualizacja, f2_uzupelnienie, f3_korekta_masy, f4_korekta_bhd
 from ..core.db import connect
-from ..core.versioning import VersionManager
-from .version_browser import VersionBrowserDialog
+from ... import kopie_manipulacyjne
 
 
 # Mapowanie label widoczny w UI → moduł `core` z funkcją `run(...)`.
@@ -57,10 +50,12 @@ OPERATIONS = [
 
 
 def _backup_mdb(mdb_path, operation):
-    """Kopiuje plik MDB obok oryginału z sufiksem `_OP_YYYY-MM-DD_HH-MM-SS`.
+    """Kopiuje plik MDB do Kopie_manipulacyjne/ - ten sam wzorzec kopii
+    bezpieczeństwa co inne operacje niszczące w tej wtyczce, patrz
+    `kopie_manipulacyjne.zrob_kopie_manipulacyjna`.
 
-    Wywoływane przed każdym COMMIT-em F1–F4 (dry-run pomijany). Jeśli klient
-    zgubi rollback albo coś pójdzie nie tak, ma pełny plik sprzed operacji.
+    Wywoływane przed każdym uruchomieniem F1–F4. Jeśli coś pójdzie nie
+    tak, ma pełny plik sprzed operacji.
 
     Args:
         mdb_path: Ścieżka oryginalnego pliku .mdb / .accdb.
@@ -68,13 +63,9 @@ def _backup_mdb(mdb_path, operation):
             `module.OPERATION`.
 
     Returns:
-        Ścieżka utworzonej kopii.
+        Ścieżka do utworzonego folderu kopii, albo None przy błędzie.
     """
-    base, ext = os.path.splitext(mdb_path)
-    ts = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    backup_path = f"{base}_{operation}_{ts}{ext}"
-    shutil.copy2(mdb_path, backup_path)
-    return backup_path
+    return kopie_manipulacyjne.zrob_kopie_manipulacyjna(mdb_path, [], operation)
 
 
 class MainDialog(QDialog):
@@ -88,7 +79,6 @@ class MainDialog(QDialog):
         mdb_edit: Pole tekstowe ze ścieżką wybranego pliku (read-only).
         current_version_label: Etykieta „Wersja bazy: …".
         note_edit: Pole notatki użytkownika.
-        dry_run: Checkbox — True przed commitem na realnej bazie.
     """
 
     def __init__(self, config, parent=None):
@@ -100,7 +90,7 @@ class MainDialog(QDialog):
         """
         super().__init__(parent)
         self.config = config
-        self.setWindowTitle("LAS_R_TOOL")
+        self.setWindowTitle("Aktualizacja bazy UPUL")
         self.setMinimumWidth(520)
         self._build_ui()
 
@@ -124,10 +114,6 @@ class MainDialog(QDialog):
         mdb_row.addWidget(browse_btn)
         layout.addLayout(mdb_row)
 
-        self.dry_run = QCheckBox("Dry-run (bez zapisu i bez snapshotu)")
-        self.dry_run.setChecked(False)
-        layout.addWidget(self.dry_run)
-
         # ---- 4 przyciski operacji w QGroupBox -------------------------------
         ops_box = QGroupBox("Operacje")
         ops_layout = QVBoxLayout(ops_box)
@@ -139,15 +125,6 @@ class MainDialog(QDialog):
             btn.clicked.connect(lambda _checked, m=module, l=label: self._run_operation(m, l))
             ops_layout.addWidget(btn)
         layout.addWidget(ops_box)
-
-        # ---- przyciski historii i rollback ----------------------------------
-        history_btn = QPushButton("Historia / przegląd wersji…")
-        history_btn.clicked.connect(self._open_history)
-        layout.addWidget(history_btn)
-
-        rollback_btn = QPushButton("Rollback wersji…")
-        rollback_btn.clicked.connect(self._rollback)
-        layout.addWidget(rollback_btn)
 
         # ---- przycisk Zamknij -----------------------------------------------
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
@@ -163,7 +140,7 @@ class MainDialog(QDialog):
         sterownik Access ODBC obsługuje oba). Ostatnio wybrany plik jest
         zapamiętywany w QSettings i ustawiany jako punkt startowy dialogu.
         """
-        settings = QSettings("LAS_R", "LAS_R_TOOL")
+        settings = QSettings("LAS_R", "AktualizacjaBazyUPUL")
         last_dir = settings.value("last_mdb_dir", "")
         path, _ = QFileDialog.getOpenFileName(
             self, "Wybierz plik MDB", last_dir, "MDB files (*.mdb *.accdb)"
@@ -196,8 +173,9 @@ class MainDialog(QDialog):
         Algorytm:
 
         1. Sprawdź ścieżkę pliku.
-        2. Pobierz tryb (dry-run vs commit). Jeśli commit — wymagaj
-           potwierdzenia w `QMessageBox` (zmiana nieodwracalna bez rollbacku).
+        2. Wymagaj potwierdzenia w `QMessageBox` (zmiana zostanie
+           zapisana do bazy na stałe — jedyne zabezpieczenie to kopia
+           pliku .mdb tworzona przed operacją, patrz `_backup_mdb`).
         3. Otwórz połączenie. Błąd → `QMessageBox.critical` i koniec.
         4. Wywołaj `module.run(conn, config, mdb_path, dry_run, user_note)`.
            Wyjątek → `conn.rollback()`, komunikat błędu, koniec.
@@ -212,20 +190,22 @@ class MainDialog(QDialog):
         mdb_path = self._mdb_path()
         if mdb_path is None:
             return
-        dry_run = self.dry_run.isChecked()
-        if not dry_run:
-            confirm = QMessageBox.question(
-                self, "Potwierdzenie",
-                f"Tryb COMMIT: zmiany zostaną zapisane do bazy.\n\nUruchomić {label}?",
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if confirm != QMessageBox.Yes:
-                return
+        dry_run = False
+        confirm = QMessageBox.question(
+            self, "Potwierdzenie",
+            f"Zmiany zostaną zapisane do bazy.\n\nUruchomić {label}?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
 
-        try:
-            backup_path = _backup_mdb(mdb_path, module.OPERATION)
-        except Exception as e:
-            QMessageBox.critical(self, "Błąd kopii bezpieczeństwa", str(e))
+        backup_path = _backup_mdb(mdb_path, module.OPERATION)
+        if backup_path is None:
+            QMessageBox.critical(
+                self, "Błąd kopii bezpieczeństwa",
+                "Nie udało się utworzyć kopii bezpieczeństwa - przerwano, "
+                "nic nie zmieniono.",
+            )
             return
 
         note = ""
@@ -279,7 +259,9 @@ class MainDialog(QDialog):
         Args:
             label: Tekst przycisku — do tytułu okna.
             report: Instancja `Report` zwrócona z operacji.
-            backup_path: Ścieżka kopii bezpieczeństwa (None dla dry-run).
+            backup_path: Ścieżka folderu kopii bezpieczeństwa w
+                Kopie_manipulacyjne/ (zawsze podana - operacja bez
+                udanej kopii jest przerywana wcześniej).
         """
         msg = (
             f"{label} ({'dry-run' if report.dry_run else 'commit'})\n"
@@ -294,7 +276,7 @@ class MainDialog(QDialog):
         if report.version_id is not None:
             msg += f"\nVERSION_ID: {report.version_id}"
         if backup_path is not None:
-            msg += f"\nKopia bezpieczeństwa: {os.path.basename(backup_path)}"
+            msg += f"\nKopia bezpieczeństwa: {backup_path}"
         QMessageBox.information(self, "Raport", msg)
         if report.report_path and os.path.isfile(report.report_path):
             answer = QMessageBox.question(
@@ -304,86 +286,3 @@ class MainDialog(QDialog):
             )
             if answer == QMessageBox.Yes:
                 os.startfile(report.report_path)
-
-    # ---- handlery historii i rollback ---------------------------------------
-
-    def _open_history(self):
-        """Otwiera okno `VersionBrowserDialog` z pełną historią wersji.
-
-        Tworzy `VersionManager` na świeżym połączeniu i przekazuje do
-        dialogu. Po zamknięciu okna (`exec_` wraca) — zamykamy połączenie
-        i odświeżamy etykietę (operator mógł zrobić rollback z poziomu
-        Historii).
-        """
-        mdb_path = self._mdb_path()
-        if mdb_path is None:
-            return
-        try:
-            conn = connect(mdb_path)
-        except Exception as e:
-            QMessageBox.critical(self, "Błąd połączenia", str(e))
-            return
-        try:
-            manager = VersionManager(conn, self.config)
-            dialog = VersionBrowserDialog(manager, parent=self)
-            dialog.exec_()
-        finally:
-            conn.close()
-
-    def _rollback(self):
-        """Szybki rollback — dropdown z listą wersji bez otwierania pełnej Historii.
-
-        Algorytm:
-
-        1. Wczytaj listę wersji (`list_versions`).
-        2. Brak wersji → informacja i koniec.
-        3. `QInputDialog.getItem` z listą napisów typu
-           `V{id} — {op} — {ts} — rows={n} — {status}` (sortowane DESC
-           bo `list_versions` tak zwraca).
-        4. Potwierdzenie (drugi `QMessageBox`).
-        5. `manager.rollback(version_id, user_note)`.
-        6. Komunikat z liczbą cofniętych pól.
-        7. Odświeżenie etykiety wersji.
-        """
-        mdb_path = self._mdb_path()
-        if mdb_path is None:
-            return
-        try:
-            conn = connect(mdb_path)
-        except Exception as e:
-            QMessageBox.critical(self, "Błąd połączenia", str(e))
-            return
-
-        try:
-            manager = VersionManager(conn, self.config)
-            versions = manager.list_versions()
-            if not versions:
-                QMessageBox.information(self, "Rollback", "Brak zapisanych wersji w tej bazie.")
-                return
-            choices = [
-                f"V{v['version_id']} — {v['operation']} — {v['timestamp']} — "
-                f"rows={v['affected_rows']} — {v['status']}"
-                for v in versions
-            ]
-            choice, ok = QInputDialog.getItem(
-                self, "Wybierz wersję do cofnięcia", "Wersja:", choices, 0, False
-            )
-            if not ok:
-                return
-            # Mapujemy zaznaczony tekst z powrotem na `version_id` przez indeks
-            # w liście (zawsze 1:1 odpowiada `versions`).
-            version_id = versions[choices.index(choice)]["version_id"]
-            confirm = QMessageBox.question(
-                self, "Potwierdź rollback",
-                f"Cofnąć wersję V{version_id}?\n(Operacja sama zapisze snapshot ROLLBACK.)",
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if confirm != QMessageBox.Yes:
-                return
-            count = manager.rollback(version_id, user_note="")
-            QMessageBox.information(self, "Rollback", f"Cofnięto {count} pól w wersji V{version_id}.")
-        except Exception as e:
-            conn.rollback()
-            QMessageBox.critical(self, "Błąd rollback", str(e))
-        finally:
-            conn.close()

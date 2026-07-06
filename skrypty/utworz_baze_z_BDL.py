@@ -514,6 +514,17 @@ def _znajdz_obr_w_toc():
         return ''
 
 
+def _katalog_nadrzedny_obr(obr_sc):
+    """ Katalog o jeden poziom wyzej niz warstwa OBR - domyslny punkt
+    startowy przy wskazywaniu folderu z danymi BDL oraz bazy docelowej
+    (warstwa OBR zwykle siedzi w podkatalogu projektu, obok ktorego, na
+    poziomie wyzej, sa Dane_BDL i baza .mdb). Zwraca '' gdy brak sciezki
+    OBR albo plik nie istnieje. """
+    if not obr_sc or not os.path.isfile(obr_sc):
+        return ''
+    return os.path.dirname(os.path.dirname(obr_sc))
+
+
 class _Dialog(QDialog):
     def __init__(self, iface):
         super().__init__(iface.mainWindow())
@@ -544,17 +555,20 @@ class _Dialog(QDialog):
         self._aktualizuj()
 
     def _wybierz_folder(self):
+        startowy = self.ui.lineEdit_folder.text().strip() or \
+            _katalog_nadrzedny_obr(self.ui.lineEdit_obr.text().strip())
         sc = QFileDialog.getExistingDirectory(
-            self, 'Wskaż folder z danymi BDL',
-            self.ui.lineEdit_folder.text().strip())
+            self, 'Wskaż folder z danymi BDL', startowy)
         if sc:
             self.ui.lineEdit_folder.setText(sc)
 
     def _wybierz_baze(self):
+        startowy = os.path.dirname(self.ui.lineEdit_baza.text().strip()) or \
+            _katalog_nadrzedny_obr(self.ui.lineEdit_obr.text().strip())
         sc = QFileDialog.getOpenFileName(
             self,
             'Wskaż czystą bazę docelową',
-            os.path.dirname(self.ui.lineEdit_baza.text().strip()),
+            startowy,
             'Access MDB (*.mdb)',
         )[0]
         if sc:

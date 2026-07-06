@@ -274,6 +274,10 @@ rozwojem wtyczki.
      "nazwa, MUNICIP, COMMUNITY" dla jednoznaczności - domyślnie zaznaczone
      i na górze listy tylko te obręby, które faktycznie występują w
      warstwie OBR; reszta niżej i odznaczona)
+   - Przy wskazywaniu folderu z danymi BDL i bazy docelowej (jeśli pola są
+     jeszcze puste) dialog domyślnie proponuje katalog o jeden poziom
+     wyżej niż warstwa OBR (jeśli jest wskazana) - zwykle to właśnie tam
+     leżą Dane_BDL i baza .mdb względem podkatalogu z warstwą OBR
    - Checkbox "Utwórz SHP z wybranych" (domyślnie zaznaczony) - zapisuje
      SHP/wybrane_BDL.shp (schemat jak WYDZ.shp) z wszystkich wydzieleń, które
      przeszły oba filtry, niezależnie od tego czy już są w bazie
@@ -297,6 +301,83 @@ rozwojem wtyczki.
      interaktywny sprawdz_dane() - bez wpływu na dotychczasowe wywołania
    - Nie testowane jeszcze na żywym QGIS-ie (brak środowiska QGIS w sesji,
      w której to napisano) - do zweryfikowania w praktyce
+
+11. AKTUALIZACJA UPUL — ZMIANA NAZWY OKNA (aktualizacja_upul/gui/
+    main_dialog.py, version_browser.py)
+   - Tytuł głównego okna zmieniony z "LAS_R_TOOL" na "Aktualizacja bazy
+     UPUL" (zgodniej z marką wtyczki, zamiast wewnętrznej nazwy roboczej)
+   - Analogicznie w oknie "historia wersji" oraz w treści komunikatu o
+     bazie jeszcze nietkniętej przez to narzędzie
+   - Klucz QSettings (zapamiętywanie ostatnio wybranego katalogu z bazą
+     .mdb) zmieniony z ("LAS_R", "LAS_R_TOOL") na ("LAS_R",
+     "AktualizacjaBazyUPUL") - dotychczas zapamiętana ścieżka zostanie
+     zresetowana do wartości domyślnej przy pierwszym uruchomieniu po
+     aktualizacji (nic poza tym się nie traci)
+
+12. AKTUALIZACJA BAZY UPUL — UPROSZCZENIE DIALOGU (aktualizacja_upul/
+    gui/main_dialog.py)
+   - Usunięto checkbox "Dry-run" - operacje F1-F4 zawsze działają w
+     trybie commit (z potwierdzeniem przed zapisem); kopia bezpieczeństwa
+     pliku .mdb i tak powstaje przed każdą operacją, niezależnie od
+     dawnego trybu dry-run
+   - Usunięto przyciski "Historia / przegląd wersji…" i "Rollback
+     wersji…" wraz z obsługującymi je metodami - moduł
+     `gui/version_browser.py` (VersionBrowserDialog) zostaje w kodzie,
+     ale nie jest już wpięty w ten dialog
+   - Kopia bezpieczeństwa bazy (`_backup_mdb`) przepisana na
+     `kopie_manipulacyjne.zrob_kopie_manipulacyjna` - trafia teraz do
+     folderu `Kopie_manipulacyjne/` obok bazy (ten sam wzorzec co inne
+     operacje niszczące w tej wtyczce), zamiast do pliku obok oryginału
+     z dopiskiem daty/godziny
+
+13. PORZĄDKI W KATALOGACH TEMP (funkcje.py — nowa funkcja
+    wyczysc_katalog_temp; 10 skryptów zaktualizowanych)
+   - Wiele skryptów tworzy roboczy podkatalog "temp" (dissolve, intersect,
+     snapowanie itp.) obok przetwarzanych warstw, ale zostawiało go na
+     dysku na stałe po zakończeniu - z czasem zaśmiecało to katalogi
+     projektów. Dodano wspólną funkcję `funkcje.wyczysc_katalog_temp()` -
+     kasuje pliki robocze i sam katalog PO udanym zakończeniu skryptu
+     (best-effort - zablokowany plik nie przerywa działania, po prostu
+     zostaje)
+   - Ujednolicono i podłączono w: shp_wyszukaj_lz.py, shp_eksport_kml.py,
+     baza_rozlicz_pow_wydz.py (już wcześniej sprzątały temp, teraz przez
+     wspólną funkcję), shp_doliterkuj.py, shp_literkuj.py (wcześniej wcale
+     nie sprzątały - przy okazji dodano też kopię bezpieczeństwa przez
+     kopie_manipulacyjne PRZED scalaniem fragmentów Lz, zamiast zostawiać
+     kopię "wydz_backup_*.shp" na stałe w temp), przygotuj_ls.py,
+     raport_wyciagi.py, shp_przygCiecieStUPUL.py, pobierz_BDL.py (surowe
+     geojsony per oczko siatki - już niepotrzebne po scaleniu do
+     wszystko_BDL.shp)
+   - shp_dociagnij_poly.py - szczególny przypadek: dwie warstwy końcowe
+     ("dz_lines", "snapped") fizycznie mieszkają w temp/ i zostają dodane
+     do TOC, więc sprzątanie pomija te dwa pliki (nowy parametr
+     `zachowaj_nazwy` w `wyczysc_katalog_temp`, dopasowanie po dokładnym
+     rdzeniu nazwy pliku, nie po prefiksie tekstowym)
+
+14. WYBÓR WARSTWY PRZY NIEJEDNOZNACZNEJ NAZWIE W TOC (funkcje.py — nowa
+    funkcja wybierz_warstwe_z_kandydatow; 4 skrypty zaktualizowane)
+   - Kilka skryptów samo wyszukuje warstwę wejściową w TOC po nazwie
+     (np. "ODDZ", "WYDZ", "LS", "PNSW") zamiast prosić użytkownika o
+     wskazanie jej ręcznie. Gdy w projekcie znajdowały się dwie warstwy
+     pasujące do wzorca, część skryptów po cichu brała pierwszą napotkaną
+     (kolejność nieprzewidywalna) bez żadnego ostrzeżenia, mimo że
+     komunikat błędu obok sugerował "tylko jedna warstwa" - realne ryzyko
+     przetworzenia niewłaściwej warstwy bez wiedzy użytkownika
+   - Dodano `funkcje.wybierz_warstwe_z_kandydatow()`: przy dokładnie
+     jednym dopasowaniu działa po cichu jak dotychczas (zero zmiany
+     zachowania w typowym przypadku); przy zerze dopasowań zwraca None
+     (wywołujący pokazuje swój dotychczasowy komunikat o braku warstwy);
+     przy dwóch i więcej pokazuje listę (nazwa + ścieżka źródłowa) i
+     wymaga jawnego wyboru - anulowanie traktowane tak samo jak brak
+     warstwy
+   - Podłączono w: shp_dopOddzWydz.py (ODDZ - wcześniej najbardziej
+     ryzykowny przypadek, brał pierwszą warstwę i jechał dalej bez
+     żadnego dialogu), shp_sprawdz_ciecie.py (WYDZ - wcześniej odrzucał
+     całkowicie przy więcej niż jednym dopasowaniu, teraz pozwala wybrać),
+     baza_rozlicz_pow_wydz.py (LS, WYDZ), baza_dopisz_pnsw.py (PNSW,
+     WYDZ) - w tych dwóch ostatnich ryzyko było łagodzone istniejącym
+     dialogiem potwierdzającym (PobierzDane), teraz niejednoznaczność jest
+     jawna już na etapie wyszukiwania, zanim dialog w ogóle się pokaże
 
 ==============================
 

@@ -1,10 +1,28 @@
 import os
+import glob
 import datetime
 import processing
-from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
-    QgsCoordinateReferenceSystem, QgsVectorLayer
+from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 from PyQt5.QtWidgets import QMessageBox
 from operator import itemgetter
+
+from . import kopie_manipulacyjne
+from .funkcje import wyczysc_katalog_temp
+
+
+def _zgadnij_baze(warstwa_sc):
+    """ Probuje odgadnac plik bazy (.mdb) polozony katalog wyzej od
+    wskazanej warstwy SHP (typowy uklad katalogow w tym projekcie) - zwraca
+    sciezke tylko gdy znaleziono dokladnie jeden plik .mdb, w przeciwnym
+    razie pusty string. Duplikat funkcji z shp_doliterkuj.py (import
+    zwrotny niemozliwy - ten modul importuje LITERY stamtad). """
+    if not warstwa_sc or not os.path.isfile(warstwa_sc):
+        return ''
+    kat = os.path.dirname(warstwa_sc)
+    kandydaci = glob.glob(os.path.join(kat, '..', '*.mdb'))
+    if len(kandydaci) == 1:
+        return os.path.abspath(kandydaci[0])
+    return ''
 
 # kolejnosc liter przydzielanych wydzieleniom w obrebie grupy (oddz/gmina/
 # obreb) - uzywana tez przez shp_doliterkuj.py do kontynuacji literacji
@@ -243,13 +261,22 @@ def Literkuj(iface, lyr=False):  # noqa
         if not os.path.isdir(tempkat):
             os.mkdir(tempkat)
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-
-        # stworz kopie warstwy wydz w tempie
-        QgsVectorFileWriter.writeAsVectorFormat(
-            lyr,
-            os.path.join(tempkat, 'wydz_backup_'+czas+'.shp'),
-            "UTF-8", crs, "ESRI Shapefile")
+        # kopia bezpieczeństwa PRZED dissolve - ten sam wzorzec co inne
+        # operacje niszczące w tej wtyczce
+        # (kopie_manipulacyjne.zrob_kopie_manipulacyjna)
+        baza_do_kopii = _zgadnij_baze(sciezka + '.shp') or (sciezka + '.shp')
+        folder_kopii = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
+            baza_do_kopii, [lyr], 'literkuj')
+        if folder_kopii is None:
+            iface.messageBar().pushMessage(
+                'BŁĄD', 'Nie udało się utworzyć kopii bezpieczeństwa - '
+                'przerwano scalanie fragmentów Lz (litery zostały już '
+                'przypisane i zapisane)',
+                Qgis.Critical, 10)
+            QgsMessageLog.logMessage(
+                '------ KONIEC (błąd kopii bezpieczeństwa) -------- \n',
+                'Las-R', Qgis.Info)
+            return True
 
         # zrob dissolva na warstwie wydz
         processing.run("native:dissolve", {
@@ -270,6 +297,10 @@ def Literkuj(iface, lyr=False):  # noqa
             [x for x in wydz_diss.dataProvider().getFeatures()]
         )
         lyr.commitChanges()
+
+        # zwolnij uchwyt do warstwy posredniej przed czyszczeniem temp
+        del wydz_diss
+        wyczysc_katalog_temp(tempkat)
 
         iface.messageBar().pushMessage(
             'OK',

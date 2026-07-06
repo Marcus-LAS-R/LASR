@@ -13,6 +13,7 @@ from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
+from .funkcje import wyczysc_katalog_temp, wybierz_warstwe_z_kandydatow
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
 
@@ -87,20 +88,22 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         """Metoda sprawdza czy w TOC znajdują się niezbędne warstwy, oraz czy
         są łatwo identyfikowalne, jeżeli tak zwraca True
         """
-        # policz czy w TOC jest po jednej warstwie z LS i WYDZ
+        # znajdz w TOC warstwy z LS i WYDZ - jesli jest ich wiecej niz
+        # jedna dla ktorejs z ról, uzytkownik musi wskazac wlasciwa
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        ls = [x for x in lyrs if x.name()[:2].upper() == 'LS']
-        wydz = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
+        ls_kandydaci = [x for x in lyrs if x.name()[:2].upper() == 'LS']
+        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
 
+        self.ls = wybierz_warstwe_z_kandydatow(self.iface, ls_kandydaci, 'LS')
         try:
-            self.ls = ls[0]
             self.ls.dataProvider().setEncoding('UTF-8')
             ls_sc = self.ls.dataProvider().dataSourceUri().split("|")[0]
-        except:  # nopep8
+        except Exception:
             ls_sc = False
 
+        self.wydz = wybierz_warstwe_z_kandydatow(
+            self.iface, wydz_kandydaci, 'WYDZ')
         try:
-            self.wydz = wydz[0]
             # self.wydz.dataProvider().setEncoding('UTF-8')
             wydz_sc = self.wydz.dataProvider().dataSourceUri().split("|")[0]
 
@@ -109,7 +112,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             baza_sc = znajdz_baze_do_wydz(
                 self.iface, self.wydz, poz=1, wskaz=True
             )
-        except:  # nopep8
+        except Exception:
             wydz_sc = False
             baza_sc = False
 
@@ -400,18 +403,6 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         del self.inter
 
-        try:
-            if len(self.wydz_nierozliczone) == 0:
-                for ll in glob.glob(os.path.join(self.tempkat,
-                                                 '__ls_wydz_inter.*')):
-                    os.remove(ll)
-
-            for ll in glob.glob(os.path.join(self.tempkat,
-                                             '__WYDZ_singleparts.*')):
-                os.remove(ll)
-        except:  # nopep8
-            pass
-
         QgsMessageLog.logMessage(
             '\nINFORMACJE LICZBOWE O ROZLICZENIU'
             '\nRozliczono uzytków: ' +
@@ -426,15 +417,22 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             Qgis.Info
         )
 
-        # skasuj jeżeli katalog jest pusty
-        try:
-            os.removedirs(self.tempkat)
+        if len(self.wydz_nierozliczone) == 0:
+            wyczysc_katalog_temp(self.tempkat)
             QgsMessageLog.logMessage(
                 '\nSprzątam po skrypcie... OK\n-----[ KONIEC ]-----',
                 'Las-R',
                 Qgis.Info
             )
-        except:  # nopep8
+        else:
+            # __ls_wydz_inter.* zostaje do wglądu - sprawdz_rozlicz_graf()
+            # kieruje tam użytkownika w raporcie błędów nierozliczonych wydz
+            try:
+                for ll in glob.glob(os.path.join(self.tempkat,
+                                                 '__WYDZ_singleparts.*')):
+                    os.remove(ll)
+            except (PermissionError, OSError):
+                pass
             QgsMessageLog.logMessage(
                 '\nNie udało się posprzątać po skrypcie, '
                 'zostawiam katalog temp'

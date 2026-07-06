@@ -2,8 +2,9 @@ from qgis.core import QgsVectorLayer, Qgis, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsMessageLog
 from PyQt5.QtWidgets import QMessageBox
 import os
-import glob
 import processing
+
+from .funkcje import wyczysc_katalog_temp
 
 
 class EksportujKML():
@@ -222,15 +223,7 @@ class EksportujKML():
         """ Metoda kasuje pliki tymczasowe i proboje skasowac katalog """
         del self.ls_diss, self.ls_lines, self.ls_diss_lines
 
-        lista = glob.glob(os.path.join(self.tempkat, '*.*'))
-
-        # skasuj jeżeli katalog jest pusty
-        try:
-            for ll in lista:
-                os.remove(ll)
-            os.removedirs(self.tempkat)
-        except:  # nopep8
-            pass
+        wyczysc_katalog_temp(self.tempkat)
 
         komunikat = 'Warstwy KML zapisane w katalogu "kml"'
         if self.eksport_wgs84:

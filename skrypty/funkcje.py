@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import glob
 import numpy as np
 from qgis.core import (
     QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField,
@@ -8,6 +9,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtXml import QDomDocument
 from PyQt5.QtCore import QVariant, QSize, QFile, QIODevice
+from PyQt5.QtWidgets import QInputDialog
 
 
 def poprawna_topo(poly):
@@ -412,3 +414,75 @@ def wczytaj_styl(iface, sciezka):
             f'Nie udało się wczytać stylu {os.path.basename(sciezka)}: {e}',
             Qgis.Critical, 10
         )
+
+
+def wyczysc_katalog_temp(tempkat, zachowaj_nazwy=None):
+    """ Kasuje pliki w katalogu roboczym `tempkat` (dane pośrednie skryptu,
+    już niepotrzebne po udanym zakończeniu) i próbuje usunąć sam katalog.
+    Best-effort - pojedynczy zablokowany plik (np. wciąż otwarty uchwyt do
+    warstwy) nie przerywa działania, po prostu zostaje razem z katalogiem
+    (który wtedy też zostaje - `os.rmdir` na niepustym katalogu rzuca
+    wyjątek, cicho pomijany). Wywoływać dopiero PO zapisaniu finalnych
+    wyników skryptu - `tempkat` służy wyłącznie do przechowywania danych
+    pośrednich, finalne wyniki zawsze lądują poza nim.
+
+    `zachowaj_nazwy` - opcjonalna lista nazw plików bez rozszerzenia
+    (rdzeń, np. "__dz_lines") do pominięcia - dopasowanie na CAŁYM rdzeniu,
+    nie na prefiksie tekstowym (żeby np. "__dz_lines" nie chronił przy
+    okazji niepowiązanego "__dz_lines_buffer"). Przydatne, gdy część
+    plików w `tempkat` wciąż jest źródłem aktywnej warstwy dodanej do
+    projektu (np. shp_dociagnij_poly.py zostawia tam "__dz_lines"/
+    "snapped" w TOC). """
+    if not tempkat or not os.path.isdir(tempkat):
+        return
+    zachowaj_nazwy = set(zachowaj_nazwy or [])
+    for plik in glob.glob(os.path.join(tempkat, '*')):
+        if not os.path.isfile(plik):
+            continue
+        rdzen = os.path.splitext(os.path.basename(plik))[0]
+        if rdzen in zachowaj_nazwy:
+            continue
+        try:
+            os.remove(plik)
+        except (PermissionError, OSError):
+            pass
+    try:
+        os.rmdir(tempkat)
+    except OSError:
+        pass
+
+
+def wybierz_warstwe_z_kandydatow(iface, kandydaci, etykieta):
+    """ Ujednolicone rozstrzygniecie, gdy warstwa wejsciowa jest szukana
+    po nazwie wsrod wszystkich warstw w TOC (zamiast wskazywana recznie):
+    - 0 kandydatow -> None (wywolujacy pokazuje swoj dotychczasowy
+      komunikat o braku warstwy, bez zmian)
+    - dokladnie 1 kandydat -> zwracany od razu, bez pytania (ciche
+      dzialanie jak dotychczas w jednoznacznym przypadku)
+    - 2+ kandydatow -> uzytkownik musi jawnie wybrac wlasciwa warstwe z
+      listy (nazwa + sciezka zrodlowa dla odroznienia identycznie
+      nazwanych warstw); anulowanie wyboru zwraca None, tak samo jak brak
+      kandydatow w ogole. """
+    if len(kandydaci) == 0:
+        return None
+    if len(kandydaci) == 1:
+        return kandydaci[0]
+
+    opisy = []
+    for lyr in kandydaci:
+        try:
+            sciezka = lyr.dataProvider().dataSourceUri().split('|')[0]
+        except Exception:
+            sciezka = ''
+        opisy.append(lyr.name() + '   (' + sciezka + ')')
+
+    wybor, ok = QInputDialog.getItem(
+        iface.mainWindow(),
+        'Wybierz warstwę',
+        'W TOC znaleziono więcej niż jedną warstwę pasującą do "' +
+        etykieta + '" - wskaż właściwą:',
+        opisy, 0, False
+    )
+    if not ok:
+        return None
+    return kandydaci[opisy.index(wybor)]

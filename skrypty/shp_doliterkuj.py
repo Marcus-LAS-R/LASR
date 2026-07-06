@@ -6,12 +6,13 @@ from operator import itemgetter
 
 from PyQt5.QtWidgets import QDialog, QFileDialog, QLineEdit, \
     QMessageBox, QTableWidgetItem
-from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
-    QgsCoordinateReferenceSystem, QgsVectorLayer, QgsProject
+from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer, QgsProject
 
 from .shp_literkuj import LITERY
 from .baza_wrapper import Baza
 from .ui.ui_shp_doliterkuj import Ui_Dialog
+from . import kopie_manipulacyjne
+from .funkcje import wyczysc_katalog_temp
 
 _Y_BAZA_ROW = 100
 _ROW_H = 32
@@ -594,13 +595,22 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
         if not os.path.isdir(tempkat):
             os.mkdir(tempkat)
 
-        crs = QgsCoordinateReferenceSystem("epsg:2180")
-
-        # stworz kopie warstwy wydz w tempie (przed dissolve)
-        QgsVectorFileWriter.writeAsVectorFormat(
-            lyr,
-            os.path.join(tempkat, 'wydz_backup_'+czas+'.shp'),
-            "UTF-8", crs, "ESRI Shapefile")
+        # kopia bezpieczeństwa PRZED dissolve (na wypadek problemu ze
+        # scalaniem) - ten sam wzorzec co inne operacje niszczące w tej
+        # wtyczce (kopie_manipulacyjne.zrob_kopie_manipulacyjna)
+        baza_do_kopii = _zgadnij_baze(sciezka + '.shp') or (sciezka + '.shp')
+        folder_kopii = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
+            baza_do_kopii, [lyr], 'doliterkuj')
+        if folder_kopii is None:
+            iface.messageBar().pushMessage(
+                'BŁĄD', 'Nie udało się utworzyć kopii bezpieczeństwa - '
+                'przerwano scalanie fragmentów Lz (litery zostały już '
+                'przypisane i zapisane)',
+                Qgis.Critical, 10)
+            QgsMessageLog.logMessage(
+                '------ KONIEC (błąd kopii bezpieczeństwa) -------- \n',
+                'Las-R', Qgis.Info)
+            return True
 
         # zrob dissolva na warstwie wydz (scala fragmenty Lz)
         processing.run("native:dissolve", {
@@ -621,6 +631,10 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
             [x for x in wydz_diss.dataProvider().getFeatures()]
         )
         lyr.commitChanges()
+
+        # zwolnij uchwyt do warstwy posredniej przed czyszczeniem temp
+        del wydz_diss
+        wyczysc_katalog_temp(tempkat)
 
         iface.messageBar().pushMessage(
             'OK',

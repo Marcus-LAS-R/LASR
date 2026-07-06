@@ -17,6 +17,7 @@ import processing
 
 from .baza_wrapper import Baza
 from .ui.ui_raport_wyciagi import Ui_Dialog
+from .funkcje import wyczysc_katalog_temp
 
 # kolumna podpisu wspolwlasciciela ma box 51mm, ale realnie miesci ok.
 # 49mm tekstu (marginesy etykiety) - zmierzone empirycznie na czcionce
@@ -1399,6 +1400,12 @@ class GenerujWyciagi(Struktura, Wyciag):
                 'OK', 'Wygenerowano wszystkie zadane wyciągi ' +
                 f'[{len(l_wl)}]',
                 Qgis.Success)
+
+        # zwolnij uchwyt do warstwy posredniej (plik w tempkat) przed
+        # czyszczeniem
+        if hasattr(self, 'inter'):
+            del self.inter
+        wyczysc_katalog_temp(getattr(self, 'tempkat', ''))
 
     def pobierz_dane(self):
         """Pobiera dane od uzytkownika przez wyswietlone okno dialogowe"""

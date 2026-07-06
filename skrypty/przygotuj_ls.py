@@ -12,7 +12,7 @@ from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
 
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
-from .funkcje import usun_wasy, isNone
+from .funkcje import usun_wasy, isNone, wyczysc_katalog_temp
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
 # import processing  # import przeniesiony do metody - pytest probemy!
@@ -82,6 +82,12 @@ class PrzygotujLs(object):
         self.postep.setValue(80)
         self.a.generuj_raport()
         self.postep.setValue(100)
+
+        # zwolnij uchwyt do warstwy posredniej (plik w tempkat) przed
+        # czyszczeniem - dane z niej sa juz przepisane do self.strukt
+        if hasattr(self.a, 'singleparts'):
+            del self.a.singleparts
+        wyczysc_katalog_temp(getattr(self.a, 'tempkat', ''))
 
         self.iface.messageBar().clearWidgets()
 
