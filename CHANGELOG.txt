@@ -207,6 +207,44 @@ rozwojem wtyczki.
      liter w obrębie grupy (ODDZ/MUNICIP/COMMUNITY), bo licznik kolejnej
      litery nie uwzględniał liter już wpisanych w pominiętych rekordach
 
+9. NOWY: ŚCIĄGNIJ DANE Z BDL (pobierz_BDL.py, menu "Aktualizacja UPUL",
+   na końcu, po separatorze) - automatyzacja i wpięcie do wtyczki
+   ręcznego skryptu pobierz.py (materialy/Targanie_BDL) do ściągania
+   geometrii i opisów taksacyjnych z Banku Danych o Lasach
+   (bdl.lasy.gov.pl)
+   - Przepisane z geopandas/pandas/numpy (wymagały ręcznej instalacji w
+     Pythonie QGIS-a) na czyste API QGIS-a: native:creategrid zamiast
+     ręcznego generowania siatki w GUI, sterownik OGR ESRIJSON zamiast
+     gpd.read_file, QgsVectorFileWriter zamiast gdf.to_file, openpyxl
+     zamiast pandas.to_csv - działa od razu u każdego użytkownika wtyczki,
+     bez doinstalowywania czegokolwiek (requests i openpyxl są już
+     używane gdzie indziej w tej wtyczce)
+   - Dialog: wskazanie warstwy zasięgu (OBR lub GMIN, wymagany EPSG:2180),
+     rozmiar oczka siatki (domyślnie 2000m - limit serwera BDL to ok. 1000
+     wydzieleń/oczko), folder wyjściowy (auto-uzupełniany jako "Dane_BDL"
+     na poziomie bazy/folderu SHP - katalog wyżej od warstwy, nie w samym
+     folderze SHP)
+   - Automatycznie generuje siatkę nad zasięgiem warstwy i odrzuca oczka
+     nieprzecinające się z jej geometrią (dawniej ręczne kroki w QGIS-ie)
+   - Ściąga geometrie oczko po oczku, usuwa duplikaty po arodes_int_num,
+     przelicza z Web Mercator (odpowiedź serwera) do EPSG:2180 i zapisuje
+     SHP/wszystko_BDL.shp (UTF-8) w podfolderze SHP folderu wyjściowego;
+     ostrzega w logu Las-R o oczkach z uciętym wynikiem
+     (exceededTransferLimit - trzeba zmniejszyć rozmiar oczka). UWAGA:
+     pola arodes_int_num/adress_forest/owner_cat_name przekraczają limit
+     10 znaków nazwy pola w SHP i zostaną automatycznie obcięte przez GDAL
+     (na arodes_int/adress_for/owner_cat_ - bez kolizji nazw)
+   - Ściąga pełny opis taksacyjny każdego wydzielenia i zapisuje po
+     jednym XLSX na kategorię (headerLNP, generalData, generalData2,
+     layer, layerSpecies, arodCues) w folderze wyjściowym - gotowe do
+     zaimportowania do bazy
+   - Pasek postępu z możliwością przerwania (Przerwij) - przy przerwaniu
+     w trakcie ściągania opisów zachowuje już pobraną warstwę SHP
+   - UWAGA: nowa zależność sieciowa (requests) - wymaga dostępu do
+     mapserver.bdl.lasy.gov.pl i www.bdl.lasy.gov.pl; nie testowane jeszcze
+     na żywym QGIS-ie (brak środowiska QGIS w sesji, w której to
+     napisano) - do zweryfikowania w praktyce
+
 ==============================
 
 Wersja 2.0d — zmiany wprowadzone 18–25.06.2026

@@ -86,6 +86,7 @@ from .skrypty import (
     shp_usun_wydz,
     baza_kontrola_slownikow_wgSULMN,
     baza_kontrola_opisow_wgSULMN,
+    pobierz_BDL,
 )
 
 from .skrypty import aktualizacja_upul
@@ -487,6 +488,14 @@ class LasR:
         )
         self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
+
+        self.m_aktualizacja_upul.addSeparator()
+
+        self.a_pobierz_bdl = QAction(
+            QIcon(None), "Ściągnij dane z BDL", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_pobierz_bdl)
+        self.a_pobierz_bdl.triggered.connect(self.pobierz_bdl)
         # ----------------------------------------
 
         self.spr_odl_wydz = QAction(
@@ -1118,6 +1127,9 @@ class LasR:
             s.przetworz()
             s.zapytaj_wgs84()
             s.zapisz_kml()
+
+    def pobierz_bdl(self):
+        pobierz_BDL.uruchom(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)
