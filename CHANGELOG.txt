@@ -245,6 +245,59 @@ rozwojem wtyczki.
      na żywym QGIS-ie (brak środowiska QGIS w sesji, w której to
      napisano) - do zweryfikowania w praktyce
 
+10. NOWY: UTWÓRZ BAZĘ Z BDL (utworz_baze_z_BDL.py, menu "Aktualizacja UPUL",
+    zaraz po "Ściągnij dane z BDL") - druga połowa automatyzacji importu z
+    Banku Danych o Lasach: bierze folder wyjściowy pobierz_BDL.py i zamienia
+    go w gotowe wiersze w "czystej" bazie Access wskazanej przez użytkownika
+   - Replikuje w czystym Pythonie logikę 4 dawnych kwerend Accessowych
+     (F_SUBAREA, F_AROD_STOREY, F_STOREY_SPECIES, F_AROD_STAND_PEC) - bez
+     żadnej pośredniej bazy do przetwarzania, wszystko w pamięci
+   - W odróżnieniu od oryginalnej kwerendy: NIE stosuje korekty
+     wieku/pierśnicy/wysokości/miąższości (+10/+3/+2/*1,2) - wpisuje
+     surowe wartości z BDL, bo korektę robi już osobne, istniejące
+     narzędzie "aktualizacji baz"
+   - Dialog: folder wejściowy, docelowa czysta baza .mdb, warstwa OBR
+     (wymagana, auto-uzupełniana ścieżką, jeśli w bieżącym projekcie (TOC)
+     jest wczytana dokładnie jedna warstwa o nazwie zaczynającej się od
+     "OBR" - jak w baza_przeliterkuj.py::dopisz_oddzialy) - obsługuje
+     zarówno warstwę już przetworzoną (pola
+     MUNICIP/COMMUNITY wprost, nazwa w G5NAZ albo jpt_nazwa_, jak w
+     raport_wyles.py), jak i surową PZGiK/EGiB albo PRG/GUGiK (MUNICIP/
+     COMMUNITY rozbijane ze złożonego kodu jednostki w polu IDOBREBU/
+     jpt_kod_je/g5nro, format "WOJPOWGMI_RODZ.OBREB" np. "320101_1.0002");
+     nazwa brana wprost z pierwszego niepustego pola-kandydata, nawet gdy
+     wygląda jak powtórzenie kodu (w miastach to normalny, prawdziwy zapis,
+     nie błąd danych). Dwie dynamiczne listy z checkboxami (przewijalne):
+     "Własność" (na podstawie distinct owner_cat_ z wszystko_BDL.shp - czysty
+     filtr tekstowy, bez związku z F_OWNERSHIP_DIC, domyślnie wszystko
+     zaznaczone) i "Obręb" (distinct obręby wg ADR_LES, etykieta zawsze
+     "nazwa, MUNICIP, COMMUNITY" dla jednoznaczności - domyślnie zaznaczone
+     i na górze listy tylko te obręby, które faktycznie występują w
+     warstwie OBR; reszta niżej i odznaczona)
+   - Checkbox "Utwórz SHP z wybranych" (domyślnie zaznaczony) - zapisuje
+     SHP/wybrane_BDL.shp (schemat jak WYDZ.shp) z wszystkich wydzieleń, które
+     przeszły oba filtry, niezależnie od tego czy już są w bazie
+   - Przed zapisem: dialog z licznikami (do dopisania / już w bazie /
+     bez kompletnych danych opisowych), Tak/Nie
+   - Po zakończeniu: zawsze widoczny raport (plik txt + "Zamknij i pokaż
+     raport") z pełnymi listami pominiętych wydzieleń - nie tylko log Las-R
+   - Cicha kontrola na starcie, czy wskazana baza ma wszystkie wymagane
+     tabele (F_ARODES, F_SUBAREA, F_AROD_STOREY, F_STOREY_SPECIES,
+     F_AROD_STAND_PEC, F_COMMUNITY) - czytelny błąd krytyczny, jeśli nie
+   - Dopisuje też brakujące wpisy w słowniku F_COMMUNITY (obręby) - w
+     czystej bazie ta tabela jest zwykle pusta, w odróżnieniu od już
+     wypełnionych F_COUNTY/F_DISTRICT/F_MUNICIPALITY, a bez tego program
+     taksatora nie odpala się na tak przygotowanej bazie. Dopisywane są
+     tylko brakujące kombinacje (COUNTY_CD/DISTRICT_CD/MUNICIPALITY_CD/
+     COMMUNITY_CD + nazwa z warstwy OBR) - istniejące wpisy nie są
+     nigdy nadpisywane ani duplikowane
+   - baza_dopisz_wydz.DopiszWydzielenia: nowe opcjonalne parametry
+     konstruktora (wydz, baza, wpisz_subarea) pozwalające wywołać klasę
+     programowo z jawną warstwą i już podłączoną bazą, pomijając
+     interaktywny sprawdz_dane() - bez wpływu na dotychczasowe wywołania
+   - Nie testowane jeszcze na żywym QGIS-ie (brak środowiska QGIS w sesji,
+     w której to napisano) - do zweryfikowania w praktyce
+
 ==============================
 
 Wersja 2.0d — zmiany wprowadzone 18–25.06.2026

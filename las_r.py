@@ -87,6 +87,7 @@ from .skrypty import (
     baza_kontrola_slownikow_wgSULMN,
     baza_kontrola_opisow_wgSULMN,
     pobierz_BDL,
+    utworz_baze_z_BDL,
 )
 
 from .skrypty import aktualizacja_upul
@@ -496,6 +497,12 @@ class LasR:
         )
         self.m_aktualizacja_upul.addAction(self.a_pobierz_bdl)
         self.a_pobierz_bdl.triggered.connect(self.pobierz_bdl)
+
+        self.a_utworz_baze_bdl = QAction(
+            QIcon(None), "Utwórz bazę z BDL", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_utworz_baze_bdl)
+        self.a_utworz_baze_bdl.triggered.connect(self.utworz_baze_bdl)
         # ----------------------------------------
 
         self.spr_odl_wydz = QAction(
@@ -1130,6 +1137,9 @@ class LasR:
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)
+
+    def utworz_baze_bdl(self):
+        utworz_baze_z_BDL.uruchom(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)

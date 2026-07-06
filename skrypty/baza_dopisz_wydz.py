@@ -3,8 +3,13 @@ from .baza_wrapper import znajdz_baze_do_wydz, Baza
 
 
 class DopiszWydzielenia():
-    def __init__(self, iface):
+    def __init__(self, iface, wydz=None, baza=None, wpisz_subarea=True):
         self.iface = iface
+        self.wydz = wydz
+        self.baza = baza
+        # gdy False, pomija wpis placeholdera do F_SUBAREA (SUB_AREA=0) -
+        # przydatne, gdy wywolujacy sam wpisuje pelny wiersz F_SUBAREA
+        self.wpisz_subarea = wpisz_subarea
 
         self.sl_wydz_shp = {}  # {adr_les: arodes_int_num} wydz z shp
         self.sl_wydz_baza = {}  # {adr_les: arodes_int_num} wydz z bazy
@@ -142,18 +147,22 @@ class DopiszWydzielenia():
 
                     else:
                         if 'WYDZIEL' == d[1]:
-                            sql = "INSERT INTO F_SUBAREA " + \
-                                "(ARODES_INT_NUM, SUB_AREA) VALUES (" + \
-                                str(self.current_arod) + ", 0 )"
+                            if self.wpisz_subarea:
+                                sql = "INSERT INTO F_SUBAREA " + \
+                                    "(ARODES_INT_NUM, SUB_AREA) VALUES (" + \
+                                    str(self.current_arod) + ", 0 )"
 
-                            if not self.baza.wpisz(sql):
-                                QgsMessageLog.logMessage(
-                                    d[0]+' - nie udało się wpisać do '
-                                    'F_SUBAREA',
-                                    'Las-R'
-                                )
-                                self.bledy += 1
+                                if not self.baza.wpisz(sql):
+                                    QgsMessageLog.logMessage(
+                                        d[0]+' - nie udało się wpisać do '
+                                        'F_SUBAREA',
+                                        'Las-R'
+                                    )
+                                    self.bledy += 1
+                                else:
+                                    self.dodano += 1
                             else:
+                                # wywolujacy sam wpisze pelny wiersz F_SUBAREA
                                 self.dodano += 1
 
                         self.arodes.append(d[0])
