@@ -170,10 +170,23 @@ rozwojem wtyczki.
    - Jeśli wskazany plik jest już wczytany do projektu, doliterowanie
      działa na tym samym obiekcie warstwy z TOC (edycje od razu widoczne
      na mapie), zamiast na osobnej, niewyświetlanej kopii
+   - Nowa opcja źródła już zajętych liter (wiersz nad "Wpisz oddział
+     ręcznie"): "z warstwy SHP" (domyślnie, jak dotychczas) albo "z bazy
+     (F_ARODES)" - przy wyborze bazy dochodzi pole ze ścieżką do mdb
+     (auto-uzupełniane, jeśli katalog wyżej od warstwy zawiera dokładnie
+     jeden plik .mdb) + przycisk "Wybierz" do ręcznego wskazania innego
+     pliku; zajęte litery są wtedy wyliczane z oficjalnych adresów leśnych
+     (ADRESS_FOREST) zamiast z bieżącej warstwy SHP - przydatne, gdy
+     warstwa robocza może nie zawierać wszystkich już ustalonych wydzieleń
    - Nowa opcja "Wpisz oddział ręcznie" (domyślnie wyłączona): po
-     zaznaczeniu i wpisaniu wartości skrypt uzupełnia nią puste pole ODDZ
-     przed doliterowaniem - działa też razem z opcją "Doliterkuj od..."
-     (tabela oddziałów pokazuje wtedy docelowe, ręcznie wpisane ODDZ)
+     zaznaczeniu i wpisaniu wartości skrypt nadpisuje nią pole ODDZ we
+     wszystkich wydzieleniach warstwy (nie tylko w pustych) przed
+     doliterowaniem - działa też razem z opcją "Doliterkuj od..." (tabela
+     oddziałów pokazuje wtedy docelowe, nadpisane ODDZ)
+   - Wzmocnienie: klucz grupy (ODDZ, MUNICIP, COMMUNITY) jest teraz
+     normalizowany (przycinanie białych znaków) przed porównaniem, żeby
+     ewentualne spacje końcowe w polach o stałej szerokości (DBF) nie
+     tworzyły "widmowej" osobnej grupy dla nowo dodanych wydzieleń
 
 ==============================
 

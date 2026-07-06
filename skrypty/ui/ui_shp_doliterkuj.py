@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(560, 230)
+        Dialog.resize(560, 262)
         font = QtGui.QFont()
         font.setFamily("Arial")
         Dialog.setFont(font)
@@ -26,26 +26,54 @@ class Ui_Dialog(object):
         self.pushButton_warstwa.setFont(font)
         self.pushButton_warstwa.setObjectName("pushButton_warstwa")
 
+        self.label_zrodlo = QtWidgets.QLabel(Dialog)
+        self.label_zrodlo.setGeometry(QtCore.QRect(20, 68, 210, 22))
+        self.label_zrodlo.setFont(font)
+        self.label_zrodlo.setObjectName("label_zrodlo")
+
+        self.radioButton_zrodloSHP = QtWidgets.QRadioButton(Dialog)
+        self.radioButton_zrodloSHP.setGeometry(QtCore.QRect(230, 68, 130, 22))
+        self.radioButton_zrodloSHP.setFont(font)
+        self.radioButton_zrodloSHP.setChecked(True)
+        self.radioButton_zrodloSHP.setObjectName("radioButton_zrodloSHP")
+
+        self.radioButton_zrodloBaza = QtWidgets.QRadioButton(Dialog)
+        self.radioButton_zrodloBaza.setGeometry(QtCore.QRect(370, 68, 170, 22))
+        self.radioButton_zrodloBaza.setFont(font)
+        self.radioButton_zrodloBaza.setObjectName("radioButton_zrodloBaza")
+
+        self.lineEdit_baza = QtWidgets.QLineEdit(Dialog)
+        self.lineEdit_baza.setGeometry(QtCore.QRect(20, 100, 440, 22))
+        self.lineEdit_baza.setFont(font)
+        self.lineEdit_baza.setVisible(False)
+        self.lineEdit_baza.setObjectName("lineEdit_baza")
+
+        self.pushButton_baza = QtWidgets.QPushButton(Dialog)
+        self.pushButton_baza.setGeometry(QtCore.QRect(465, 100, 75, 23))
+        self.pushButton_baza.setFont(font)
+        self.pushButton_baza.setVisible(False)
+        self.pushButton_baza.setObjectName("pushButton_baza")
+
         self.checkBox_oddz_reczny = QtWidgets.QCheckBox(Dialog)
-        self.checkBox_oddz_reczny.setGeometry(QtCore.QRect(20, 68, 220, 22))
+        self.checkBox_oddz_reczny.setGeometry(QtCore.QRect(20, 100, 220, 22))
         self.checkBox_oddz_reczny.setFont(font)
         self.checkBox_oddz_reczny.setChecked(False)
         self.checkBox_oddz_reczny.setObjectName("checkBox_oddz_reczny")
 
         self.lineEdit_oddz_reczny = QtWidgets.QLineEdit(Dialog)
-        self.lineEdit_oddz_reczny.setGeometry(QtCore.QRect(250, 68, 100, 22))
+        self.lineEdit_oddz_reczny.setGeometry(QtCore.QRect(250, 100, 100, 22))
         self.lineEdit_oddz_reczny.setFont(font)
         self.lineEdit_oddz_reczny.setEnabled(False)
         self.lineEdit_oddz_reczny.setObjectName("lineEdit_oddz_reczny")
 
         self.checkBox_od = QtWidgets.QCheckBox(Dialog)
-        self.checkBox_od.setGeometry(QtCore.QRect(20, 100, 520, 22))
+        self.checkBox_od.setGeometry(QtCore.QRect(20, 132, 520, 22))
         self.checkBox_od.setFont(font)
         self.checkBox_od.setChecked(False)
         self.checkBox_od.setObjectName("checkBox_od")
 
         self.tableWidget_oddzialy = QtWidgets.QTableWidget(Dialog)
-        self.tableWidget_oddzialy.setGeometry(QtCore.QRect(20, 128, 520, 220))
+        self.tableWidget_oddzialy.setGeometry(QtCore.QRect(20, 160, 520, 220))
         self.tableWidget_oddzialy.setFont(font)
         self.tableWidget_oddzialy.setObjectName("tableWidget_oddzialy")
         self.tableWidget_oddzialy.setColumnCount(5)
@@ -70,7 +98,7 @@ class Ui_Dialog(object):
         self.tableWidget_oddzialy.setVisible(False)
 
         self.pushButton_ok = QtWidgets.QPushButton(Dialog)
-        self.pushButton_ok.setGeometry(QtCore.QRect(20, 176, 250, 34))
+        self.pushButton_ok.setGeometry(QtCore.QRect(20, 208, 250, 34))
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
@@ -81,7 +109,7 @@ class Ui_Dialog(object):
         self.pushButton_ok.setObjectName("pushButton_ok")
 
         self.pushButton_cancel = QtWidgets.QPushButton(Dialog)
-        self.pushButton_cancel.setGeometry(QtCore.QRect(290, 176, 250, 34))
+        self.pushButton_cancel.setGeometry(QtCore.QRect(290, 208, 250, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
         font_cancel.setPointSize(8)
@@ -96,6 +124,13 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(_translate("Dialog", "Doliterkuj wydzielenia - opcje"))
         self.label_warstwa.setText(_translate("Dialog", "Warstwa wydzieleń:"))
         self.pushButton_warstwa.setText(_translate("Dialog", "Wybierz"))
+        self.label_zrodlo.setText(_translate(
+            "Dialog", "Źródło już zajętych liter:"))
+        self.radioButton_zrodloSHP.setText(_translate(
+            "Dialog", "z warstwy SHP"))
+        self.radioButton_zrodloBaza.setText(_translate(
+            "Dialog", "z bazy (F_ARODES)"))
+        self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
         self.checkBox_oddz_reczny.setText(_translate(
             "Dialog", "Wpisz oddział ręcznie:"))
         self.checkBox_od.setText(_translate(

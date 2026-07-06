@@ -1,4 +1,5 @@
 import os
+import glob
 import datetime
 import processing
 from operator import itemgetter
@@ -8,12 +9,19 @@ from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsVectorLayer, QgsProject
 
 from .shp_literkuj import LITERY
+from .baza_wrapper import Baza
 from .ui.ui_shp_doliterkuj import Ui_Dialog
 
-_H_BASE = 230
-_H_OD = 410
-_Y_BTN_BASE = 176
-_Y_BTN_OD = 356
+_Y_BAZA_ROW = 100
+_ROW_H = 32
+_ROW_ITEM_H = 22
+_TABLE_GAP_TOP = 28
+_TABLE_H = 220
+_GAP_BASE = 54
+_GAP_OD = 8
+_BTN_H = 34
+_MARGIN_BOTTOM = 20
+_DIALOG_W = 560
 
 
 def _ma_juz_litere(wartosc):
@@ -23,10 +31,20 @@ def _ma_juz_litere(wartosc):
     return str(wartosc) not in ["", " ", 'NULL', None]
 
 
-def _jest_puste(wartosc):
-    """ Odwrotnosc _ma_juz_litere - przydatna gdy sprawdzamy puste pole
-    inne niz WYDZ (np. recznie uzupelniany ODDZ). """
-    return not _ma_juz_litere(wartosc)
+def _tekst(wartosc):
+    """ Normalizuje wartosc pola do porownan w kluczu grupy (ODDZ,
+    MUNICIP, COMMUNITY) - usuwa biale znaki na koncach i rzutuje na str.
+    Bez tego pola o stalej szerokosci (DBF) ze spacjami koncowymi w
+    starych rekordach tworza "widmowa" osobna grupe dla nowo dodanych
+    wydzielen (te same dane logicznie, inny klucz), przez co doliterowanie
+    nie widzi juz uzytych liter i zaczyna literowac od "a" od nowa. """
+    if wartosc is None:
+        return ''
+    return str(wartosc).strip()
+
+
+def _klucz_grupy(oddz, municip, community):
+    return (_tekst(oddz), _tekst(municip), _tekst(community))
 
 
 def _znajdz_oddzialy_bez_litery(sciezka, oddz_reczny=None):
@@ -34,9 +52,9 @@ def _znajdz_oddzialy_bez_litery(sciezka, oddz_reczny=None):
     zwraca posortowana liste (MUNICIP, COMMUNITY, ODDZ, ile_do_doliterowania)
     dla grup, w ktorych jest przynajmniej jedno wydzielenie bez przypisanej
     litery (pole WYDZ puste, inne niz 'Lz'). Uzywana do zaprezentowania
-    listy oddzialow w dialogu. Jesli podano oddz_reczny, puste pole ODDZ
-    jest traktowane tak, jakby juz bylo uzupelnione ta wartoscia (zeby
-    tabela pokazywala docelowe grupowanie, a nie puste ODDZ). """
+    listy oddzialow w dialogu. Jesli podano oddz_reczny, ODDZ jest
+    traktowany tak, jakby juz zostal nadpisany ta wartoscia (zeby tabela
+    pokazywala docelowe grupowanie po nadpisaniu, a nie oryginalne ODDZ). """
     if not sciezka or not os.path.isfile(sciezka):
         return []
     lyr = QgsVectorLayer(sciezka, 'skan_doliterkuj', 'ogr')
@@ -53,14 +71,72 @@ def _znajdz_oddzialy_bez_litery(sciezka, oddz_reczny=None):
             continue
         if _ma_juz_litere(wartosc):
             continue
-        oddz = f['ODDZ']
-        if oddz_reczny and _jest_puste(oddz):
-            oddz = oddz_reczny
-        klucz = (f['MUNICIP'], f['COMMUNITY'], oddz)
+        oddz = oddz_reczny if oddz_reczny else f['ODDZ']
+        klucz = (_tekst(f['MUNICIP']), _tekst(f['COMMUNITY']), _tekst(oddz))
         liczniki[klucz] = liczniki.get(klucz, 0) + 1
     return sorted(
         ((*klucz, ile) for klucz, ile in liczniki.items()),
         key=lambda g: (str(g[0]), str(g[1]), str(g[2])))
+
+
+def _rozbierz_adr_les(adr):
+    """ Rozbija adres lesny (format budowany przez shp_adr_les.Zaadresuj:
+    COUNTY_L(1)+DISTRICT(2)+MUNICIP(3)+COMMUNITY(4)+'-'+GRP(2)+ODDZ(4,
+    wyrownane spacjami)+'-'+WYDZ(4, wyrownane spacjami)+'-00', razem 25
+    znakow) na skladowe potrzebne do grupowania: (MUNICIP, COMMUNITY, ODDZ,
+    WYDZ). Zwraca None, jesli adres ma nieoczekiwana dlugosc (uszkodzony
+    lub inny format niz ten generowany przez wtyczke). """
+    if not adr or len(adr) != 25:
+        return None
+    return (
+        adr[3:6],
+        adr[6:10],
+        adr[13:17].strip(),
+        adr[18:22].strip(),
+    )
+
+
+def _zgadnij_baze(warstwa_sc):
+    """ Probuje odgadnac plik bazy (.mdb) polozony katalog wyzej od
+    wskazanej warstwy SHP (typowy uklad katalogow w tym projekcie) - zwraca
+    sciezke tylko gdy znaleziono dokladnie jeden plik .mdb, w przeciwnym
+    razie pusty string (uzytkownik wskazuje baze recznie). """
+    if not warstwa_sc or not os.path.isfile(warstwa_sc):
+        return ''
+    kat = os.path.dirname(warstwa_sc)
+    kandydaci = glob.glob(os.path.join(kat, '..', '*.mdb'))
+    if len(kandydaci) == 1:
+        return os.path.abspath(kandydaci[0])
+    return ''
+
+
+def _uzyte_z_bazy(baza_sc):
+    """ Buduje slownik {klucz_grupy: set(juz_uzyte_litery)} na podstawie
+    adresow lesnych (F_ARODES.ADRESS_FOREST, ARODES_TYP_CD='WYDZIEL') z bazy
+    Taksatora, zamiast skanowac warstwe SHP - przydatne, gdy robocza
+    warstwa SHP moze nie zawierac wszystkich juz oficjalnie ustalonych
+    wydzielen (np. jest czesciowa kopia). Zwraca None, jesli nie udalo sie
+    polaczyc z baza. """
+    baza = Baza(baza_sc)
+    if not baza.polacz():
+        return None
+
+    wydzielenia = baza.pobierz_wydzielenia()
+    baza.zamknij()
+    if wydzielenia is False:
+        wydzielenia = {}
+
+    uzyte = {}
+    for adr in wydzielenia.keys():
+        rozbite = _rozbierz_adr_les(adr)
+        if rozbite is None:
+            continue
+        municip, community, oddz, wydz = rozbite
+        if not _ma_juz_litere(wydz):
+            continue
+        klucz = _klucz_grupy(oddz, municip, community)
+        uzyte.setdefault(klucz, set()).add(wydz)
+    return uzyte
 
 
 def _nastepna_wolna_litera(uzyte, litery=LITERY):
@@ -92,8 +168,11 @@ class _Dialog(QDialog):
                 pass
 
         self.ui.pushButton_warstwa.clicked.connect(self._wybierz_warstwe)
+        self.ui.pushButton_baza.clicked.connect(self._wybierz_baze)
+        self.ui.radioButton_zrodloBaza.toggled.connect(self._na_zmiane_zrodlo)
         self.ui.checkBox_od.toggled.connect(self._przelacz_od)
         self.ui.lineEdit_warstwa.textChanged.connect(self._na_zmiane_warstwy)
+        self.ui.lineEdit_baza.textChanged.connect(self._aktualizuj)
         self.ui.checkBox_oddz_reczny.toggled.connect(
             self.ui.lineEdit_oddz_reczny.setEnabled)
         self.ui.checkBox_oddz_reczny.toggled.connect(self._na_zmiane_oddz_reczny)
@@ -101,7 +180,7 @@ class _Dialog(QDialog):
         self.ui.pushButton_ok.clicked.connect(self.accept)
         self.ui.pushButton_cancel.clicked.connect(self.reject)
 
-        self._przelacz_od(False)
+        self._przelicz_layout()
         self._aktualizuj()
 
     def _folder_startowy(self):
@@ -127,9 +206,35 @@ class _Dialog(QDialog):
         if sc:
             self.ui.lineEdit_warstwa.setText(sc)
 
+    def _wybierz_baze(self):
+        kat_start = os.path.dirname(self.ui.lineEdit_baza.text().strip()) \
+            or self._folder_startowy()
+        sc = QFileDialog.getOpenFileName(
+            self,
+            'Wskaż bazę Taksatora',
+            kat_start,
+            'Access MDB (*.mdb);;SQLite (*.sqlite)',
+        )[0]
+        if sc:
+            self.ui.lineEdit_baza.setText(sc)
+
     def _na_zmiane_warstwy(self):
+        if self.ui.radioButton_zrodloBaza.isChecked() and \
+                not self.ui.lineEdit_baza.text().strip():
+            zgadnieta = _zgadnij_baze(self.warstwa_sc())
+            if zgadnieta:
+                self.ui.lineEdit_baza.setText(zgadnieta)
         if self.ui.checkBox_od.isChecked():
             self._wypelnij_tabele()
+        self._aktualizuj()
+
+    def _na_zmiane_zrodlo(self, _checked=None):
+        if self.ui.radioButton_zrodloBaza.isChecked() and \
+                not self.ui.lineEdit_baza.text().strip():
+            zgadnieta = _zgadnij_baze(self.warstwa_sc())
+            if zgadnieta:
+                self.ui.lineEdit_baza.setText(zgadnieta)
+        self._przelicz_layout()
         self._aktualizuj()
 
     def _na_zmiane_oddz_reczny(self):
@@ -139,14 +244,41 @@ class _Dialog(QDialog):
 
     def _przelacz_od(self, wlaczone):
         self.ui.tableWidget_oddzialy.setVisible(wlaczone)
-        wys = _H_OD if wlaczone else _H_BASE
-        y_btn = _Y_BTN_OD if wlaczone else _Y_BTN_BASE
-        self.setFixedSize(560, wys)
-        self.ui.pushButton_ok.move(20, y_btn)
-        self.ui.pushButton_cancel.move(290, y_btn)
         if wlaczone:
             self._wypelnij_tabele()
+        self._przelicz_layout()
         self._aktualizuj()
+
+    def _przelicz_layout(self):
+        """ Przelicza pionowe polozenie wierszy dialogu - dwa niezalezne
+        przelaczniki (zrodlo=baza pokazuje dodatkowy wiersz z plikiem bazy;
+        checkBox_od pokazuje tabele oddzialow) wplywaja na wysokosc, wiec
+        pozycje licza sie dynamicznie zamiast na sztywno w pliku .ui. """
+        baza_widoczna = self.ui.radioButton_zrodloBaza.isChecked()
+        od_widoczne = self.ui.checkBox_od.isChecked()
+
+        self.ui.lineEdit_baza.setVisible(baza_widoczna)
+        self.ui.pushButton_baza.setVisible(baza_widoczna)
+
+        y = _Y_BAZA_ROW + (_ROW_H if baza_widoczna else 0)
+        self.ui.checkBox_oddz_reczny.move(20, y)
+        self.ui.lineEdit_oddz_reczny.move(250, y)
+
+        y += _ROW_H
+        self.ui.checkBox_od.move(20, y)
+
+        y_table = y + _TABLE_GAP_TOP
+        self.ui.tableWidget_oddzialy.move(20, y_table)
+
+        if od_widoczne:
+            y_btn = y_table + _TABLE_H + _GAP_OD
+        else:
+            y_btn = y + _ROW_ITEM_H + _GAP_BASE
+
+        self.ui.pushButton_ok.move(20, y_btn)
+        self.ui.pushButton_cancel.move(290, y_btn)
+
+        self.setFixedSize(_DIALOG_W, y_btn + _BTN_H + _MARGIN_BOTTOM)
 
     def _wypelnij_tabele(self):
         sc = self.ui.lineEdit_warstwa.text().strip()
@@ -164,10 +296,20 @@ class _Dialog(QDialog):
             ok = ok and bool(self.ui.lineEdit_oddz_reczny.text().strip())
         if self.ui.checkBox_od.isChecked():
             ok = ok and len(self._grupy) > 0
+        if self.ui.radioButton_zrodloBaza.isChecked():
+            ok = ok and bool(self.ui.lineEdit_baza.text().strip())
         self.ui.pushButton_ok.setEnabled(ok)
 
     def warstwa_sc(self):
         return self.ui.lineEdit_warstwa.text().strip()
+
+    def zrodlo_liter(self):
+        return 'baza' if self.ui.radioButton_zrodloBaza.isChecked() else 'shp'
+
+    def baza_sc(self):
+        if not self.ui.radioButton_zrodloBaza.isChecked():
+            return None
+        return self.ui.lineEdit_baza.text().strip() or None
 
     def oddz_reczny(self):
         if not self.ui.checkBox_oddz_reczny.isChecked():
@@ -188,7 +330,7 @@ class _Dialog(QDialog):
             edit = tabela.cellWidget(i, 4)
             wartosc = edit.text().strip().lower() if edit else ''
             if wartosc:
-                wynik[(oddz, municip, community)] = wartosc
+                wynik[_klucz_grupy(oddz, municip, community)] = wartosc
         return wynik
 
 
@@ -202,6 +344,8 @@ def uruchom(iface):
     warstwa_sc = dlg.warstwa_sc()
     od_litery = dlg.od_litery_wg_oddz()
     oddz_reczny = dlg.oddz_reczny()
+    zrodlo_liter = dlg.zrodlo_liter()
+    baza_sc = dlg.baza_sc()
 
     lyr = _znajdz_warstwe_w_toc(warstwa_sc)
     if lyr is None:
@@ -214,7 +358,9 @@ def uruchom(iface):
             10)
         return False
 
-    return Doliterkuj(iface, lyr, od_litery=od_litery, oddz_reczny=oddz_reczny)
+    return Doliterkuj(
+        iface, lyr, od_litery=od_litery, oddz_reczny=oddz_reczny,
+        zrodlo_liter=zrodlo_liter, baza_sc=baza_sc)
 
 
 def _znajdz_warstwe_w_toc(sciezka):
@@ -232,7 +378,8 @@ def _znajdz_warstwe_w_toc(sciezka):
     return None
 
 
-def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None):  # noqa
+def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
+               zrodlo_liter='shp', baza_sc=None):  # noqa
     """ Kontynuacja literacji wydzielen - w odroznieniu od
     shp_literkuj.Literkuj NIE dotyka wydzielen, ktore juz maja litere
     (lub 'Lz') - przypisuje litery tylko nowo dodanym poligonom z pustym
@@ -293,14 +440,14 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None):  # noqa
     if oddz_reczny:
         do_uzupelnienia = {
             f.id(): {fnm['ODDZ']: oddz_reczny}
-            for f in lyr.getFeatures() if _jest_puste(f['ODDZ'])
+            for f in lyr.getFeatures()
         }
         if do_uzupelnienia:
             lyr.startEditing()
             lyr.dataProvider().changeAttributeValues(do_uzupelnienia)
             lyr.commitChanges()
             QgsMessageLog.logMessage(
-                'Uzupełniono ODDZ="' + oddz_reczny + '" dla ' +
+                'Nadpisano ODDZ="' + oddz_reczny + '" dla ' +
                 str(len(do_uzupelnienia)) + ' wydzieleń',
                 'Las-R',
                 Qgis.Info
@@ -320,12 +467,31 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None):  # noqa
 
     # przebieg wstepny - litery juz uzyte w kazdej grupie (ODDZ, MUNICIP,
     # COMMUNITY), zeby doliterowywanie nie nadpisalo/zduplikowalo
-    # istniejacej literacji
-    uzyte_w_grupie = {}
-    for it in tab:
-        if _ma_juz_litere(it[4]):
-            klucz = (it[3], it[5], it[6])
-            uzyte_w_grupie.setdefault(klucz, set()).add(str(it[4]))
+    # istniejacej literacji - albo z samej warstwy SHP, albo (na zyczenie
+    # uzytkownika) z oficjalnych adresow lesnych w bazie Taksatora, gdyby
+    # warstwa robocza nie zawierala wszystkich juz ustalonych wydzielen
+    if zrodlo_liter == 'baza':
+        if not baza_sc:
+            iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie wskazano bazy z już zajętymi literami',
+                Qgis.Critical,
+                10)
+            return False
+        uzyte_w_grupie = _uzyte_z_bazy(baza_sc)
+        if uzyte_w_grupie is None:
+            iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie udało się połączyć z bazą - sprawdź wskazany plik',
+                Qgis.Critical,
+                10)
+            return False
+    else:
+        uzyte_w_grupie = {}
+        for it in tab:
+            if _ma_juz_litere(it[4]):
+                klucz = _klucz_grupy(it[3], it[5], it[6])
+                uzyte_w_grupie.setdefault(klucz, set()).add(str(it[4]))
 
     tab = sorted(tab, key=itemgetter(1), reverse=True)
     tab = sorted(tab, key=itemgetter(5))
@@ -346,7 +512,7 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None):  # noqa
             # wydzielenie ma juz litere - nie ruszamy oryginalnej literacji
             continue
 
-        klucz = (it[3], it[5], it[6])
+        klucz = _klucz_grupy(it[3], it[5], it[6])
         uzyte = uzyte_w_grupie.setdefault(klucz, set())
         litery_zestaw = LITERY
         if od_litery and klucz in od_litery:
