@@ -4,7 +4,8 @@ import datetime
 import processing
 from operator import itemgetter
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QLineEdit, QTableWidgetItem
+from PyQt5.QtWidgets import QDialog, QFileDialog, QLineEdit, \
+    QMessageBox, QTableWidgetItem
 from qgis.core import Qgis, QgsMessageLog, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsVectorLayer, QgsProject
 
@@ -424,6 +425,32 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
             Qgis.Critical,
             10)
         return False
+
+    if not oddz_reczny:
+        oddz_puste = sum(
+            1 for f in lyr.getFeatures() if not _ma_juz_litere(f['ODDZ']))
+        if oddz_puste > 0:
+            odp = QMessageBox.question(
+                iface.mainWindow(),
+                'Puste pole ODDZ',
+                'W warstwie jest ' + str(oddz_puste) + ' wydzieleń bez '
+                'uzupełnionego pola ODDZ - doliterowanie w takich grupach '
+                'może być nieprzewidywalne.\n\nKontynuować mimo to?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if odp != QMessageBox.Yes:
+                iface.messageBar().pushMessage(
+                    'ANULOWANO',
+                    'Doliterowanie przerwane przez użytkownika',
+                    Qgis.Warning,
+                    10)
+                QgsMessageLog.logMessage(
+                    '------ KONIEC (anulowano) -------- \n',
+                    'Las-R',
+                    Qgis.Info
+                )
+                return False
 
     if od_litery:
         nieprawidlowe = sorted({w for w in od_litery.values() if w not in LITERY})

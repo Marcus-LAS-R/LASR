@@ -187,6 +187,25 @@ rozwojem wtyczki.
      normalizowany (przycinanie białych znaków) przed porównaniem, żeby
      ewentualne spacje końcowe w polach o stałej szerokości (DBF) nie
      tworzyły "widmowej" osobnej grupy dla nowo dodanych wydzieleń
+   - Kontrola kompletności ODDZ: jeśli w warstwie są wydzielenia bez
+     uzupełnionego pola ODDZ, skrypt pyta (Tak/Nie) czy mimo to
+     kontynuować, zamiast literować w ciemno z niepełnymi danymi
+     grupującymi (pominięta, gdy użyto "Wpisz oddział ręcznie" - wtedy i
+     tak wszystko zostanie nadpisane)
+
+8. LITERKUJ WYDZIELENIA (shp_literkuj.py)
+   - Taka sama kontrola kompletności ODDZ jak w Doliterkuj: przy
+     wydzieleniach bez uzupełnionego ODDZ skrypt pyta, czy kontynuować
+   - Monit przy warstwie już częściowo/w całości zaliterowanej: jeśli
+     wykryje choć jedno wydzielenie z wpisaną literą (WYDZ), inną niż
+     "Lz" - "Lz" nigdy nie liczy się jako wpisana litera i zawsze zostaje
+     bez zmian - pyta o dalsze działanie: "Porzuć" (nic nie rób),
+     "Doliteruj" (przekazuje do Doliterkuj - kontynuacja na podstawie SHP,
+     bez ruszania już zaliterowanych), "Nadpisz" (literuje wszystkie
+     wydzielenia od nowa, od litery "a", nadpisując obecne litery).
+     Dotychczas Literkuj przy mieszanych danych mógł tworzyć duplikaty
+     liter w obrębie grupy (ODDZ/MUNICIP/COMMUNITY), bo licznik kolejnej
+     litery nie uwzględniał liter już wpisanych w pominiętych rekordach
 
 ==============================
 

@@ -74,6 +74,75 @@ def Literkuj(iface, lyr=False):  # noqa
             10)
         return False
 
+    wymus_od_nowa = False
+    ma_litery = any(
+        not _puste(f['WYDZ']) and str(f['WYDZ']).upper() != 'LZ'
+        for f in lyr.getFeatures()
+    )
+    if ma_litery:
+        monit = QMessageBox(iface.mainWindow())
+        monit.setWindowTitle('Wydzielenia już uzupełnione')
+        monit.setText(
+            'W warstwie są już wydzielenia z wpisaną literą (WYDZ) - "Lz" '
+            'nie liczy się jako wpisana litera i zawsze zostaje bez zmian.'
+            '\n\nCo zrobić?'
+        )
+        btn_porzuc = monit.addButton('Porzuć', QMessageBox.RejectRole)
+        btn_doliteruj = monit.addButton('Doliteruj', QMessageBox.AcceptRole)
+        btn_doliteruj.setToolTip('Na podstawie SHP')
+        btn_nadpisz = monit.addButton('Nadpisz', QMessageBox.DestructiveRole)
+        btn_nadpisz.setToolTip('Literuje wszystko od początku')
+        monit.setDefaultButton(btn_porzuc)
+        monit.exec_()
+        klikniety = monit.clickedButton()
+
+        if klikniety == btn_doliteruj:
+            from .shp_doliterkuj import Doliterkuj
+            QgsMessageLog.logMessage(
+                '------ KONIEC (przekazano do Doliterkuj) -------- \n',
+                'Las-R',
+                Qgis.Info
+            )
+            return Doliterkuj(iface, lyr)
+        elif klikniety == btn_nadpisz:
+            wymus_od_nowa = True
+        else:
+            iface.messageBar().pushMessage(
+                'ANULOWANO',
+                'Literowanie przerwane przez użytkownika',
+                Qgis.Warning,
+                10)
+            QgsMessageLog.logMessage(
+                '------ KONIEC (anulowano) -------- \n',
+                'Las-R',
+                Qgis.Info
+            )
+            return False
+
+    oddz_puste = sum(1 for f in lyr.getFeatures() if _puste(f['ODDZ']))
+    if oddz_puste > 0:
+        odp = QMessageBox.question(
+            iface.mainWindow(),
+            'Puste pole ODDZ',
+            'W warstwie jest ' + str(oddz_puste) + ' wydzieleń bez '
+            'uzupełnionego pola ODDZ - literowanie w takich grupach może '
+            'być nieprzewidywalne.\n\nKontynuować mimo to?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if odp != QMessageBox.Yes:
+            iface.messageBar().pushMessage(
+                'ANULOWANO',
+                'Literowanie przerwane przez użytkownika',
+                Qgis.Warning,
+                10)
+            QgsMessageLog.logMessage(
+                '------ KONIEC (anulowano) -------- \n',
+                'Las-R',
+                Qgis.Info
+            )
+            return False
+
     fnm = lyr.dataProvider().fieldNameMap()  # slownik kolejnosci nazw w shp
     for f in lyr.getFeatures():
         tab.append([
@@ -109,7 +178,7 @@ def Literkuj(iface, lyr=False):  # noqa
             obr = it[6]
 
         if str(it[4]).upper() != 'LZ':
-            if not _puste(it[4]):
+            if not _puste(it[4]) and not wymus_od_nowa:
                 # jezeli wydz ma litere, nie zmieniamy
                 pass
             else:
