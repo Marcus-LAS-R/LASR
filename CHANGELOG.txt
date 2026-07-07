@@ -1,57 +1,12 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
-Wersja 2.1 — 2026-07-01 — pierwsze wydanie produkcyjne (koniec fazy beta)
+Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 
-Wtyczka opuszcza fazę beta. Numer wersji podniesiony z 2.0d na 2.1 — wszystkie
-funkcje i poprawki z serii 2.0a–2.0d (patrz niżej) są już częścią tego
-wydania i zostały sprawdzone w codziennej pracy. Brak dodatkowych zmian
-funkcjonalnych względem 2.0d — to wydanie porządkuje numerację przed dalszym
-rozwojem wtyczki.
+### Nowe funkcje
 
-### Poprawki po wydaniu 2.1
-
-1. WSKAŻ BAZĘ — ZŁY KATALOG STARTOWY (baza_dopisz_wydz.py,
-   baza_rozlicz_pow_wydz.py)
-   - "Dopisz/uzupełnij wydzielenia" i "Rozlicz powierzchnię wydzielenia"
-     wołały znajdz_baze_do_wydz() bez parametru poz, przez co dialog
-     "Wskaż bazę Taksatora" startował dwa poziomy katalogów wyżej od
-     warstwy WYDZ (../..) zamiast jeden (../.), niezgodnie z resztą
-     skryptów operujących na tej warstwie (np. Sprawdź wydzielenia)
-   - Dodano poz=1 do obu wywołań
-
-2. PRZYGOTUJ WYDZIELENIA DO CIĘCIA — MULTIPOLIGONY W OBR (shp_przygCiecie.py)
-   - Warstwa ODDZ tworzona z OBR.shp nie rozbijała ewentualnych
-     multipoligonów na pojedyncze poligony (w przeciwieństwie do warstwy
-     WYDZ tworzonej wcześniej w tej samej funkcji)
-   - Tworzenie ODDZ przepisane na native:multiparttosingleparts zamiast
-     zwykłego zapisu warstwy
-
-3. WYEKSPORTUJ DO KML — PORZĄDEK KATALOGÓW + OPCJA WGS84 (shp_eksport_kml.py)
-   - Pliki KML zapisywane teraz w podkatalogu "kml" (w katalogu warstwy
-     z TOC), zamiast bezpośrednio wśród plików warstwy
-   - Nowy dialog pytający, czy dodatkowo wyeksportować warstwy jako SHP
-     w układzie WGS84 (EPSG:4326); nazwy plików z dopiskiem "_84"
-   - Jeśli tak, eksport trafia do nowego podkatalogu "shp_84"
-
-4. SPRAWDŹ KARTY W WYDZIELENIACH — NOWE STYLE (shp_sprawdz_ciecie.py)
-   - Warstwy "WYDZ_bez_kart" i "WYDZ_z_wieloma_kartami" korzystały z
-     ogólnych styli poly_red_outline.qml / poly_green_outline.qml
-   - Podmienione na dedykowane style WYDZ_bez_kart.qml i
-     WYDZ_z_wieloma_kartami.qml (dodane do qml/, źródło:
-     materialy/Style_shp/_NOWE)
-
-5. ZALITERKUJ WYDZIELENIA — MONIT ZAMIAST ZMIANY STYLU (shp_literkuj.py)
-   - Usunięto automatyczną zmianę stylu warstwy na szaro-czerwony
-     WYDZ_xxx.qml przy przekroczeniu listy literek
-   - Zamiast tego, gdy literkowanie przekroczy dostępną listę literek,
-     wyświetlany jest monit z pytaniem czy kontynuować
-   - "Nie" — literowanie przerwane, żadne zmiany nie są zapisywane do
-     warstwy; "Tak" — literowanie zostaje zapisane tak jak wyliczone
-     (wydzielenia poza listą oznaczone jako "xxx", bez zmian w tej logice)
-
-6. NOWY: KONWERSJA SHP DO NOWEGO STANDARDU (aktualizacja_upul/core/
+1. NOWY: KONWERSJA SHP DO NOWEGO STANDARDU (aktualizacja_upul/core/
    shp_standard.py, aktualizacja_upul/gui/konwersja_shp_dialog.py)
    - Nowa pozycja menu "Aktualizacja SHP" w podmenu "Aktualizacja UPUL",
      zaraz po "Aktualizacja baz" (i przed separatorem/resztą pozycji) -
@@ -153,61 +108,7 @@ rozwojem wtyczki.
      jak było wcześniej błędnie odczytane) - stare pliki (UZYTKI_92) z
      G5IDT nadal mapują się poprawnie przez FIELD_MAP
 
-7. DOLITERUJ WYDZIELENIA — NOWY DIALOG (shp_doliterkuj.py)
-   - Uruchomienie nie działa już wprost na aktywnej warstwie z TOC, tylko
-     otwiera dialog z polem ścieżki do warstwy (domyślnie wypełnionym
-     ścieżką aktywnej warstwy) i przyciskiem "Wybierz" do wskazania innego
-     pliku SHP
-   - Nowa opcja "Doliterkuj od..." (domyślnie wyłączona): po zaznaczeniu
-     pokazuje tabelę wszystkich oddziałów (kolumny Gmina/MUNICIP,
-     Obręb/COMMUNITY, Oddział/ODDZ, liczba wydzieleń do doliterowania w
-     danym oddziale), z osobnym polem na literę startową dla każdego
-     oddziału - literowanie nowych (pustych) wydzieleń w danym oddziale
-     zaczyna się wtedy od podanej litery zamiast od pierwszej wolnej "a"
-     (litery przed literą startową są całkowicie pomijane, nawet jeśli
-     wolne); oddziały pozostawione bez wpisanej litery są doliterowane
-     normalnie
-   - Jeśli wskazany plik jest już wczytany do projektu, doliterowanie
-     działa na tym samym obiekcie warstwy z TOC (edycje od razu widoczne
-     na mapie), zamiast na osobnej, niewyświetlanej kopii
-   - Nowa opcja źródła już zajętych liter (wiersz nad "Wpisz oddział
-     ręcznie"): "z warstwy SHP" (domyślnie, jak dotychczas) albo "z bazy
-     (F_ARODES)" - przy wyborze bazy dochodzi pole ze ścieżką do mdb
-     (auto-uzupełniane, jeśli katalog wyżej od warstwy zawiera dokładnie
-     jeden plik .mdb) + przycisk "Wybierz" do ręcznego wskazania innego
-     pliku; zajęte litery są wtedy wyliczane z oficjalnych adresów leśnych
-     (ADRESS_FOREST) zamiast z bieżącej warstwy SHP - przydatne, gdy
-     warstwa robocza może nie zawierać wszystkich już ustalonych wydzieleń
-   - Nowa opcja "Wpisz oddział ręcznie" (domyślnie wyłączona): po
-     zaznaczeniu i wpisaniu wartości skrypt nadpisuje nią pole ODDZ we
-     wszystkich wydzieleniach warstwy (nie tylko w pustych) przed
-     doliterowaniem - działa też razem z opcją "Doliterkuj od..." (tabela
-     oddziałów pokazuje wtedy docelowe, nadpisane ODDZ)
-   - Wzmocnienie: klucz grupy (ODDZ, MUNICIP, COMMUNITY) jest teraz
-     normalizowany (przycinanie białych znaków) przed porównaniem, żeby
-     ewentualne spacje końcowe w polach o stałej szerokości (DBF) nie
-     tworzyły "widmowej" osobnej grupy dla nowo dodanych wydzieleń
-   - Kontrola kompletności ODDZ: jeśli w warstwie są wydzielenia bez
-     uzupełnionego pola ODDZ, skrypt pyta (Tak/Nie) czy mimo to
-     kontynuować, zamiast literować w ciemno z niepełnymi danymi
-     grupującymi (pominięta, gdy użyto "Wpisz oddział ręcznie" - wtedy i
-     tak wszystko zostanie nadpisane)
-
-8. LITERKUJ WYDZIELENIA (shp_literkuj.py)
-   - Taka sama kontrola kompletności ODDZ jak w Doliterkuj: przy
-     wydzieleniach bez uzupełnionego ODDZ skrypt pyta, czy kontynuować
-   - Monit przy warstwie już częściowo/w całości zaliterowanej: jeśli
-     wykryje choć jedno wydzielenie z wpisaną literą (WYDZ), inną niż
-     "Lz" - "Lz" nigdy nie liczy się jako wpisana litera i zawsze zostaje
-     bez zmian - pyta o dalsze działanie: "Porzuć" (nic nie rób),
-     "Doliteruj" (przekazuje do Doliterkuj - kontynuacja na podstawie SHP,
-     bez ruszania już zaliterowanych), "Nadpisz" (literuje wszystkie
-     wydzielenia od nowa, od litery "a", nadpisując obecne litery).
-     Dotychczas Literkuj przy mieszanych danych mógł tworzyć duplikaty
-     liter w obrębie grupy (ODDZ/MUNICIP/COMMUNITY), bo licznik kolejnej
-     litery nie uwzględniał liter już wpisanych w pominiętych rekordach
-
-9. NOWY: ŚCIĄGNIJ DANE Z BDL (pobierz_BDL.py, menu "Aktualizacja UPUL",
+2. NOWY: ŚCIĄGNIJ DANE Z BDL (pobierz_BDL.py, menu "Aktualizacja UPUL",
    na końcu, po separatorze) - automatyzacja i wpięcie do wtyczki
    ręcznego skryptu pobierz.py (materialy/Targanie_BDL) do ściągania
    geometrii i opisów taksacyjnych z Banku Danych o Lasach
@@ -245,7 +146,7 @@ rozwojem wtyczki.
      na żywym QGIS-ie (brak środowiska QGIS w sesji, w której to
      napisano) - do zweryfikowania w praktyce
 
-10. NOWY: UTWÓRZ BAZĘ Z BDL (utworz_baze_z_BDL.py, menu "Aktualizacja UPUL",
+3. NOWY: UTWÓRZ BAZĘ Z BDL (utworz_baze_z_BDL.py, menu "Aktualizacja UPUL",
     zaraz po "Ściągnij dane z BDL") - druga połowa automatyzacji importu z
     Banku Danych o Lasach: bierze folder wyjściowy pobierz_BDL.py i zamienia
     go w gotowe wiersze w "czystej" bazie Access wskazanej przez użytkownika
@@ -301,6 +202,101 @@ rozwojem wtyczki.
      interaktywny sprawdz_dane() - bez wpływu na dotychczasowe wywołania
    - Nie testowane jeszcze na żywym QGIS-ie (brak środowiska QGIS w sesji,
      w której to napisano) - do zweryfikowania w praktyce
+
+### Poprawki i ulepszenia
+
+4. WSKAŻ BAZĘ — ZŁY KATALOG STARTOWY (baza_dopisz_wydz.py,
+   baza_rozlicz_pow_wydz.py)
+   - "Dopisz/uzupełnij wydzielenia" i "Rozlicz powierzchnię wydzielenia"
+     wołały znajdz_baze_do_wydz() bez parametru poz, przez co dialog
+     "Wskaż bazę Taksatora" startował dwa poziomy katalogów wyżej od
+     warstwy WYDZ (../..) zamiast jeden (../.), niezgodnie z resztą
+     skryptów operujących na tej warstwie (np. Sprawdź wydzielenia)
+   - Dodano poz=1 do obu wywołań
+
+5. PRZYGOTUJ WYDZIELENIA DO CIĘCIA — MULTIPOLIGONY W OBR (shp_przygCiecie.py)
+   - Warstwa ODDZ tworzona z OBR.shp nie rozbijała ewentualnych
+     multipoligonów na pojedyncze poligony (w przeciwieństwie do warstwy
+     WYDZ tworzonej wcześniej w tej samej funkcji)
+   - Tworzenie ODDZ przepisane na native:multiparttosingleparts zamiast
+     zwykłego zapisu warstwy
+
+6. WYEKSPORTUJ DO KML — PORZĄDEK KATALOGÓW + OPCJA WGS84 (shp_eksport_kml.py)
+   - Pliki KML zapisywane teraz w podkatalogu "kml" (w katalogu warstwy
+     z TOC), zamiast bezpośrednio wśród plików warstwy
+   - Nowy dialog pytający, czy dodatkowo wyeksportować warstwy jako SHP
+     w układzie WGS84 (EPSG:4326); nazwy plików z dopiskiem "_84"
+   - Jeśli tak, eksport trafia do nowego podkatalogu "shp_84"
+
+7. SPRAWDŹ KARTY W WYDZIELENIACH — NOWE STYLE (shp_sprawdz_ciecie.py)
+   - Warstwy "WYDZ_bez_kart" i "WYDZ_z_wieloma_kartami" korzystały z
+     ogólnych styli poly_red_outline.qml / poly_green_outline.qml
+   - Podmienione na dedykowane style WYDZ_bez_kart.qml i
+     WYDZ_z_wieloma_kartami.qml (dodane do qml/, źródło:
+     materialy/Style_shp/_NOWE)
+
+8. ZALITERKUJ WYDZIELENIA — MONIT ZAMIAST ZMIANY STYLU (shp_literkuj.py)
+   - Usunięto automatyczną zmianę stylu warstwy na szaro-czerwony
+     WYDZ_xxx.qml przy przekroczeniu listy literek
+   - Zamiast tego, gdy literkowanie przekroczy dostępną listę literek,
+     wyświetlany jest monit z pytaniem czy kontynuować
+   - "Nie" — literowanie przerwane, żadne zmiany nie są zapisywane do
+     warstwy; "Tak" — literowanie zostaje zapisane tak jak wyliczone
+     (wydzielenia poza listą oznaczone jako "xxx", bez zmian w tej logice)
+
+9. DOLITERUJ WYDZIELENIA — NOWY DIALOG (shp_doliterkuj.py)
+   - Uruchomienie nie działa już wprost na aktywnej warstwie z TOC, tylko
+     otwiera dialog z polem ścieżki do warstwy (domyślnie wypełnionym
+     ścieżką aktywnej warstwy) i przyciskiem "Wybierz" do wskazania innego
+     pliku SHP
+   - Nowa opcja "Doliterkuj od..." (domyślnie wyłączona): po zaznaczeniu
+     pokazuje tabelę wszystkich oddziałów (kolumny Gmina/MUNICIP,
+     Obręb/COMMUNITY, Oddział/ODDZ, liczba wydzieleń do doliterowania w
+     danym oddziale), z osobnym polem na literę startową dla każdego
+     oddziału - literowanie nowych (pustych) wydzieleń w danym oddziale
+     zaczyna się wtedy od podanej litery zamiast od pierwszej wolnej "a"
+     (litery przed literą startową są całkowicie pomijane, nawet jeśli
+     wolne); oddziały pozostawione bez wpisanej litery są doliterowane
+     normalnie
+   - Jeśli wskazany plik jest już wczytany do projektu, doliterowanie
+     działa na tym samym obiekcie warstwy z TOC (edycje od razu widoczne
+     na mapie), zamiast na osobnej, niewyświetlanej kopii
+   - Nowa opcja źródła już zajętych liter (wiersz nad "Wpisz oddział
+     ręcznie"): "z warstwy SHP" (domyślnie, jak dotychczas) albo "z bazy
+     (F_ARODES)" - przy wyborze bazy dochodzi pole ze ścieżką do mdb
+     (auto-uzupełniane, jeśli katalog wyżej od warstwy zawiera dokładnie
+     jeden plik .mdb) + przycisk "Wybierz" do ręcznego wskazania innego
+     pliku; zajęte litery są wtedy wyliczane z oficjalnych adresów leśnych
+     (ADRESS_FOREST) zamiast z bieżącej warstwy SHP - przydatne, gdy
+     warstwa robocza może nie zawierać wszystkich już ustalonych wydzieleń
+   - Nowa opcja "Wpisz oddział ręcznie" (domyślnie wyłączona): po
+     zaznaczeniu i wpisaniu wartości skrypt nadpisuje nią pole ODDZ we
+     wszystkich wydzieleniach warstwy (nie tylko w pustych) przed
+     doliterowaniem - działa też razem z opcją "Doliterkuj od..." (tabela
+     oddziałów pokazuje wtedy docelowe, nadpisane ODDZ)
+   - Wzmocnienie: klucz grupy (ODDZ, MUNICIP, COMMUNITY) jest teraz
+     normalizowany (przycinanie białych znaków) przed porównaniem, żeby
+     ewentualne spacje końcowe w polach o stałej szerokości (DBF) nie
+     tworzyły "widmowej" osobnej grupy dla nowo dodanych wydzieleń
+   - Kontrola kompletności ODDZ: jeśli w warstwie są wydzielenia bez
+     uzupełnionego pola ODDZ, skrypt pyta (Tak/Nie) czy mimo to
+     kontynuować, zamiast literować w ciemno z niepełnymi danymi
+     grupującymi (pominięta, gdy użyto "Wpisz oddział ręcznie" - wtedy i
+     tak wszystko zostanie nadpisane)
+
+10. LITERKUJ WYDZIELENIA (shp_literkuj.py)
+   - Taka sama kontrola kompletności ODDZ jak w Doliterkuj: przy
+     wydzieleniach bez uzupełnionego ODDZ skrypt pyta, czy kontynuować
+   - Monit przy warstwie już częściowo/w całości zaliterowanej: jeśli
+     wykryje choć jedno wydzielenie z wpisaną literą (WYDZ), inną niż
+     "Lz" - "Lz" nigdy nie liczy się jako wpisana litera i zawsze zostaje
+     bez zmian - pyta o dalsze działanie: "Porzuć" (nic nie rób),
+     "Doliteruj" (przekazuje do Doliterkuj - kontynuacja na podstawie SHP,
+     bez ruszania już zaliterowanych), "Nadpisz" (literuje wszystkie
+     wydzielenia od nowa, od litery "a", nadpisując obecne litery).
+     Dotychczas Literkuj przy mieszanych danych mógł tworzyć duplikaty
+     liter w obrębie grupy (ODDZ/MUNICIP/COMMUNITY), bo licznik kolejnej
+     litery nie uwzględniał liter już wpisanych w pominiętych rekordach
 
 11. AKTUALIZACJA UPUL — ZMIANA NAZWY OKNA (aktualizacja_upul/gui/
     main_dialog.py, version_browser.py)
@@ -378,6 +374,16 @@ rozwojem wtyczki.
      WYDZ) - w tych dwóch ostatnich ryzyko było łagodzone istniejącym
      dialogiem potwierdzającym (PobierzDane), teraz niejednoznaczność jest
      jawna już na etapie wyszukiwania, zanim dialog w ogóle się pokaże
+
+==============================
+
+Wersja 2.0e — 2026-07-01 — pierwsze wydanie produkcyjne (koniec fazy beta)
+------------------------------------------------
+
+Wtyczka opuszcza fazę beta. Numer wersji podniesiony z 2.0d na 2.0e — wszystkie
+funkcje i poprawki z serii 2.0a–2.0d (patrz niżej) są już częścią tego
+wydania i zostały sprawdzone w codziennej pracy. Brak dodatkowych zmian
+funkcjonalnych względem 2.0d.
 
 ==============================
 
