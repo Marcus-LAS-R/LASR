@@ -375,6 +375,34 @@ Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z B
      dialogiem potwierdzającym (PobierzDane), teraz niejednoznaczność jest
      jawna już na etapie wyszukiwania, zanim dialog w ogóle się pokaże
 
+15. NAPRAW F_STOREY_SPECIES — KATALOG STARTOWY Z WARSTWY WYDZ
+    (baza_napraw_stor_spec.py)
+   - Dialog "Wskaż bazę TPU" startował zawsze w pustym katalogu (a więc
+     faktycznie tam, gdzie natywny dialog Windows ostatnio został otwarty
+     w danej sesji QGIS-a), zamiast w katalogu bazy Taksatora
+   - Jeżeli w TOC znajduje się warstwa WYDZ (przy kilku dopasowaniach -
+     wybór z listy przez wybierz_warstwe_z_kandydatow), dialog startuje
+     teraz w katalogu piętro wyżej od niej, tak jak w Dopisz/uzupełnij
+     wydzielenia i Rozlicz powierzchnię wydzielenia (znajdz_baze_do_wydz,
+     poz=1, wskaz=True); jeżeli warstwy WYDZ brak, zachowanie jak wcześniej
+
+16. DOPISZ FORMY OCHRONY — AUTOUZUPEŁNIANIE POÓL Z TOC
+    (baza_dopisz_fochr.py)
+   - Dialog "Dopisz formy ochrony - podaj dane" wymagał ręcznego
+     wskazania wszystkich trzech elementów (warstwa WYDZ, baza Taksatora,
+     warstwa F_OCHRONY) przez przyciski "Wybierz", nawet gdy potrzebne
+     warstwy były już wczytane w TOC
+   - Przy otwarciu dialogu szuka teraz w TOC warstwy WYDZ oraz warstwy
+     form ochrony (nazwa zawierająca "OCHRON" lub zaczynająca się na
+     "FOP", np. F_OCHRONY) i od razu wypełnia nimi odpowiednie pola; przy
+     kilku dopasowaniach użytkownik wybiera właściwą warstwę z listy
+   - Katalog piętro wyżej od warstwy WYDZ staje się katalogiem startowym
+     dla wszystkich przycisków "Wybierz"; jeżeli w tym katalogu znajduje
+     się dokładnie jedna baza .mdb, pole bazy również wypełnia się
+     automatycznie
+   - Wszystkie pola nadal można ręcznie nadpisać - autouzupełnianie nie
+     blokuje edycji, gdy zawiedzie lub jest niejednoznaczne
+
 ==============================
 
 Wersja 2.0e — 2026-07-01 — pierwsze wydanie produkcyjne (koniec fazy beta)

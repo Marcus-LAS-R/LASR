@@ -1,7 +1,8 @@
 import os
 
-from PyQt5.QtWidgets import QFileDialog
-from .baza_wrapper import Baza
+from qgis.core import QgsProject
+from .baza_wrapper import Baza, znajdz_baze_do_wydz
+from .funkcje import wybierz_warstwe_z_kandydatow
 
 
 class NaprawFStorSpec:
@@ -200,14 +201,19 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
 
     def pobierz_sciezke(self):
         '''Pobiera od użytkownika sciezke do bazy, w ktorej ma byc
-        przeprowadzone sprawdanie tabeli f_storey_species
+        przeprowadzone sprawdanie tabeli f_storey_species. Jeżeli w TOC
+        znajduje się warstwa WYDZ, okno wyboru startuje w katalogu bazy
+        taksatora wyliczonym z jej ścieżki (tak jak w innych narzędziach
+        operujących na bazie).
         '''
-        sc = QFileDialog().getOpenFileName(self.iface.mainWindow(),
-                                           'Wskaż bazę TPU',
-                                           '',
-                                           "Access MDB (*.mdb)")[0]
-        if sc != '':
-            self.kat = os.path.dirname(sc)
-            self.baza.baza = sc
-            return True
-        return False
+        lyrs = [x for x in QgsProject.instance().mapLayers().values()]
+        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
+        wydz = wybierz_warstwe_z_kandydatow(self.iface, wydz_kandydaci, 'WYDZ')
+
+        baza_sc = znajdz_baze_do_wydz(self.iface, wydz, poz=1, wskaz=True)
+        if baza_sc is False:
+            return False
+
+        self.kat = os.path.dirname(baza_sc)
+        self.baza.baza = baza_sc
+        return True

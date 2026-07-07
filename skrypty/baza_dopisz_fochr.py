@@ -1,10 +1,12 @@
 import os
+import glob
 from qgis.core import QgsVectorLayer, Qgis, QgsMessageLog, QgsSpatialIndex, \
-    QgsFeatureRequest
+    QgsFeatureRequest, QgsProject
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
 
 from .baza_wrapper import Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
+from .funkcje import wybierz_warstwe_z_kandydatow
 from .ui.ui_baza_dopiszFO import Ui_Dialog
 
 
@@ -29,7 +31,7 @@ class DopiszFO(SprawdzWydzielenia):
 
     def pobierz_dane_od_uzytkownika(self):
         """Pobierz dane przez formularz"""
-        self.Dane = PobierzDane()
+        self.Dane = PobierzDane(self.iface)
         self.Dane.exec_()
 
         if self.Dane.porzucone:
@@ -273,8 +275,9 @@ class DopiszFO(SprawdzWydzielenia):
 
 
 class PobierzDane(QDialog):
-    def __init__(self):
+    def __init__(self, iface):
         super(PobierzDane, self).__init__()
+        self.iface = iface
 
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
@@ -296,11 +299,48 @@ class PobierzDane(QDialog):
         self.ui.pushButton_wydz.clicked.connect(self.kat_warstwa)
         self.ui.pushButton_fochr.clicked.connect(self.kat_fochr)
 
+        self.autouzupelnij_z_toc()
+
         # debug
         # self.ui.lineEdit_baza.setText(
         #   r'e:\UPUL\__szablon\RDOS\aleksandrow.mdb')
         # self.ui.lineEdit_fochr.setText(r'e:\UPUL\__szablon\RDOS\F_OCHRONY.shp')
         # self.ui.lineEdit_wydz.setText(r'e:\UPUL\__szablon\RDOS\WYDZ_POL.shp')
+
+    def autouzupelnij_z_toc(self):
+        '''Szuka w TOC warstw WYDZ i F_OCHRONY i od razu uzupełnia nimi
+        pola. Katalog piętro wyżej od warstwy WYDZ staje się katalogiem
+        startowym dla wszystkich przycisków "Wybierz" - jeżeli w nim
+        znajduje się dokładnie jedna baza .mdb, uzupełnia też pole bazy.
+        '''
+        lyrs = [x for x in QgsProject.instance().mapLayers().values()]
+
+        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
+        wydz = wybierz_warstwe_z_kandydatow(self.iface, wydz_kandydaci, 'WYDZ')
+
+        fochr_kandydaci = [
+            x for x in lyrs if
+            'OCHRON' in x.name().upper() or x.name()[:3].upper() == 'FOP'
+        ]
+        fochr = wybierz_warstwe_z_kandydatow(
+            self.iface, fochr_kandydaci, 'F_OCHRONY'
+        )
+
+        if wydz is not None:
+            wydz_sc = wydz.dataProvider().dataSourceUri().split('|')[0]
+            self.ui.lineEdit_wydz.setText(wydz_sc)
+
+            self.kat = os.path.normpath(
+                os.path.join(os.path.dirname(wydz_sc), '..')
+            )
+
+            baza_kandydaci = glob.glob(os.path.join(self.kat, '*.mdb'))
+            if len(baza_kandydaci) == 1:
+                self.ui.lineEdit_baza.setText(baza_kandydaci[0])
+
+        if fochr is not None:
+            fochr_sc = fochr.dataProvider().dataSourceUri().split('|')[0]
+            self.ui.lineEdit_fochr.setText(fochr_sc)
 
     def porzuc(self):
         self.porzucone = True
