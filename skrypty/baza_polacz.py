@@ -1,13 +1,90 @@
 import os
 import glob
 import platform
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from datetime import datetime
 from shutil import copyfile
 from qgis.core import Qgis, QgsMessageLog
 
 from .pw import PasekPostepu
 from .baza_wrapper import Baza
+from .baza_kontrola_slownikow_wgSULMN import KontrolaSlownikowWiele
+from .baza_polacz_rejestr import (
+    F_COMMUNITY, F_PARCEL_NADRZEDNA, V_ADDRESS_NADRZEDNA,
+    GRUPA2_DZIECI, GRUPA3_DZIECI, rejestr_domyslny)
+from .baza_polacz_dialog import WyborGrupDialog
+
+
+def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
+                                  prefiks_pliku, tytul, opis_kontroli,
+                                  formatuj_klucz=str):
+    """Silnik wspólny dla blokujących kontroli duplikatów (wydzielenia,
+    działki, ...) - sprawdza, czy ten sam klucz naturalny występuje w
+    więcej niż jednej z podanych baz. Zwraca (duplikaty, sciezka_raportu);
+    duplikaty to dict {klucz: [sciezki_baz]} - pusty dict gdy brak
+    duplikatów. pobierz_klucze_fn(Baza) -> list|False."""
+    mapa = {}
+    for baza_sc in sciezki:
+        baza = Baza(baza_sc)
+        if not baza.polacz():
+            QgsMessageLog.logMessage(
+                'Kontrola duplikatów (' + opis_kontroli + ') — nie udało '
+                'się połączyć z bazą: ' + baza_sc, 'Las-R', Qgis.Warning
+            )
+            continue
+        klucze = pobierz_klucze_fn(baza)
+        baza.zamknij()
+        if klucze is False:
+            continue
+        for k in klucze:
+            mapa.setdefault(k, []).append(baza_sc)
+
+    duplikaty = {k: bazy for k, bazy in mapa.items() if len(bazy) > 1}
+    if not duplikaty:
+        return {}, None
+
+    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    rap_sc = os.path.join(katalog_raportu, prefiks_pliku + czas + '.txt')
+
+    with open(rap_sc, 'w', encoding='utf-8') as plik:
+        plik.write(tytul + '\r\n')
+        plik.write('Łączenie przerwane - popraw dane u źródła i uruchom '
+                    'ponownie.\r\n')
+        plik.write('=' * 72 + '\r\n\r\n')
+        for k in sorted(duplikaty, key=formatuj_klucz):
+            plik.write(formatuj_klucz(k) + ':\r\n')
+            for b in duplikaty[k]:
+                plik.write('   ' + b + '\r\n')
+            plik.write('\r\n')
+
+    return duplikaty, rap_sc
+
+
+def _klucze_wydzielen(baza):
+    wydz = baza.pobierz_wydzielenia()
+    return list(wydz.keys()) if wydz is not False else False
+
+
+def _kontrola_duplikatow_wydzieln(katalog_raportu, sciezki):
+    """Sprawdza, czy to samo wydzielenie (ADRESS_FOREST z F_ARODES,
+    ARODES_TYP_CD='WYDZIEL') występuje w więcej niż jednej z podanych baz."""
+    return _kontrola_duplikatow_generic(
+        katalog_raportu, sciezki, _klucze_wydzielen, 'duplikaty_wydzielen_',
+        'DUPLIKATY WYDZIELEŃ (ADRESS_FOREST) W BAZACH WEJŚCIOWYCH',
+        'wydzieleń')
+
+
+def _kontrola_duplikatow_dzialek(katalog_raportu, sciezki):
+    """Sprawdza, czy ta sama działka (COUNTY_CD+DISTRICT_CD+
+    MUNICIPALITY_CD+COMMUNITY_CD+PARCEL_NR z F_PARCEL) występuje w więcej
+    niż jednej z podanych baz."""
+    return _kontrola_duplikatow_generic(
+        katalog_raportu, sciezki, Baza.pobierz_klucze_dzialek,
+        'duplikaty_dzialek_',
+        'DUPLIKATY DZIAŁEK (COUNTY_CD+DISTRICT_CD+MUNICIPALITY_CD+'
+        'COMMUNITY_CD+PARCEL_NR) W BAZACH WEJŚCIOWYCH',
+        'działek',
+        formatuj_klucz=lambda k: '.'.join(str(x) for x in k))
 
 
 class PolaczBazy():
@@ -16,6 +93,7 @@ class PolaczBazy():
 
         self.baza0 = False  # baza do ktorej kopiujemy reszte danych
         self.lista = []  # lista ze sciezkami do baz w katalogu
+        self.wybrane = rejestr_domyslny()  # nadpisywane przez wybierz_grupy()
         self.postep = PasekPostepu(self.iface).stworz_pasek(
             'Kopiowanie baz TPU')
         self.postep.setValue(0)
@@ -39,6 +117,10 @@ class PolaczBazy():
             mess = 'Do łącznia wymagane są przynajmniej ' + \
                 'dwie bazy drogi użyszkodniku ;)'
 
+        # sortujemy, zeby wybor bazy bazowej (lista[0]) byl deterministyczny
+        # i przewidywalny dla uzytkownika, zamiast zalezec od kolejnosci
+        # zwracanej przez system plikow
+        bTemp.sort()
         self.lista = bTemp
 
         if mess != '':
@@ -50,7 +132,88 @@ class PolaczBazy():
                 0)
             return False
 
+        self.iface.messageBar().pushMessage(
+            'Połącz bazy TPU',
+            'Znaleziono ' + str(len(self.lista)) + ' baz. Bazą bazową '
+            '(do której zostaną dopisane pozostałe) będzie: ' +
+            os.path.basename(self.lista[0]),
+            Qgis.Info,
+            10
+        )
+
         return True
+
+    def wybierz_grupy(self):
+        """Pokazuje dialog wyboru grup/tabel do łączenia. Zwraca True i
+        zapisuje wybór w self.wybrane, albo False jeśli użytkownik
+        zrezygnował."""
+        dlg = WyborGrupDialog(self.iface)
+        if dlg.exec_() != QDialog.Accepted:
+            return False
+        self.wybrane = dlg.wybor()
+        return True
+
+    def kontrola_duplikatow(self):
+        """Sprawdza duplikaty wydzieleń (jeśli F_ARODES wybrane) i działek
+        (jeśli F_PARCEL wybrane) między wszystkimi bazami z self.lista.
+        Zwraca False i przerywa łączenie (bez możliwości kontynuowania),
+        jeśli znajdzie duplikaty - w przeciwieństwie do kontroli
+        słownikowej to kontrola blokująca."""
+        katalog, _ = os.path.split(self.lista[0])
+        if self.wybrane.get('f_arodes'):
+            if not self._sprawdz_i_zglos(
+                    _kontrola_duplikatow_wydzieln, katalog, 'wydzieleń'):
+                return False
+        if self.wybrane.get('f_parcel'):
+            if not self._sprawdz_i_zglos(
+                    _kontrola_duplikatow_dzialek, katalog, 'działek'):
+                return False
+        return True
+
+    def _sprawdz_i_zglos(self, funkcja_kontroli, katalog, opis):
+        duplikaty, rap_sc = funkcja_kontroli(katalog, self.lista)
+        if not duplikaty:
+            return True
+
+        self.iface.messageBar().clearWidgets()
+        self.iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Znaleziono ' + str(len(duplikaty)) + ' zdublowanych ' + opis +
+            ' w bazach wejściowych - łączenie przerwane. Raport: ' + rap_sc,
+            Qgis.Critical, 0
+        )
+        return False
+
+    def kontrola_wstepna(self):
+        """Kontroluje słownikowo wszystkie bazy z self.lista przed łączeniem.
+        Zwraca True jeśli można kontynuować łączenie (brak błędów albo
+        użytkownik zdecydował się kontynuować mimo błędów), False gdy
+        użytkownik zrezygnował."""
+        katalog, _ = os.path.split(self.lista[0])
+        ile_blednych, rap_sc = KontrolaSlownikowWiele(katalog, self.lista)
+
+        if ile_blednych == 0:
+            self.iface.messageBar().pushMessage(
+                'Kontrola słownikowa',
+                'Bazy wejściowe zgodne ze słownikiem, raport: ' + rap_sc,
+                Qgis.Success, 5
+            )
+            return True
+
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle('Kontrola słownikowa baz wejściowych')
+        msg.setText(
+            'Kontrola słownikowa baz wejściowych wykryła ' +
+            str(ile_blednych) + ' błędnych wartości.\n' +
+            'Raport: ' + rap_sc + '\n\n' +
+            'Błędne dane mogą zablokować dalszy import.\n' +
+            'Kontynuować łączenie mimo błędów?'
+        )
+        msg.addButton('Nie', QMessageBox.ActionRole)
+        tak = msg.addButton('Tak', QMessageBox.ActionRole)
+        msg.exec_()
+        return msg.clickedButton() == tak
 
     def stworz_docelowa(self):
         katalog, plik = os.path.split(self.lista[0])
@@ -93,180 +256,128 @@ class PolaczBazy():
     def kopiuj(self):
         proc = int(90/len(self.lista))
         ust = 10
+        bledy_wszystkie = []  # (baza_zrodlowa, tabela, opis_wiersza, blad)
         for bsc in self.lista[1:]:
             ust = ust + proc
             self.postep.setValue(ust)
             baza_zrodlowa = Baza(bsc)
             if baza_zrodlowa.polacz():
-                lacz = Laczenie(self.baza0, baza_zrodlowa)
+                lacz = Laczenie(self.baza0, baza_zrodlowa, self.wybrane)
                 lacz.p_f_max()
                 lacz.p_f_arodes()
+                lacz.p_f_community()
+                lacz.p_pozostale_nadrzedne()
                 lacz.p_tabele()
                 lacz.d_tabele()
+                for tabela, opis_wiersza, blad in lacz.l_bledy_wpisu:
+                    bledy_wszystkie.append((bsc, tabela, opis_wiersza, blad))
+                for baza_sc, tabela, blad in lacz.l_bledy_odczytu:
+                    bledy_wszystkie.append(
+                        (baza_sc, tabela, '(cała tabela - błąd odczytu)', blad))
                 baza_zrodlowa.zamknij()
-                self.postep.setValue(10+proc)
 
+        self.postep.setValue(100)
         self.baza0.zamknij()
         self.iface.messageBar().clearWidgets()
-        self.iface.messageBar().pushMessage(
-            'POŁĄCZONE',
-            'Łączenie ' + str(len(self.lista)) + ' baz zakończone powodzeniem',
-            Qgis.Success,
-            0
-        )
+
+        if bledy_wszystkie:
+            katalog, _ = os.path.split(self.lista[0])
+            rap_sc = self._zapisz_raport_bledow(katalog, bledy_wszystkie)
+            self.iface.messageBar().pushMessage(
+                'POŁĄCZONE Z BŁĘDAMI',
+                'Łączenie zakończone, ale wystąpiło ' +
+                str(len(bledy_wszystkie)) +
+                ' błędów odczytu/zapisu. Raport: ' + rap_sc,
+                Qgis.Warning,
+                0
+            )
+        else:
+            self.iface.messageBar().pushMessage(
+                'POŁĄCZONE',
+                'Łączenie ' + str(len(self.lista)) +
+                ' baz zakończone powodzeniem',
+                Qgis.Success,
+                0
+            )
+
+    def _zapisz_raport_bledow(self, katalog, bledy):
+        czas = datetime.now().isoformat().replace(':', '')[:-7]
+        rap_sc = os.path.join(
+            katalog, 'bledy_zapisu_laczenie_' + czas + '.txt')
+
+        with open(rap_sc, 'w', encoding='utf-8') as plik:
+            plik.write('BŁĘDY ZAPISU PRZY ŁĄCZENIU BAZ TPU\r\n')
+            plik.write('=' * 72 + '\r\n\r\n')
+            for baza_sc, tabela, opis_wiersza, blad in bledy:
+                plik.write('Baza źródłowa: ' + baza_sc + '\r\n')
+                plik.write('Tabela:        ' + tabela + '\r\n')
+                plik.write('Wiersz:        ' + opis_wiersza + '\r\n')
+                plik.write('Błąd:          ' + blad + '\r\n\r\n')
+
+        return rap_sc
 
 
 class Laczenie():
-    def __init__(self, baza0, baza):
+    def __init__(self, baza0, baza, wybrane=None):
         self.baza0 = baza0  # baza docelowa
         self.baza = baza  # baza z ktorej kopiujemy
+        self.wybrane = wybrane if wybrane is not None else rejestr_domyslny()
 
         # pola ktorych wartosci maksymalne musimy znac
         self.maxint = -1  # max arodes_intnum w bazie0
         self.maxspecstor = -1  # spec_stor_int_num
+        self.maxparcel = -1
+        self.maxaddr = -1
+        self.maxset = -1
+        self.maxdamage = -1
 
-        # lista zdublowanych wydzielen w f_arodes -> nie laczymy baz
-        self.l_zdublowanych_f_arodes = []
         self.l_wpisanych_innych = []  # lista wpisanych adress_forest do bazy
+        self.l_bledy_wpisu = []  # lista (tabela, opis_wiersza, blad) z d_tabele
+        self.l_bledy_odczytu = []  # lista (baza_sc, tabela, blad) z odczytu
 
         self.sl_arodes = {}  # slownik z starym arodes: nowy arodes
+        self.sl_parcel = {}
+        self.sl_addr = {}
         self.f_arodes = []
+        self.f_community_nowe = []
+        self.f_parcel_nowe = []
+        self.v_address_nowe = []
 
-        self.tab = [
-            [[], 'f_subarea', [
-                "ARODES_INT_NUM",
-                "DAMAGE_DEGREE_CD",
-                "CAUSE_CD",
-                "AREA_TYPE_CD",
-                "POSITION_CD",
-                "RELIEF_CD",
-                "SITE_TYPE_CD",
-                "DEGRADATION_CD",
-                "VEG_COVER_CD",
-                "STAND_STRUCT_CD",
-                "SLOPE_CD",
-                "EXPOSURE_CD",
-                "MOISTURE_CD",
-                "SOIL_PEC_CD",
-                "SOIL_SUBTYPE_CD",
-                "PLANT_COMM_CD",
-                "SUB_AREA",
-                "FOREST_FUNC_CD",
-                "ROTATION_AGE",
-                "DEAD_WOOD",
-                "SUBAREA_INFO",
-            ]],
-            [[], 'f_arod_storey', [
-                "ARODES_INT_NUM",
-                "STOREY_CD",
-                "STOREY_RANK_ORDER",
-                "STANDDENSITY_INDEX",
-                "MIXTURE_CD",
-                "DENSITY_CD",
-                "TREE_STOCK_CD",
-                "SILV_QUALITY_CD",
-                "LOCATION_CD",
-            ]],
-            [[], 'f_storey_species', [
-                "SPEC_STOR_INT_NUM",
-                "ARODES_INT_NUM",
-                "STOREY_CD",
-                "SPECIES_RANK_ORDER",
-                "SPECIES_CD",
-                "PART_CD",
-                "SPECIES_AGE",
-                "BHD",
-                "HEIGHT",
-                "VOLUME",
-                "SITE_CLASS_CD",
-                "TECHN_QUALITY_CD",
-                # "INCREMENT_CURRENT",
-                "VOLUME_TEMP",
-                "INCREMENT_CURRENT_AREA",
-            ]],
-            [[], 'f_arod_stand_pec', [
-                "FOREST_PEC_CD",
-                "ARODES_INT_NUM",
-                "PEC_RANK_ORDER",
-            ]],
-            [[], 'f_arod_goal', [
-                "GOAL_TYPE_FL",
-                "ARODES_INT_NUM",
-                "SPECIES_CD",
-                "GOAL_RANK_ORDER",
-                "GOAL_SPECIES_PERC",
-            ]],
-            [[], 'f_arod_spec_area', [
-                "ARODES_INT_NUM",
-                "AROD_SPAREA_ORDER",
-                "SPECIAL_AREA_CD",
-                "LOCATION_CD",
-                "SPECIAL_AREA",
-                "SPECIAL_AREA_YEAR",
-                "SPECIAL_AREA_NUM",
-            ]],
-            [[], 'f_species_sparea', [
-                "ARODES_INT_NUM",
-                "AROD_SPAREA_ORDER",
-                "SP_RANK_ORDER",
-                "SPECIES_CD",
-                "SP_AGE",
-                "SP_AGE_BEG",
-                "SP_AGE_TEMP",
-            ]],
-            [[], 'f_arod_phenomena', [
-                "ARODES_INT_NUM",
-                "PHEN_RANK_ORDER",
-                "PHENOMENA_CD",
-                "LOCATION_CD",
-                "SPECIES_CD",
-                "PLANT_CD",
-                "PHEN_NUM",
-                "PHEN_AREA",
-                "NATURE_MON_FL",
-            ]],
-        ]
-
-        # self.f_subarea = []
-        # self.f_arod_storey = []
-        # self.f_storey_species = []  # int_num na 2 miejscu
-        # self.f_arod_stand_pec = []  # int_num na 2 miejscu
-        # self.f_arod_spec_area = []
-        # self.f_species_sparea = []
-        # self.f_arod_goal = []
-        # self.f_arod_phenomena = []
-
-    def zdublowany_f_arodes(self):
-        # sprawdz czy w bazie z ktorej bierzemy wydzielenia nie ma powtorzen w
-        # stosunku do bazy orginalnej
-        wydz0 = self.baza0.pobierz_wydzielenia()
-        wydz1 = self.baza.pobierz_wydzielenia()
-
-        # nie laczymy pustych baz - same problemy i brak sensu
-        if wydz0 is False or wydz1 is False:
-            return False
-
-        self.l_zdublowanych_f_arodes = [
-            x for x in wydz1.keys() if x not in wydz0.keys()]
-
-        if len(self.l_zdublowanych_f_arodes) > 0:
-            QgsMessageLog.logMessage(
-                'Lista rekordów z F_ARODES już wpisana do bazy (' +
-                self.baza.baza + ')\n' +
-                '\n'.join(self.l_zdublowanych_f_arodes),
-                'Las-R'
-            )
-
-            return True
-        return False
+        # dzieci wybrane do skopiowania (Grupa 2 + Grupa 3), oraz bufor
+        # odczytanych wierszy per-tabela - na instancji Laczenie, NIE na
+        # wspoldzielonych obiektach rejestru (GRUPA2_DZIECI/GRUPA3_DZIECI sa
+        # modul-poziomu singletonami uzywanymi ponownie dla kazdej kolejnej
+        # bazy zrodlowej w PolaczBazy.kopiuj() - trzymanie tam bufora
+        # wierszy byloby wyciekiem stanu miedzy bazami)
+        self.dzieci = [t for t in (GRUPA2_DZIECI + GRUPA3_DZIECI)
+                        if self.wybrane.get(t.klucz)]
+        self._wiersze = {}
 
     def p_f_arodes(self):
         # pobierz arodesy z obu baz i sprawdz co sie powtarza aby nie dublowac
         # danych w bazie
+        if not self.wybrane.get('f_arodes'):
+            return  # sl_arodes/f_arodes/maxint zostaja w stanie poczatkowym
 
-        sql = 'select * from f_arodes order by arodes_int_num asc;'
+        # jawna lista kolumn (zamiast select *) w kolejnosci zgodnej z
+        # insertem w d_tabele() - kolejnosc fizycznych kolumn w tabeli
+        # moze sie roznic miedzy bazami, nazwy nie
+        sql = ('select ARODES_INT_NUM, ADRESS_FOREST, ARODES_TYP_CD, '
+               'ORDER_KEY, ADRESS_VALID, PROT_INT_NUM, TEMP_RAPORT '
+               'from f_arodes order by arodes_int_num asc;')
         arod_org = self.baza0.pobierz(sql)
         arod_zrd = self.baza.pobierz(sql)
+
+        if arod_org is False:
+            self.l_bledy_odczytu.append(
+                (self.baza0.baza, 'f_arodes',
+                 'Nie udało się odczytać tabeli (baza docelowa)'))
+            arod_org = []
+        if arod_zrd is False:
+            self.l_bledy_odczytu.append(
+                (self.baza.baza, 'f_arodes',
+                 'Nie udało się odczytać tabeli (baza źródłowa)'))
+            arod_zrd = []
 
         sl_org_baza = {x[1] for x in arod_org}
         # tutaj napewno nie bedzie Wydzielen ale moga zdarzyc sie oddzialy,
@@ -279,69 +390,196 @@ class Laczenie():
             else:
                 self.l_wpisanych_innych.append(it[1])
 
+    def _polacz_nadrzedna(self, definicja, licznik_poczatkowy):
+        """Generyczny odpowiednik p_f_arodes() dla nowych hierarchii kluczy
+        surogatowych (F_PARCEL -> sl_parcel, V_ADDRESS -> sl_addr): jawna
+        lista kolumn, opcjonalny dedup po kluczu naturalnym, renumeracja
+        surogatu i budowa slownika remapu stary -> nowy."""
+        sql = 'select ' + ', '.join(definicja.kolumny) + ' from ' + definicja.nazwa + ';'
+        org = self.baza0.pobierz(sql)
+        zrd = self.baza.pobierz(sql)
+        if org is False:
+            self.l_bledy_odczytu.append(
+                (self.baza0.baza, definicja.nazwa,
+                 'Nie udało się odczytać tabeli (baza docelowa)'))
+            org = []
+        if zrd is False:
+            self.l_bledy_odczytu.append(
+                (self.baza.baza, definicja.nazwa,
+                 'Nie udało się odczytać tabeli (baza źródłowa)'))
+            zrd = []
+
+        istniejace = None
+        if definicja.funkcja_klucza_dedup is not None:
+            istniejace = {definicja.funkcja_klucza_dedup(w) for w in org}
+
+        licznik = licznik_poczatkowy
+        remap, nowe = {}, []
+        for w in zrd:
+            if istniejace is not None and definicja.funkcja_klucza_dedup(w) in istniejace:
+                continue
+            licznik += 1
+            stary = w[definicja.indeks_klucza]
+            wiersz = list(w)
+            wiersz[definicja.indeks_klucza] = licznik
+            nowe.append(wiersz)
+            remap[stary] = licznik
+
+        for fk in definicja.fk_wewnetrzne:
+            idx = definicja.kolumny.index(fk.kolumna)
+            for wiersz in nowe:
+                wart = wiersz[idx]
+                if wart not in (None, 0):
+                    wiersz[idx] = remap.get(wart, wart)
+
+        setattr(self, definicja.slownik_docelowy, remap)
+        return nowe, licznik
+
+    def p_pozostale_nadrzedne(self):
+        """Grupa 2 (jeśli wybrana): F_PARCEL -> sl_parcel, V_ADDRESS ->
+        sl_addr. Muszą zostać wywołane przed p_tabele()/d_tabele(), bo
+        F_PARCEL_LAND_USE/V_PARCEL_PARTICIPATION/F_AROD_LAND_USE zależą od
+        tych słowników."""
+        if self.wybrane.get('f_parcel'):
+            self.f_parcel_nowe, self.maxparcel = self._polacz_nadrzedna(
+                F_PARCEL_NADRZEDNA, self.maxparcel)
+        if self.wybrane.get('v_address'):
+            self.v_address_nowe, self.maxaddr = self._polacz_nadrzedna(
+                V_ADDRESS_NADRZEDNA, self.maxaddr)
+
+    def p_f_community(self):
+        """Grupa 1 (zawsze kopiowana): dedup po pelnym kluczu naturalnym
+        (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD) - duplikaty
+        sa oczekiwane (wspolna geografia miedzy bazami tego samego
+        nadlesnictwa) i pomijane cicho, bez raportowania."""
+        sql = 'select ' + ', '.join(F_COMMUNITY.kolumny) + ' from F_COMMUNITY;'
+        org = self.baza0.pobierz(sql)
+        zrd = self.baza.pobierz(sql)
+        if org is False:
+            self.l_bledy_odczytu.append(
+                (self.baza0.baza, 'F_COMMUNITY',
+                 'Nie udało się odczytać tabeli (baza docelowa)'))
+            org = []
+        if zrd is False:
+            self.l_bledy_odczytu.append(
+                (self.baza.baza, 'F_COMMUNITY',
+                 'Nie udało się odczytać tabeli (baza źródłowa)'))
+            zrd = []
+        istniejace = {F_COMMUNITY.funkcja_klucza_dedup(w) for w in org}
+        self.f_community_nowe = [
+            w for w in zrd if F_COMMUNITY.funkcja_klucza_dedup(w) not in istniejace]
+
     def p_tabele(self):
-        for t in self.tab:
-            sql = 'select '+', '.join(t[2]) + ' from ' + t[1] + ';'
+        for t in self.dzieci:
+            sql = 'select ' + ', '.join(t.kolumny) + ' from ' + t.nazwa + ';'
             pob = self.baza.pobierz(sql)
             if pob is False:
-                print(sql)
-            t[0] = pob
+                self.l_bledy_odczytu.append(
+                    (self.baza.baza, t.nazwa, 'Nie udało się odczytać tabeli'))
+                pob = []
+            self._wiersze[t.klucz] = pob
 
     def p_f_max(self):
-        # metoda pobiera nawieksza wartos arodes_int_num i spec_stor_int_num
-        # w bazie docelowej
-        sql = 'select max(arodes_int_num) from f_arodes;'
-        maxint = self.baza0.pobierz(sql)
-        if maxint is not False:
-            self.maxint = maxint[0][0]
+        # metoda pobiera nawieksze wartosci surogatow w bazie docelowej,
+        # zeby wiedziec od czego zaczac numeracje nowych wierszy
+        self.maxint = self._max('f_arodes', 'arodes_int_num', self.maxint)
+        self.maxspecstor = self._max(
+            'f_storey_species', 'spec_stor_int_num', self.maxspecstor)
+        if self.wybrane.get('f_parcel'):
+            self.maxparcel = self._max('f_parcel', 'parcel_int_num', self.maxparcel)
+        if self.wybrane.get('v_address'):
+            self.maxaddr = self._max('v_address', 'addr_nr', self.maxaddr)
+        if self.wybrane.get('f_set'):
+            self.maxset = self._max('f_set', 'set_int_num', self.maxset)
+        if self.wybrane.get('f_arod_damage'):
+            self.maxdamage = self._max(
+                'f_arod_damage', 'damage_int_num', self.maxdamage)
 
-        sql = 'select max(spec_stor_int_num) from f_storey_species;'
-        maxint = self.baza0.pobierz(sql)
-        if maxint is not False:
-            self.maxspecstor = maxint[0][0]
+    def _max(self, tabela, pole, domyslnie):
+        wynik = self.baza0.pobierz('select max(' + pole + ') from ' + tabela + ';')
+        if wynik is not False and wynik[0][0] is not None:
+            return wynik[0][0]
+        return domyslnie
+
+    def _wpisz(self, sql, params, tabela, opis_wiersza):
+        """Wykonuje insert z obsługą wyjątków - błąd nie przerywa całego
+        łączenia, tylko jest zapamiętywany w self.l_bledy_wpisu."""
+        try:
+            self.baza0.cur.execute(sql, params)
+            self.baza0.con.commit()
+            return True
+        except Exception as e:
+            self.l_bledy_wpisu.append((tabela, opis_wiersza, str(e)))
+            return False
 
     def d_tabele(self):
-        # dopisz do bazy zrodlowej info z bazy wyjsciowej
+        # dopisz do bazy docelowej info z bazy zrodlowej
+        for row in self.f_community_nowe:
+            sql = ('insert into F_COMMUNITY (' + ', '.join(F_COMMUNITY.kolumny) +
+                   ') values (' + '?,' * (len(row) - 1) + '?);')
+            self._wpisz(sql, row, 'F_COMMUNITY', 'klucz=' + str(tuple(row[:4])))
+
         for row in self.f_arodes:
             sql = 'insert into f_arodes (ARODES_INT_NUM, ADRESS_FOREST, ' + \
                 ' ARODES_TYP_CD, ORDER_KEY, ADRESS_VALID, PROT_INT_NUM, ' + \
                 'TEMP_RAPORT) values (' + '?,'*(len(row)-1) + '?);'
 
-            self.baza0.cur.execute(sql, row)
-            self.baza0.con.commit()
+            self._wpisz(sql, row, 'f_arodes', 'ADRESS_FOREST=' + str(row[1]))
 
-        for id in range(8):
-            print(id)
-            for row in self.tab[id][0]:
-                arodes_key = row[0] if id in [0, 1, 5, 6, 7] else row[1]
-                if arodes_key not in self.sl_arodes:
-                    continue
+        if self.wybrane.get('f_parcel'):
+            self._wpisz_wiersze(F_PARCEL_NADRZEDNA, self.f_parcel_nowe)
+        if self.wybrane.get('v_address'):
+            self._wpisz_wiersze(V_ADDRESS_NADRZEDNA, self.v_address_nowe)
 
-                nag = []
-                its = []
-                intnum = -1
-                for i, r in enumerate(row):
-                    if r is not None:
-                        nag.append(self.tab[id][2][i])
-                        if id in [0, 1, 5, 6, 7] and i == 0:
-                            its.append(self.sl_arodes[r])
-                            intnum = r
-                        elif id == 2 and i == 0:
-                            self.maxspecstor += 1
-                            its.append(self.maxspecstor)
-                        elif id in [2, 4] and i == 1:
-                            its.append(self.sl_arodes[r])
-                            intnum = r
-                        elif id == 3 and i == 1:
-                            its.append(self.sl_arodes[r])
-                            intnum = r
-                        else:
-                            its.append(r)
+        for t in self.dzieci:
+            self._polacz_dziecko(t)
 
-                sql = 'insert into ' + self.tab[id][1] + ' (' + \
-                    ','.join(nag) + ') values (' + \
-                    ','.join(['?' for x in its]) + ');'
+    def _wpisz_wiersze(self, definicja, wiersze):
+        for row in wiersze:
+            sql = ('insert into ' + definicja.nazwa + ' (' +
+                   ', '.join(definicja.kolumny) + ') values (' +
+                   '?,' * (len(row) - 1) + '?);')
+            opis = (definicja.kolumny[definicja.indeks_klucza] + '=' +
+                    str(row[definicja.indeks_klucza]))
+            self._wpisz(sql, row, definicja.nazwa, opis)
 
-                if intnum in self.sl_arodes:
-                    self.baza0.cur.execute(sql, its)
-                    self.baza0.con.commit()
+    def _polacz_dziecko(self, t):
+        """Wpisuje wiersze jednej tabeli-dziecka, remapujac kazda kolumne
+        FK przez odpowiedni slownik (sl_arodes/sl_parcel/sl_addr) i
+        nadajac nowa wartosc wlasnego surogatu, jesli tabela go ma
+        (analogicznie do dzisiejszego SPEC_STOR_INT_NUM)."""
+        for row in self._wiersze.get(t.klucz, []):
+            nag, its, pomin = [], [], False
+            for kolumna, wartosc in zip(t.kolumny, row):
+                if kolumna == t.wlasny_klucz:
+                    continue  # dopisywane na koncu, po ew. pominieciu wiersza
+
+                fk = next((f for f in t.fk if f.kolumna == kolumna), None)
+                if fk is not None:
+                    if wartosc in (None, 0) and not fk.wymagane:
+                        nag.append(kolumna)
+                        its.append(wartosc)
+                        continue
+                    slow = getattr(self, fk.slownik)
+                    if wartosc not in slow:
+                        pomin = True
+                        break
+                    nag.append(kolumna)
+                    its.append(slow[wartosc])
+                elif wartosc is not None:
+                    nag.append(kolumna)
+                    its.append(wartosc)
+
+            if pomin:
+                continue
+
+            if t.wlasny_klucz:
+                nowy = getattr(self, t.wlasny_klucz_licznik) + 1
+                setattr(self, t.wlasny_klucz_licznik, nowy)
+                nag.append(t.wlasny_klucz)
+                its.append(nowy)
+
+            sql = 'insert into ' + t.nazwa + ' (' + ','.join(nag) + \
+                ') values (' + ','.join(['?'] * len(its)) + ');'
+            opis = ','.join(n + '=' + str(v) for n, v in zip(nag, its))
+            self._wpisz(sql, its, t.nazwa, opis)

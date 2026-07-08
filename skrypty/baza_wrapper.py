@@ -349,6 +349,17 @@ class Baza(object):
             return {x[0]: x[1] for x in pob}
         return False
 
+    def pobierz_klucze_dzialek(self):
+        """Zwraca listę krotek (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD,
+        COMMUNITY_CD, PARCEL_NR) do kontroli duplikatów działek przed
+        łączeniem, albo False przy błędzie/pustej tabeli."""
+        sql = ('select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, '
+               'PARCEL_NR from F_PARCEL;')
+        dz = self.pobierz(sql)
+        if dz is False or len(dz) == 0:
+            return False
+        return [tuple(x) for x in dz]
+
     def pobierz_wydzielenia(self):
         """Metoda pobiera z bazy wsystkie wpisane wydzielenia wraz z
         odpowiadającymi im arodes_int_num'ami i zwraca je w postaci slownika"""

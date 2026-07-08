@@ -1144,15 +1144,18 @@ class LasR:
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)
         if p.pobierz_katalog():
-            if p.stworz_docelowa():
-                p.kopiuj()
-                # try:
-                #     p.kopiuj()
-                # except Exception:
-                #     self.iface.messageBar().clearWidgets()
-                #     self.iface.messageBar().pushMessage(
-                #         'Błąd', 'Coś się wysypało - krytycznie',
-                #         Qgis.Critical, 0)
+            if p.wybierz_grupy():
+                if p.kontrola_duplikatow():
+                    if p.kontrola_wstepna():
+                        if p.stworz_docelowa():
+                            p.kopiuj()
+                            # try:
+                            #     p.kopiuj()
+                            # except Exception:
+                            #     self.iface.messageBar().clearWidgets()
+                            #     self.iface.messageBar().pushMessage(
+                            #         'Błąd', 'Coś się wysypało - krytycznie',
+                            #         Qgis.Critical, 0)
 
     def kontrola_slownikow_bazy(self):
         baza_kontrola_slownikow_wgSULMN.KontrolaSlownikow(self.iface)

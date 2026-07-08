@@ -403,6 +403,177 @@ Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z B
    - Wszystkie pola nadal można ręcznie nadpisać - autouzupełnianie nie
      blokuje edycji, gdy zawiedzie lub jest niejednoznaczne
 
+17. POŁĄCZ BAZY TPU — KONTROLA SŁOWNIKOWA BAZ WEJŚCIOWYCH PRZED ŁĄCZENIEM
+    (baza_polacz.py, baza_kontrola_slownikow_wgSULMN.py)
+   - Przed skopiowaniem i łączeniem baz "Połącz bazy TPU" uruchamia teraz
+     automatycznie kontrolę słownikową (jak w "Kontrola wg SULMN") na
+     wszystkich bazach znalezionych we wskazanym katalogu, żeby wyłapać
+     nieprawidłowe wartości mogące zablokować dalszy import
+   - Kontrola KONTROLE rozszerzona o pola z tabel F_AROD_STAND_PEC
+     (FOREST_PEC_CD → F_FOREST_PEC_DIC), F_AROD_SPEC_AREA (SPECIAL_AREA_CD
+     → F_SPECIALAREA_DIC, LOCATION_CD → F_LOCATION_DIC) i F_AROD_GOAL
+     (SPECIES_CD → F_TREE_SPECIES) - wcześniej te 3 tabele (mimo że są
+     kopiowane przy łączeniu) nie miały żadnej kontroli słownikowej;
+     dodana też whitelista dla F_AROD_GOAL.GOAL_TYPE_FL (obserwowana
+     wyłącznie wartość 'D' w próbkach baz - brak osobnej tabeli
+     słownikowej dla tego pola)
+   - Wspólny raport TXT ze wszystkich sprawdzonych baz zapisywany w
+     katalogu z bazami; jeśli znaleziono błędne wartości, użytkownik widzi
+     ich liczbę i ścieżkę raportu i decyduje (Tak/Nie), czy mimo to
+     kontynuować łączenie - kontrola ostrzega, ale nie blokuje na sztywno
+   - Logika kontroli wydzielona do współdzielonej funkcji, żeby uniknąć
+     duplikacji między pojedynczym uruchomieniem z menu ("Kontrola wg
+     SULMN") a nowym uruchomieniem wsadowym z "Połącz bazy TPU"
+
+18. POŁĄCZ BAZY TPU — KONTROLA DUPLIKATÓW WYDZIELEŃ (BLOKUJĄCA)
+    (baza_polacz.py)
+   - Przed kontrolą słownikową (i przed nią samą przed łączeniem) nowa
+     kontrola porównuje ADRESS_FOREST wszystkich wydzieleń
+     (ARODES_TYP_CD='WYDZIEL') między wszystkimi bazami znalezionymi we
+     wskazanym katalogu
+   - Jeśli to samo wydzielenie występuje w więcej niż jednej bazie,
+     łączenie jest przerywane na twardo (bez pytania o kontynuację, w
+     przeciwieństwie do kontroli słownikowej) - raport TXT wskazuje, w
+     których bazach powtarza się który adres leśny
+   - Usunięta martwa i błędna metoda Laczenie.zdublowany_f_arodes()
+     (nigdy nie była wywoływana, a jej filtr był odwrócony - zamiast
+     duplikatów zbierał wydzielenia unikalne dla bazy źródłowej) -
+     zastąpiona tą kontrolą, uruchamianą raz dla całego zestawu baz
+     zamiast parami przy każdym łączeniu
+
+19. POŁĄCZ BAZY TPU — OBSŁUGA BŁĘDÓW ZAPISU PRZY ŁĄCZENIU
+    (baza_polacz.py)
+   - Insert-y w Laczenie.d_tabele() wołały kursor bazy bezpośrednio, bez
+     przechwytywania wyjątków - błąd zapisu jednego wiersza (np. zła
+     długość/typ pola, naruszenie integralności referencyjnej) przerywał
+     całe łączenie surowym Python tracebackiem, zostawiając bazę docelową
+     w częściowo zapisanym stanie i pomijając pozostałe bazy z katalogu
+   - Nowa metoda Laczenie._wpisz() łapie wyjątek per wiersz i zapisuje go
+     do self.l_bledy_wpisu (tabela, identyfikator wiersza, treść błędu)
+     zamiast przerywać - reszta wierszy i pozostałe bazy są przetwarzane
+     dalej
+   - PolaczBazy.kopiuj() zbiera błędy ze wszystkich połączonych baz i na
+     koniec, jeśli jakiekolwiek wystąpiły, pokazuje ostrzeżenie z liczbą
+     niezapisanych wierszy i zapisuje raport TXT (bledy_zapisu_laczenie_
+     *.txt) z listą: baza źródłowa / tabela / wiersz / treść błędu -
+     zamiast dotychczasowego bezwarunkowego "zakończone powodzeniem"
+   - Zweryfikowane na kopiach realnych baz: normalny merge (2023
+     wydzielenia, 1826 wierszy f_subarea) przechodzi bez błędów; przy
+     celowo zepsutym wierszu błąd jest łapany i logowany, a pozostałe
+     1825 wierszy i tak trafia do bazy docelowej
+
+20. POŁĄCZ BAZY TPU — OBSŁUGA BŁĘDÓW ODCZYTU PRZY ŁĄCZENIU
+    (baza_polacz.py)
+   - Baza.pobierz() przy błędzie SQL zwraca False zamiast listy wierszy -
+     p_tabele() i p_f_arodes() w Laczenie nie sprawdzały tego i przekazywały
+     False dalej do pętli for, co przy błędzie odczytu którejkolwiek z 8
+     tabel (np. inna wersja szablonu bazy źródłowej, brakująca/przenazwana
+     kolumna lub tabela) kończyło się TypeError ("bool object is not
+     iterable") i przerywało całe łączenie - ten sam rodzaj luki co #19,
+     tylko na etapie odczytu (SELECT), nie zapisu (INSERT)
+   - p_tabele() i p_f_arodes() traktują teraz False jako pustą listę i
+     zapisują błąd do nowej self.l_bledy_odczytu (bazuje na tym samym
+     wzorcu co już istniejący p_f_max(), który to robił poprawnie od
+     początku) - reszta tabel i pozostałe bazy są przetwarzane dalej
+   - Błędy odczytu trafiają do tego samego raportu TXT co błędy zapisu
+     z #19 (bledy_zapisu_laczenie_*.txt), z opisem "(cała tabela - błąd
+     odczytu)" zamiast identyfikatora pojedynczego wiersza
+   - Zweryfikowane na kopiach realnych baz: celowo zła nazwa tabeli
+     źródłowej (symulacja niezgodności schematu) - błąd złapany i
+     zaraportowany, pozostałe 7 tabel (razem >8500 wierszy) i tak zostało
+     poprawnie odczytane i wpisane; analogicznie dla błędu odczytu
+     F_ARODES
+
+21. POŁĄCZ BAZY TPU — DROBNE POPRAWKI (kolumny F_ARODES, pasek postępu,
+    wybór bazy bazowej) (baza_polacz.py)
+   - p_f_arodes() używał "select * from f_arodes" i indeksował wynik
+     pozycyjnie, zakładając stały układ 7 kolumn zgodny z insertem w
+     d_tabele() - baza źródłowa z inną fizyczną kolejnością tych samych
+     kolumn mogłaby spowodować ciche wstawienie wartości do złych kolumn,
+     bez żadnego błędu. Zamienione na jawną listę kolumn w select (w
+     kolejności zgodnej z insertem) - kolejność wyniku nie zależy już od
+     układu kolumn w tabeli, a brakująca/przenazwana kolumna kończy się
+     teraz czytelnym błędem odczytu (patrz #20) zamiast cichej pomyłki
+   - Pasek postępu w kopiuj() cofał się między iteracjami (ustawiany na
+     stałe 10+proc po każdej bazie, zamiast rosnącej wartości) - usunięte,
+     pasek rośnie teraz monotonicznie i kończy na 100
+   - pobierz_katalog() wybierał bazę bazową (do której dopisywane są
+     pozostałe) jako lista[0] z glob.glob(), czyli w kolejności zależnej
+     od systemu plików - lista jest teraz sortowana, a użytkownik widzi
+     komunikatem, ile baz znaleziono i która zostanie bazą bazową
+   - Zweryfikowane na kopiach realnych baz (pełny przepływ kontrola_
+     duplikatow -> kontrola_wstepna -> stworz_docelowa -> kopiuj): dane
+     trafiają do poprawnych kolumn (ADRESS_FOREST/ARODES_TYP_CD/itd.
+     sprawdzone wprost w bazie wynikowej), pasek postępu rośnie
+     monotonicznie [0, 5, 55, 100], baza bazowa wybierana deterministycznie
+
+22. POŁĄCZ BAZY TPU — ROZSZERZONY ZAKRES KOPIOWANYCH TABEL Z WYBOREM W
+    DIALOGU (baza_polacz_rejestr.py, baza_polacz_dialog.py,
+    ui/ui_baza_polacz_grupy.py, baza_polacz.py, baza_wrapper.py)
+   - Łączenie obejmuje teraz, poza dotychczasowymi 8 tabelami F_ARODES:
+     * Grupa 1 (zawsze kopiowana): F_COMMUNITY - dedup po pełnym kluczu
+       naturalnym (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD),
+       duplikaty pomijane cicho (wspólna geografia między bazami)
+     * Grupa 2 "ewidencyjna": F_PARCEL, V_ADDRESS (własne surogaty
+       PARCEL_INT_NUM/ADDR_NR wymagające remapu, jak dotychczas
+       ARODES_INT_NUM), F_PARCEL_LAND_USE, V_PARCEL_PARTICIPATION
+     * Grupa 3 "leśna": F_ARODES + dotychczasowe 8 tabel + F_AROD_CUE,
+       F_AROD_CATEGORY, F_AROD_SOIL_SPEC, F_COMPARTMENT, F_SET (własny
+       surogat SET_INT_NUM), F_AROD_DAMAGE (własny surogat
+       damage_int_num), F_AROD_LAND_USE (most między Grupą 2 i 3 - ma
+       zarówno ARODES_INT_NUM jak i PARCEL_INT_NUM)
+   - Nowy dialog przed łączeniem: checkboxy per grupa (odznaczenie grupy
+     wyłącza wszystkie jej tabele) i per tabela w ramach grupy, domyślnie
+     wszystko zaznaczone. Zależności między tabelami (np. F_AROD_LAND_USE
+     wymaga F_PARCEL i F_ARODES) wymuszane na żywo - odznaczenie
+     wymaganej tabeli automatycznie wyszarza i odznacza zależne; te
+     zależności są wyprowadzane automatycznie z definicji kluczy obcych
+     w rejestrze, nie wypisywane ręcznie
+   - Kontrola duplikatów przed łączeniem rozszerzona o działki (ten sam
+     klucz naturalny co dedup F_PARCEL) - blokująca, analogicznie do
+     dotychczasowej kontroli duplikatów wydzieleń; obie kontrole dzielą
+     teraz wspólny silnik (_kontrola_duplikatow_generic)
+   - Silnik łączenia (Laczenie) przepisany z zahardkodowanej listy 8 tabel
+     i pozycyjnego rozgałęzienia w d_tabele() na rejestr tabel z jawnie
+     zadeklarowanymi kluczami obcymi i strategią remapu - dotychczasowe 8
+     tabel działa bez zmian (zweryfikowane identyczne liczby wierszy i
+     błędów przed/po refaktoryzacji)
+   - Zweryfikowane na kopiach realnych baz: pełne łączenie z każdą z 3
+     grup osobno wyłączaną (Grupa 2, Grupa 3, każda niezależnie) - tabele
+     wyłączonej grupy pozostają bez zmian, włączone grupy łączą się
+     poprawnie; zero błędów integralności referencyjnej w bazie
+     wynikowej (sprawdzone wprost przez SQL dla F_AROD_LAND_USE i
+     V_PARCEL_PARTICIPATION); poprawnie wykryte i pominięte autentyczne
+     wiszące referencje w danych źródłowych (V_PARCEL_PARTICIPATION z
+     parcel_int_num spoza własnego F_PARCEL)
+
+23. KONTROLA SŁOWNIKOWA — ROZSZERZONA O TABELE DOPISANE PRZY OKAZJI #22
+    (baza_kontrola_slownikow_wgSULMN.py)
+   - Dopisane kontrole rooted w F_ARODES (ta sama ścieżka co dotychczasowe):
+     F_AROD_CATEGORY.PROT_CATEGORY_CD, F_AROD_SOIL_SPEC.SOIL_SPECIES_CD,
+     F_AROD_SOIL_SPEC.SOIL_LEVEL_CD, F_AROD_DAMAGE.damage_grad_cd
+   - Nowa ścieżka kontroli dla tabel rooted w F_PARCEL (nie w F_ARODES,
+     więc nie pasują do istniejącego _sprawdz()) - nowe funkcje
+     _sprawdz_parcel()/_sprawdz_whitelist_parcel_dziecko(), raportujące po
+     adresie działki (COUNTY.DISTRICT.MUNICIPALITY.COMMUNITY.PARCEL_NR)
+     zamiast adresu leśnego: F_PARCEL.OWNERSHIP_CD, F_PARCEL.LAND_USE_CD
+   - Dopisane whitelisty (brak osobnej tabeli słownikowej w schemacie, na
+     wzór już istniejącej dla GOAL_TYPE_FL): F_SET.SET_TYPE_FL (tylko 'K'
+     w dostępnych próbkach), F_AROD_CUE.URGENCY ('N'/'T'),
+     V_PARCEL_PARTICIPATION.cwd ('WD'/'WL', join przez F_PARCEL)
+   - Świadomie pominięte: F_PARCEL_LAND_USE.SOIL_QUALITY_CD i AREA_USE_CD -
+     słowniki (F_SOIL_QUALITY_DIC/F_AREA_USE_DIC) używają innej wielkości
+     liter (IIIA/Dr) niż faktycznie zapisywane dane (IIIa/dr) w KAŻDEJ
+     dostępnej próbce bazy, a StrComp w tym module jest binarny (0, czyli
+     uwzględnia wielkość liter) - dodanie tych kontroli generowałoby
+     dziesiątki/setki fałszywych alarmów na każdej bazie; F_COMPARTMENT.
+     COMPARTMENT_CD pominięte - brak tabeli słownikowej i puste we
+     wszystkich dostępnych próbkach, więc nie da się zweryfikować wzorca
+   - Zweryfikowane na wszystkich 5 dostępnych bazach: wszystkie nowe
+     kontrole zwracają 0 błędów, łączna liczba błędnych wartości
+     niezmieniona (10) względem stanu przed rozszerzeniem - brak regresji
+     i brak nowych fałszywych alarmów
+
 ==============================
 
 Wersja 2.0e — 2026-07-01 — pierwsze wydanie produkcyjne (koniec fazy beta)
