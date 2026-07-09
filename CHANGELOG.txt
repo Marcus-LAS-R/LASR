@@ -87,7 +87,16 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      Uzupełnienie wymiarów d-stanu" itd. - przedrostek "F1/F2/F3/F4 — "
      usunięty z etykiet (też z tytułów okien potwierdzenia/podsumowania,
      które używają tej samej etykiety); kod operacji nadal używany
-     wewnętrznie (nazwy plików raportów, wpisy w historii wersji)
+     wewnętrznie (wpisy w historii wersji, patrz też #7 - nazwy plików
+     raportów już nie)
+
+7. POPRAWKA: "Aktualizacja bazy UPUL" — nazwy plików raportów bez kodu
+   F1-F4 (aktualizacja_upul/core/reporting.py)
+   - Nazwa pliku była "raport_F1_commit_data.txt"/"raport_F4_dryrun_
+     data.txt" itd. - teraz "raport_{skrót}_{data}.txt" (aktualizacja,
+     uzupelnienie, korekta_masy, korekta_bhd) - bez kodu operacji i bez
+     trybu (commit/dryrun) w nazwie; obie informacje zostają w nagłówku
+     wewnątrz pliku ("Operacja: F4", "Tryb: COMMIT"/"DRY-RUN")
 
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------

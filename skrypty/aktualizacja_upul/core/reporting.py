@@ -17,6 +17,18 @@ import datetime
 import os
 
 
+# Nazwa pliku raportu uzywa czytelnego skrotu zamiast kodu operacji
+# ('F1'..'F4') - ten kod zostaje uzywany wewnetrznie (naglowek raportu,
+# _LRT_VERSIONS.OPERATION, f1_aktualizacja.prior_run) ale nie w nazwie
+# pliku, ktora ma byc czytelna dla klienta przegladajacego katalog z baza.
+_SKROT_NAZWY_PLIKU = {
+    "F1": "aktualizacja",
+    "F2": "uzupelnienie",
+    "F3": "korekta_masy",
+    "F4": "korekta_bhd",
+}
+
+
 class Report:
     """Zbiera wyniki operacji i serializuje je do pliku tekstowego.
 
@@ -92,9 +104,10 @@ class Report:
 
         Algorytm:
 
-        1. Zbuduj nazwę: `raport_{operation}_{commit|dryrun}_{timestamp}.txt`.
-           Timestamp jest „kompaktowy" (`YYYYMMDD_HHMMSS`) — w katalogu kilka
-           raportów sortuje się alfabetycznie chronologicznie.
+        1. Zbuduj nazwę: `raport_{skrót}_{timestamp}.txt` - skrót to czytelna
+           nazwa operacji (`_SKROT_NAZWY_PLIKU`), nie kod `F1`..`F4`. Tryb
+           (dry-run/commit) nie jest już częścią nazwy pliku - zostaje w
+           nagłówku raportu ("Tryb: ...").
         2. Otwórz plik w UTF-8 (polskie znaki w powodach pominięć).
         3. Nagłówek: operacja, tryb, ścieżka MDB, czas startu, VERSION_ID
            (jeśli to commit), liczniki.
@@ -112,8 +125,8 @@ class Report:
         """
         mdb_dir = os.path.dirname(self.mdb_path)
         ts = self.started_at.strftime("%d-%m-%Y_%H-%M-%S")
-        mode = "dryrun" if self.dry_run else "commit"
-        path = os.path.join(mdb_dir, f"raport_{self.operation}_{mode}_{ts}.txt")
+        skrot = _SKROT_NAZWY_PLIKU.get(self.operation, self.operation.lower())
+        path = os.path.join(mdb_dir, f"raport_{skrot}_{ts}.txt")
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"Operacja: {self.operation}\n")
