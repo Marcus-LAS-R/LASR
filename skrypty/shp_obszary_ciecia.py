@@ -9,6 +9,20 @@ from PyQt5.QtCore import QVariant
 
 from . import kafelkowanie
 
+# kandydaci na pole z czytelnym identyfikatorem wydzielenia do raportu
+# "przeciete" - ta sama mala prywatna stala co w shp_atlasuj_auto.py
+# (zduplikowana zamiast importu w poprzek modulow, zgodnie z konwencja
+# projektu)
+_KANDYDACI_POLE_ID = ('ADR_LES', 'ADRESS_FOREST', 'WYDZ')
+
+
+def _pole_identyfikatora(warstwa):
+    nazwy = {p.name() for p in warstwa.fields()}
+    for kandydat in _KANDYDACI_POLE_ID:
+        if kandydat in nazwy:
+            return kandydat
+    return None
+
 
 class ObszaryCiecia:
     """ Tworzy warstwę OBSZARY_CIECIA - kafle (format A3 w poziomie,
@@ -16,7 +30,9 @@ class ObszaryCiecia:
     cięcia. Warstwa służy do przeglądu feature-by-feature (np. wtyczką
     Go2NextFeature), żeby sprawdzić, czy podział na poletka/etaty cięcia
     wykonano poprawnie. Kafle mogą się nachodzić, jeśli wydzielenia leżą
-    blisko siebie - każde wydzielenie zostaje w całości w jednym kaflu.
+    blisko siebie. Wydzielenie, które samo w sobie nie mieści się w
+    kaflu (rzadkie), dostaje kafel wycentrowany na sobie i zostaje
+    przecięte krawędzią - zgłaszane w podsumowaniu (self.przeciete).
 
     Wywoływana automatycznie z shp_przygCiecie.przygotuj_wydz_do_ciecia
     na świeżo utworzonej warstwie WYDZ (brak osobnej pozycji w menu).
@@ -32,6 +48,7 @@ class ObszaryCiecia:
         self.kat = ''
         self.rozm = []  # rozmiar kafla w metrach [x, y], w poziomie
         self.lyr = False
+        self.przeciete = []  # identyfikatory (albo fid) obiektow przecietych
 
     def wybierz_warstwe(self, wydz=None):
         """ `wydz` pozwala podać warstwę programowo (np. z poziomu
@@ -72,18 +89,18 @@ class ObszaryCiecia:
         ])
         self.lyr.updateFields()
 
+        pole_id = _pole_identyfikatora(self.wydz)
         bboxy = []
+        identyfikatory = []
         for f in self.wydz.getFeatures():
             bb = f.geometry().boundingBox()
             bboxy.append(
                 (bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
+            identyfikatory.append(f[pole_id] if pole_id else f.id())
 
-        try:
-            kafle = kafelkowanie.pokryj_kaflami(
-                bboxy, self.rozm[0], self.rozm[1])
-        except kafelkowanie.ObiektZaDuzy as e:
-            self.iface.messageBar().pushCritical('Obszary cięcia', str(e))
-            return False
+        kafle, przeciete = kafelkowanie.pokryj_kaflami(
+            bboxy, self.rozm[0], self.rozm[1])
+        self.przeciete = [identyfikatory[i] for i in przeciete]
 
         nowe = []
         for nr, (x0, y0, x1, y1) in enumerate(kafle, start=1):
@@ -140,9 +157,20 @@ class ObszaryCiecia:
                 'Obszary cięcia',
                 'Warstwa WYDZ nie zawiera żadnych wydzieleń'
             )
-        else:
-            self.iface.messageBar().pushSuccess(
-                'OK',
-                'Utworzono warstwę OBSZARY_CIECIA z ' + str(ile) +
-                ' obszarami do przeglądu (np. wtyczką Go2NextFeature)'
+            return
+
+        self.iface.messageBar().pushSuccess(
+            'OK',
+            'Utworzono warstwę OBSZARY_CIECIA z ' + str(ile) +
+            ' obszarami do przeglądu (np. wtyczką Go2NextFeature)'
+        )
+        if self.przeciete:
+            lista = ', '.join(str(x) for x in self.przeciete[:10])
+            if len(self.przeciete) > 10:
+                lista += ', … (+' + str(len(self.przeciete) - 10) + ')'
+            self.iface.messageBar().pushWarning(
+                'Obszary cięcia',
+                str(len(self.przeciete)) + ' wydzielenie(a) nie zmieściło '
+                'się w całości w jednym obszarze i zostało przecięte '
+                'krawędzią (zbyt duże przy tej skali/formacie): ' + lista
             )

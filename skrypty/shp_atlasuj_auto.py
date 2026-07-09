@@ -11,13 +11,30 @@ from . import kafelkowanie
 from .ui.ui_atlasuj_auto import Ui_Dialog
 
 
+# kandydaci na pole z czytelnym identyfikatorem wydzielenia do raportu
+# "przeciete" - sprawdzane w tej kolejnosci, pierwsze obecne w warstwie
+# wygrywa; brak zadnego -> uzywany numer fid
+_KANDYDACI_POLE_ID = ('ADR_LES', 'ADRESS_FOREST', 'WYDZ')
+
+
+def _pole_identyfikatora(warstwa):
+    nazwy = {p.name() for p in warstwa.fields()}
+    for kandydat in _KANDYDACI_POLE_ID:
+        if kandydat in nazwy:
+            return kandydat
+    return None
+
+
 class GenerujAtlasAuto:
     """ Automatycznie generuje pola atlasowe (jak "Rysuj pola atlasowe"),
     ale korzysta z kafelkowanie.pokryj_kaflami: każdy kolejny kafel
     pokrywa maksymalną liczbę jeszcze nieobsłużonych obiektów warstwy
-    wejściowej i jest na nich wycentrowany - żaden obiekt nie zostaje
-    przecięty krawędzią kafla. Numeracja STRONA powstaje automatycznie,
-    bez ręcznego digitalizowania linii (jak w "Numeruj pola atlasu").
+    wejściowej i jest na nich wycentrowany. Obiekt, który sam w sobie nie
+    mieści się w kaflu (rzadkie - duże wydzielenie przy drobnej skali/
+    małym formacie strony), dostaje kafel wycentrowany na sobie i zostaje
+    przecięty krawędzią - zgłaszane w podsumowaniu (self.przeciete).
+    Numeracja STRONA powstaje automatycznie, bez ręcznego digitalizowania
+    linii (jak w "Numeruj pola atlasu").
     """
 
     def __init__(self, iface):
@@ -26,6 +43,7 @@ class GenerujAtlasAuto:
         self.kat = ''
         self.rozm = []  # rozmiar kafla w metrach [szer, wys]
         self.pola = False
+        self.przeciete = []  # identyfikatory (albo fid) obiektow przecietych
 
     def wybierz_warstwe(self):
         self.lyr = self.iface.activeLayer()
@@ -67,19 +85,18 @@ class GenerujAtlasAuto:
         ])
         self.pola.updateFields()
 
+        pole_id = _pole_identyfikatora(self.lyr)
         bboxy = []
+        identyfikatory = []
         for f in self.lyr.getFeatures():
             bb = f.geometry().boundingBox()
             bboxy.append(
                 (bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
+            identyfikatory.append(f[pole_id] if pole_id else f.id())
 
-        try:
-            kafle = kafelkowanie.pokryj_kaflami(
-                bboxy, self.rozm[0], self.rozm[1])
-        except kafelkowanie.ObiektZaDuzy as e:
-            self.iface.messageBar().pushCritical(
-                'Atlasuj automatycznie', str(e))
-            return False
+        kafle, przeciete = kafelkowanie.pokryj_kaflami(
+            bboxy, self.rozm[0], self.rozm[1])
+        self.przeciete = [identyfikatory[i] for i in przeciete]
 
         nowe = []
         for nr, (x0, y0, x1, y1) in enumerate(kafle, start=1):
@@ -136,10 +153,21 @@ class GenerujAtlasAuto:
                 'Atlasuj automatycznie',
                 'Warstwa wejściowa nie zawiera żadnych obiektów'
             )
-        else:
-            self.iface.messageBar().pushSuccess(
-                'OK',
-                'Utworzono warstwę ATLAS_AUTO z ' + str(ile) + ' polami'
+            return
+
+        self.iface.messageBar().pushSuccess(
+            'OK',
+            'Utworzono warstwę ATLAS_AUTO z ' + str(ile) + ' polami'
+        )
+        if self.przeciete:
+            lista = ', '.join(str(x) for x in self.przeciete[:10])
+            if len(self.przeciete) > 10:
+                lista += ', … (+' + str(len(self.przeciete) - 10) + ')'
+            self.iface.messageBar().pushWarning(
+                'Atlasuj automatycznie',
+                str(len(self.przeciete)) + ' wydzielenie(a) nie zmieściło '
+                'się w całości na jednej stronie i zostało przecięte '
+                'krawędzią (zbyt duże przy tej skali/formacie): ' + lista
             )
 
 

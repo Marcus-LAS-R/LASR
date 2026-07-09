@@ -1,43 +1,16 @@
 """ Pokrywanie zbioru prostokątów (np. bbox wydzieleń) minimalną liczbą
 kafli o ustalonym rozmiarze (np. stron atlasu), tak żeby każdy prostokąt
-zmieścił się w całości w jednym kaflu - bez przecinania krawędzią.
-Kafle mogą się nachodzić tam, gdzie obiekty leżą blisko siebie.
+zmieścił się w całości w jednym kaflu, tam gdzie to możliwe - bez
+przecinania krawędzią. Kafle mogą się nachodzić tam, gdzie obiekty leżą
+blisko siebie. Obiekt, którego bbox jest większy niż kafel w którymkolwiek
+wymiarze (rzadkie, ale zdarza się przy dużych wydzieleniach i drobnej
+skali/małym formacie strony) dostaje kafel wycentrowany na sobie i zostaje
+przecięty krawędzią - patrz zwracana lista `przeciete`.
 
 Logika nie zależy od qgis.core - operuje na zwykłych krotkach
 (xmin, ymin, xmax, ymax), żeby można ją wykorzystać w różnych skryptach
 (np. shp_obszary_ciecia.py, shp_atlasuj.py).
 """
-
-
-class ObiektZaDuzy(Exception):
-    """ Podnoszony przez pokryj_kaflami(), gdy bounding box choć jednego
-    obiektu (szerokość lub wysokość) jest większy niż podany kafel -
-    taki obiekt nigdy nie zmieści się w całości w jednym kaflu ustalonego
-    rozmiaru. Bez tej kontroli algorytm zapętlałby się w nieskończoność:
-    ten sam obiekt byłby wybierany jako "kotwica" w kółko, nigdy nie
-    zostając w pełni pokryty (a więc nigdy nie znikając z listy
-    nieobsłużonych) - patrz pokryj_kaflami().
-
-    Attributes:
-        zbyt_duze: lista (indeks_w_bboxy, szerokość, wysokość) obiektów
-            przekraczających rozmiar kafla.
-        kafel_w: szerokość kafla, z którym porównywano.
-        kafel_h: wysokość kafla, z którym porównywano.
-    """
-
-    def __init__(self, zbyt_duze, kafel_w, kafel_h):
-        self.zbyt_duze = zbyt_duze
-        self.kafel_w = kafel_w
-        self.kafel_h = kafel_h
-        najw_w = max(z[1] for z in zbyt_duze)
-        najw_h = max(z[2] for z in zbyt_duze)
-        super().__init__(
-            f"{len(zbyt_duze)} obiekt(y) nie mieszczą się w kaflu "
-            f"{kafel_w:.0f} x {kafel_h:.0f} m (największy: "
-            f"{najw_w:.0f} x {najw_h:.0f} m) - zwiększ skalę albo rozmiar "
-            f"strony, albo sprawdź czy to nie błędna geometria "
-            f"(np. rozjechany multipolygon)."
-        )
 
 
 def rozmiar_kafla_z_skali(papier_mm, skala, margines_mm=30):
@@ -155,47 +128,54 @@ def pokryj_kaflami(bboxy, w, h):
     w x h. Każdy kolejny kafel jest tak ustawiony, by w całości objąć
     "kotwicę" (pierwszy z kolei nieobsłużony prostokąt, w porządku
     góra-dół/lewo-prawo) i jednocześnie pokryć maksymalną liczbę innych
-    pozostałych nieobsłużonych prostokątów.
+    pozostałych nieobsłużonych prostokątów. Kotwica, której bbox jest
+    większy niż kafel w którymkolwiek wymiarze (nie da się jej w ogóle
+    objąć w całości), dostaje zamiast tego kafel wycentrowany na jej
+    środku - zostanie przecięta krawędzią, ale nie blokuje reszty (bez
+    tego wyjątku algorytm zapętliłby się w nieskończoność: ta sama
+    kotwica byłaby wybierana w kółko, nigdy nie znikając z listy
+    nieobsłużonych).
 
-    Zwraca listę kafli (xmin, ymin, xmax, ymax) w kolejności powstawania.
-    Kafle mogą się nachodzić.
-
-    Raises:
-        ObiektZaDuzy: gdy choć jeden bbox z `bboxy` jest większy niż
-            kafel w x h (w którymkolwiek wymiarze) - patrz docstring
-            wyjątku, dlaczego to twardy błąd, a nie cichy fallback.
+    Zwraca (kafle, przeciete):
+    * kafle - lista kafli (xmin, ymin, xmax, ymax) w kolejności powstawania.
+      Kafle mogą się nachodzić.
+    * przeciete - lista indeksów (w `bboxy`) obiektów, które nie zmieściły
+      się w całości w żadnym kaflu - do zaraportowania użytkownikowi.
     """
-    zbyt_duze = [
-        (i, b[2] - b[0], b[3] - b[1])
-        for i, b in enumerate(bboxy)
-        if (b[2] - b[0]) > w or (b[3] - b[1]) > h
-    ]
-    if zbyt_duze:
-        raise ObiektZaDuzy(zbyt_duze, w, h)
-
-    nieobsluzone = sorted(
-        bboxy, key=lambda b: (-((b[1] + b[3]) / 2), (b[0] + b[2]) / 2))
+    kolejnosc = sorted(
+        range(len(bboxy)),
+        key=lambda i: (-((bboxy[i][1] + bboxy[i][3]) / 2),
+                       (bboxy[i][0] + bboxy[i][2]) / 2))
+    nieobsluzone = kolejnosc
 
     kafle = []
+    przeciete = []
     while nieobsluzone:
-        anchor = nieobsluzone[0]
-        ax0, ay0, ax1, ay1 = anchor
+        i_anchor = nieobsluzone[0]
+        ax0, ay0, ax1, ay1 = anchor = bboxy[i_anchor]
+        oversize = (ax1 - ax0) > w or (ay1 - ay0) > h
 
-        kandydaci = [
-            b for b in nieobsluzone
-            if max(ax1, b[2]) - min(ax0, b[0]) <= w and
-            max(ay1, b[3]) - min(ay0, b[1]) <= h
-        ]
+        if oversize:
+            przeciete.append(i_anchor)
+            wx = (ax0 + ax1) / 2 - w / 2
+            wy = (ay0 + ay1) / 2 - h / 2
+        else:
+            kandydaci = [
+                bboxy[i] for i in nieobsluzone
+                if max(ax1, bboxy[i][2]) - min(ax0, bboxy[i][0]) <= w and
+                max(ay1, bboxy[i][3]) - min(ay0, bboxy[i][1]) <= h
+            ]
+            wx, wy = _najlepszy_kafel(anchor, kandydaci, w, h)
 
-        wx, wy = _najlepszy_kafel(anchor, kandydaci, w, h)
         kafel = (wx, wy, wx + w, wy + h)
         kafle.append(kafel)
 
         rx0, ry0, rx1, ry1 = kafel
         nieobsluzone = [
-            b for b in nieobsluzone
-            if not (rx0 <= b[0] and b[2] <= rx1 and
-                    ry0 <= b[1] and b[3] <= ry1)
+            i for i in nieobsluzone
+            if i != i_anchor and not (
+                rx0 <= bboxy[i][0] and bboxy[i][2] <= rx1 and
+                ry0 <= bboxy[i][1] and bboxy[i][3] <= ry1)
         ]
 
-    return kafle
+    return kafle, przeciete
