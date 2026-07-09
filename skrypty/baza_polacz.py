@@ -13,6 +13,7 @@ from .baza_polacz_rejestr import (
     F_COMMUNITY, F_PARCEL_NADRZEDNA, V_ADDRESS_NADRZEDNA,
     GRUPA2_DZIECI, GRUPA3_DZIECI, rejestr_domyslny)
 from .baza_polacz_dialog import WyborGrupDialog
+from .baza_polacz_obreby_dialog import WyborObrebowDialog
 
 
 def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
@@ -65,21 +66,72 @@ def _klucze_wydzielen(baza):
     return list(wydz.keys()) if wydz is not False else False
 
 
-def _kontrola_duplikatow_wydzieln(katalog_raportu, sciezki):
+def _arodes_w_obrebach(baza, dozwolone):
+    """Zwraca zbiór ARODES_INT_NUM (typu WYDZIEL) tej bazy, które mają
+    >=1 użytek (F_AROD_LAND_USE) w którymś z dozwolonych obrębów."""
+    sql = ('select l.ARODES_INT_NUM, p.COUNTY_CD, p.DISTRICT_CD, '
+           'p.MUNICIPALITY_CD, p.COMMUNITY_CD from (F_AROD_LAND_USE as l '
+           'inner join F_PARCEL as p on l.PARCEL_INT_NUM = p.PARCEL_INT_NUM);')
+    wynik = baza.pobierz(sql)
+    if wynik is False:
+        return set()
+    return {row[0] for row in wynik if tuple(row[1:5]) in dozwolone}
+
+
+def _klucze_wydzielen_z_filtrem(obreby_wybrane):
+    """Buduje pobierz_klucze_fn dla kontroli duplikatów wydzieleń,
+    uwzględniając per-bazowy filtr obrębów (przez F_AROD_LAND_USE ->
+    F_PARCEL) - żeby duplikat poza wybranymi obrębami (i tak niekopiowany)
+    nie blokował łączenia."""
+    def fn(baza):
+        wydz = baza.pobierz_wydzielenia()
+        if wydz is False:
+            return False
+        dozwolone = obreby_wybrane.get(baza.baza)
+        if dozwolone is None:
+            return list(wydz.keys())
+        dozwolone_arodes = _arodes_w_obrebach(baza, dozwolone)
+        return [adr for adr, aint in wydz.items() if aint in dozwolone_arodes]
+    return fn
+
+
+def _klucze_dzialek_z_filtrem(obreby_wybrane):
+    """Jak wyżej, dla kontroli duplikatów działek."""
+    def fn(baza):
+        klucze = baza.pobierz_klucze_dzialek()
+        if klucze is False:
+            return False
+        dozwolone = obreby_wybrane.get(baza.baza)
+        if dozwolone is None:
+            return klucze
+        return [k for k in klucze if k[:4] in dozwolone]
+    return fn
+
+
+def _kontrola_duplikatow_wydzieln(katalog_raportu, sciezki, obreby_wybrane=None):
     """Sprawdza, czy to samo wydzielenie (ADRESS_FOREST z F_ARODES,
-    ARODES_TYP_CD='WYDZIEL') występuje w więcej niż jednej z podanych baz."""
+    ARODES_TYP_CD='WYDZIEL') występuje w więcej niż jednej z podanych baz.
+    Jeśli podano obreby_wybrane ({baza_sc: set|None}), sprawdza tylko
+    wydzielenia, które faktycznie zostaną skopiowane (w wybranych obrębach)."""
+    pobierz_klucze_fn = (
+        _klucze_wydzielen_z_filtrem(obreby_wybrane)
+        if obreby_wybrane else _klucze_wydzielen)
     return _kontrola_duplikatow_generic(
-        katalog_raportu, sciezki, _klucze_wydzielen, 'duplikaty_wydzielen_',
+        katalog_raportu, sciezki, pobierz_klucze_fn, 'duplikaty_wydzielen_',
         'DUPLIKATY WYDZIELEŃ (ADRESS_FOREST) W BAZACH WEJŚCIOWYCH',
         'wydzieleń')
 
 
-def _kontrola_duplikatow_dzialek(katalog_raportu, sciezki):
+def _kontrola_duplikatow_dzialek(katalog_raportu, sciezki, obreby_wybrane=None):
     """Sprawdza, czy ta sama działka (COUNTY_CD+DISTRICT_CD+
     MUNICIPALITY_CD+COMMUNITY_CD+PARCEL_NR z F_PARCEL) występuje w więcej
-    niż jednej z podanych baz."""
+    niż jednej z podanych baz. Jeśli podano obreby_wybrane, sprawdza tylko
+    działki w wybranych obrębach."""
+    pobierz_klucze_fn = (
+        _klucze_dzialek_z_filtrem(obreby_wybrane)
+        if obreby_wybrane else Baza.pobierz_klucze_dzialek)
     return _kontrola_duplikatow_generic(
-        katalog_raportu, sciezki, Baza.pobierz_klucze_dzialek,
+        katalog_raportu, sciezki, pobierz_klucze_fn,
         'duplikaty_dzialek_',
         'DUPLIKATY DZIAŁEK (COUNTY_CD+DISTRICT_CD+MUNICIPALITY_CD+'
         'COMMUNITY_CD+PARCEL_NR) W BAZACH WEJŚCIOWYCH',
@@ -94,6 +146,9 @@ class PolaczBazy():
         self.baza0 = False  # baza do ktorej kopiujemy reszte danych
         self.lista = []  # lista ze sciezkami do baz w katalogu
         self.wybrane = rejestr_domyslny()  # nadpisywane przez wybierz_grupy()
+        # {baza_sc: set(tuple)|None} - nadpisywane przez wybierz_obreby();
+        # None dla danej bazy = brak filtra (wszystkie obreby dozwolone)
+        self.obreby_wybrane = {}
         self.postep = PasekPostepu(self.iface).stworz_pasek(
             'Kopiowanie baz TPU')
         self.postep.setValue(0)
@@ -143,6 +198,17 @@ class PolaczBazy():
 
         return True
 
+    def wybierz_obreby(self):
+        """Pokazuje dialog wyboru obrębów (osobno dla każdej bazy z
+        self.lista). Zwraca True i zapisuje wybór w self.obreby_wybrane,
+        albo False jeśli użytkownik zrezygnował. To pierwszy, nadrzędny
+        filtr - wywoływany przed wyborem grup tabel."""
+        dlg = WyborObrebowDialog(self.iface, self.lista)
+        if dlg.exec_() != QDialog.Accepted:
+            return False
+        self.obreby_wybrane = dlg.wybor()
+        return True
+
     def wybierz_grupy(self):
         """Pokazuje dialog wyboru grup/tabel do łączenia. Zwraca True i
         zapisuje wybór w self.wybrane, albo False jeśli użytkownik
@@ -155,18 +221,21 @@ class PolaczBazy():
 
     def kontrola_duplikatow(self):
         """Sprawdza duplikaty wydzieleń (jeśli F_ARODES wybrane) i działek
-        (jeśli F_PARCEL wybrane) między wszystkimi bazami z self.lista.
-        Zwraca False i przerywa łączenie (bez możliwości kontynuowania),
-        jeśli znajdzie duplikaty - w przeciwieństwie do kontroli
-        słownikowej to kontrola blokująca."""
+        (jeśli F_PARCEL wybrane) między wszystkimi bazami z self.lista,
+        respektując wybór obrębów (self.obreby_wybrane). Zwraca False i
+        przerywa łączenie (bez możliwości kontynuowania), jeśli znajdzie
+        duplikaty - w przeciwieństwie do kontroli słownikowej to kontrola
+        blokująca."""
         katalog, _ = os.path.split(self.lista[0])
         if self.wybrane.get('f_arodes'):
-            if not self._sprawdz_i_zglos(
-                    _kontrola_duplikatow_wydzieln, katalog, 'wydzieleń'):
+            fn = (lambda k, s: _kontrola_duplikatow_wydzieln(
+                k, s, self.obreby_wybrane))
+            if not self._sprawdz_i_zglos(fn, katalog, 'wydzieleń'):
                 return False
         if self.wybrane.get('f_parcel'):
-            if not self._sprawdz_i_zglos(
-                    _kontrola_duplikatow_dzialek, katalog, 'działek'):
+            fn = (lambda k, s: _kontrola_duplikatow_dzialek(
+                k, s, self.obreby_wybrane))
+            if not self._sprawdz_i_zglos(fn, katalog, 'działek'):
                 return False
         return True
 
@@ -262,7 +331,9 @@ class PolaczBazy():
             self.postep.setValue(ust)
             baza_zrodlowa = Baza(bsc)
             if baza_zrodlowa.polacz():
-                lacz = Laczenie(self.baza0, baza_zrodlowa, self.wybrane)
+                lacz = Laczenie(
+                    self.baza0, baza_zrodlowa, self.wybrane,
+                    dozwolone_obreby=self.obreby_wybrane.get(bsc))
                 lacz.p_f_max()
                 lacz.p_f_arodes()
                 lacz.p_f_community()
@@ -318,10 +389,14 @@ class PolaczBazy():
 
 
 class Laczenie():
-    def __init__(self, baza0, baza, wybrane=None):
+    def __init__(self, baza0, baza, wybrane=None, dozwolone_obreby=None):
         self.baza0 = baza0  # baza docelowa
         self.baza = baza  # baza z ktorej kopiujemy
         self.wybrane = wybrane if wybrane is not None else rejestr_domyslny()
+        # None = brak filtra obrebow (wszystko dozwolone, zachowanie jak
+        # dotychczas); w przeciwnym razie zbior krotek (COUNTY_CD,
+        # DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD)
+        self.dozwolone_obreby = dozwolone_obreby
 
         # pola ktorych wartosci maksymalne musimy znac
         self.maxint = -1  # max arodes_intnum w bazie0
@@ -380,9 +455,17 @@ class Laczenie():
             arod_zrd = []
 
         sl_org_baza = {x[1] for x in arod_org}
+        dozwolone_arodes = self._dozwolone_arodes_wydziel()
+
         # tutaj napewno nie bedzie Wydzielen ale moga zdarzyc sie oddzialy,
         # obreby lub lesnictwa
         for it in arod_zrd:
+            # filtr obrebow dotyczy tylko wydzielen (WYDZIEL) - rekordy
+            # administracyjne (oddzial/lesnictwo/obreb lesny) nie maja
+            # odpowiednika w obrebie ewidencyjnym i nie sa filtrowane
+            if (dozwolone_arodes is not None and it[2] == 'WYDZIEL'
+                    and it[0] not in dozwolone_arodes):
+                continue
             if it[1] not in sl_org_baza:
                 self.maxint += 1
                 self.f_arodes.append([self.maxint] + list(it[1:]))
@@ -390,7 +473,24 @@ class Laczenie():
             else:
                 self.l_wpisanych_innych.append(it[1])
 
-    def _polacz_nadrzedna(self, definicja, licznik_poczatkowy):
+    def _dozwolone_arodes_wydziel(self):
+        """Zwraca zbiór starych ARODES_INT_NUM (z bazy źródłowej) typu
+        WYDZIEL, które mają >=1 użytek (F_AROD_LAND_USE) w wybranym
+        obrębie. None gdy brak filtra obrębów (wszystko dozwolone)."""
+        if self.dozwolone_obreby is None:
+            return None
+        sql = ('select l.ARODES_INT_NUM, p.COUNTY_CD, p.DISTRICT_CD, '
+               'p.MUNICIPALITY_CD, p.COMMUNITY_CD from (F_AROD_LAND_USE as l '
+               'inner join F_PARCEL as p on l.PARCEL_INT_NUM = p.PARCEL_INT_NUM);')
+        wynik = self.baza.pobierz(sql)
+        if wynik is False:
+            self.l_bledy_odczytu.append(
+                (self.baza.baza, 'F_AROD_LAND_USE/F_PARCEL',
+                 'Nie udało się zweryfikować obrębów wydzieleń'))
+            return set()
+        return {row[0] for row in wynik if tuple(row[1:5]) in self.dozwolone_obreby}
+
+    def _polacz_nadrzedna(self, definicja, licznik_poczatkowy, filtr_wiersza=None):
         """Generyczny odpowiednik p_f_arodes() dla nowych hierarchii kluczy
         surogatowych (F_PARCEL -> sl_parcel, V_ADDRESS -> sl_addr): jawna
         lista kolumn, opcjonalny dedup po kluczu naturalnym, renumeracja
@@ -408,6 +508,9 @@ class Laczenie():
                 (self.baza.baza, definicja.nazwa,
                  'Nie udało się odczytać tabeli (baza źródłowa)'))
             zrd = []
+
+        if filtr_wiersza is not None:
+            zrd = [w for w in zrd if filtr_wiersza(w)]
 
         istniejace = None
         if definicja.funkcja_klucza_dedup is not None:
@@ -441,9 +544,18 @@ class Laczenie():
         F_PARCEL_LAND_USE/V_PARCEL_PARTICIPATION/F_AROD_LAND_USE zależą od
         tych słowników."""
         if self.wybrane.get('f_parcel'):
+            filtr = None
+            if self.dozwolone_obreby is not None:
+                dozwolone = self.dozwolone_obreby
+
+                def filtr(w):
+                    return (w[2], w[3], w[4], w[5]) in dozwolone
             self.f_parcel_nowe, self.maxparcel = self._polacz_nadrzedna(
-                F_PARCEL_NADRZEDNA, self.maxparcel)
+                F_PARCEL_NADRZEDNA, self.maxparcel, filtr_wiersza=filtr)
         if self.wybrane.get('v_address'):
+            # V_ADDRESS nie ma pol COUNTY/DISTRICT/MUNICIPALITY/COMMUNITY -
+            # brak filtra obrebow, jego dzieci (V_PARCEL_PARTICIPATION) i tak
+            # zostana odfiltrowane przez brak dzialki w sl_parcel
             self.v_address_nowe, self.maxaddr = self._polacz_nadrzedna(
                 V_ADDRESS_NADRZEDNA, self.maxaddr)
 
@@ -465,6 +577,9 @@ class Laczenie():
                 (self.baza.baza, 'F_COMMUNITY',
                  'Nie udało się odczytać tabeli (baza źródłowa)'))
             zrd = []
+        if self.dozwolone_obreby is not None:
+            zrd = [w for w in zrd
+                   if F_COMMUNITY.funkcja_klucza_dedup(w) in self.dozwolone_obreby]
         istniejace = {F_COMMUNITY.funkcja_klucza_dedup(w) for w in org}
         self.f_community_nowe = [
             w for w in zrd if F_COMMUNITY.funkcja_klucza_dedup(w) not in istniejace]

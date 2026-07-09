@@ -35,6 +35,19 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
    .mdb) zamiast cichego korzystania z aktywnej warstwy i osobnego okna
    wyboru bazy
 
+3. NOWA FUNKCJA: "Połącz bazy TPU" (baza_polacz.py, baza_polacz_obreby_
+   dialog.py) - wybór obrębów do skopiowania osobno dla każdej bazy
+   źródłowej, przed wyborem grup tabel
+   - Nowy dialog: lista baz po lewej, lista obrębów (z checkboxami, domyślnie
+     wszystkie zaznaczone) wybranej bazy po prawej, przyciski "Zaznacz/
+     Odznacz wszystkie"
+   - Filtr obrębów obejmuje F_COMMUNITY, F_PARCEL oraz wydzielenia
+     (F_ARODES typu WYDZIEL, przez sprawdzenie użytków w F_AROD_LAND_USE) -
+     rekordy administracyjne (oddział/leśnictwo/obręb leśny) nie są
+     filtrowane, bo nie mają odpowiednika w obrębie ewidencyjnym
+   - Kontrola duplikatów (wydzieleń/działek) respektuje wybór obrębów - nie
+     blokuje łączenia duplikatem, który i tak nie zostanie skopiowany
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 

@@ -360,6 +360,19 @@ class Baza(object):
             return False
         return [tuple(x) for x in dz]
 
+    def pobierz_obreby(self):
+        """Zwraca listę krotek (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD,
+        COMMUNITY_CD, COMMUNITY_NAME) z F_COMMUNITY - do wypełnienia listy
+        wyboru obrębów przed łączeniem baz TPU. False przy błędzie/pustej
+        tabeli."""
+        sql = ('select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, '
+               'COMMUNITY_NAME from F_COMMUNITY order by COUNTY_CD, '
+               'DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD;')
+        ob = self.pobierz(sql)
+        if ob is False or len(ob) == 0:
+            return False
+        return [tuple(x) for x in ob]
+
     def pobierz_wydzielenia(self):
         """Metoda pobiera z bazy wsystkie wpisane wydzielenia wraz z
         odpowiadającymi im arodes_int_num'ami i zwraca je w postaci slownika"""
