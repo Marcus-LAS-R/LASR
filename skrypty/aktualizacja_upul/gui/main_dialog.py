@@ -42,10 +42,10 @@ from ... import kopie_manipulacyjne
 # Tablica zamiast if/elif — łatwiej dodać kolejną operację (gdyby kiedyś
 # pojawiła się F5: wystarczy importować moduł i dorzucić wpis).
 OPERATIONS = [
-    ("F1 — Aktualizacja +10 lat", f1_aktualizacja),
-    ("F2 — Uzupełnienie wymiarów d-stanu", f2_uzupelnienie),
-    ("F3 — Korekta masy wg zadrzewienia", f3_korekta_masy),
-    ("F4 — Korekta BHD < HEIGHT", f4_korekta_bhd),
+    ("Aktualizacja +10 lat", f1_aktualizacja),
+    ("Uzupełnienie wymiarów d-stanu", f2_uzupelnienie),
+    ("Korekta masy wg zadrzewienia", f3_korekta_masy),
+    ("Korekta BHD < HEIGHT", f4_korekta_bhd),
 ]
 
 

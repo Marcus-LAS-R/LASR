@@ -81,6 +81,14 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
    - Nowa sekcja w raporcie F4: "PART_CD NAPRAWIONE (PJD -> MSC)" z listą
      SPEC_STOR_INT_NUM/ARODES_INT_NUM
 
+6. POPRAWKA: "Aktualizacja bazy UPUL" — przyciski bez przedrostka F1-F4
+   (aktualizacja_upul/gui/main_dialog.py)
+   - Przyciski operacji pokazywały "F1 — Aktualizacja +10 lat", "F2 —
+     Uzupełnienie wymiarów d-stanu" itd. - przedrostek "F1/F2/F3/F4 — "
+     usunięty z etykiet (też z tytułów okien potwierdzenia/podsumowania,
+     które używają tej samej etykiety); kod operacji nadal używany
+     wewnętrznie (nazwy plików raportów, wpisy w historii wersji)
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 
