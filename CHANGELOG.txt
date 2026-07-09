@@ -98,6 +98,27 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      trybu (commit/dryrun) w nazwie; obie informacje zostają w nagłówku
      wewnątrz pliku ("Operacja: F4", "Tryb: COMMIT"/"DRY-RUN")
 
+8. NAPRAWA KRYTYCZNA: "Atlasuj automatycznie" i "Obszary do przeglądu
+   cięcia" — pętla nieskończona przy zbyt małym kaflu (kafelkowanie.py,
+   shp_atlasuj_auto.py, shp_obszary_ciecia.py, las_r.py)
+   - kafelkowanie.pokryj_kaflami() zawieszało się w nieskończoność (rosnąc
+     do kilkunastu GB pamięci), jeśli choć jedno wydzielenie miało
+     bounding box większy niż wybrany kafel (strona atlasu) - "kotwica"
+     nigdy nie zostawała w pełni pokryta, więc nigdy nie znikała z listy
+     nieobsłużonych i była wybierana w kółko. Odtworzone na realnych
+     danych: A4 pion + skala 1:5000 (kafel 900x1335m) z wydzieleniem o
+     bbox 589x1516m
+   - Dodana kontrola na wejściu do pokryj_kaflami(): jeśli którykolwiek
+     bbox przekracza kafel w którymkolwiek wymiarze, natychmiast zgłaszany
+     jest nowy wyjątek ObiektZaDuzy (z listą zbyt dużych obiektów) zamiast
+     wchodzenia w pętlę
+   - Oba skrypty używające pokryj_kaflami łapią teraz ten wyjątek i
+     pokazują czytelny komunikat (z sugestią zwiększenia skali/rozmiaru
+     strony) zamiast zawieszać QGIS-a
+   - Zweryfikowane na realnych danych (43 wydzielenia): błędny przypadek
+     zgłasza się natychmiast (0.0s) zamiast wisieć; domyślne ustawienia
+     (A4, skala 12000) dają 3 strony w ułamku sekundy, bez regresji
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 

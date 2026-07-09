@@ -78,8 +78,12 @@ class ObszaryCiecia:
             bboxy.append(
                 (bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
 
-        kafle = kafelkowanie.pokryj_kaflami(
-            bboxy, self.rozm[0], self.rozm[1])
+        try:
+            kafle = kafelkowanie.pokryj_kaflami(
+                bboxy, self.rozm[0], self.rozm[1])
+        except kafelkowanie.ObiektZaDuzy as e:
+            self.iface.messageBar().pushCritical('Obszary cięcia', str(e))
+            return False
 
         nowe = []
         for nr, (x0, y0, x1, y1) in enumerate(kafle, start=1):

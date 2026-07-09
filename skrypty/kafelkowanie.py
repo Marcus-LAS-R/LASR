@@ -9,6 +9,37 @@ Logika nie zależy od qgis.core - operuje na zwykłych krotkach
 """
 
 
+class ObiektZaDuzy(Exception):
+    """ Podnoszony przez pokryj_kaflami(), gdy bounding box choć jednego
+    obiektu (szerokość lub wysokość) jest większy niż podany kafel -
+    taki obiekt nigdy nie zmieści się w całości w jednym kaflu ustalonego
+    rozmiaru. Bez tej kontroli algorytm zapętlałby się w nieskończoność:
+    ten sam obiekt byłby wybierany jako "kotwica" w kółko, nigdy nie
+    zostając w pełni pokryty (a więc nigdy nie znikając z listy
+    nieobsłużonych) - patrz pokryj_kaflami().
+
+    Attributes:
+        zbyt_duze: lista (indeks_w_bboxy, szerokość, wysokość) obiektów
+            przekraczających rozmiar kafla.
+        kafel_w: szerokość kafla, z którym porównywano.
+        kafel_h: wysokość kafla, z którym porównywano.
+    """
+
+    def __init__(self, zbyt_duze, kafel_w, kafel_h):
+        self.zbyt_duze = zbyt_duze
+        self.kafel_w = kafel_w
+        self.kafel_h = kafel_h
+        najw_w = max(z[1] for z in zbyt_duze)
+        najw_h = max(z[2] for z in zbyt_duze)
+        super().__init__(
+            f"{len(zbyt_duze)} obiekt(y) nie mieszczą się w kaflu "
+            f"{kafel_w:.0f} x {kafel_h:.0f} m (największy: "
+            f"{najw_w:.0f} x {najw_h:.0f} m) - zwiększ skalę albo rozmiar "
+            f"strony, albo sprawdź czy to nie błędna geometria "
+            f"(np. rozjechany multipolygon)."
+        )
+
+
 def rozmiar_kafla_z_skali(papier_mm, skala, margines_mm=30):
     """ Rozmiar kafla w metrach [szer, wys] na podstawie formatu papieru
     w mm (np. A3 w poziomie = [420, 297]), skali mapy i marginesu
@@ -128,7 +159,20 @@ def pokryj_kaflami(bboxy, w, h):
 
     Zwraca listę kafli (xmin, ymin, xmax, ymax) w kolejności powstawania.
     Kafle mogą się nachodzić.
+
+    Raises:
+        ObiektZaDuzy: gdy choć jeden bbox z `bboxy` jest większy niż
+            kafel w x h (w którymkolwiek wymiarze) - patrz docstring
+            wyjątku, dlaczego to twardy błąd, a nie cichy fallback.
     """
+    zbyt_duze = [
+        (i, b[2] - b[0], b[3] - b[1])
+        for i, b in enumerate(bboxy)
+        if (b[2] - b[0]) > w or (b[3] - b[1]) > h
+    ]
+    if zbyt_duze:
+        raise ObiektZaDuzy(zbyt_duze, w, h)
+
     nieobsluzone = sorted(
         bboxy, key=lambda b: (-((b[1] + b[3]) / 2), (b[0] + b[2]) / 2))
 

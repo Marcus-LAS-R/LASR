@@ -1025,6 +1025,8 @@ class LasR:
         if not g.pobierz_dane():
             return
         ile = g.generuj_pola()
+        if ile is False:
+            return  # blad juz pokazany przez generuj_pola()
         if ile == 0:
             g.wyswietl_info(ile)
             return
