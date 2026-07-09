@@ -1,6 +1,40 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
+------------------------------------------------
+
+### Nowe funkcje
+
+1. NOWY: DOPISZ DANE DO WYDZIELEŃ (aktualizacja_upul/core/
+   dopisz_dane_wydzielen.py, aktualizacja_upul/gui/
+   dopisz_dane_wydzielen_dialog.py)
+   - Nowa pozycja menu "Dopisz dane do wydzieleń" w podmenu "Aktualizacja
+     UPUL" (po separatorze, na końcu podmenu)
+   - Odpowiednik "Join attributes by location" z QGIS Processing, ale
+     zapisujący wynik od razu do wskazanej warstwy docelowej zamiast
+     tworzyć nową warstwę
+   - Dialog: wybór warstwy źródłowej (punktowej, domyślnie warstwa z
+     "stare" w nazwie, np. WYDZ_PKT_stare) i docelowej (poligonowej,
+     domyślnie warstwa nazwana WYDZ), oraz dynamiczna lista pól warstwy
+     źródłowej z checkboxem "dopisz" i wyborem trybu per pole:
+     "Uzupełnij puste" albo "Nadpisz"
+   - Dopasowanie: punkt wewnątrz poligonu (przez indeks przestrzenny);
+     wydzielenia, w których trafi więcej niż jeden stary punkt (scalenie
+     kilku starych wydzieleń w jedno nowe), są pomijane i zgłaszane w
+     raporcie zamiast losowego wyboru
+   - Zaznaczone pole, którego nie ma w warstwie docelowej, jest pomijane
+     (nie jest automatycznie dodawane) i zgłaszane w raporcie
+   - Po uruchomieniu raport (okno tekstowe) z liczbą zaktualizowanych
+     wydzieleń, liczbą zmian per pole, listą pominiętych pól i listą
+     pominiętych wydzieleń ze scaleniem
+
+2. POPRAWKA: "Skasuj wydz w bazie [wydz]" (baza_usun_wydz.py) - dodano
+   dialog wyboru warstwy WYDZ (z TOC, domyślnie warstwa nazwana dokładnie
+   "WYDZ") i bazy Taksatora (z próbą automatycznego odgadnięcia pliku
+   .mdb) zamiast cichego korzystania z aktywnej warstwy i osobnego okna
+   wyboru bazy
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 
@@ -573,6 +607,58 @@ Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z B
      kontrole zwracają 0 błędów, łączna liczba błędnych wartości
      niezmieniona (10) względem stanu przed rozszerzeniem - brak regresji
      i brak nowych fałszywych alarmów
+
+24. POŁĄCZ BAZY TPU — WYBÓR OBRĘBÓW DO SKOPIOWANIA Z KAŻDEJ BAZY
+    (baza_polacz.py, baza_polacz_obreby_dialog.py,
+    ui/ui_baza_polacz_obreby.py, baza_wrapper.py)
+   - Nowy, nadrzędny krok przed wyborem grup tabel: dla każdej bazy
+     wejściowej osobno można wybrać, które obręby (klucz naturalny
+     COUNTY_CD+DISTRICT_CD+MUNICIPALITY_CD+COMMUNITY_CD z F_COMMUNITY/
+     F_PARCEL) mają zostać skopiowane - domyślnie wszystkie zaznaczone
+     (zachowanie identyczne jak dotychczas, gdy użytkownik nic nie zmieni)
+   - Filtr obejmuje wszystkie trzy grupy: F_COMMUNITY (Grupa 1), F_PARCEL
+     i jej dzieci (Grupa 2), oraz F_ARODES/wydzielenia i ich dzieci
+     (Grupa 3) - mimo że F_ARODES nie ma pól COUNTY/DISTRICT/MUNICIPALITY/
+     COMMUNITY (jego adres to inna, leśna hierarchia). Wydzielenie
+     (ARODES_TYP_CD='WYDZIEL') jest włączane, jeśli ma choć jeden użytek
+     (F_AROD_LAND_USE) w wybranym obrębie - zweryfikowane na realnych
+     bazach: 100% pokrycia mostu F_AROD_LAND_USE->F_PARCEL dla wydzieleń
+     we wszystkich dostępnych próbkach. Rekordy administracyjne (oddział/
+     leśnictwo/obręb leśny) nie są filtrowane - nie mają odpowiednika w
+     obrębie ewidencyjnym
+   - Dzięki istniejącemu mechanizmowi "pomiń wiersz-dziecko bez klucza
+     nadrzędnego w słowniku remapu" filtrowanie nie wymagało zmian w
+     F_PARCEL_LAND_USE/V_PARCEL_PARTICIPATION/F_SUBAREA/F_AROD_LAND_USE i
+     resztcie dzieci - tylko w 3 miejscach nadrzędnych (F_COMMUNITY,
+     F_PARCEL, F_ARODES)
+   - Blokująca kontrola duplikatów (wydzieleń i działek) też respektuje
+     wybór obrębów - duplikat dotyczący wyłącznie danych spoza wybranych
+     obrębów (i tak niekopiowanych) nie blokuje już łączenia
+   - Nowy dialog (wzorem już istniejącego w utworz_baze_z_BDL.py -
+     checkowalny QListWidget): lista baz po lewej, checkowalna lista
+     obrębów wybranej bazy po prawej, z przyciskami zaznacz/odznacz
+     wszystkie; stan zaznaczeń zachowany przy przełączaniu między bazami
+   - Zweryfikowane na kopiach realnych baz: zawężenie do 1 z 20 obrębów w
+     bazie źródłowej dało dokładnie oczekiwaną liczbę nowych wierszy
+     (10 działek, 8 wydzieleń = 8 + 197 rekordów administracyjnych w
+     F_ARODES, +1 użytek F_AROD_LAND_USE na wydzielenie średnio); zero
+     błędów integralności referencyjnej w bazie wynikowej; kontrola
+     duplikatów z rozłącznymi filtrami obrębów na dwóch kopiach tej samej
+     bazy poprawnie zwróciła 0 duplikatów (zamiast 5800 bez filtra), a z
+     tym samym obrębem w obu - poprawnie wykryła duplikaty tylko tego
+     obrębu (486 zamiast 5800); pełny przepływ end-to-end przez
+     PolaczBazy z zawężonym wyborem zakończony sukcesem, brak regresji
+     dla przypadku "wszystko zaznaczone"
+
+25. POŁĄCZ BAZY TPU — ROZPOZNAWANIE TYPU EKSPORTU W LIŚCIE BAZ
+    (baza_polacz_obreby_dialog.py)
+   - Lista baz po lewej stronie dialogu wyboru obrębów (#24) rozpoznaje
+     teraz przedrostki nazw plików używane przy eksporcie: "CALOSC_" (baza
+     wyeksportowana z całości) i "WYBRANE_" (baza wyeksportowana dla
+     wybranych obrębów) - wyświetla czytelną etykietę "[CAŁOŚĆ] ..."/
+     "[WYBRANE] ..." zamiast surowej nazwy pliku, rozpoznawanie
+     niewrażliwe na wielkość liter; nazwy bez rozpoznanego przedrostka
+     wyświetlane bez zmian. Czysto informacyjne - nie wpływa na łączenie
 
 ==============================
 

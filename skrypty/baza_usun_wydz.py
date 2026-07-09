@@ -1,12 +1,106 @@
-from qgis.core import Qgis, QgsMessageLog
-from PyQt5.QtWidgets import QMessageBox
+import os
+import glob
 
-from .baza_wrapper import Baza, znajdz_baze_do_wydz
+from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer
+from PyQt5.QtWidgets import (
+    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
+)
+
+from .baza_wrapper import Baza
 from . import kopie_manipulacyjne
 
 
+class _WyborDialog(QDialog):
+    """ Wybór warstwy WYDZ (z TOC) i bazy Taksatora przed usunięciem -
+    domyślnie ładuje warstwę nazwaną dokładnie "WYDZ", jeśli taka jest w
+    projekcie, i próbuje samodzielnie zgadnąć bazę leżącą dwa poziomy
+    wyżej (ten sam katalog, którego szukałaby stara wersja skryptu przez
+    baza_wrapper.znajdz_baze_do_wydz z poz=2). """
+
+    def __init__(self, iface):
+        super().__init__(iface.mainWindow())
+        self.setWindowTitle('Skasuj wydzielenia w bazie')
+        self.setMinimumWidth(480)
+
+        self._warstwy = [
+            lyr for lyr in QgsProject.instance().mapLayers().values()
+            if isinstance(lyr, QgsVectorLayer)
+        ]
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(
+            'Wydzielenia, których nie ma już w zaznaczonej warstwie, '
+            'zostaną trwale usunięte z bazy.'
+        ))
+
+        warstwa_row = QHBoxLayout()
+        warstwa_row.addWidget(QLabel('Warstwa WYDZ:'))
+        self.combo_warstwa = QComboBox()
+        self.combo_warstwa.addItems([lyr.name() for lyr in self._warstwy])
+        warstwa_row.addWidget(self.combo_warstwa, 1)
+        layout.addLayout(warstwa_row)
+
+        baza_row = QHBoxLayout()
+        baza_row.addWidget(QLabel('Baza Taksatora:'))
+        self.edit_baza = QLineEdit()
+        baza_row.addWidget(self.edit_baza, 1)
+        przegladaj_btn = QPushButton('Wybierz…')
+        przegladaj_btn.clicked.connect(self._wybierz_baze)
+        baza_row.addWidget(przegladaj_btn)
+        layout.addLayout(baza_row)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        if self._warstwy:
+            indeks = next(
+                (i for i, lyr in enumerate(self._warstwy)
+                 if lyr.name().upper() == 'WYDZ'), 0)
+            self.combo_warstwa.setCurrentIndex(indeks)
+
+        self.combo_warstwa.currentIndexChanged.connect(self._zgadnij_baze)
+        self._zgadnij_baze()
+
+    def _zgadnij_baze(self):
+        lyr = self.warstwa()
+        if lyr is None:
+            return
+        try:
+            sc = lyr.dataProvider().dataSourceUri().split('|')[0]
+            kat = os.path.dirname(sc)
+            poziom = '..' if lyr.name().upper() == 'ODDZ' else os.path.join('..', '..')
+            kandydaci = glob.glob(os.path.join(kat, poziom, '*.mdb'))
+        except Exception:
+            kandydaci = []
+        if len(kandydaci) == 1:
+            self.edit_baza.setText(os.path.abspath(kandydaci[0]))
+
+    def _wybierz_baze(self):
+        kat_start = os.path.dirname(self.edit_baza.text().strip())
+        sc, _ = QFileDialog.getOpenFileName(
+            self, 'Wskaż bazę Taksatora', kat_start,
+            'Access MDB (*.mdb);;SQLite (*.sqlite)')
+        if sc:
+            self.edit_baza.setText(sc)
+
+    def warstwa(self):
+        i = self.combo_warstwa.currentIndex()
+        return self._warstwy[i] if 0 <= i < len(self._warstwy) else None
+
+    def baza_sc(self):
+        return self.edit_baza.text().strip() or None
+
+
 def usun_wydz(iface):
-    lyr = iface.activeLayer()
+    dlg = _WyborDialog(iface)
+    if dlg.exec_() != QDialog.Accepted:
+        return False
+
+    lyr = dlg.warstwa()
 
     if lyr is None or not lyr.isValid():
         iface.messageBar().pushMessage(
@@ -16,13 +110,13 @@ def usun_wydz(iface):
 
     if "ADR_LES" not in [x.name() for x in lyr.fields()]:
         iface.messageBar().pushMessage(
-            "BŁĄD", "W zaznaczonej warstwie brakuje kolumny ADR_LES",
+            "BŁĄD", "W wybranej warstwie brakuje kolumny ADR_LES",
             Qgis.Critical, 10
         )
         return False
 
-    baza_sc = znajdz_baze_do_wydz(iface, lyr)
-    if baza_sc is False:
+    baza_sc = dlg.baza_sc()
+    if not baza_sc:
         iface.messageBar().pushMessage(
             "BRAK BAZY", "Bez bazy ani rusz!", Qgis.Critical, 10
         )

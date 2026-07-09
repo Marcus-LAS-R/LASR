@@ -438,7 +438,7 @@ class LasR:
         self.dolit.triggered.connect(self.doliterkuj_wydzielenia)
 
         self.kasr = QAction(
-            QIcon(None), "Skasuj wydz w bazie [wydz]", self.iface.mainWindow()
+            QIcon(None), "Skasuj wydz w bazie", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.kasr)
         self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
@@ -503,6 +503,14 @@ class LasR:
         )
         self.m_aktualizacja_upul.addAction(self.a_utworz_baze_bdl)
         self.a_utworz_baze_bdl.triggered.connect(self.utworz_baze_bdl)
+
+        self.m_aktualizacja_upul.addSeparator()
+
+        self.a_dopisz_dane_wydz = QAction(
+            QIcon(None), "Dopisz dane do wydzieleń", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
+        self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
         # ----------------------------------------
 
         self.spr_odl_wydz = QAction(
@@ -1141,21 +1149,25 @@ class LasR:
     def utworz_baze_bdl(self):
         utworz_baze_z_BDL.uruchom(self.iface)
 
+    def dopisz_dane_do_wydzielen(self):
+        aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)
+
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)
         if p.pobierz_katalog():
-            if p.wybierz_grupy():
-                if p.kontrola_duplikatow():
-                    if p.kontrola_wstepna():
-                        if p.stworz_docelowa():
-                            p.kopiuj()
-                            # try:
-                            #     p.kopiuj()
-                            # except Exception:
-                            #     self.iface.messageBar().clearWidgets()
-                            #     self.iface.messageBar().pushMessage(
-                            #         'Błąd', 'Coś się wysypało - krytycznie',
-                            #         Qgis.Critical, 0)
+            if p.wybierz_obreby():
+                if p.wybierz_grupy():
+                    if p.kontrola_duplikatow():
+                        if p.kontrola_wstepna():
+                            if p.stworz_docelowa():
+                                p.kopiuj()
+                                # try:
+                                #     p.kopiuj()
+                                # except Exception:
+                                #     self.iface.messageBar().clearWidgets()
+                                #     self.iface.messageBar().pushMessage(
+                                #         'Błąd', 'Coś się wysypało - krytycznie',
+                                #         Qgis.Critical, 0)
 
     def kontrola_slownikow_bazy(self):
         baza_kontrola_slownikow_wgSULMN.KontrolaSlownikow(self.iface)

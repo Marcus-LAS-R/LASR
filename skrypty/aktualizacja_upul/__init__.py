@@ -3,6 +3,7 @@ import os
 from .core.config import Config
 from .gui.main_dialog import MainDialog
 from .gui.konwersja_shp_dialog import KonwersjaShpDialog
+from .gui.dopisz_dane_wydzielen_dialog import DopiszDaneWydzielenDialog
 
 
 def uruchom(iface):
@@ -28,4 +29,15 @@ def uruchom_konwersja_shp(iface):
     TOC bieżącego projektu i/lub plikach wskazanych ręcznie w dialogu.
     """
     dialog = KonwersjaShpDialog(parent=iface.mainWindow())
+    dialog.exec_()
+
+
+def uruchom_dopisz_dane_wydzielen(iface):
+    """Dopisz dane do wydzieleń - odpowiednik "Join attributes by
+    location", zapisujący wynik od razu do wskazanej warstwy WYDZ.
+
+    Osobna pozycja menu — działa na warstwach z TOC bieżącego projektu,
+    nie wymaga pliku .mdb.
+    """
+    dialog = DopiszDaneWydzielenDialog(parent=iface.mainWindow())
     dialog.exec_()
