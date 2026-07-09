@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(560, 538)
+        Dialog.resize(560, 566)
         font = QtGui.QFont()
         font.setFamily("Arial")
         Dialog.setFont(font)
@@ -82,8 +82,19 @@ class Ui_Dialog(object):
         self.checkBox_utworz_shp.setChecked(True)
         self.checkBox_utworz_shp.setObjectName("checkBox_utworz_shp")
 
+        self.checkBox_dopisz_td = QtWidgets.QCheckBox(Dialog)
+        self.checkBox_dopisz_td.setGeometry(QtCore.QRect(20, 480, 420, 22))
+        self.checkBox_dopisz_td.setFont(font)
+        self.checkBox_dopisz_td.setChecked(True)
+        self.checkBox_dopisz_td.setObjectName("checkBox_dopisz_td")
+
+        self.pushButton_slownik_td = QtWidgets.QPushButton(Dialog)
+        self.pushButton_slownik_td.setGeometry(QtCore.QRect(445, 478, 95, 24))
+        self.pushButton_slownik_td.setFont(font)
+        self.pushButton_slownik_td.setObjectName("pushButton_slownik_td")
+
         self.pushButton_ok = QtWidgets.QPushButton(Dialog)
-        self.pushButton_ok.setGeometry(QtCore.QRect(20, 484, 250, 34))
+        self.pushButton_ok.setGeometry(QtCore.QRect(20, 512, 250, 34))
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
@@ -94,7 +105,7 @@ class Ui_Dialog(object):
         self.pushButton_ok.setObjectName("pushButton_ok")
 
         self.pushButton_cancel = QtWidgets.QPushButton(Dialog)
-        self.pushButton_cancel.setGeometry(QtCore.QRect(290, 484, 250, 34))
+        self.pushButton_cancel.setGeometry(QtCore.QRect(290, 512, 250, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
         font_cancel.setPointSize(8)
@@ -124,5 +135,11 @@ class Ui_Dialog(object):
             "Obręb - do dopisania (domyślnie zaznaczone tylko te z warstwy OBR):"))
         self.checkBox_utworz_shp.setText(_translate(
             "Dialog", "Utwórz SHP z wybranych (wybrane_BDL.shp)"))
+        self.checkBox_dopisz_td.setText(_translate(
+            "Dialog",
+            "Dopisz TD (typ drzewostanu docelowego wg typu siedliskowego lasu)"))
+        self.pushButton_slownik_td.setText(_translate("Dialog", "Słownik"))
+        self.pushButton_slownik_td.setToolTip(_translate(
+            "Dialog", "Pokaż i edytuj słownik TD"))
         self.pushButton_ok.setText(_translate("Dialog", "Utwórz bazę"))
         self.pushButton_cancel.setText(_translate("Dialog", "Porzuć"))

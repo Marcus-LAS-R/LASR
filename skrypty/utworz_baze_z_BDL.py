@@ -19,6 +19,8 @@ from qgis.core import (
 
 from .baza_wrapper import Baza
 from .baza_dopisz_wydz import DopiszWydzielenia
+from . import td_slownik
+from .td_slownik_dialog import TdSlownikDialog
 from .ui.ui_utworz_baze_z_BDL import Ui_Dialog
 
 # litera wojewodztwa (COUNTY_L, pierwszy znak ADR_LES) -> 2-cyfrowy kod
@@ -350,57 +352,20 @@ def _zbuduj_f_arod_stand_pec_wiersz():
 
 # ---------------------------------------------------------------------
 # F_AROD_GOAL - typ drzewostanu docelowego (TD) wg typu siedliskowego lasu
-# (TSL) - tabela dostarczona przez uzytkownika (materialy/TSL_slownik.jpg).
+# (TSL) - slownik w td_slownik.py (domyslny TPU, edytowalny przez
+# TdSlownikDialog, zapisywany w QSettings - patrz ten modul).
 # GOAL_SPECIES_PERC celowo NIE jest uzupelniane (brak w BDL zrodla podzialu
 # procentowego miedzy gatunki celu) - kolumna zostaje NULL dla wszystkich
-# wierszy. GOAL_RANK_ORDER wg kolejnosci w krotce (pierwszy gatunek =
-# panujacy). GOAL_TYPE_FL zawsze 'D' - jedyna obserwowana wartosc w
-# probkach baz (patrz baza_kontrola_slownikow_wgSULMN._WHITELIST_GOAL_TYPE_FL)
+# wierszy. GOAL_RANK_ORDER wg kolejnosci gatunkow w slowniku (pierwszy
+# gatunek = panujacy). GOAL_TYPE_FL zawsze 'D' - jedyna obserwowana wartosc
+# w probkach baz (patrz baza_kontrola_slownikow_wgSULMN._WHITELIST_GOAL_TYPE_FL)
 # ---------------------------------------------------------------------
 
-_TD_WG_TSL = {
-    'BB': ('SO',),
-    'BGB': ('ŚW',),
-    'BMB': ('SO',),
-    'BGŚW': ('ŚW',),
-    'BMGB': ('ŚW',),
-    'BMGŚW': ('ŚW',),
-    'BMGW': ('ŚW',),
-    'BMŚW': ('SO',),
-    'BMW': ('SO',),
-    'BMWYZŚW': ('JD', 'SO'),
-    'BMWYZW': ('JD', 'BK'),
-    'BS': ('SO',),
-    'BŚW': ('SO',),
-    'BW': ('SO',),
-    'BWG': ('ŚW',),
-    'LGŚW': ('ŚW', 'JD', 'BK'),
-    'LGW': ('JD',),
-    'LŁ': ('JS', 'DB'),
-    'LŁG': ('JS', 'OL'),
-    'LŁWYZ': ('OL',),
-    'LMB': ('OL',),
-    'LMGŚW': ('ŚW', 'BK', 'JD'),
-    'LMGW': ('ŚW', 'BK', 'JD'),
-    'LMŚW': ('SO', 'DB'),
-    'LMW': ('SO', 'JD'),
-    'LMWYZŚW': ('SO', 'JD', 'BK'),
-    'LMWYZW': ('DB', 'SO'),
-    'LŚW': ('DB',),
-    'LW': ('DB',),
-    'LWYZŚW': ('JD', 'BK'),
-    'LWYZW': ('BK', 'JD'),
-    'OL': ('OL',),
-    'OLJ': ('JS', 'OL'),
-    'OLJG': ('JS', 'OL'),
-    'OLJWYZ': ('ŚW',),
-}
-
-
-def _zbuduj_f_arod_goal_wiersze(site_type_cd):
+def _zbuduj_f_arod_goal_wiersze(site_type_cd, slownik_td):
     """ Zwraca liste wierszy do wpisania do F_AROD_GOAL na podstawie
-    _TD_WG_TSL - pusta lista gdy TSL nierozpoznany albo brak. """
-    gatunki = _TD_WG_TSL.get(site_type_cd)
+    slownik_td ({tsl: [gatunek, ...]}) - pusta lista gdy TSL nierozpoznany,
+    slownik_td pusty (checkbox "Dopisz TD" odznaczony) albo brak. """
+    gatunki = slownik_td.get(site_type_cd)
     if not gatunki:
         return []
     return [
@@ -609,6 +574,7 @@ class _Dialog(QDialog):
         self.ui.lineEdit_obr.textChanged.connect(self._na_zmiane_obr)
         self.ui.listWidget_wlasnosc.itemChanged.connect(self._aktualizuj)
         self.ui.listWidget_obreb.itemChanged.connect(self._aktualizuj)
+        self.ui.pushButton_slownik_td.clicked.connect(self._pokaz_slownik_td)
         self.ui.pushButton_ok.clicked.connect(self.accept)
         self.ui.pushButton_cancel.clicked.connect(self.reject)
 
@@ -714,6 +680,12 @@ class _Dialog(QDialog):
     def utworz_shp(self):
         return self.ui.checkBox_utworz_shp.isChecked()
 
+    def dopisz_td(self):
+        return self.ui.checkBox_dopisz_td.isChecked()
+
+    def _pokaz_slownik_td(self):
+        TdSlownikDialog(self).exec_()
+
     def wlasnosci_wybrane(self):
         lista = self.ui.listWidget_wlasnosc
         return {
@@ -741,11 +713,12 @@ def uruchom(iface):
 
     return UtworzBazeZBDL(
         iface, dlg.folder(), dlg.baza_sc(), dlg.obr_sc(),
-        dlg.wlasnosci_wybrane(), dlg.obreby_wybrane(), dlg.utworz_shp())
+        dlg.wlasnosci_wybrane(), dlg.obreby_wybrane(), dlg.utworz_shp(),
+        dlg.dopisz_td())
 
 
 def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
-                    utworz_shp):  # noqa
+                    utworz_shp, dopisz_td=True):  # noqa
     """ Zamienia folder wyjsciowy pobierz_BDL.py (SHP/wszystko_BDL.shp +
     XLSX-y z opisami) w gotowe wiersze w czystej bazie Access wskazanej
     przez uzytkownika - F_ARODES (nowa hierarchia obreb/lesnictwo/oddzial/
@@ -862,6 +835,8 @@ def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
     bledy_zapisu = 0
     zapisano = 0
     community_dopisane = 0
+    td_dopisane = 0
+    slownik_td = td_slownik.wczytaj() if dopisz_td else {}
     if odp == QMessageBox.Yes and do_dopisania:
         community_dopisane = _dopisz_brakujace_community(
             baza, _potrzebne_community(do_dopisania, nazwy_obr))
@@ -944,14 +919,17 @@ def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
             ]):
                 bledy_zapisu += 1
 
-            for cel in _zbuduj_f_arod_goal_wiersze(subarea['SITE_TYPE_CD']):
-                if not baza.wpisz_tab([
+            for cel in _zbuduj_f_arod_goal_wiersze(
+                    subarea['SITE_TYPE_CD'], slownik_td):
+                if baza.wpisz_tab([
                     'INSERT INTO F_AROD_GOAL (GOAL_TYPE_FL, ARODES_INT_NUM, '
                     'SPECIES_CD, GOAL_RANK_ORDER, GOAL_SPECIES_PERC) '
                     'VALUES (?,?,?,?,?)',
                     (cel['GOAL_TYPE_FL'], nowy_int, cel['SPECIES_CD'],
                      cel['GOAL_RANK_ORDER'], cel['GOAL_SPECIES_PERC']),
                 ]):
+                    td_dopisane += 1
+                else:
                     bledy_zapisu += 1
 
             zapisano += 1
@@ -967,6 +945,8 @@ def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
         str(len(do_dopisania)) + ' do dopisania\n'
         'Dopisano brakujących obrębów do F_COMMUNITY: ' +
         str(community_dopisane) + '\n'
+        'Dopisano wierszy TD (F_AROD_GOAL): ' + str(td_dopisane) +
+        (' (wyłączone)' if not dopisz_td else '') + '\n'
         'Błędy zapisu (pól/tabel): ' + str(bledy_zapisu) + '\n'
     )
     if sciezka_wybrane_shp:

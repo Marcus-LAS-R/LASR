@@ -48,13 +48,23 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
    - Kontrola duplikatów (wydzieleń/działek) respektuje wybór obrębów - nie
      blokuje łączenia duplikatem, który i tak nie zostanie skopiowany
 
-4. POPRAWKA: "Utwórz bazę z BDL" (utworz_baze_z_BDL.py) - automatyczne
+4. POPRAWKA: "Utwórz bazę z BDL" (utworz_baze_z_BDL.py, td_slownik.py,
+   td_slownik_dialog.py, ui/ui_td_slownik_dialog.py) - automatyczne
    uzupełnianie typu drzewostanu docelowego (F_AROD_GOAL) na podstawie
-   typu siedliskowego lasu (F_SUBAREA.SITE_TYPE_CD) i zaszytego w skrypcie
-   słownika TSL -> gatunki docelowe; GOAL_RANK_ORDER wg kolejności w
-   słowniku (pierwszy gatunek = panujący), GOAL_TYPE_FL zawsze 'D',
-   GOAL_SPECIES_PERC celowo nieuzupełniane (brak w BDL źródła podziału
-   procentowego)
+   typu siedliskowego lasu (F_SUBAREA.SITE_TYPE_CD) i słownika TSL ->
+   gatunki docelowe; GOAL_RANK_ORDER wg kolejności gatunków w słowniku
+   (pierwszy = panujący), GOAL_TYPE_FL zawsze 'D', GOAL_SPECIES_PERC celowo
+   nieuzupełniane (brak w BDL źródła podziału procentowego)
+   - Nowy checkbox "Dopisz TD" w dialogu (domyślnie zaznaczony) - pozwala
+     wyłączyć tę automatykę dla danego uruchomienia
+   - Przycisk "Słownik" obok (tooltip "Pokaż i edytuj słownik TD") otwiera
+     nowy dialog z edytowalną tabelą TSL -> gatunki docelowe (dodawanie/
+     usuwanie wierszy, gatunki oddzielane spacją, kolejność = ważność)
+   - "Zapisz" zapisuje zmiany w QSettings (LAS_R/UtworzBazaZBDL) - przeżywają
+     restart QGIS-a i aktualizacje wtyczki; "Resetuj" (tooltip "Przywróć
+     słownik domyślny TPU") usuwa zapis użytkownika i przywraca domyślny
+     słownik TPU (materialy/TSL_slownik.jpg) - ten pozostaje nienaruszalną
+     stałą w kodzie (td_slownik.DOMYSLNY), nigdy nie jest nadpisywany
 
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
