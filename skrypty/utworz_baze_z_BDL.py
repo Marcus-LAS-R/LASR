@@ -95,6 +95,12 @@ def _klucz_aint(wartosc):
         return None
 
 
+def _napraw_part_cd(wartosc):
+    """ BDL zwraca "PJD" (pojedynczo) jako PART_CD - w bazie TPU ten sam
+    przypadek zapisuje sie jako "MSC". """
+    return 'MSC' if wartosc == 'PJD' else wartosc
+
+
 # ---------------------------------------------------------------------
 # odczyt XLSX (openpyxl - nie pandas, jak w reszcie wtyczki)
 # ---------------------------------------------------------------------
@@ -333,7 +339,7 @@ def _zbuduj_f_storey_species_wiersze(aint, ls_by_aint):
             'STOREY_CD': _wyczysc_kod(w.get('storey_cd')),
             'SPECIES_RANK_ORDER': kolej + 1 if kolej is not None else None,
             'SPECIES_CD': _wyczysc_kod(w.get('species_cd')),
-            'PART_CD': _wyczysc_kod(w.get('part_cd')),
+            'PART_CD': _napraw_part_cd(_wyczysc_kod(w.get('part_cd'))),
             'SPECIES_AGE': _do_int(w.get('species_age')),
             'BHD': _do_int(w.get('bhd')),
             'HEIGHT': _do_int(w.get('height')),

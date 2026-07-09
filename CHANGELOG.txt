@@ -65,6 +65,9 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      słownik domyślny TPU") usuwa zapis użytkownika i przywraca domyślny
      słownik TPU (materialy/TSL_slownik.jpg) - ten pozostaje nienaruszalną
      stałą w kodzie (td_slownik.DOMYSLNY), nigdy nie jest nadpisywany
+   - Naprawiony zapis F_STOREY_SPECIES.PART_CD: BDL zwraca "PJD"
+     (pojedynczo) - w bazie TPU ten sam przypadek zapisuje się jako "MSC",
+     więc wartość jest teraz tłumaczona przy imporcie
 
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
