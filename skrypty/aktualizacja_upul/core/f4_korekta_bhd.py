@@ -1,4 +1,5 @@
-"""F4 — Korekta `BHD < HEIGHT` (pierśnica nie może być mniejsza od wysokości).
+"""F4 — Korekta `BHD < HEIGHT` (pierśnica nie może być mniejsza od wysokości)
+oraz naprawa `F_STOREY_SPECIES.PART_CD = 'PJD'` -> `'MSC'`.
 
 Cel operacji
 ------------
@@ -18,20 +19,32 @@ po pomiarach. F4 je wykrywa i koryguje:
    `config.f4_fallback_bhd_equals_height` (D4.1 — domyślnie True).
    Inaczej tylko raport, bez UPDATE.
 
-Filtr operacji
---------------
+Filtr operacji (korekta BHD)
+----------------------------
 * `STOREY_CD = 'DRZEW'`
 * `PART_CD ∈ 1..10`
 * `BHD IS NOT NULL AND HEIGHT IS NOT NULL AND BHD < HEIGHT`
   (filtr na poziomie SQL — od razu wycina rekordy poprawne, brak
   marnowania pamięci na wczytywanie zdrowych danych).
 
+Filtr operacji (naprawa PART_CD)
+---------------------------------
+* `PART_CD = 'PJD'` — bez filtra STOREY_CD/BHD/HEIGHT, niezależnie od
+  powyższego.
+
 D4.2 — odrzucamy obecną w starym kodzie logikę „HEIGHT + offset wg klasy
 wiekowej". Nie ma jej w instrukcji.
 
+Druga, niezależna faza tej samej operacji: import z Banku Danych o Lasach
+(zobacz utworz_baze_z_BDL.py) zapisuje `PART_CD='PJD'` (pojedynczo), ale w
+bazie TPU ten sam przypadek zapisuje się jako `'MSC'`. F4 naprawia to przy
+okazji dla WSZYSTKICH wierszy `F_STOREY_SPECIES` z `PART_CD='PJD'`,
+niezależnie od filtra BHD<HEIGHT powyżej (inna kolumna, inny cel).
+
 Wynik
 -----
-Pole zmieniane: `BHD` (tylko dla rekordów wchodzących pod filtr).
+Pola zmieniane: `BHD` (rekordy wchodzące pod filtr BHD<HEIGHT) i `PART_CD`
+(rekordy z wartością 'PJD').
 """
 
 from .formula import parse_part_cd
@@ -68,10 +81,16 @@ def run(conn, config, mdb_path, dry_run, user_note=""):
           dodawanie do planu (nie generujemy zbędnych UPDATE-ów).
        e. Inaczej do `plan`: `[("BHD", bhd, new_bhd)]`.
 
-    4. **Dry-run**: tylko liczniki + raport.
+    4. **PART_CD**: osobny, niezależny SELECT `WHERE PART_CD = 'PJD'` (cała
+       tabela, bez filtra STOREY_CD/BHD/HEIGHT) - każdy trafiony wiersz
+       dokłada do tego samego `plan`: `[("PART_CD", 'PJD', 'MSC')]`.
 
-    5. **Commit**: standardowy flow z `VersionManager` — per wpis JEDEN
-       UPDATE i JEDEN snapshot (F4 zmienia tylko jedną kolumnę).
+    5. **Dry-run**: tylko liczniki + raport.
+
+    6. **Commit**: standardowy flow z `VersionManager` — per wpis JEDEN
+       UPDATE i JEDEN snapshot (każdy wpis planu zmienia jedną kolumnę,
+       BHD albo PART_CD, nigdy obie naraz - rekord z PART_CD='PJD' jest
+       poza filtrem `parse_part_cd` więc nie trafia do planu BHD).
 
     Args:
         conn: Połączenie do MDB.
@@ -139,6 +158,17 @@ def run(conn, config, mdb_path, dry_run, user_note=""):
             continue
 
         plan.append({"pk": pk, "changes": [("BHD", bhd, new_bhd)]})
+
+    # Faza 2 (niezalezna od filtra BHD<HEIGHT powyzej): PART_CD='PJD' ->
+    # 'MSC' - import z BDL zapisuje 'PJD' (pojedynczo), baza TPU oczekuje
+    # 'MSC' dla tego samego przypadku.
+    cursor.execute(
+        f"SELECT {PK}, ARODES_INT_NUM FROM {fss} WHERE PART_CD = 'PJD'"
+    )
+    for pk, arodes in cursor.fetchall():
+        report.processed += 1
+        report.part_cd_fixed.append({"pk_value": pk, "arodes_int_num": arodes})
+        plan.append({"pk": pk, "changes": [("PART_CD", "PJD", "MSC")]})
 
     if dry_run:
         report.changed = len(plan)

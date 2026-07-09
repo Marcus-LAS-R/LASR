@@ -69,6 +69,18 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      (pojedynczo) - w bazie TPU ten sam przypadek zapisuje się jako "MSC",
      więc wartość jest teraz tłumaczona przy imporcie
 
+5. POPRAWKA: "Aktualizacja bazy UPUL" — F4 (aktualizacja_upul/core/
+   f4_korekta_bhd.py, reporting.py) - ta sama naprawa PART_CD "PJD" ->
+   "MSC" dołączona do operacji F4, dla baz, które mają już wpisane "PJD"
+   sprzed tej poprawki w utworz_baze_z_BDL.py (albo z innego źródła importu)
+   - Nowa, niezależna faza: SELECT wszystkich wierszy F_STOREY_SPECIES z
+     PART_CD='PJD' (bez filtra STOREY_CD/BHD/HEIGHT używanego przez korektę
+     BHD) - każdy taki wiersz dostaje PART_CD='MSC'
+   - Wpięta w ten sam plan/wersjonowanie co korekta BHD (jeden wpis w
+     historii wersji per uruchomienie F4, rollback obejmuje obie naprawy)
+   - Nowa sekcja w raporcie F4: "PART_CD NAPRAWIONE (PJD -> MSC)" z listą
+     SPEC_STOR_INT_NUM/ARODES_INT_NUM
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 

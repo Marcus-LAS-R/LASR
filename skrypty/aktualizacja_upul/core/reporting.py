@@ -60,6 +60,7 @@ class Report:
         self.skipped = []
         self.fallback_ones = []
         self.anomaly_bhd = []
+        self.part_cd_fixed = []
         self.version_id = None
         self.report_path = None
 
@@ -151,6 +152,14 @@ class Report:
                         f"{r['pk_value']}\t"
                         f"{r['arodes_int_num'] if r['arodes_int_num'] is not None else ''}\t"
                         f"{r['bhd']}\t{r['height']}\t{r['candidate']}\n"
+                    )
+            if self.part_cd_fixed:
+                f.write("\n=== PART_CD NAPRAWIONE (PJD -> MSC) ===\n")
+                f.write("SPEC_STOR_INT_NUM\tARODES_INT_NUM\n")
+                for r in self.part_cd_fixed:
+                    f.write(
+                        f"{r['pk_value']}\t"
+                        f"{r['arodes_int_num'] if r['arodes_int_num'] is not None else ''}\n"
                     )
         self.report_path = path
         return path
