@@ -33,7 +33,7 @@ _SL_WOJ = {
 
 _WYMAGANE_TABELE = [
     'F_ARODES', 'F_SUBAREA', 'F_AROD_STOREY', 'F_STOREY_SPECIES',
-    'F_AROD_STAND_PEC', 'F_COMMUNITY',
+    'F_AROD_STAND_PEC', 'F_AROD_GOAL', 'F_COMMUNITY',
 ]
 
 _WYMAGANE_XLSX = [
@@ -346,6 +346,68 @@ def _zbuduj_f_arod_stand_pec_wiersz():
     """ Stala wartosc - jak oryginalna kwerenda (zawsze drzewostan
     naturalny). """
     return {'FOREST_PEC_CD': 'DRZ NAT', 'PEC_RANK_ORDER': '1'}
+
+
+# ---------------------------------------------------------------------
+# F_AROD_GOAL - typ drzewostanu docelowego (TD) wg typu siedliskowego lasu
+# (TSL) - tabela dostarczona przez uzytkownika (materialy/TSL_slownik.jpg).
+# GOAL_SPECIES_PERC celowo NIE jest uzupelniane (brak w BDL zrodla podzialu
+# procentowego miedzy gatunki celu) - kolumna zostaje NULL dla wszystkich
+# wierszy. GOAL_RANK_ORDER wg kolejnosci w krotce (pierwszy gatunek =
+# panujacy). GOAL_TYPE_FL zawsze 'D' - jedyna obserwowana wartosc w
+# probkach baz (patrz baza_kontrola_slownikow_wgSULMN._WHITELIST_GOAL_TYPE_FL)
+# ---------------------------------------------------------------------
+
+_TD_WG_TSL = {
+    'BB': ('SO',),
+    'BGB': ('ŚW',),
+    'BMB': ('SO',),
+    'BGŚW': ('ŚW',),
+    'BMGB': ('ŚW',),
+    'BMGŚW': ('ŚW',),
+    'BMGW': ('ŚW',),
+    'BMŚW': ('SO',),
+    'BMW': ('SO',),
+    'BMWYZŚW': ('JD', 'SO'),
+    'BMWYZW': ('JD', 'BK'),
+    'BS': ('SO',),
+    'BŚW': ('SO',),
+    'BW': ('SO',),
+    'BWG': ('ŚW',),
+    'LGŚW': ('ŚW', 'JD', 'BK'),
+    'LGW': ('JD',),
+    'LŁ': ('JS', 'DB'),
+    'LŁG': ('JS', 'OL'),
+    'LŁWYZ': ('OL',),
+    'LMB': ('OL',),
+    'LMGŚW': ('ŚW', 'BK', 'JD'),
+    'LMGW': ('ŚW', 'BK', 'JD'),
+    'LMŚW': ('SO', 'DB'),
+    'LMW': ('SO', 'JD'),
+    'LMWYZŚW': ('SO', 'JD', 'BK'),
+    'LMWYZW': ('DB', 'SO'),
+    'LŚW': ('DB',),
+    'LW': ('DB',),
+    'LWYZŚW': ('JD', 'BK'),
+    'LWYZW': ('BK', 'JD'),
+    'OL': ('OL',),
+    'OLJ': ('JS', 'OL'),
+    'OLJG': ('JS', 'OL'),
+    'OLJWYZ': ('ŚW',),
+}
+
+
+def _zbuduj_f_arod_goal_wiersze(site_type_cd):
+    """ Zwraca liste wierszy do wpisania do F_AROD_GOAL na podstawie
+    _TD_WG_TSL - pusta lista gdy TSL nierozpoznany albo brak. """
+    gatunki = _TD_WG_TSL.get(site_type_cd)
+    if not gatunki:
+        return []
+    return [
+        {'GOAL_TYPE_FL': 'D', 'SPECIES_CD': gat, 'GOAL_RANK_ORDER': i + 1,
+         'GOAL_SPECIES_PERC': None}
+        for i, gat in enumerate(gatunki)
+    ]
 
 
 # ---------------------------------------------------------------------
@@ -881,6 +943,16 @@ def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
                 (pec['FOREST_PEC_CD'], nowy_int, pec['PEC_RANK_ORDER']),
             ]):
                 bledy_zapisu += 1
+
+            for cel in _zbuduj_f_arod_goal_wiersze(subarea['SITE_TYPE_CD']):
+                if not baza.wpisz_tab([
+                    'INSERT INTO F_AROD_GOAL (GOAL_TYPE_FL, ARODES_INT_NUM, '
+                    'SPECIES_CD, GOAL_RANK_ORDER, GOAL_SPECIES_PERC) '
+                    'VALUES (?,?,?,?,?)',
+                    (cel['GOAL_TYPE_FL'], nowy_int, cel['SPECIES_CD'],
+                     cel['GOAL_RANK_ORDER'], cel['GOAL_SPECIES_PERC']),
+                ]):
+                    bledy_zapisu += 1
 
             zapisano += 1
 

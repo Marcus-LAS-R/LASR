@@ -48,6 +48,14 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
    - Kontrola duplikatów (wydzieleń/działek) respektuje wybór obrębów - nie
      blokuje łączenia duplikatem, który i tak nie zostanie skopiowany
 
+4. POPRAWKA: "Utwórz bazę z BDL" (utworz_baze_z_BDL.py) - automatyczne
+   uzupełnianie typu drzewostanu docelowego (F_AROD_GOAL) na podstawie
+   typu siedliskowego lasu (F_SUBAREA.SITE_TYPE_CD) i zaszytego w skrypcie
+   słownika TSL -> gatunki docelowe; GOAL_RANK_ORDER wg kolejności w
+   słowniku (pierwszy gatunek = panujący), GOAL_TYPE_FL zawsze 'D',
+   GOAL_SPECIES_PERC celowo nieuzupełniane (brak w BDL źródła podziału
+   procentowego)
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 
