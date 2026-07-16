@@ -996,6 +996,28 @@ class Baza(object):
             self.cur.execute(sql)
             self.con.commit()
 
+    def napraw_area_use_myslnik(self):
+        """Niektóre bazy mają w AREA_USE_CD wiodący myślnik (np. "-Ls"
+        zamiast "Ls") - artefakt importu z GML (wariant/błąd źródła), przez
+        który taki użytek nigdy nie dopasuje się do warstwy graficznej ani
+        nie zostanie rozpoznany jako Ls przez resztę wtyczki. Należy
+        uruchomić przy przygotowaniu Lsów, tak jak kapitaliki_w_klasach()
+        """
+        kody = self.cur.execute(
+            "select distinct area_use_cd from f_parcel_land_use "
+            "where area_use_cd like '-%';"
+        ).fetchall()
+
+        for (kod,) in kody:
+            if not kod:
+                continue
+            self.cur.execute(
+                "update f_parcel_land_use set area_use_cd=? "
+                "where area_use_cd=?;",
+                (kod.lstrip('-'), kod)
+            )
+        self.con.commit()
+
     def pobierz_wyk_wlasc(self):
         """Zwraca slownik wszystkich wlascicieli wpisanych do planu w postaci:
         sl = {addr_nr: {'opis': { tutaj nazwy kolumn z v_address},

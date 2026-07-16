@@ -190,13 +190,15 @@ def zaokraglij_wsp(warstwa):
 
 
 def isNone(a):
+    if isinstance(a, str):
+        a = a.strip()
     if a in [None, 'NULL', '', ]:
         return ''
     elif isinstance(a, QVariant):
         if a.isNull():
             return ''
         else:
-            return str(a)
+            return str(a).strip()
     else:
         return a
 

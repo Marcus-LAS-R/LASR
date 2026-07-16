@@ -221,6 +221,7 @@ class AnalizujKlus(object):
             b = Baza(baza)
             if b.polacz():
                 b.kapitaliki_w_klasach()
+                b.napraw_area_use_myslnik()
                 self.uzytki += b.uzytki()
                 self.wlasnosci += b.wlasnosci()
             else:
@@ -1347,11 +1348,15 @@ class PrzetworzKlu(object):
         return f['PARCELID'] + '.' + f['AU'] + self.isNone(f['SQ'])
 
     def isNone(self, a):
+        if isinstance(a, str):
+            a = a.strip()
         if a in [None, 'NULL', '', ]:
             return ''
         elif isinstance(a, QVariant):
             if a.isNull():
                 return ''
+            else:
+                return str(a).strip()
         else:
             return a
 
@@ -1626,11 +1631,15 @@ class SprawdzMikro(object):
             self.sl_sasiadow[klu.id()] = []
 
     def isNone(self, a):
+        if isinstance(a, str):
+            a = a.strip()
         if a in [None, 'NULL', '', ]:
             return ''
         elif isinstance(a, QVariant):
             if a.isNull():
                 return ''
+            else:
+                return str(a).strip()
         else:
             return a
 

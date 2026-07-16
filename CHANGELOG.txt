@@ -122,6 +122,48 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      1 wydzielenie przecięte i zgłoszone; domyślne ustawienia (A4, skala
      12000) nadal dają 3 strony bez żadnego przecięcia - brak regresji
 
+9. DROBNA POPRAWKA: isNone() nie obcinał białych znaków (funkcje.py,
+   baza_przetworz.py, przygotuj_ls.py) - przy okazji naprawy #10 poniżej
+   - isNone() sprawdzał tylko dokładne None/'NULL'/'' - białe znaki wokół
+     wartości (np. SOIL_QUALITY_CD ze spacją zamiast NULL) dawały LANDID
+     niezgodny między grafiką (OGR sam przycina) a bazą - teraz .strip()
+     przed porównaniem i przed zwróceniem wartości
+   - naprawiona też brakująca gałąź "else" w wersji z baza_przetworz.py/
+     przygotuj_ls.py (QVariant niepuste zwracało None zamiast wartości)
+   - bezpośrednie porównania "x[9] == 'Ls'" w baza_przetworz.py (AREA_USE_CD)
+     zamienione na "self.isNone(x[9]) == 'Ls'" z tego samego powodu
+   - w praktyce na realnych danych to NIE była główna przyczyna zgłoszonego
+     błędu - patrz #10
+
+10. NAPRAWA KRYTYCZNA: "Przygotuj Ls" — fałszywe "Brakujący Ls w bazie" dla
+    zdecydowanej większości Ls, gdy AREA_USE_CD ma wiodący myślnik (np.
+    "-Ls" zamiast "Ls") (baza_wrapper.py, przygotuj_ls.py)
+    - Zdiagnozowane na realnych danych (materialy/PrzygotowanieLS,
+      V1_pustawa.mdb): 1346 z 1571 wpisów Ls w bazie miało AREA_USE_CD
+      z wiodącym myślnikiem (dotyczy też innych użytków: -B, -Bi, -Bz,
+      -dr, -Lz, -N, -Tp, -W, -Ws) - żadne z tych wydzieleń nie dopasowywały
+      się do grafiki, więc raport zgłaszał je jako "brakujące w bazie"
+      mimo że faktycznie tam były (to niemal cała rozbieżność z raportu
+      użytkownika: 1344 z 1346 przypadków)
+    - Źródło: import z GML (materialy/Mapa_PU/swdl) przepisuje wartość
+      węzła XML (areaUseDic/OZU) wprost do AREA_USE_CD, tylko ze
+      .strip() na białych znakach - nowy wariant/błąd źródła GML z
+      wiodącym myślnikiem przechodzi bez zmian do bazy MDB
+    - Nowa metoda Baza.napraw_area_use_myslnik() (analogiczna do
+      istniejącego Baza.kapitaliki_w_klasach()) usuwa wiodący myślnik z
+      AREA_USE_CD wprost w bazie, wywoływana automatycznie w tym samym
+      miejscu co kapitaliki_w_klasach() (AnalizujKlus.przetworz())
+    - Zweryfikowane na kopii V1_pustawa.mdb: przed naprawą 'Ls'=225 w
+      p.ls, po naprawie 1571 (225+1346), działka 14160110001.2135
+      (przykład zgłoszony przez użytkownika) poprawnie rozpoznana jako
+      Ls w bazie
+    - UWAGA: ten sam wzorzec "-" narusza też baza_wrapper.py (zapytania
+      NOT LIKE 'Ls'), baza_popraw_LS.py i baza_usun_nieLs.py (= 'Ls') -
+      te skrypty korzystają z bazy niezależnie od "Przygotuj Ls" i nie
+      wywołują naprawy same z siebie, więc na bazie, na której nigdy
+      nie uruchomiono "Przygotuj Ls", nadal będą mylić się na "-Ls" -
+      do rozważenia osobno, jeśli się to potwierdzi jako problem
+
 Wersja 2.0f — 2026-07-07 — konwersja SHP do nowego standardu, integracja z Bankiem Danych o Lasach (BDL), doliteruj/literuj wydzielenia, liczne poprawki
 ------------------------------------------------
 

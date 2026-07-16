@@ -95,7 +95,7 @@ class Przetworz(object):
     def przetworz_wszystkie_ls(self):
         # set(LANDID, LANDID), ...
         self.ls = set([x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
-                       for x in self.baza_uzytki if x[9] == 'Ls'])
+                       for x in self.baza_uzytki if self.isNone(x[9]) == 'Ls'])
 
     @dane_z_bazy
     def przetworz_ls_podwojne(self):
@@ -104,7 +104,8 @@ class Przetworz(object):
         try:
             self.ls_podwojne = [y[0] for y in Counter(
                 [x[12]+'.'+self.isNone(x[9])+self.isNone(x[10])
-                 for x in self.baza_uzytki if x[9] == 'Ls']).most_common()
+                 for x in self.baza_uzytki
+                 if self.isNone(x[9]) == 'Ls']).most_common()
                 if y[1] > 1]
             self.ls_podwojne_by_pid = {}
             for x in self.ls_podwojne:
@@ -140,7 +141,7 @@ class Przetworz(object):
         # {PARCELID: [V, VI], ...]
         try:
             for x in self.baza_uzytki:
-                if x[9] == 'Ls':
+                if self.isNone(x[9]) == 'Ls':
                     if x[12] not in self.sl_ls_na_dz:
                         self.sl_ls_na_dz[x[12]] = []
                     self.sl_ls_na_dz[x[12]].append(self.isNone(x[10]))
@@ -165,7 +166,7 @@ class Przetworz(object):
     @dane_z_bazy
     def przetworz_dzialki(self):
         self.dz_lesne = set([x[-1] for x in
-                             self.baza_uzytki if x[9] == "Ls"])
+                             self.baza_uzytki if self.isNone(x[9]) == "Ls"])
 
         self.dzialki = {x[-1]: [x[0], x[1], x[-1], x[7], x[6]]
                         for x in self.baza_uzytki}
@@ -210,10 +211,14 @@ class Przetworz(object):
                       if set(['OF']) == set(val)}
 
     def isNone(self, a):
+        if isinstance(a, str):
+            a = a.strip()
         if a in [None, 'NULL', '', ]:
             return ''
         elif isinstance(a, QVariant):
             if a.isNull():
                 return ''
+            else:
+                return str(a).strip()
         else:
             return a
