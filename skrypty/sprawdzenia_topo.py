@@ -15,9 +15,11 @@ class recursivedefaultdict(defaultdict):
 
 
 class SprawdzTopo():
-    def __init__(self, iface):
+    def __init__(self, iface, lyr=None):
+        # iface moze byc None (uzycie headless/wsadowe) - wtedy pomijamy
+        # pasek postepu i komunikaty w messageBar
         self.iface = iface
-        self.lyr = self.iface.activeLayer()
+        self.lyr = lyr if lyr is not None else self.iface.activeLayer()
         self.slf = {}  # slownik feat z warstwy
         self.slfi = QgsSpatialIndex()  # SI z featurow warstwy
         self.bl_pkt = {}  # sl z bledami pktowymi id: [X, Y, typ]
@@ -31,9 +33,15 @@ class SprawdzTopo():
         self.slpkt = recursivedefaultdict()
 
         self.trig_spr_wst = False
-        self.postep = PasekPostepu(self.iface).stworz_pasek(
-            'Sprawdzanie topologii'
-        )
+        self.postep = None
+        if self.iface is not None:
+            self.postep = PasekPostepu(self.iface).stworz_pasek(
+                'Sprawdzanie topologii'
+            )
+
+    def _postep(self, wartosc):
+        if self.postep is not None:
+            self.postep.setValue(wartosc)
 
     def pobierz_feat(self):
         for f in self.lyr.getFeatures():
@@ -41,34 +49,54 @@ class SprawdzTopo():
 
         self.slfi = QgsSpatialIndex(self.lyr.getFeatures())
 
-        self.postep.setValue(5)
+        self._postep(5)
 
-    def spr_wstepne(self):
+    def spr_wstepne(self, prog_koincydencji=0.02):
+        """prog_koincydencji - odleglosc [m] ponizej ktorej dwa wierzcholki sa
+        uznawane za ten sam, wspolny punkt styku. Musi byc spojny z
+        tolerancja uzywana pozniej w spr_styki, inaczej wystapia falszywe
+        alarmy wynikajace z niespojnosci progow miedzy obiema fazami.
+        """
         self.pkt_c = 0
+        self.prog_koinc = prog_koincydencji
         for f in self.slf.values():
             s = {}
             for feat in f.geometry().asMultiPolygon():
                 if len(feat) > 0:
                     for part in feat:
                         for i, pkt_raw in enumerate(part):
-                            pkt = [round(pkt_raw[0], 4),
-                                   round(pkt_raw[1], 4)]
+                            # pkt dokladny (prawie bez zaokraglenia) - do
+                            # wykrywania zdublowanych wierzcholkow w obrebie
+                            # jednego obiektu, tu tolerancja MUSI byc ciasna,
+                            # inaczej normalne, gesto zdigitalizowane odcinki
+                            # zostana falszywie uznane za duplikaty
+                            pkt_dok = [round(pkt_raw[0], 4),
+                                       round(pkt_raw[1], 4)]
+                            # pkt zgrubny (siatka wsp. prog_koincydencji) -
+                            # tylko do globalnego zliczania stykow miedzy
+                            # obiektami w spr_styki
+                            pkt = [
+                                round(round(pkt_raw[0] / prog_koincydencji)
+                                      * prog_koincydencji, 6),
+                                round(round(pkt_raw[1] / prog_koincydencji)
+                                      * prog_koincydencji, 6),
+                            ]
                             if i < len(part) - 1:
                                 blad = False
 
-                                # sprawdzania lok. featura
-                                if pkt[0] not in s:
-                                    s[pkt[0]] = pkt[1]
+                                # sprawdzania lok. featura (tolerancja ciasna)
+                                if pkt_dok[0] not in s:
+                                    s[pkt_dok[0]] = pkt_dok[1]
                                 else:
-                                    if s[pkt[0]] == pkt[1]:
+                                    if s[pkt_dok[0]] == pkt_dok[1]:
                                         self.bl_pkt[self.pkt_c] = [
-                                            pkt[0],
-                                            pkt[1],
+                                            pkt_dok[0],
+                                            pkt_dok[1],
                                             'Zdublowany wierzcholek']
                                         self.pkt_c += 1
                                         blad = True
 
-                                # dodanie do globalnego slownika
+                                # dodanie do globalnego slownika (siatka)
                                 if pkt[0] not in self.slpkt:
                                     self.slpkt[pkt[0]][pkt[1]] = [1, 0]
 
@@ -80,7 +108,7 @@ class SprawdzTopo():
 
         # trig do dalszych analiz
         self.trig_spr_wst = True
-        self.postep.setValue(25)
+        self._postep(20)
 
     def spr_styki(self):
         """Metoda sprawdza czy stykajace sie poligony na wspolnym odc maja
@@ -89,9 +117,10 @@ class SprawdzTopo():
         if not self.trig_spr_wst:
             return False
 
+        prog = getattr(self, 'prog_koinc', 0.02)
         print('zaczynam sprawdzac styki')
         for f in self.slf.values():
-            gbuff = f.geometry().buffer(0.01, 0)
+            gbuff = f.geometry().buffer(prog, 0)
             for xkey in [x for x in self.slpkt.keys()
                          if gbuff.boundingBox().xMinimum() <= x and
                          x <= gbuff.boundingBox().xMaximum()]:
@@ -101,7 +130,7 @@ class SprawdzTopo():
 
                     pkt_temp = QgsGeometry().fromPointXY(QgsPointXY(xkey,
                                                                     ykey))
-                    if pkt_temp.buffer(0.01, 0).intersects(gbuff):
+                    if pkt_temp.buffer(prog, 0).intersects(gbuff):
                         self.slpkt[xkey][ykey][1] += 1
 
         for x in self.slpkt.keys():
@@ -110,19 +139,59 @@ class SprawdzTopo():
                     self.bl_pkt[self.pkt_c] = [x, y, 'Blad stykania']
                     self.pkt_c += 1
 
-        self.postep.setValue(50)
+        self._postep(40)
 
-    def spr_wasy(self):
+    def spr_wasy(self, prog_szer=0.15):
         """Metoda sprawdza czy w poligonie nie występują tzw "wąsy", które są
         błędem topologicznym"""
 
         for feat in self.slf.values():
             for poly in feat.geometry().asMultiPolygon():
-                if not poprawna_topo(poly):
+                if not poprawna_topo(poly, prog_szer=prog_szer):
                     self.bl_poly.append([feat.geometry(), '"was"'])
                     break
 
-        self.postep.setValue(75)
+        self._postep(55)
+
+    def spr_luki(self, prog_szer=0.15, prog_pow_szum=0.05):
+        """Metoda sprawdza czy miedzy sasiadujacymi poligonami w warstwie nie
+        wystepuja waskie luki (obszary ktore powinny sie stykac, a nie
+        stykaja). Wykorzystuje sztuczke domykania buforem: jezeli po
+        wybuforowaniu unii na zewnatrz i z powrotem do wewnatrz pojawia sie
+        dodatkowa powierzchnia wieksza od unii oryginalnej, to jest to luka
+        waska (<= 2*delta), ktora domkniecie buforem "zaklejilo".
+        Uzywa stylu miter zamiast round przy laczeniu naroznikow, zeby nie
+        generowac tysiecy mikroartefaktow zaokraglen na kazdym wierzcholku.
+
+        prog_szer - maksymalna szerokosc luki jaka ma zostac wykryta [m]
+        prog_pow_szum - fragmenty ponizej tej powierzchni [m2] sa pomijane
+            jako numeryczny szum buforowania, nie realne luki
+        """
+        geoms = [f.geometry() for f in self.slf.values()
+                 if f.geometry() and not f.geometry().isEmpty()]
+        if len(geoms) == 0:
+            self._postep(65)
+            return
+
+        unia = QgsGeometry.unaryUnion(geoms)
+        delta = prog_szer / 2
+        domknieta = unia.buffer(
+            delta, 8, QgsGeometry.CapRound, QgsGeometry.JoinStyleMiter, 2.0
+        ).buffer(
+            -delta, 8, QgsGeometry.CapRound, QgsGeometry.JoinStyleMiter, 2.0
+        )
+        luki = domknieta.difference(unia)
+
+        try:
+            czesci = luki.asGeometryCollection()
+        except Exception:
+            czesci = [luki] if not luki.isEmpty() else []
+
+        for czesc in czesci:
+            if czesc.area() > prog_pow_szum:
+                self.bl_poly.append([czesc, 'luka'])
+
+        self._postep(65)
 
     def spr_nakladanie(self):
         """Metoda sprawdza czy poligony w warstwie się na siebie nie nakładają,
@@ -136,7 +205,7 @@ class SprawdzTopo():
                         print('nalozenie: '+str(inter.area()))
                         self.bl_poly.append([inter, 'nakladanie'])
 
-        self.postep.setValue(95)
+        self._postep(95)
 
     def dodaj_warstwy(self):
         plug_dir = os.path.dirname(__file__)
@@ -215,12 +284,15 @@ class SprawdzTopo():
                                                 'TOPO_poly.qml'))
             QgsProject.instance().addMapLayer(polyLyr)
 
-        self.postep.setValue(100)
-        self.iface.messageBar().clearWidgets()
+        self._postep(100)
 
         dodatek = 'Sprawdzono topologię! '
         if len(str_problemy) > 0:
             dodatek += ' Znaleziono problemy '
             dodatek += ' i '.join(str_problemy) + '.'
 
-        self.iface.messageBar().pushMessage('OK', dodatek, Qgis.Success, 10)
+        if self.iface is not None:
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage('OK', dodatek, Qgis.Success, 10)
+        else:
+            print(dodatek)

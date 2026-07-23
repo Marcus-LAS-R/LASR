@@ -1,9 +1,10 @@
-from math import sqrt
+﻿from math import sqrt
 import os
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtCore import QVariant
 from qgis.core import QgsGeometry, QgsFeature, QgsVectorFileWriter,\
     QgsSpatialIndex, QgsVectorLayer, Qgis, QgsProject, \
-    QgsCoordinateReferenceSystem, QgsMessageLog
+    QgsCoordinateReferenceSystem, QgsMessageLog, QgsFields, QgsField
 import processing
 
 from .ui.ui_shp_dosnapuj import Ui_Dialog
@@ -210,7 +211,20 @@ class Dosnapuj:
 
 
 class Przyciagnij:
+    # nazwa tymczasowego pola z id obiektu zrodlowego, uzywanego do
+    # ponownego scalenia fragmentow tego samego obiektu po przebudowie
+    # poligonow (zastepuje dawne, zaszyte na sztywno pole 'LANDID', ktore
+    # nie istnieje w obecnym schemacie warstw)
+    POLE_SRC_FID = '__SRCFID'
+    # pole flagujace obiekty, dla ktorych nie udalo sie pewnie dopasowac
+    # przebudowanej geometrii - dodawane z geometria oryginalna (przed
+    # dociagnieciem), zeby nigdy po cichu nie zgubic obszaru
+    POLE_WERYFIKUJ = 'DO_WERYF'
+
     def __init__(self, iface):
+        # iface moze byc None (uzycie headless/wsadowe, np. z poziomu
+        # orkiestratora hierarchii warstw) - wtedy pomijamy pasek postepu i
+        # komunikaty w messageBar, dzialanie liczace pozostaje identyczne
         self.iface = iface
         self.dz = False
         self.snap = False
@@ -218,6 +232,7 @@ class Przyciagnij:
 
         self.kat = ''
         self.tempkat = ''
+        self.wyjscie_path = None  # None = domyslnie <kat>/DOCIAGNIETA.shp
 
         # warstwy niezbedne do snapowania powstale w processingu
         self.snap_lines = False
@@ -232,6 +247,54 @@ class Przyciagnij:
         self.popr_feat = []  # lista z popr poly, z dopisanymi attr
 
         self.fields = []  # tab z definicjami pol z org warstwy do dopisana
+        self.postep = None
+
+    def _postep(self, wartosc):
+        if self.postep is not None:
+            self.postep.setValue(wartosc)
+
+    def ustaw_dane_bezposrednio(self, dz_path, snap_path, snap_dist=0.1,
+                                wyjscie_path=None, tempkat=None):
+        """Programowe (bez GUI) ustawienie danych wejsciowych - odpowiednik
+        pobierz_dane()+sprawdz_dane(), do uzycia z poziomu skryptow/
+        orkiestratora, np. przy naprawie calego lancucha warstw.
+
+        dz_path - sciezka do warstwy nadrzednej (do ktorej dociagamy)
+        snap_path - sciezka do warstwy podrzednej (dociaganej)
+        snap_dist - odleglosc dociagania granicy [m]
+        wyjscie_path - sciezka wyjsciowego shp, domyslnie <kat_dz>/DOCIAGNIETA.shp
+        tempkat - wlasny katalog roboczy; domyslnie <kat_dz>/temp. Przy
+            wielokrotnym wywolywaniu w petli (np. orkiestrator lancucha
+            warstw) KAZDE wywolanie powinno dostac inny tempkat - QGIS/OGR
+            trzyma uchwyty do plikow posrednich nawet po zakonczeniu
+            przetwarzania, a Windows blokuje nadpisywanie otwartych plikow,
+            wiec wspoldzielony katalog roboczy miedzy kolejnymi parami
+            powoduje bledy zapisu.
+        """
+        self.snap_dist = snap_dist
+        self.wyjscie_path = wyjscie_path
+
+        self.dz = QgsVectorLayer(dz_path, 'dzewid', 'ogr')
+        if not self.dz.isValid():
+            print('BŁĄD: niepoprawna warstwa nadrzędna: ' + dz_path)
+            return False
+
+        self.snap = QgsVectorLayer(snap_path, 'snap', 'ogr')
+        if not self.snap.isValid():
+            print('BŁĄD: niepoprawna warstwa do dociągnięcia: ' + snap_path)
+            return False
+
+        sciezka = self.dz.dataProvider().dataSourceUri().split("|")[0][:-4]
+        self.kat = os.path.dirname(sciezka)
+        self.tempkat = tempkat or os.path.join(self.kat, 'temp')
+        if not os.path.isdir(self.tempkat):
+            os.makedirs(self.tempkat)
+
+        self.fields = QgsFields(self.snap.dataProvider().fields())
+        self.fields.append(QgsField(self.POLE_SRC_FID, QVariant.LongLong))
+        self.fields.append(QgsField(self.POLE_WERYFIKUJ, QVariant.Int))
+
+        return True
 
     def pobierz_dane(self):
         # pobranie lokalizacji warstwy dociaganej oraz dz ewid od uzytkownika
@@ -278,9 +341,13 @@ class Przyciagnij:
         if not os.path.isdir(self.tempkat):
             os.mkdir(self.tempkat)
 
-        self.fields = self.snap.dataProvider().fields()
+        self.fields = QgsFields(self.snap.dataProvider().fields())
+        self.fields.append(QgsField(self.POLE_SRC_FID, QVariant.LongLong))
+        self.fields.append(QgsField(self.POLE_WERYFIKUJ, QVariant.Int))
 
-        self.postep = PasekPostepu(self.iface).stworz_pasek('Snapowanie...')
+        if self.iface is not None:
+            self.postep = PasekPostepu(self.iface).stworz_pasek(
+                'Snapowanie...')
         return True
 
     def _przetworz(self):  # noqa
@@ -297,7 +364,7 @@ class Przyciagnij:
                                            '__snap_singleparts.shp')):
             return False
 
-        self.postep.setValue(5)
+        self._postep(5)
         processing.run(
             'native:polygonstolines',
             {'INPUT': os.path.join(self.tempkat, '__snap_singleparts.shp'),
@@ -310,7 +377,7 @@ class Przyciagnij:
                                            '__snap_singleparts_lines.shp')):
             return False
 
-        self.postep.setValue(10)
+        self._postep(10)
         processing.run(
             'native:polygonstolines',
             {'INPUT': self.dz,
@@ -324,7 +391,7 @@ class Przyciagnij:
                                                     '__dz_lines.shp'),
                                        'dz_lines', 'ogr')
 
-        self.postep.setValue(15)
+        self._postep(15)
         processing.run(
             'native:buffer',
             {'OUTPUT': os.path.join(self.tempkat,
@@ -339,7 +406,7 @@ class Przyciagnij:
              }
         )
 
-        self.postep.setValue(20)
+        self._postep(20)
         processing.run("native:multiparttosingleparts", {
             'INPUT': os.path.join(self.tempkat,
                                   '__dz_lines_buffer_undiss.shp'),
@@ -354,7 +421,7 @@ class Przyciagnij:
                                                      '__dz_lines_buffer.shp'),
                                         'dz_buffer', 'ogr')
 
-        self.postep.setValue(25)
+        self._postep(25)
         processing.run(
             'native:difference',
             {'INPUT': os.path.join(self.tempkat,
@@ -369,7 +436,7 @@ class Przyciagnij:
                 self.tempkat, '__snap_singleparts_lines_difference.shp')):
             return False
 
-        self.postep.setValue(30)
+        self._postep(30)
         processing.run("native:multiparttosingleparts", {
             'OUTPUT': os.path.join(
                 self.tempkat,
@@ -384,7 +451,7 @@ class Przyciagnij:
                 '__snap_singleparts_lines_difference_singleparts.shp')):
             return False
 
-        self.postep.setValue(35)
+        self._postep(35)
         processing.run(
             "qgis:deleteduplicategeometries",
             {'INPUT': os.path.join(
@@ -414,7 +481,7 @@ class Przyciagnij:
         ''' Metoda dociąga/przedłuża końcowe pkt lini z warstwy snap_linie
         tak aby stykały się z granicami dzewid,
         '''
-        self.postep.setValue(40)
+        self._postep(40)
         _dz_si = QgsSpatialIndex(self.dz)
         _dzb_si = QgsSpatialIndex(self.dz_buffer)
 
@@ -482,9 +549,10 @@ class Przyciagnij:
             "UTF-8",
             crs,
             "ESRI Shapefile")
-        self.iface.addVectorLayer(
-            os.path.join(os.path.join(self.tempkat, "snapped.shp")),
-            'snapped', 'ogr')
+        if self.iface is not None:
+            self.iface.addVectorLayer(
+                os.path.join(os.path.join(self.tempkat, "snapped.shp")),
+                'snapped', 'ogr')
 
         # jezeli zlokalizowalismy bledne snapowania, pokaz uzyszkodnikowi
         QgsProject.instance().addMapLayer(self.dz_lines)
@@ -503,35 +571,36 @@ class Przyciagnij:
             'Przedłużono: '+str(przedl), 'LAS-R', Qgis.Info)
 
     def stworz_poligony(self):  # noqa
-        self.postep.setValue(45)
-        alg_params = {
-            '-b': False,
-            '-c': False,
-            'GRASS_MIN_AREA_PARAMETER': 0.0001,
-            'GRASS_OUTPUT_TYPE_PARAMETER': 0,
-            'GRASS_REGION_PARAMETER': None,
-            'GRASS_SNAP_TOLERANCE_PARAMETER': -1,
-            'GRASS_VECTOR_DSCO': '',
-            'GRASS_VECTOR_EXPORT_NOCAT': False,
-            'GRASS_VECTOR_LCO': '',
-            'input': self.dz_lines,
-            'threshold': '',
-            'tool': 0,
-            'error': os.path.join(self.tempkat, '__dz_lines_break_err.shp'),
-            'type': 1,
-            'output': os.path.join(self.tempkat, '__dz_lines_break.shp')
-        }
-        processing.run('grass7:v.clean', alg_params)
+        self._postep(45)
 
-        self.postep.setValue(50)
-        processing.run('qgis:deleteduplicategeometries', {
-            'INPUT': os.path.join(self.tempkat, '__dz_lines_break.shp'),
-            'OUTPUT': os.path.join(self.tempkat, '__dz_lines_break_rmdup.shp')
-        })
+        # zwezlowanie (noding) linii: tam gdzie linie sie krzyzuja/dotykaja
+        # ma powstac wspolny wierzcholek. Dawniej robil to grass7:v.clean,
+        # ale GRASS bywa niedostepny w trybie headless/wsadowym - unaryUnion
+        # na liniach daje ten sam efekt natywnie przez GEOS (wezluje na
+        # przecieciach i usuwa nakladajace sie duplikaty odcinkow), bez
+        # zewnetrznej zaleznosci.
+        linie = [f.geometry() for f in self.dz_lines.getFeatures()
+                 if f.geometry() and not f.geometry().isEmpty()]
+        zwezlowane = QgsGeometry.unaryUnion(linie)
 
-        self.postep.setValue(55)
+        wezl_lyr = QgsVectorLayer('LineString?crs=epsg:2180', '__wezlowane',
+                                  'memory')
+        wezl_feats = []
+        try:
+            czesci = zwezlowane.asGeometryCollection()
+        except Exception:
+            czesci = [zwezlowane]
+        for czesc in czesci:
+            if czesc.isEmpty():
+                continue
+            f = QgsFeature()
+            f.setGeometry(czesc)
+            wezl_feats.append(f)
+        wezl_lyr.dataProvider().addFeatures(wezl_feats)
+
+        self._postep(55)
         p_lyr = processing.run('qgis:polygonize', {
-            'INPUT': os.path.join(self.tempkat, '__dz_lines_break_rmdup.shp'),
+            'INPUT': wezl_lyr,
             'KEEP_FIELDS': False,
             'OUTPUT': os.path.join(self.tempkat,
                                    '__polygonizer.shp')
@@ -550,7 +619,7 @@ class Przyciagnij:
             os.path.join(self.tempkat, '__snap_singleparts.shp'),
             'snap_single', 'ogr')
 
-        self.postep.setValue(60)
+        self._postep(60)
         for f in snap_single.getFeatures():
             ids = p_si.intersects(f.geometry().boundingBox())
             # tab z poly przecinajacymi sie z org uzytkiem, wybierzemy, tego
@@ -566,8 +635,18 @@ class Przyciagnij:
 
             tab.sort(reverse=True, key=lambda x: x[1])
 
-            # jak się nic nie przecina, pomin featurka
+            # jak się nic nie przecina, pomin featurka - ale dodaj go do
+            # wyniku z oryginalna geometria i flaga do weryfikacji, zamiast
+            # po cichu gubic ten obszar
             if len(tab) < 1:
+                b_poly.append(f)
+                self._dodaj_fallback(f)
+                continue
+
+            # zdegenerowany (zerowej powierzchni) obiekt zrodlowy - nie da
+            # sie dla niego policzyc sensownego stosunku pokrycia, oznacz do
+            # weryfikacji zamiast dzielic przez zero
+            if round(f.geometry().area(), 8) == 0:
                 b_poly.append(f)
                 continue
 
@@ -636,6 +715,11 @@ class Przyciagnij:
 
             if flaga:
                 b_poly.append(fp)
+                # jezeli dla tego obiektu zrodlowego nic nie zostalo dodane
+                # do wyniku (niepewne dopasowanie), dodaj go z oryginalna
+                # geometria i flaga do weryfikacji - nie tracimy obszaru
+                if f.id() not in sl:
+                    self._dodaj_fallback(f)
 
         # plyr = QgsVectorLayer('Polygon?crs=epsg:2180&index=yes',
         #                       '__POLY_OK', 'memory')
@@ -651,7 +735,7 @@ class Przyciagnij:
             QgsProject.instance().addMapLayer(bpoly)
 
         # sprawdz czy wygenerowane poprawne feats nie nakładają się na siebie
-        self.postep.setValue(85)
+        self._postep(85)
         pop_si = QgsSpatialIndex()
         pop_sl = {}
         for i, feat in enumerate(self.popr_feat):
@@ -681,18 +765,25 @@ class Przyciagnij:
             ilyr.dataProvider().addFeatures(inter_list)
             QgsProject.instance().addMapLayer(ilyr)
 
-    def _dodaj_poly(self, f, fp):
+    def _dodaj_poly(self, f, fp, weryfikuj=0):
         feat = QgsFeature()
         feat.setGeometry(fp.geometry())
         feat.setFields(self.fields)
-        feat.setAttributes(f.attributes())
+        feat.setAttributes(f.attributes() + [f.id(), weryfikuj])
         self.popr_feat.append(feat)
+
+    def _dodaj_fallback(self, f):
+        """Gdy nie udalo sie pewnie dopasowac obiektu do zadnej przebudowanej
+        geometrii - dodaj go do wyniku z ORYGINALNA (sprzed dociagniecia)
+        geometria i flaga DO_WERYF=1, zamiast po cichu tracic ten obszar.
+        Obiekt nadal trafia tez do b_poly/warstwy bledow do przegladu."""
+        self._dodaj_poly(f, f, weryfikuj=1)
 
     def pokaz_warstwy(self):
         # metoda dodja warstwy do TOC i zapisuje na dysku, wyswietla niezbeden
         # informacje na temat bledow snapowania
 
-        self.postep.setValue(95)
+        self._postep(95)
         plyr = QgsVectorLayer('Polygon?crs=epsg:2180&index=yes',
                               '__POLY_OK', 'memory')
         plyr.startEditing()
@@ -701,48 +792,52 @@ class Przyciagnij:
         plyr.dataProvider().addFeatures(self.popr_feat)
         plyr.commitChanges()
 
+        wyjscie = self.wyjscie_path or os.path.join(self.kat,
+                                                     "DOCIAGNIETA.shp")
+        wyjscie_tmp = os.path.join(self.tempkat, '__dociagnieta_dissolve.shp')
+        os.makedirs(os.path.dirname(wyjscie), exist_ok=True)
+
+        # scal fragmenty nalezace do tego samego obiektu zrodlowego (ten
+        # sam POLE_SRC_FID) - to zastepuje dawne dissolve po polu 'LANDID',
+        # ktore nie istnieje w obecnym schemacie warstw
         processing.run("native:dissolve", {
             'INPUT': plyr,
-            'FIELD': ['LANDID'],
-            'OUTPUT': os.path.join(os.path.join(self.kat, "DOCIAGNIETA.shp")),
+            'FIELD': [self.POLE_SRC_FID],
+            'OUTPUT': wyjscie_tmp,
         })
 
-        plyr = QgsVectorLayer('Polygon?crs=epsg:2180&index=yes',
-                              '__POLY_OK', 'memory')
+        # usun tymczasowe pole pomocnicze z wyniku koncowego
+        processing.run("native:deletecolumn", {
+            'INPUT': wyjscie_tmp,
+            'COLUMN': [self.POLE_SRC_FID],
+            'OUTPUT': wyjscie,
+        })
 
-        self.dociag = QgsVectorLayer(
-            os.path.join(os.path.join(self.kat, "DOCIAGNIETA.shp")),
-            "DOCIAGNIETA", 'ogr'
-        )
+        self.dociag = QgsVectorLayer(wyjscie, "DOCIAGNIETA", 'ogr')
 
-        # oblicz jeszcze raz powgrafiiczna uzytkow
-        sl = {}
-        powind = self.dociag.dataProvider().fieldNameIndex('LAND_POW')
-        for feat in self.dociag.getFeatures():
-            sl[feat.id()] = {powind: round(feat.geometry().area()/10000, 4)}
-
-        self.dociag.startEditing()
-        self.dociag.dataProvider().changeAttributeValues(sl)
-        self.dociag.commitChanges()
-
-        QgsProject.instance().addMapLayer(self.dociag)
-
-        self.iface.messageBar().clearWidgets()
-        if self.b_inter == 0 and self.b_poly == 0:
-            self.iface.messageBar().pushMessage(
-                'OK',
-                'Snapowanie zakończone sukcesem, brak uwag!',
-                Qgis.Success,
-                0
-            )
+        if self.iface is not None:
+            QgsProject.instance().addMapLayer(self.dociag)
+            self.iface.messageBar().clearWidgets()
+            if self.b_inter == 0 and self.b_poly == 0:
+                self.iface.messageBar().pushMessage(
+                    'OK',
+                    'Snapowanie zakończone sukcesem, brak uwag!',
+                    Qgis.Success,
+                    0
+                )
+            else:
+                self.iface.messageBar().pushMessage(
+                    'OK z problemami',
+                    'Snapowanie zakończone sukcesem, błędy poligonowe: ' +
+                    str(self.b_poly) + ', błędy nakładania: ' +
+                    str(self.b_inter),
+                    Qgis.Warning,
+                    0
+                )
         else:
-            self.iface.messageBar().pushMessage(
-                'OK z problemami',
-                'Snapowanie zakończone sukcesem, błędy poligonowe: ' +
-                str(self.b_poly) + ', błędy nakładania: ' + str(self.b_inter),
-                Qgis.Warning,
-                0
-            )
+            print('Dociągnięto -> %s (błędy poligonowe: %d, '
+                  'błędy nakładania: %d)' %
+                  (wyjscie, self.b_poly, self.b_inter))
 
         # posprzataj pliki posrednie z tempkat - ale zostaw "__dz_lines" i
         # "snapped", bo te dwie warstwy zostaly dodane do TOC (self.dz_lines

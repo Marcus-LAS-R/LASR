@@ -88,6 +88,9 @@ from .skrypty import (
     baza_kontrola_opisow_wgSULMN,
     pobierz_BDL,
     utworz_baze_z_BDL,
+    shp_aktualizuj_ewidencje,
+    shp_buduj_oddzialy,
+    napraw_topologie_hierarchii,
 )
 
 from .skrypty import aktualizacja_upul
@@ -274,6 +277,7 @@ class LasR:
         self.m_przyg_danych = QMenu("Przygotowanie danych", self.menu)
         self.m_rozlicz_pow = QMenu("Rozliczenie powierzchni", self.menu)
         self.m_aktualizacja_upul = QMenu("Aktualizacja UPUL", self.menu)
+        self.m_aktualizacja_ewid = QMenu("Aktualizacja ewidencji N-ctwo", self.menu)
         self.m_kontrola_danych = QMenu("Kontrola danych", self.menu)
         self.m_kontrola_sulmn = QMenu("Kontrola wg SULMN", self.menu)
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
@@ -282,6 +286,7 @@ class LasR:
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_aktualizacja_upul)
+        self.menu.addMenu(self.m_aktualizacja_ewid)
         self.menu.addMenu(self.m_kontrola_danych)
         self.menu.addMenu(self.m_kontrola_sulmn)
         self.menu.addMenu(self.m_narzedzia)
@@ -513,6 +518,19 @@ class LasR:
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
         # ----------------------------------------
 
+        self.a_aktualizuj_ewid = QAction(
+            QIcon(None), "Zaktualizuj użytki wg ORYG", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_ewid.addAction(self.a_aktualizuj_ewid)
+        self.a_aktualizuj_ewid.triggered.connect(self.aktualizuj_ewidencje_nctwo)
+
+        self.a_buduj_oddzialy = QAction(
+            QIcon(None), "Zbuduj oddziały z wydzieleń", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_ewid.addAction(self.a_buduj_oddzialy)
+        self.a_buduj_oddzialy.triggered.connect(self.buduj_oddzialy_z_wydzielen)
+        # ----------------------------------------
+
         self.spr_odl_wydz = QAction(
             QIcon(None), "Sprawdź odległości w wydzieleniach", self.iface.mainWindow()
         )
@@ -564,6 +582,13 @@ class LasR:
         self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
         self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
+
+        self.a_napraw_topo_hier = QAction(
+            QIcon(None), "Napraw topologię hierarchii warstw (dzew-uzyt-wydz-oddz)",
+            self.iface.mainWindow()
+        )
+        self.m_kontrola_danych.addAction(self.a_napraw_topo_hier)
+        self.a_napraw_topo_hier.triggered.connect(self.napraw_topologie_hierarchii)
 
         # ------------------------------------
 
@@ -1041,6 +1066,23 @@ class LasR:
         b.spr_nakladanie()
         b.dodaj_warstwy()
 
+    def napraw_topologie_hierarchii(self):
+        dlg = napraw_topologie_hierarchii.PobierzDaneHierarchii(
+            self.iface.mainWindow())
+        dlg.exec_()
+        if dlg.porzucone:
+            return
+        parametry = dlg.pobierz_parametry()
+
+        n = napraw_topologie_hierarchii.NaprawaHierarchii(self.iface)
+        n.uruchom(
+            parametry['folder_wejsciowy'],
+            parametry['folder_wyjsciowy'],
+            snap_dist=parametry['snap_dist'],
+            prog_pow=parametry['prog_pow'],
+            prog_szer=parametry['prog_szer'],
+        )
+
     def sprawdzenie_wydzielen(self):
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
         if not k.wczytaj_baze():
@@ -1151,6 +1193,12 @@ class LasR:
 
     def dopisz_dane_do_wydzielen(self):
         aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)
+
+    def aktualizuj_ewidencje_nctwo(self):
+        shp_aktualizuj_ewidencje.uruchom(self.iface)
+
+    def buduj_oddzialy_z_wydzielen(self):
+        shp_buduj_oddzialy.uruchom(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)

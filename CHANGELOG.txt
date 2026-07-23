@@ -69,6 +69,69 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      (pojedynczo) - w bazie TPU ten sam przypadek zapisuje się jako "MSC",
      więc wartość jest teraz tłumaczona przy imporcie
 
+5. NOWY: "Aktualizacja ewidencji N-ctwo" (shp_aktualizuj_ewidencje.py,
+   ui/ui_aktualizuj_ewidencje.py) - nowe podmenu z pierwszą pozycją
+   "Zaktualizuj użytki wg ORYG"
+   - Dopisuje do kopii warstwy NOWA (aktualne użytki) cztery pola z warstwy
+     ORYG (dawne użytki): id, nadlesn, nr_dzialki, nr_kont - dobierane wg
+     największego nałożenia powierzchniowego (geometrie obu warstw się
+     różnią - NOWA ma więcej, nieco innych poligonów)
+   - nr_kont: w obrębie grupy o tej samej przypisanej nr_dzialki, kontur
+     ORYG oddaje swój numer temu poligonowi NOWA, z którym ma największą
+     część wspólną (największy fragment po podziale użytku) - pozostałe
+     fragmenty powstałe z podziału dostają kolejne wolne numery w tej samej
+     grupie, zamiast duplikować numer
+   - Poligony NOWA bez żadnego nałożenia z ORYG (nowe działki bez
+     odpowiednika w starej ewidencji) zostają z pustymi polami - zgłaszane
+     w podsumowaniu do ręcznej weryfikacji
+   - Oryginalne warstwy nie są modyfikowane - wynik zapisywany jest jako
+     nowy plik SHP wskazany w dialogu
+
+6. NOWY: "Zbuduj oddziały z wydzieleń" (shp_buduj_oddzialy.py) - druga
+   pozycja w podmenu "Aktualizacja ewidencji N-ctwo"
+   - Buduje warstwę oddziałów (a_oddz_pol) sklejając (dissolve) wydzielenia
+     z warstwy NOWA w grupy wg dawnej warstwy oddziałów ORYG (a_oddz_pol_
+     ORYG) - oddziały nie występują wprost w danych wydzieleń, więc
+     przynależność każdego wydzielenia do oddziału ustalana jest przez
+     największe nałożenie powierzchniowe z ORYG (ta sama zasada co w
+     "Zaktualizuj użytki wg ORYG")
+   - Sklejone grupy dostają metadane (id, nr_wew) dopasowanego oddziału ORYG
+   - Wydzielenia bez żadnego nałożenia (sieroty) oraz oddziały ORYG, do
+     których nie trafiło żadne wydzielenie (zniesione/scalone), są
+     pomijane w wyniku i zgłaszane w podsumowaniu do ręcznej weryfikacji
+   - Współdzieli dialog wyboru warstw z "Zaktualizuj użytki wg ORYG"
+     (ui_aktualizuj_ewidencje.py, etykiety uogólnione)
+
+7. NOWY: "Napraw topologię hierarchii warstw" (napraw_topologie_hierarchii.py),
+   pozycja w podmenu "Kontrola danych" obok "Sprawdź topologię"
+   - Automatyczne dociąganie i kontrola 4 warstw wg hierarchii ważności:
+     a_uzyt_pol → a_dzew_pol, a_wydz_pol → a_uzyt_pol, a_oddz_pol →
+     a_wydz_pol. Warstwa nadrzędna nigdy nie jest modyfikowana, dociąganie
+     zawsze jednokierunkowe dziecko→rodzic
+   - Silnik dociągania (Przyciagnij/Dosnapuj w shp_dociagnij_poly.py)
+     uogólniony: usunięto zaszyte na sztywno pola 'LANDID'/'LAND_POW' z
+     poprzedniej wersji (scalanie fragmentów po tymczasowym polu __SRCFID
+     zamiast po nazwie biznesowej), zastąpiono zależność od GRASS
+     (grass7:v.clean, niedostępny w trybie wsadowym) natywnym węzłowaniem
+     linii przez GEOS (QgsGeometry.unaryUnion)
+   - Nowy mechanizm fallback: obiekty, których nie da się pewnie dopasować
+     po przebudowie, trafiają do wyniku z oryginalną (nieprzyciętą)
+     geometrią i flagą DO_WERYF=1 zamiast być po cichu pomijane
+   - sprawdzenia_topo.py: dodano kontrolę luk wewnątrz warstwy (spr_luki),
+     naprawiono poprawna_topo() w funkcje.py (brak progu szumu i
+     asymetryczne wykrywanie "wąsów" - połowa orientacji nigdy nie była
+     sprawdzana), ujednolicono tolerancję koincydencji między fazami
+     spr_wstepne/spr_styki (był rozjazd 0,1mm vs 1cm, źródło fałszywych
+     alarmów "Błąd stykania" na warstwach z pipeline'u GML)
+   - Nowa kontrola międzywarstwowa (kontrola_miedzywarstwowa): luki/nadmiar
+     między rodzicem a dzieckiem klasyfikowane wg progu na "szum" (ciche
+     zamknięcie) i "do weryfikacji" (zapisywane jako warstwa
+     *_DO_WERYFIKACJI.shp)
+   - Wynik zawsze kopiowany do osobnego folderu wyjściowego (nigdy nie
+     nadpisuje oryginałów), razem z warstwami błędów (*_BLEDY_pkt/poly.shp)
+   - Test na pełnym nadleśnictwie (1593+1847+6183+813 obiektów): ~6,5 min,
+     >98% obiektów dociągniętych automatycznie, reszta jawnie oflagowana
+
 5. POPRAWKA: "Aktualizacja bazy UPUL" — F4 (aktualizacja_upul/core/
    f4_korekta_bhd.py, reporting.py) - ta sama naprawa PART_CD "PJD" ->
    "MSC" dołączona do operacji F4, dla baz, które mają już wpisane "PJD"

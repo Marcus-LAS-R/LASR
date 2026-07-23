@@ -12,10 +12,16 @@ from PyQt5.QtCore import QVariant, QSize, QFile, QIODevice
 from PyQt5.QtWidgets import QInputDialog
 
 
-def poprawna_topo(poly):
+def poprawna_topo(poly, prog_szer=0.15):
     """ funkcja sprawdza poprawnosc topologiczną poligonu:
         - nakładające się wierzchołki w poligonie
         - 'wąsy'
+
+    prog_szer - minimalna długość odcinka [m], poniżej której odchylenie
+        azymutu traktowane jest jako szum numeryczny (np. z konwersji GML),
+        a nie realny błąd topologiczny. Azymut liczony z bardzo krótkiego
+        odcinka jest numerycznie niestabilny, więc same odchylenia poniżej
+        tego progu nie są zgłaszane jako "wąs".
     """
 
     for part in poly:
@@ -35,23 +41,29 @@ def poprawna_topo(poly):
                     tazym.append(oblicz_azymut(tsp[x-1], tsp[x]))
                     todl.append(oblicz_odl(tsp[x-1], tsp[x]))
 
-                # czy pary maja maly azymut
+                # czy pary maja maly azymut (ostre zawrocenie miedzy dwoma
+                # kolejnymi odcinkami) - pomijamy gdy ktorys z odcinkow jest
+                # krotszy od progu szumu
                 for ai in range(1, 3):
+                    if todl[ai-1] < prog_szer or todl[ai] < prog_szer:
+                        continue
                     pierwszy = tazym[ai-1]
                     drugi = 180 + tazym[ai]
                     if drugi >= 360:
                         drugi -= 360
-                        if abs(pierwszy-drugi) < 2:
-                            return False
+                    if abs(pierwszy-drugi) < 2:
+                        return False
 
                 # czy pierwszy i ostatni odcinek maja przeciwny azymut a
-                #  odc miedzy nimi jest mniejszy od kilku metrow
-                trzeci = 180 + tazym[-1]
-                if trzeci >= 360:
-                    trzeci -= 360
+                # odc miedzy nimi (czubek wasa) jest krotszy od 1 m, ale
+                # dluzszy od progu szumu
+                if prog_szer <= todl[1] < 1:
+                    trzeci = 180 + tazym[-1]
+                    if trzeci >= 360:
+                        trzeci -= 360
 
-                if abs(tazym[0]-trzeci) < 2 and todl[1] < 1:
-                    return False
+                    if abs(tazym[0]-trzeci) < 2:
+                        return False
 
     return True
 
