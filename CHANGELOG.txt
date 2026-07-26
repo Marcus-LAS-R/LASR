@@ -98,7 +98,10 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
    - Sklejone grupy dostają metadane (id, nr_wew) dopasowanego oddziału ORYG
    - Wydzielenia bez żadnego nałożenia (sieroty) oraz oddziały ORYG, do
      których nie trafiło żadne wydzielenie (zniesione/scalone), są
-     pomijane w wyniku i zgłaszane w podsumowaniu do ręcznej weryfikacji
+     pomijane w wyniku - zapisywane jako osobne warstwy shp obok głównego
+     wyniku (<wyjście>_SIEROTY.shp / _ODDZ_PUSTE.shp), dodawane do
+     projektu i zgłaszane w podsumowaniu (poprawka: wcześniej tylko log z
+     wewnętrznym FID, bez łatwego sposobu odnalezienia obiektów na mapie)
    - Współdzieli dialog wyboru warstw z "Zaktualizuj użytki wg ORYG"
      (ui_aktualizuj_ewidencje.py, etykiety uogólnione)
 
@@ -131,6 +134,26 @@ Niewydane — dopisywanie danych do wydzieleń wg lokalizacji
      nadpisuje oryginałów), razem z warstwami błędów (*_BLEDY_pkt/poly.shp)
    - Test na pełnym nadleśnictwie (1593+1847+6183+813 obiektów): ~6,5 min,
      >98% obiektów dociągniętych automatycznie, reszta jawnie oflagowana
+
+8. NOWY: "Kontrola topologii hierarchii warstw" (kontrola_topologii_
+   hierarchii.py), pozycja w podmenu "Kontrola danych" obok "Napraw
+   topologię hierarchii warstw"
+   - Wyłącznie do odczytu - powtarza kontrolę z "Napraw..." (błędy wewnątrz
+     każdej z 4 warstw + pokrycie dziecko-w-rodzicu) na dowolnych 4
+     plikach shp, bez modyfikowania żadnej geometrii - do weryfikacji po
+     ręcznej lub automatycznej poprawie
+   - Wyniki jako pliki shp z kolumną NR_BLEDU (przeglądanie błąd-po-błędzie
+     przez "Zoom to next feature" w tabeli atrybutów QGIS)
+   - sprawdzenia_topo.py: SprawdzTopo nie wywala się już na obiektach z
+     pustą/brakującą geometrią (zbierane do bl_brak_geom i pomijane)
+   - Nowa kontrola: spr_dokladnosc_koincydencji - wykrywa wierzchołki z
+     różnych obiektów leżące bliżej siebie niż prog_koincydencji, ale NIE
+     bitowo identyczne (zero tolerancji wg powierzchni, w odróżnieniu od
+     spr_luki/spr_wasy) - to właśnie mikrometrowe niezgodności tego typu
+     najczęściej wywalają w GEOS TopologyException ("found non-noded
+     intersection") przy późniejszym dissolve (np. budowa oddziałów), mimo
+     że są za małe, by je dostrzec albo złapać kontrolą powierzchniową luk.
+     Wpięta też do zwykłego "Sprawdź topologię"
 
 5. POPRAWKA: "Aktualizacja bazy UPUL" — F4 (aktualizacja_upul/core/
    f4_korekta_bhd.py, reporting.py) - ta sama naprawa PART_CD "PJD" ->

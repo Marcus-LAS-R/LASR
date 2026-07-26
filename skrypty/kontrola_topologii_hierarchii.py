@@ -5,8 +5,9 @@ powtorzenia kontroli po recznej lub automatycznej poprawie topologii przez
 'Napraw topologie hierarchii warstw'.
 
 Sprawdzane sa:
-- bledy wewnatrz kazdej warstwy z osobna (styki, wasy, nakladanie, luki -
-  logika SprawdzTopo z sprawdzenia_topo.py),
+- bledy wewnatrz kazdej warstwy z osobna (styki, niedokladna koincydencja
+  wierzcholkow, wasy, nakladanie, luki - logika SprawdzTopo z
+  sprawdzenia_topo.py),
 - pokrycie dziecko-w-rodzicu miedzy kolejnymi warstwami hierarchii (uzyt w
   dzew, wydz w uzyt, oddz w wydz - logika kontrola_miedzywarstwowa z
   napraw_topologie_hierarchii.py).
@@ -145,15 +146,19 @@ class KontrolaHierarchii:
         b.pobierz_feat()
         b.spr_wstepne(prog_koincydencji=prog_koincydencji)
         b.spr_styki()
+        b.spr_dokladnosc_koincydencji(prog_koincydencji=prog_koincydencji)
         b.spr_wasy(prog_szer=prog_szer)
         b.spr_luki(prog_szer=prog_szer, prog_pow_szum=PROG_SZUM_WEWNETRZNY)
         b.spr_nakladanie()
 
-        self._log('%s: kontrola wewnętrzna - %d błędów punktowych, '
+        self._log('%s: kontrola wewnętrzna - %d błędów punktowych '
+                  '(w tym niedokładnych koincydencji: %d), '
                   '%d błędów powierzchniowych, %d obiektów bez geometrii '
                   '(pominiętych w kontroli)' %
-                  (nazwa, len(b.bl_pkt), len(b.bl_poly),
-                   len(b.bl_brak_geom)))
+                  (nazwa, len(b.bl_pkt),
+                   sum(1 for it in b.bl_pkt.values()
+                       if it[2] == 'Niedokladna koincydencja'),
+                   len(b.bl_poly), len(b.bl_brak_geom)))
 
         sc_pkt = os.path.join(folder_wyjsciowy, nazwa + '_BLEDY_PKT.shp')
         if _zapisz_pkt(list(b.bl_pkt.values()), sc_pkt):
@@ -283,8 +288,11 @@ class PobierzDaneKontroli(QDialog):
             'zmieniana ani nadpisywana. Zero tolerancji biznesowej: '
             'warstwy mają być idealne, jedyne co jest pomijane to '
             'techniczny szum numeryczny GEOS rzędu pojedynczych cm² '
-            '(nie podlega konfiguracji). Sprawdzane są błędy wewnątrz '
-            'każdej warstwy (styki, wąsy, nakładanie, luki) oraz pokrycie '
+            '(nie podlega konfiguracji, poza koincydencją wierzchołków - '
+            'tam zero tolerancji, każda niezgodność jest zgłaszana). '
+            'Sprawdzane są błędy wewnątrz każdej warstwy (styki, '
+            'niedokładna koincydencja wierzchołków, wąsy, nakładanie, '
+            'luki) oraz pokrycie '
             'dziecko-w-rodzicu (uzyt w dzew, wydz w uzyt, oddz w wydz). '
             'Wyniki trafiają do folderu wyjściowego jako pliki shp z '
             'kolumną NR_BLEDU.')

@@ -1072,6 +1072,7 @@ class LasR:
         b.pobierz_feat()
         b.spr_wstepne()
         b.spr_styki()
+        b.spr_dokladnosc_koincydencji()
         b.spr_wasy()
         b.spr_nakladanie()
         b.dodaj_warstwy()

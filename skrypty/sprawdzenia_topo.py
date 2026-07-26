@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 from qgis.core import QgsVectorLayer, QgsGeometry, QgsPointXY, QgsProject, \
-    QgsFeature, QgsSpatialIndex, QgsField, Qgis
+    QgsFeature, QgsSpatialIndex, QgsField, Qgis, QgsRectangle
 from PyQt5.QtCore import QVariant
 from collections import defaultdict
 
@@ -26,6 +26,11 @@ class SprawdzTopo():
 
         # tablica z bledami powierzchniowymi, [geometry, typ]
         self.bl_poly = []
+
+        # licznik id bledow punktowych - inicjalizowany tu (nie tylko w
+        # spr_wstepne), zeby spr_dokladnosc_koincydencji dzialalo tez
+        # niezaleznie od kolejnosci/obecnosci innych sprawdzen
+        self.pkt_c = 0
 
         # lista ID obiektow z pusta/brakujaca geometria - pomijane w
         # kontrolach geometrycznych (nie da sie ich przedstawic
@@ -152,6 +157,62 @@ class SprawdzTopo():
                     self.pkt_c += 1
 
         self._postep(40)
+
+    def spr_dokladnosc_koincydencji(self, prog_koincydencji=0.02):
+        """Sprawdza, czy wierzcholki z roznych obiektow lezace blisko siebie
+        (w promieniu prog_koincydencji - a wiec ewidentnie majace
+        reprezentowac ten sam punkt styku) sa ze soba BITOWO identyczne.
+
+        W odroznieniu od spr_luki/spr_wasy nie ma tu progu szumu wg
+        powierzchni - nawet mikrometrowa niezgodnosc jest tu realnym
+        problemem: to wlasnie punkty "prawie, ale nie dokladnie"
+        pokrywajace sie najczesciej wywalaja w GEOS TopologyException
+        ("found non-noded intersection") przy pozniejszych operacjach
+        dissolve/union (np. budowa oddzialow z wydzielen), podczas gdy
+        punkty wyraznie odlegle lub dokladnie rowne dzialaja poprawnie.
+        Wielkosc niezgodnosci nie ma tu znaczenia - liczy sie sam fakt
+        "blisko, ale nie identycznie".
+        """
+        si = QgsSpatialIndex()
+        pkt_info = {}  # pid: (QgsPointXY, fid obiektu zrodlowego)
+        pid = 0
+        for f in self.slf.values():
+            geom = f.geometry()
+            if geom is None or geom.isNull() or geom.isEmpty():
+                continue
+            for part in geom.asMultiPolygon():
+                for ring in part:
+                    for pkt in ring:
+                        feat = QgsFeature(pid)
+                        feat.setGeometry(QgsGeometry.fromPointXY(pkt))
+                        si.addFeature(feat)
+                        pkt_info[pid] = (pkt, f.id())
+                        pid += 1
+
+        zgloszone = set()
+        for pid_a, (pkt_a, fid_a) in pkt_info.items():
+            rect = QgsRectangle(
+                pkt_a.x() - prog_koincydencji, pkt_a.y() - prog_koincydencji,
+                pkt_a.x() + prog_koincydencji, pkt_a.y() + prog_koincydencji)
+            for pid_b in si.intersects(rect):
+                if pid_b <= pid_a:
+                    continue
+                pkt_b, fid_b = pkt_info[pid_b]
+                if fid_b == fid_a:
+                    continue
+                odl = ((pkt_a.x() - pkt_b.x()) ** 2 +
+                       (pkt_a.y() - pkt_b.y()) ** 2) ** 0.5
+                if 0 < odl <= prog_koincydencji:
+                    klucz = (round((pkt_a.x() + pkt_b.x()) / 2, 3),
+                            round((pkt_a.y() + pkt_b.y()) / 2, 3))
+                    if klucz in zgloszone:
+                        continue
+                    zgloszone.add(klucz)
+                    self.bl_pkt[self.pkt_c] = [
+                        pkt_a.x(), pkt_a.y(), 'Niedokladna koincydencja']
+                    self.pkt_c += 1
+
+        self._postep(30)
 
     def spr_wasy(self, prog_szer=0.15):
         """Metoda sprawdza czy w poligonie nie występują tzw "wąsy", które są
