@@ -91,6 +91,7 @@ from .skrypty import (
     shp_aktualizuj_ewidencje,
     shp_buduj_oddzialy,
     napraw_topologie_hierarchii,
+    kontrola_topologii_hierarchii,
 )
 
 from .skrypty import aktualizacja_upul
@@ -590,6 +591,15 @@ class LasR:
         self.m_kontrola_danych.addAction(self.a_napraw_topo_hier)
         self.a_napraw_topo_hier.triggered.connect(self.napraw_topologie_hierarchii)
 
+        self.a_kontrola_topo_hier = QAction(
+            QIcon(None),
+            "Kontrola topologii hierarchii warstw (dzew-uzyt-wydz-oddz)",
+            self.iface.mainWindow()
+        )
+        self.m_kontrola_danych.addAction(self.a_kontrola_topo_hier)
+        self.a_kontrola_topo_hier.triggered.connect(
+            self.kontrola_topologii_hierarchii)
+
         # ------------------------------------
 
         self.a_kontrola_slownikow = QAction(
@@ -1080,6 +1090,22 @@ class LasR:
             parametry['folder_wyjsciowy'],
             snap_dist=parametry['snap_dist'],
             prog_pow=parametry['prog_pow'],
+            prog_szer=parametry['prog_szer'],
+        )
+
+    def kontrola_topologii_hierarchii(self):
+        dlg = kontrola_topologii_hierarchii.PobierzDaneKontroli(
+            self.iface.mainWindow())
+        dlg.exec_()
+        if dlg.porzucone:
+            return
+        parametry = dlg.pobierz_parametry()
+
+        k = kontrola_topologii_hierarchii.KontrolaHierarchii(self.iface)
+        k.uruchom(
+            parametry['sciezki'],
+            parametry['folder_wyjsciowy'],
+            prog_koincydencji=parametry['prog_koincydencji'],
             prog_szer=parametry['prog_szer'],
         )
 

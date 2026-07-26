@@ -27,6 +27,11 @@ class SprawdzTopo():
         # tablica z bledami powierzchniowymi, [geometry, typ]
         self.bl_poly = []
 
+        # lista ID obiektow z pusta/brakujaca geometria - pomijane w
+        # kontrolach geometrycznych (nie da sie ich przedstawic
+        # przestrzennie), ale zgłaszane zamiast wywalac cala kontrole
+        self.bl_brak_geom = []
+
         # sl z wszystkimi pkt w warstwie [X][Y] = [2, 2]
         # pierwsza wartość, liczba wystapien podczas wczytywania z warstwy
         # druga wart. liczba granic poligonow w tym pkt
@@ -60,8 +65,12 @@ class SprawdzTopo():
         self.pkt_c = 0
         self.prog_koinc = prog_koincydencji
         for f in self.slf.values():
+            geom = f.geometry()
+            if geom is None or geom.isNull() or geom.isEmpty():
+                self.bl_brak_geom.append(f.id())
+                continue
             s = {}
-            for feat in f.geometry().asMultiPolygon():
+            for feat in geom.asMultiPolygon():
                 if len(feat) > 0:
                     for part in feat:
                         for i, pkt_raw in enumerate(part):
@@ -120,7 +129,10 @@ class SprawdzTopo():
         prog = getattr(self, 'prog_koinc', 0.02)
         print('zaczynam sprawdzac styki')
         for f in self.slf.values():
-            gbuff = f.geometry().buffer(prog, 0)
+            geom = f.geometry()
+            if geom is None or geom.isNull() or geom.isEmpty():
+                continue
+            gbuff = geom.buffer(prog, 0)
             for xkey in [x for x in self.slpkt.keys()
                          if gbuff.boundingBox().xMinimum() <= x and
                          x <= gbuff.boundingBox().xMaximum()]:
@@ -146,9 +158,12 @@ class SprawdzTopo():
         błędem topologicznym"""
 
         for feat in self.slf.values():
-            for poly in feat.geometry().asMultiPolygon():
+            geom = feat.geometry()
+            if geom is None or geom.isNull() or geom.isEmpty():
+                continue
+            for poly in geom.asMultiPolygon():
                 if not poprawna_topo(poly, prog_szer=prog_szer):
-                    self.bl_poly.append([feat.geometry(), '"was"'])
+                    self.bl_poly.append([geom, '"was"'])
                     break
 
         self._postep(55)
@@ -197,7 +212,10 @@ class SprawdzTopo():
         """Metoda sprawdza czy poligony w warstwie się na siebie nie nakładają,
         jeżeli tak zwracana jest geometria przecięcia"""
         for it in self.slf.values():
-            ids = self.slfi.intersects(it.geometry().boundingBox())
+            geom = it.geometry()
+            if geom is None or geom.isNull() or geom.isEmpty():
+                continue
+            ids = self.slfi.intersects(geom.boundingBox())
             for id in ids:
                 if id != it.id():
                     inter = it.geometry().intersection(self.slf[id].geometry())
