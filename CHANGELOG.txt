@@ -54,3 +54,88 @@ Wersja 2.0g — 2026-07-29
     (PJD -> MSC) importowanego z BDL
 
 ==============================
+
+Wersja 2.0f — 2026-07-07
+------------------------------------------------
+
+1. Konwersja SHP do nowego standardu — nowe narzędzie przenoszące stare
+   pliki SHP na aktualny standard pól, z automatycznym rozpoznawaniem
+   typu warstwy i kodowania znaków
+2. Ściągnij dane z BDL — pobieranie geometrii i opisów taksacyjnych
+   bezpośrednio z Banku Danych o Lasach
+3. Utwórz bazę z BDL — zamiana pobranych danych BDL na gotowe wiersze w
+   czystej bazie
+4. Doliteruj / Literuj wydzielenia — nowe dialogi, literowanie od
+   wskazanej litery, źródło zajętych liter z bazy albo z SHP
+5. Liczne poprawki: dialog wyboru bazy startuje we właściwym katalogu,
+   poprawki w cięciu wydzieleń, eksporcie do KML i stylach warstw
+
+==============================
+
+Wersja 2.0e — 2026-07-01 — pierwsze wydanie produkcyjne
+------------------------------------------------
+
+Wtyczka opuszcza fazę beta. Wszystkie funkcje i poprawki z serii
+2.0a-2.0d są już częścią tego wydania i zostały sprawdzone w codziennej
+pracy. Brak dodatkowych zmian funkcjonalnych względem 2.0d.
+
+==============================
+
+Wersja 2.0d — 18-25.06.2026
+------------------------------------------------
+
+1. Skasuj wydzielenia w warstwie — usuwa z warstwy WYDZ wydzielenia,
+   których nie ma już w bazie
+2. Doliteruj wydzielenia — kontynuacja literowania po dopisaniu nowych
+   wydzieleń, bez ruszania już zaliterowanych
+3. Obszary do przeglądu cięcia zintegrowane z przygotowaniem wydzieleń
+   do cięcia
+4. Atlasuj automatycznie (nowość) — automatyczna numeracja stron atlasu,
+   bez ręcznej digitalizacji linii
+5. Kontrola Ls w bazie i Usuń działki bez Ls — nowe narzędzia kontrolne
+6. Kopie bezpieczeństwa tworzone automatycznie przed każdym kasowaniem
+7. Liczne poprawki: wyciągi dla właścicieli (szybsze, mniej pustego
+   miejsca), raport kart w formacie xlsx, połącz pomiary od taksatorów
+   (wykrywanie duplikatów), reprojekcja warstw i inne
+
+==============================
+
+Wersja 2.0c — 17.06.2026
+------------------------------------------------
+
+1. Pasek LAS-R KP rozbudowany o nowe przyciski i bibliotekę 31 gotowych
+   stylów QML z podglądem
+2. Bezpieczeństwo — usunięto z repozytorium plik mogący zawierać dane
+   logowania do QGIS
+3. Poprawki: wyciągi dla właścicieli (łamanie stron map/tabel), zapis
+   powierzchni wydzielenia (separator dziesiętny), kontrola słownikowa
+   wg SULMN (rozszerzona do 28 kontroli, naprawione błędy)
+
+==============================
+
+Wersja 2.0b — 16.06.2026
+------------------------------------------------
+
+1. Powiadomienie o nowej wersji przy starcie QGIS + pozycja menu
+   "Co nowego?"
+2. Kontrola opisu taksacyjnego i kontrola słownikowa wg SULMN — nowe
+   narzędzia kontrolne bazy Taksatora
+3. Reorganizacja pasków narzędzi LAS-R
+
+==============================
+
+Wersja 2.0a — 10-14.06.2026
+------------------------------------------------
+
+1. Spakuj taksatorowi — pakowanie kompletu warstw i zestawienia
+   powierzchni do przekazania taksatorowi, w trybie pojedynczym i
+   wsadowym
+2. Tworzenie warstw DOTAKS — przygotowanie danych do przekazania
+   taksatorowi (nowe wydzielenia, rębnie/nieleśne, sprawdzenie)
+3. Przygotowanie warstw do cięcia ST UPUL
+4. Aktualizacja UPUL — operacje na bazie MDB z historią wersji i
+   możliwością cofnięcia zmian
+5. Liczne poprawki: wyciągi dla właścicieli, naklejki, wyszukaj Lz,
+   zabiegi dopisz/sprawdź, DZKAT dopisz/sprawdź
+
+==============================
