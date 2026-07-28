@@ -119,4 +119,4 @@ class Ui_Dialog(object):
         self.radioButton_pion.setText(_translate("Dialog", "Pionowo"))
         self.radioButton_poziom.setText(_translate("Dialog", "Poziomo"))
         self.label.setText(_translate("Dialog", "Skala  1:"))
-        self.lineEdit_skala.setText(_translate("Dialog", "12000"))
+        self.lineEdit_skala.setText(_translate("Dialog", "5000"))

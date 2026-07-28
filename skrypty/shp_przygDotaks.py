@@ -272,14 +272,27 @@ class PrzygotujDotaks:
         if wpol is None:
             return
 
-        pasujace = [f for f in wpol.getFeatures()
-                    if self._pasuje_rb_nielas(f)]
+        przes_adr = self._pobierz_przes(baza_sc)
 
         wynik = QgsVectorLayer(
             f'MultiPolygon?crs={_CRS}', 'DOTAKS_rb_nielas', 'memory')
         wynik_data = wynik.dataProvider()
-        wynik_data.addAttributes(wpol.fields().toList())
+        wynik_data.addAttributes(
+            [QgsField('POWOD', QVariant.String, '', 20)] +
+            wpol.fields().toList())
         wynik.updateFields()
+
+        pasujace = []
+        for f in wpol.getFeatures():
+            powod = self._powod_rb_nielas(f, przes_adr)
+            if powod is None:
+                continue
+            nf = QgsFeature(wynik.fields())
+            nf.setGeometry(f.geometry())
+            nf.setAttribute('POWOD', powod)
+            for pole in wpol.fields():
+                nf.setAttribute(pole.name(), f[pole.name()])
+            pasujace.append(nf)
         wynik_data.addFeatures(pasujace)
 
         clipped = processing.run('native:clip', {
@@ -300,16 +313,36 @@ class PrzygotujDotaks:
 
         self._eksportuj(clipped, kat_wyj, 'DOTAKS_rb_nielas')
 
-    def _pasuje_rb_nielas(self, feat):
+    def _pobierz_przes(self, baza_sc):
+        """ Zwraca zbior ADR_LES wydzielen z pietrem PRZES w F_AROD_STOREY
+        (osobne, krotkie polaczenie z baza - _dopisz_metadane juz zamknelo
+        swoje przez DopiszKody.pobierzBaze). Pusty zbior przy bledzie
+        polaczenia/kwerendy - nie przerywa reszty przygotowania DOTAKS. """
+        baza = Baza(baza_sc)
+        if not baza.polacz():
+            return set()
+        try:
+            wyniki = baza.pobierz_wydzielenia_z_przes()
+            return {x[0] for x in wyniki} if wyniki else set()
+        finally:
+            baza.zamknij()
+
+    def _powod_rb_nielas(self, feat, przes_adr):
+        """ Zwraca powod trafienia do DOTAKS_rb_nielas (do pola POWOD):
+        sam TYP_POW (INNE WYL/SUKCESJA/HAL/PŁAZ/ZRĄB), 'RB' gdy dopasowanie
+        przez kod rebny w ZABIEG, albo 'PRZES' gdy wydzielenie ma pietro
+        PRZES w bazie. None - brak dopasowania. """
         typ = (feat['TYP_POW'] or '').strip()
         if typ in _TYP_POW_RB:
-            return True
+            return typ
         zabieg = (feat['ZABIEG'] or '').strip()
         if zabieg:
             kody = {z.strip() for z in zabieg.split(',')}
             if kody & _ZABIEG_RB:
-                return True
-        return False
+                return 'RB'
+        if feat['ADR_LES'] in przes_adr:
+            return 'PRZES'
+        return None
 
     # ------------------------------------------------------------------
     # DOTAKS_sprawdzenie  (TODO)

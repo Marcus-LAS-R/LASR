@@ -1288,6 +1288,18 @@ class Baza(object):
         """
         return self.pobierz(sql)
 
+    def pobierz_wydzielenia_z_przes(self):
+        """Pobierz adr_les wydzielen, ktore maja pietro PRZES w
+        F_AROD_STOREY (uzywane przez Przygotuj Dotaks - DOTAKS_rb_nielas)"""
+
+        sql = """
+            SELECT DISTINCT F_ARODES.ADRESS_FOREST
+            FROM F_AROD_STOREY INNER JOIN F_ARODES ON
+            F_AROD_STOREY.ARODES_INT_NUM = F_ARODES.ARODES_INT_NUM
+            WHERE F_AROD_STOREY.STOREY_CD = 'PRZES';
+        """
+        return self.pobierz(sql)
+
     def usun_rekordy(self, do_usun: list) -> bool:
         """ Usuwa z bazy wskazane wydzielenia (po ARODES_INT_NUM), a
         nastepnie kaskadowo usuwa oddzialy i lesnictwa, ktore przez to

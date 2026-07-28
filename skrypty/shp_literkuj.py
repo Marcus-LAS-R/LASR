@@ -2,8 +2,12 @@ import os
 import glob
 import datetime
 import processing
-from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
+from qgis.core import (
+    Qgis, QgsMessageLog, QgsVectorLayer, QgsProject, QgsFeature, QgsField,
+    QgsGeometry,
+)
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import QVariant
 from operator import itemgetter
 
 from . import kopie_manipulacyjne
@@ -183,6 +187,7 @@ def Literkuj(iface, lyr=False):  # noqa
     oddz = ""
     iwydz = 0
     message_trig = 0
+    przekroczone_grupy = []
 
     for it in tab:
         if oddz != it[3]:
@@ -218,17 +223,69 @@ def Literkuj(iface, lyr=False):  # noqa
                         'Las-R',
                         Qgis.Warning
                     )
+                    if (gmi, obr, oddz) not in przekroczone_grupy:
+                        przekroczone_grupy.append((gmi, obr, oddz))
                 sl[it[0]] = {fnm['WYDZ']: wpis}
         else:
             sl[it[0]] = {fnm['WYDZ']: 'Lz'}
 
     if message_trig > 0:
+        sciezka_wydz = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
+        oddz_shp = os.path.join(os.path.dirname(sciezka_wydz), 'ODDZ.shp')
+
+        warstwa_przekr = QgsVectorLayer(
+            'Polygon?crs=' + lyr.crs().authid(),
+            'Oddziały - przekroczono literki', 'memory')
+        pr_przekr = warstwa_przekr.dataProvider()
+        pr_przekr.addAttributes([
+            QgsField('COMMUNITY', QVariant.String),
+            QgsField('MUNICIP', QVariant.String),
+            QgsField('ODDZ', QVariant.String),
+        ])
+        warstwa_przekr.updateFields()
+
+        if os.path.isfile(oddz_shp):
+            warstwa_oddz_zrodlo = QgsVectorLayer(oddz_shp, 'oddz_zrodlo', 'ogr')
+            nowe_featury = []
+            for g, o, od in przekroczone_grupy:
+                geometrie = [
+                    f.geometry() for f in warstwa_oddz_zrodlo.getFeatures()
+                    if str(f['MUNICIP']) == str(g)
+                    and str(f['COMMUNITY']) == str(o)
+                    and str(f['ODDZ']) == str(od)
+                ]
+                if not geometrie:
+                    continue
+                nf = QgsFeature(warstwa_przekr.fields())
+                nf.setGeometry(
+                    geometrie[0] if len(geometrie) == 1
+                    else QgsGeometry.unaryUnion(geometrie))
+                nf.setAttributes([g, o, od])
+                nowe_featury.append(nf)
+            pr_przekr.addFeatures(nowe_featury)
+        else:
+            QgsMessageLog.logMessage(
+                'Nie znaleziono ODDZ.shp obok warstwy wydzieleń - '
+                'pominięto zaznaczenie oddziałów na mapie',
+                'Las-R', Qgis.Warning)
+
+        warstwa_przekr.updateExtents()
+        QgsProject.instance().addMapLayer(warstwa_przekr)
+
+        lista_grup = '\n'.join(
+            'Gmina: ' + str(g) + ', obręb: ' + str(o) + ', oddział: ' + str(od)
+            for g, o, od in przekroczone_grupy[:15]
+        )
+        if len(przekroczone_grupy) > 15:
+            lista_grup += '\n... oraz ' + \
+                str(len(przekroczone_grupy) - 15) + ' innych (patrz log Las-R)'
+
         odp = QMessageBox.question(
             iface.mainWindow(),
             'Lista literek przekroczona',
             'Literkowanie przekroczy dostępną listę literek dla ' +
-            str(message_trig) + ' wydzieleń (patrz log Las-R).\n\n'
-            'Kontynuować literowanie?',
+            str(message_trig) + ' wydzieleń w:\n\n' + lista_grup +
+            '\n\nKontynuować literowanie?',
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )

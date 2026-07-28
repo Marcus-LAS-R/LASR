@@ -77,10 +77,14 @@ class GenerujAtlasAuto:
 
     def generuj_pola(self):
         self.pola = QgsVectorLayer(
-            "Polygon?crs=epsg:2180&index=yes", "ATLAS_AUTO", "memory")
+            "Polygon?crs=epsg:2180&index=yes", "ATLAS_AFT", "memory")
         self.pola.startEditing()
         self.pola.dataProvider().addAttributes([
             QgsField("STRONA", QVariant.Int),
+            QgsField("L", QVariant.Int),
+            QgsField("G", QVariant.Int),
+            QgsField("P", QVariant.Int),
+            QgsField("D", QVariant.Int),
             QgsField("ZROBIONE", QVariant.String, len=50),
         ])
         self.pola.updateFields()
@@ -97,6 +101,7 @@ class GenerujAtlasAuto:
         kafle, przeciete = kafelkowanie.pokryj_kaflami(
             bboxy, self.rozm[0], self.rozm[1])
         self.przeciete = [identyfikatory[i] for i in przeciete]
+        sasiedzi = self._sasiedzi_lgpd(kafle)
 
         nowe = []
         for nr, (x0, y0, x1, y1) in enumerate(kafle, start=1):
@@ -105,40 +110,76 @@ class GenerujAtlasAuto:
             feat.setGeometry(QgsGeometry.fromRect(
                 QgsRectangle(x0, y0, x1, y1)))
             feat['STRONA'] = nr
+            s = sasiedzi[nr - 1]
+            feat['L'] = s['L']
+            feat['G'] = s['G']
+            feat['P'] = s['P']
+            feat['D'] = s['D']
             nowe.append(feat)
 
         self.pola.dataProvider().addFeatures(nowe)
         self.pola.commitChanges()
         return len(kafle)
 
+    def _sasiedzi_lgpd(self, kafle):
+        """ Dla kazdego kafla wyznacza najblizszego sasiada w kazdym z 4
+        kierunkow (L/G/P/D - lewo/gora/prawo/dol), do strzalek nawigacyjnych
+        w atlasie (jak L/G/P/D w shp_atlasuj.Zanumeruj, ale tam sasiedztwo
+        czyta sie z kolejnosci wierzcholkow recznie zdigitalizowanej linii -
+        automatyczne kafelkowanie nie tworzy regularnej siatki ani takiej
+        linii, wiec sasiada trzeba wyznaczyc geometrycznie: najblizszy
+        (po srodku kafla) w danym kierunku wg dominujacej osi. Zwraca liste
+        (rownolegla do `kafle`, indeksy 0-based) slownikow {'L':nr,'G':nr,
+        'P':nr,'D':nr} z numerami STRONA (1-based) sasiadow, 0 gdy brak. """
+        srodki = [((x0 + x1) / 2, (y0 + y1) / 2) for x0, y0, x1, y1 in kafle]
+        wyniki = []
+        for i, (cx, cy) in enumerate(srodki):
+            najblizszy = {'L': 0, 'G': 0, 'P': 0, 'D': 0}
+            odleglosc = {'L': None, 'G': None, 'P': None, 'D': None}
+            for j, (cx2, cy2) in enumerate(srodki):
+                if i == j:
+                    continue
+                dx = cx2 - cx
+                dy = cy2 - cy
+                if abs(dx) >= abs(dy):
+                    kierunek = 'P' if dx > 0 else 'L'
+                else:
+                    kierunek = 'G' if dy > 0 else 'D'
+                dist = (dx * dx + dy * dy) ** 0.5
+                if odleglosc[kierunek] is None or dist < odleglosc[kierunek]:
+                    odleglosc[kierunek] = dist
+                    najblizszy[kierunek] = j + 1  # numer STRONA (1-based)
+            wyniki.append(najblizszy)
+        return wyniki
+
     def zapisz_warstwe(self):
         # usun poprzednia warstwe z TOC (zwalnia blokade pliku na Windows)
         stare = [l for l in QgsProject.instance().mapLayers().values()
-                 if l.name() == 'ATLAS_AUTO']
+                 if l.name() == 'ATLAS_AFT']
         if stare:
             QgsProject.instance().removeMapLayers([l.id() for l in stare])
 
         rozsz = ['shp', 'shx', 'dbf', 'prj', 'sbx', 'cpg', ]
         try:
             for r in rozsz:
-                sciezka = os.path.join(self.kat, 'ATLAS_AUTO.' + r)
+                sciezka = os.path.join(self.kat, 'ATLAS_AFT.' + r)
                 if os.path.isfile(sciezka):
                     os.remove(sciezka)
         except:  # nopep8
             self.iface.messageBar().pushCritical(
                 'BŁĄD',
                 'Nie udało się usunąć poprzedniej wersji plików '
-                'ATLAS_AUTO, proszę zamknąć warstwę w QGIS i ponownie '
+                'ATLAS_AFT, proszę zamknąć warstwę w QGIS i ponownie '
                 'uruchomić skrypt'
             )
             return False
 
         crs = QgsCoordinateReferenceSystem("epsg:2180")
-        sciezka = os.path.join(self.kat, "ATLAS_AUTO.shp")
+        sciezka = os.path.join(self.kat, "ATLAS_AFT.shp")
         QgsVectorFileWriter.writeAsVectorFormat(
             self.pola, sciezka, "UTF-8", crs, "ESRI Shapefile")
 
-        warstwa = QgsVectorLayer(sciezka, "ATLAS_AUTO", "ogr")
+        warstwa = QgsVectorLayer(sciezka, "ATLAS_AFT", "ogr")
         QgsProject.instance().addMapLayer(warstwa)
 
         plugin_dir = os.path.dirname(__file__)
@@ -157,7 +198,7 @@ class GenerujAtlasAuto:
 
         self.iface.messageBar().pushSuccess(
             'OK',
-            'Utworzono warstwę ATLAS_AUTO z ' + str(ile) + ' polami'
+            'Utworzono warstwę ATLAS_AFT z ' + str(ile) + ' polami'
         )
         if self.przeciete:
             lista = ', '.join(str(x) for x in self.przeciete[:10])
