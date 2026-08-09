@@ -95,6 +95,7 @@ from .skrypty import (
 )
 
 from .skrypty import aktualizacja_upul
+from .skrypty import kontrola_terenowa
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
@@ -751,6 +752,14 @@ class LasR:
         self.m_raporty.addAction(self.a_wyciagi)
         self.a_wyciagi.triggered.connect(self.generuj_wyciagi)
 
+        self.a_kontrola_terenowa = QAction(
+            QIcon(None), "Materiały do kontroli terenowej",
+            self.iface.mainWindow()
+        )
+        self.m_raporty.addAction(self.a_kontrola_terenowa)
+        self.a_kontrola_terenowa.triggered.connect(
+            self.materialy_do_kontroli_terenowej)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(
             ico_wydz_dopisz, "Dopisz metadane", self.iface.mainWindow()
@@ -1211,6 +1220,9 @@ class LasR:
             s.przetworz()
             s.zapytaj_wgs84()
             s.zapisz_kml()
+
+    def materialy_do_kontroli_terenowej(self):
+        kontrola_terenowa.uruchom(self.iface)
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)
