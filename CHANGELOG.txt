@@ -1,6 +1,19 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0h — 2026-08-17
+------------------------------------------------
+
+1. NOWOŚĆ: "Przysnapuj do działek (nowy)"
+   - Ulepszona wersja dociągania Ls do granic działek — dużo mniej
+     fałszywych błędów topologii do ręcznej poprawy po dociągnięciu
+     (testy: spadek błędów o ok. 98%). Dostępna na razie obok
+     dotychczasowego narzędzia, do wypróbowania
+
+2. NOWOŚĆ: Materiały do kontroli terenowej
+   - Dla zaznaczonych wydzieleń generuje tabelę opisu taksacyjnego,
+     protokół kontroli terenowej oraz eksport KML/SHP do pracy w terenie
+
 Wersja 2.0g — 2026-07-29
 ------------------------------------------------
 
