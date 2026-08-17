@@ -64,6 +64,7 @@ from .skrypty import (
     baza_usun_op,
     baza_usun_nieLs,
     shp_dociagnij_poly,
+    shp_dociagnij_natywny,
     raport_wyles,
     baza_kontrola_ls,
     baza_popraw_LS,
@@ -327,6 +328,13 @@ class LasR:
         )
         self.m_przyg_danych.addAction(self.a_snapuj)
         self.a_snapuj.triggered.connect(self.przysnapuj_do_dzewid)
+
+        self.a_snapuj_nowy = QAction(
+            QIcon(None), "Przysnapuj do działek (nowy)",
+            self.iface.mainWindow()
+        )
+        self.m_przyg_danych.addAction(self.a_snapuj_nowy)
+        self.a_snapuj_nowy.triggered.connect(self.przysnapuj_do_dzewid_nowy)
 
         self.przyg_teren = QAction(
             QIcon(None), "Przygotuj w teren", self.iface.mainWindow()
@@ -1349,6 +1357,17 @@ class LasR:
 
     def przysnapuj_do_dzewid(self):
         s = shp_dociagnij_poly.Przyciagnij(self.iface)
+        if not s.pobierz_dane():
+            return
+        if not s.sprawdz_dane():
+            return False
+        s._przetworz()
+        s.podociagaj()
+        s.stworz_poligony()
+        s.pokaz_warstwy()
+
+    def przysnapuj_do_dzewid_nowy(self):
+        s = shp_dociagnij_natywny.DociagnijNatywny(self.iface)
         if not s.pobierz_dane():
             return
         if not s.sprawdz_dane():
