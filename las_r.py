@@ -51,6 +51,7 @@ from .skrypty import (
     spr_wydzielen,
     naklejki,
     przygotuj_ls,
+    przygotuj_ls_z_wydzielen,
     shp_eksport_kml,
     baza_rozlicz_pow_wydz,
     baza_sprawdz_rozl,
@@ -323,6 +324,12 @@ class LasR:
         self.przyg_ls = QAction(QIcon(None), "Przygotuj Lsy", self.iface.mainWindow())
         self.m_przyg_danych.addAction(self.przyg_ls)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
+
+        self.przyg_ls_wydz = QAction(
+            QIcon(None), "Przygotuj Lsy z wydzieleń", self.iface.mainWindow()
+        )
+        self.m_przyg_danych.addAction(self.przyg_ls_wydz)
+        self.przyg_ls_wydz.triggered.connect(self.przygotuj_ls_z_wydzielen)
 
         self.a_snapuj = QAction(
             QIcon(None), "Przysnapuj do dzałek", self.iface.mainWindow()
@@ -999,6 +1006,17 @@ class LasR:
 
     def przygotuj_ls(self):
         spr = przygotuj_ls.PrzygotujLs(self.iface)
+        if not spr.sprawdz_warstwy():
+            return
+        if not spr.wczytaj():
+            return
+        if not spr.sprawdz():
+            return
+        if spr.przygotuj():
+            spr.przetworz()
+
+    def przygotuj_ls_z_wydzielen(self):
+        spr = przygotuj_ls_z_wydzielen.PrzygotujLsZWydzielen(self.iface)
         if not spr.sprawdz_warstwy():
             return
         if not spr.wczytaj():
