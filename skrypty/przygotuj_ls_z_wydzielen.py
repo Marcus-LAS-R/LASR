@@ -148,8 +148,13 @@ class PrzetworzWydzielenia(PrzetworzKlu):
     def s_ma_wiele_sq(self):
         """Zwraca True jeśli działka ma w bazie więcej niż jeden rekord
         Ls (różne SOIL_QUALITY_CD) - nie da się automatycznie przypisać
-        SQ do geometrii wydzielenia bez wskazówki graficznej."""
-        return (self.pid in self.p.sl_ls_na_dz and
+        SQ do geometrii wydzielenia bez wskazówki graficznej. Wymaga też,
+        żeby na działce faktycznie była jakaś geometria wydzieleń
+        (self.klus) - działka z 2+ Ls w bazie, ale bez żadnego pokrycia w
+        warstwie wydzieleń, nie ma czego przecinać (i tak wyląduje w
+        "BRAKUJĄCE LSy [W SHP]" jak każda inna brakująca geometria)."""
+        return (len(self.klus) > 0 and
+                self.pid in self.p.sl_ls_na_dz and
                 len(self.p.sl_ls_na_dz[self.pid]) > 1)
 
     def s_dopisz_do_przeciecia(self):
@@ -157,8 +162,11 @@ class PrzetworzWydzielenia(PrzetworzKlu):
         (AU='Ls' jak reszta, ale bez LANDID/SQ) łączący geometrię
         wszystkich self.klus (zwykle już 1 element dzięki dissolve po
         PARCELID w geop_przetworz) - dodaje do klus_do_przeciecia (nowa,
-        trwała warstwa) i do self.poprawne pod syntetycznym kluczem, żeby
-        pojawił się też w głównej warstwie LS."""
+        trwała warstwa). Wpisanie do self.poprawne (główna warstwa LS)
+        dzieje się dopiero w polacz_ostateczne() - ta metoda woła
+        super().polacz_ostateczne(), który NADPISUJE self.poprawne od
+        zera na podstawie self.klus_popr, więc wpisanie tutaj zostałoby
+        skasowane."""
         geom = self.klus[0].geometry()
         for k in self.klus[1:]:
             geom = geom.combine(k.geometry())
@@ -171,21 +179,33 @@ class PrzetworzWydzielenia(PrzetworzKlu):
 
         self.klus_do_przeciecia.append(f)
 
-        klucz = self.pid + '.DOPRZECIECIA'
-        self.poprawne[klucz] = f
-        self._klucze_do_przeciecia.append(klucz)
+    def polacz_ostateczne(self):
+        super().polacz_ostateczne()
+        # super() nadpisuje self.poprawne od zera na podstawie
+        # self.klus_popr - wpisy do przeciecia (ktore nigdy nie trafily
+        # do klus_popr) trzeba dopisac dopiero teraz
+        for i, f in enumerate(self.klus_do_przeciecia):
+            klucz = self.pid + '.DOPRZECIECIA'
+            if len(self.klus_do_przeciecia) > 1:
+                klucz += str(i)
+            self.poprawne[klucz] = f
+            self._klucze_do_przeciecia.append(klucz)
 
     def dopisz_uwagi_pow(self):
         super().dopisz_uwagi_pow()
         # dopisz_uwagi_pow() bezwarunkowo wpisuje klucz slownika jako
         # LANDID - dla wpisow do przeciecia to syntetyczny klucz, ktory
-        # trzeba wyczyscic z powrotem (LANDID ma zostac pusty). AU/SQ nie
-        # sa tam w ogole dotykane (AU juz ustawione na 'Ls', SQ zostaje
-        # puste), LAND_AR i tak zostaje pusty (syntetyczny klucz nigdy
-        # nie pasuje do self.p.uzytki).
+        # trzeba wyczyscic z powrotem (LANDID ma zostac pusty). Pusty
+        # STRING, nie None/NULL - GenerujRaport (nietkniety przygotuj_ls.py)
+        # zaklada, ze LANDID kazdego feature'a z AU='Ls' jest stringiem i
+        # wola na nim .split('.') przy budowaniu sekcji "BRAKUJACE LSy
+        # [W BAZIE]" - QVariant(NULL) wysypuje to z AttributeError. AU/SQ
+        # nie sa tam w ogole dotykane (AU juz ustawione na 'Ls', SQ zostaje
+        # puste), LAND_AR i tak zostaje pusty (syntetyczny klucz nigdy nie
+        # pasuje do self.p.uzytki).
         for klucz in self._klucze_do_przeciecia:
             item = self.poprawne[klucz]
-            item.setAttribute(item.fieldNameIndex('LANDID'), None)
+            item.setAttribute(item.fieldNameIndex('LANDID'), '')
 
 
 class AnalizujWydzielenia(AnalizujKlus):

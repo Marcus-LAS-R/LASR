@@ -116,6 +116,7 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
         self.retranslateUi(Dialog)
+        self.pushButton_ok.clicked.connect(Dialog.hide)
         self.pushButton_cancel.clicked.connect(Dialog.close)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
