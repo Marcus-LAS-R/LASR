@@ -1,7 +1,7 @@
 import os
 import glob
 import platform
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QMessageBox
 from datetime import datetime
 from shutil import copyfile
 from qgis.core import Qgis, QgsMessageLog
@@ -15,6 +15,7 @@ from .baza_polacz_rejestr import (
 from .baza_polacz_dialog import WyborGrupDialog
 from .baza_polacz_obreby_dialog import WyborObrebowDialog
 from .baza_polacz_docelowa_dialog import WyborBazyDocelowejDialog
+from .baza_wybor_katalogu_dialog import WybierzKatalogDialog
 
 
 def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
@@ -162,30 +163,11 @@ class PolaczBazy():
     def pobierz_katalog(self):
         wzorzec = "*.mdb" if platform.system()[:3] == 'Win' else "*.sqlite"
 
-        # Natywny selektor folderow na Windows pokazuje WYLACZNIE
-        # podfoldery (nigdy pliki), wiec katalog z samymi bazami wyglada
-        # pusty i user nie ma jak sie upewnic, ze trafil we wlasciwe
-        # miejsce przed zatwierdzeniem. Wlasny (nie-natywny) QFileDialog w
-        # trybie Directory + ShowDirsOnly=False pokazuje pliki pasujace do
-        # filtra obok folderow (wyszarzone, niewybieralne - wybiera sie
-        # nadal caly folder), wiec baza widac od razu.
-        dlg = QFileDialog(self.iface.mainWindow(), "Katalog z bazami danych", '')
-        dlg.setFileMode(QFileDialog.Directory)
-        dlg.setOption(QFileDialog.ShowDirsOnly, False)
-        dlg.setOption(QFileDialog.DontUseNativeDialog, True)
-        dlg.setNameFilter(wzorzec)
-        # Wbudowane etykiety/przyciski Qt-owego (nie-natywnego) dialogu
-        # potrafia zostac po angielsku (np. "Choose") jesli tlumaczenia Qt
-        # nie sa zaladowane w tym procesie - wymuszamy polskie teksty
-        # jawnie przez publiczne API zamiast liczyc na runtime Qt.
-        dlg.setLabelText(QFileDialog.LookIn, "Szukaj w:")
-        dlg.setLabelText(QFileDialog.FileName, "Folder:")
-        dlg.setLabelText(QFileDialog.FileType, "Pliki typu:")
-        dlg.setLabelText(QFileDialog.Accept, "Wybierz folder")
-        dlg.setLabelText(QFileDialog.Reject, "Anuluj")
-        if dlg.exec_() != QDialog.Accepted or not dlg.selectedFiles():
+        dlg = WybierzKatalogDialog(
+            self.iface, "Połącz bazy TPU — katalog z bazami danych", wzorzec)
+        if dlg.exec_() != QDialog.Accepted:
             return False
-        bazy_kat = dlg.selectedFiles()[0]
+        bazy_kat = dlg.katalog()
 
         bTemp = glob.glob(os.path.join(bazy_kat, wzorzec))
 

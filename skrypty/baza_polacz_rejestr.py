@@ -138,6 +138,7 @@ GRUPA3_DZIECI = [
         "VOLUME",
         "SITE_CLASS_CD",
         "TECHN_QUALITY_CD",
+        "INCREMENT_CURRENT",
         "VOLUME_TEMP",
         "INCREMENT_CURRENT_AREA",
     ], fk=[FK('ARODES_INT_NUM', 'sl_arodes')],

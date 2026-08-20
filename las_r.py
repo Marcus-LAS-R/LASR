@@ -93,6 +93,7 @@ from .skrypty import (
     shp_buduj_oddzialy,
     napraw_topologie_hierarchii,
     kontrola_topologii_hierarchii,
+    baza_aktualizuj_strukture,
 )
 
 from .skrypty import aktualizacja_upul
@@ -476,6 +477,15 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przelit)
         self.przelit.triggered.connect(self.przeliterkuj)
         # ----------------------------------------
+
+        self.a_aktualizuj_strukture = QAction(
+            QIcon(None), "Aktualizuj strukturę bazy", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_aktualizuj_strukture)
+        self.a_aktualizuj_strukture.triggered.connect(
+            self.aktualizuj_strukture_bazy)
+
+        self.m_aktualizacja_upul.addSeparator()
 
         self.a_aktualizacja_baz = QAction(
             QIcon(None), "Aktualizacja baz", self.iface.mainWindow()
@@ -1506,6 +1516,9 @@ class LasR:
 
     def skasuj_wydzielenia_z_warstwy(self):
         shp_usun_wydz.usun_wydz_z_warstwy(self.iface)
+
+    def aktualizuj_strukture_bazy(self):
+        baza_aktualizuj_strukture.uruchom(self.iface)
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)

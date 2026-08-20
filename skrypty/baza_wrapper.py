@@ -391,6 +391,16 @@ class Baza(object):
             return {x[0]: x[1] for x in wydz}
         return False
 
+    def kolumny_tabeli(self, tabela):
+        """Zwraca zbiór nazw kolumn realnie istniejących w podanej tabeli
+        tej bazy (do porównywania struktury między starą a nową bazą przy
+        aktualizacji struktury), albo False przy błędzie."""
+        try:
+            self.cur.execute('SELECT * FROM ' + tabela + ' WHERE 1=0')
+            return {kol[0] for kol in self.cur.description}
+        except Exception:
+            return False
+
     def pobierz_do_mapy(self):
         """Metoda pobiera z bazy tabele na podstawie ktorej generowane beda
         odpowiednie kody i opisy na mapach"""
