@@ -14,6 +14,7 @@ from .baza_polacz_rejestr import (
     GRUPA2_DZIECI, GRUPA3_DZIECI, rejestr_domyslny)
 from .baza_polacz_dialog import WyborGrupDialog
 from .baza_polacz_obreby_dialog import WyborObrebowDialog
+from .baza_polacz_docelowa_dialog import WyborBazyDocelowejDialog
 
 
 def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
@@ -145,6 +146,11 @@ class PolaczBazy():
 
         self.baza0 = False  # baza do ktorej kopiujemy reszte danych
         self.lista = []  # lista ze sciezkami do baz w katalogu
+        # sciezka do recznie wskazanej bazy docelowej, albo None gdy
+        # uzytkownik nie zaznaczyl checkboxa - nadpisywane przez
+        # wybierz_baze_docelowa(), wtedy self.lista[0] przestaje byc baza
+        # docelowa i staje sie zwyklym zrodlem (patrz kopiuj())
+        self.baza_docelowa_wskazana = None
         self.wybrane = rejestr_domyslny()  # nadpisywane przez wybierz_grupy()
         # {baza_sc: set(tuple)|None} - nadpisywane przez wybierz_obreby();
         # None dla danej bazy = brak filtra (wszystkie obreby dozwolone)
@@ -186,9 +192,6 @@ class PolaczBazy():
         mess = ''
         if len(bTemp) == 0:
             mess = 'Nie odnalazłem żadnej bazy we wskazanym katalogu!'
-        elif len(bTemp) == 1:
-            mess = 'Do łącznia wymagane są przynajmniej ' + \
-                'dwie bazy drogi użyszkodniku ;)'
 
         # sortujemy, zeby wybor bazy bazowej (lista[0]) byl deterministyczny
         # i przewidywalny dla uzytkownika, zamiast zalezec od kolejnosci
@@ -207,13 +210,53 @@ class PolaczBazy():
 
         self.iface.messageBar().pushMessage(
             'Połącz bazy TPU',
-            'Znaleziono ' + str(len(self.lista)) + ' baz. Bazą bazową '
-            '(do której zostaną dopisane pozostałe) będzie: ' +
-            os.path.basename(self.lista[0]),
+            'Znaleziono ' + str(len(self.lista)) + ' baz.',
             Qgis.Info,
             10
         )
 
+        return True
+
+    def wybierz_baze_docelowa(self):
+        """Pokazuje dialog wyboru bazy docelowej. Zwraca True i zapisuje
+        wybór w self.baza_docelowa_wskazana (None = zachowaj domyślne
+        zachowanie, self.lista[0] jako baza bazowa), albo False jeśli
+        użytkownik zrezygnował, wskazał bazę będącą jednocześnie jedną z
+        baz źródłowych, albo (przy domyślnym zachowaniu) w katalogu jest
+        mniej niż dwie bazy."""
+        dlg = WyborBazyDocelowejDialog(self.iface, self.lista)
+        if dlg.exec_() != QDialog.Accepted:
+            return False
+        self.baza_docelowa_wskazana = dlg.wybor()
+
+        if self.baza_docelowa_wskazana:
+            wskazana_norm = os.path.normpath(self.baza_docelowa_wskazana)
+            if wskazana_norm in [os.path.normpath(x) for x in self.lista]:
+                self.iface.messageBar().clearWidgets()
+                self.iface.messageBar().pushMessage(
+                    'BŁĄD',
+                    'Wskazana baza docelowa jest jednocześnie jedną z baz '
+                    'źródłowych znalezionych w katalogu - wskaż inny plik.',
+                    Qgis.Critical, 0)
+                return False
+
+        if not self.baza_docelowa_wskazana and len(self.lista) < 2:
+            self.iface.messageBar().clearWidgets()
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Do łącznia wymagane są przynajmniej dwie bazy drogi '
+                'użyszkodniku ;) (albo wskaż bazę docelową ręcznie)',
+                Qgis.Critical, 0)
+            return False
+
+        cel = self.baza_docelowa_wskazana or self.lista[0]
+        self.iface.messageBar().pushMessage(
+            'Połącz bazy TPU',
+            'Bazą docelową (do której zostaną dopisane pozostałe) będzie: ' +
+            os.path.basename(cel),
+            Qgis.Info,
+            10
+        )
         return True
 
     def wybierz_obreby(self):
@@ -237,28 +280,38 @@ class PolaczBazy():
         self.wybrane = dlg.wybor()
         return True
 
+    def _sciezki_do_kontroli(self):
+        """self.lista + wskazana baza docelowa (jesli ustawiona) - kontrole
+        duplikatow/slownikowa maja obejmowac tez niepusta baze docelowa,
+        nie tylko bazy zrodlowe. Dla pustej bazy-szablonu to bez wplywu na
+        wynik (wnosi zero kluczy/wierszy do sprawdzenia)."""
+        if self.baza_docelowa_wskazana:
+            return self.lista + [self.baza_docelowa_wskazana]
+        return self.lista
+
     def kontrola_duplikatow(self):
         """Sprawdza duplikaty wydzieleń (jeśli F_ARODES wybrane) i działek
-        (jeśli F_PARCEL wybrane) między wszystkimi bazami z self.lista,
-        respektując wybór obrębów (self.obreby_wybrane). Zwraca False i
-        przerywa łączenie (bez możliwości kontynuowania), jeśli znajdzie
-        duplikaty - w przeciwieństwie do kontroli słownikowej to kontrola
-        blokująca."""
+        (jeśli F_PARCEL wybrane) między wszystkimi bazami z self.lista (i
+        wskazaną bazą docelową, jeśli ustawiona), respektując wybór obrębów
+        (self.obreby_wybrane). Zwraca False i przerywa łączenie (bez
+        możliwości kontynuowania), jeśli znajdzie duplikaty - w
+        przeciwieństwie do kontroli słownikowej to kontrola blokująca."""
         katalog, _ = os.path.split(self.lista[0])
+        sciezki = self._sciezki_do_kontroli()
         if self.wybrane.get('f_arodes'):
             fn = (lambda k, s: _kontrola_duplikatow_wydzieln(
                 k, s, self.obreby_wybrane))
-            if not self._sprawdz_i_zglos(fn, katalog, 'wydzieleń'):
+            if not self._sprawdz_i_zglos(fn, katalog, sciezki, 'wydzieleń'):
                 return False
         if self.wybrane.get('f_parcel'):
             fn = (lambda k, s: _kontrola_duplikatow_dzialek(
                 k, s, self.obreby_wybrane))
-            if not self._sprawdz_i_zglos(fn, katalog, 'działek'):
+            if not self._sprawdz_i_zglos(fn, katalog, sciezki, 'działek'):
                 return False
         return True
 
-    def _sprawdz_i_zglos(self, funkcja_kontroli, katalog, opis):
-        duplikaty, rap_sc = funkcja_kontroli(katalog, self.lista)
+    def _sprawdz_i_zglos(self, funkcja_kontroli, katalog, sciezki, opis):
+        duplikaty, rap_sc = funkcja_kontroli(katalog, sciezki)
         if not duplikaty:
             return True
 
@@ -272,12 +325,14 @@ class PolaczBazy():
         return False
 
     def kontrola_wstepna(self):
-        """Kontroluje słownikowo wszystkie bazy z self.lista przed łączeniem.
-        Zwraca True jeśli można kontynuować łączenie (brak błędów albo
-        użytkownik zdecydował się kontynuować mimo błędów), False gdy
-        użytkownik zrezygnował."""
+        """Kontroluje słownikowo wszystkie bazy z self.lista (i wskazaną
+        bazę docelową, jeśli ustawiona) przed łączeniem. Zwraca True jeśli
+        można kontynuować łączenie (brak błędów albo użytkownik
+        zdecydował się kontynuować mimo błędów), False gdy użytkownik
+        zrezygnował."""
         katalog, _ = os.path.split(self.lista[0])
-        ile_blednych, rap_sc = KontrolaSlownikowWiele(katalog, self.lista)
+        sciezki = self._sciezki_do_kontroli()
+        ile_blednych, rap_sc = KontrolaSlownikowWiele(katalog, sciezki)
 
         if ile_blednych == 0:
             self.iface.messageBar().pushMessage(
@@ -307,13 +362,15 @@ class PolaczBazy():
         self.czas = \
             datetime.now().isoformat().replace(':', '')[:-7]
 
-        if platform.system()[:3] == 'Win':
-            plikn = 'baza_polaczona_' + self.czas + '.mdb'
-        else:
-            plikn = 'baza_polaczona_' + self.czas + '.sqlite'
+        # domyslnie self.lista[0] (posortowana alfabetycznie), albo recznie
+        # wskazana baza (patrz wybierz_baze_docelowa) - rozszerzenie brane
+        # z faktycznego pliku zrodlowego, nie z platformy, zeby poprawnie
+        # obslugiwac wskazana baze niezaleznie od jej typu
+        zrodlo = self.baza_docelowa_wskazana or self.lista[0]
+        plikn = 'baza_polaczona_' + self.czas + os.path.splitext(zrodlo)[1]
 
         try:
-            copyfile(self.lista[0], os.path.join(katalog, plikn))
+            copyfile(zrodlo, os.path.join(katalog, plikn))
         except Exception:
             self.iface.messageBar().clearWidgets()
             self.iface.messageBar().pushMessage(
@@ -341,10 +398,15 @@ class PolaczBazy():
         return True
 
     def kopiuj(self):
-        proc = int(90/len(self.lista))
+        # domyslnie self.lista[0] jest baza docelowa wiec zrodlami sa tylko
+        # pozostale; przy recznie wskazanej bazie docelowej (poza
+        # self.lista) wszystkie znalezione bazy staja sie zrodlami
+        zrodla = (self.lista if self.baza_docelowa_wskazana
+                  else self.lista[1:])
+        proc = int(90/len(zrodla))
         ust = 10
         bledy_wszystkie = []  # (baza_zrodlowa, tabela, opis_wiersza, blad)
-        for bsc in self.lista[1:]:
+        for bsc in zrodla:
             ust = ust + proc
             self.postep.setValue(ust)
             baza_zrodlowa = Baza(bsc)
@@ -383,7 +445,7 @@ class PolaczBazy():
         else:
             self.iface.messageBar().pushMessage(
                 'POŁĄCZONE',
-                'Łączenie ' + str(len(self.lista)) +
+                'Łączenie ' + str(len(zrodla)) +
                 ' baz zakończone powodzeniem',
                 Qgis.Success,
                 0
