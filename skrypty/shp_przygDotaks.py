@@ -8,6 +8,7 @@ from qgis.core import (
 )
 import processing
 
+from .baza_aktualizuj_strukture import _koryguj_forme_wlasnosci
 from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
 from .ui.ui_przygDotaks import Ui_Dialog
@@ -24,6 +25,17 @@ _ZABIEG_RB = {
     'IVA', 'IVB', 'IVC', 'IVD', 'IVAU', 'IVBU', 'IVCU', 'IVDU',
     'V',
 }
+
+
+def _adr_po_korekcie_formy(adr):
+    """ Fallback dla dopasowania adresu 'stare' -> baza: warstwa 'stare'
+    bywa sprzed korekty formy wlasnosci (pozycje [11:13] ADRESS_FOREST -
+    patrz baza_aktualizuj_strukture._koryguj_forme_wlasnosci), ktora w
+    biezacej bazie jest juz bezwarunkowo nadpisana na '10'. Zwraca adres
+    po tej samej korekcie, albo None gdy korekta nic nie zmienia (nic do
+    sprobowania jako fallback). """
+    poprawiony = _koryguj_forme_wlasnosci(adr)
+    return poprawiony if poprawiony != adr else None
 
 _POLA_META = [
     QgsField('COUNTY_L', QVariant.String, '', 1),
@@ -340,7 +352,11 @@ class PrzygotujDotaks:
             kody = {z.strip() for z in zabieg.split(',')}
             if kody & _ZABIEG_RB:
                 return 'RB'
-        if feat['ADR_LES'] in przes_adr:
+        adr = feat['ADR_LES']
+        if adr in przes_adr:
+            return 'PRZES'
+        adr_alt = _adr_po_korekcie_formy(adr)
+        if adr_alt is not None and adr_alt in przes_adr:
             return 'PRZES'
         return None
 
@@ -435,11 +451,17 @@ class PrzygotujDotaks:
 
         fnm = wpol_data.fieldNameMap()
         sl_dop = {}
+        skorygowane = 0
         for feat in wpol.getFeatures():
             adr = feat['ADR_LES']
             if adr not in d.sl:
-                sl_dop[feat.id()] = {fnm['SLMN_KOL']: 0}
-                continue
+                adr_alt = _adr_po_korekcie_formy(adr)
+                if adr_alt is not None and adr_alt in d.sl:
+                    adr = adr_alt
+                    skorygowane += 1
+                else:
+                    sl_dop[feat.id()] = {fnm['SLMN_KOL']: 0}
+                    continue
             gat = d.isNone(d.sl[adr][4])
             if gat != ' ':
                 gat = gat[:1].upper() + gat[1:].lower()
@@ -487,6 +509,12 @@ class PrzygotujDotaks:
             sl_dop[feat.id()] = dop
         for fid, attrs in sl_dop.items():
             wpol_data.changeAttributeValues({fid: attrs})
+
+        if skorygowane:
+            QgsMessageLog.logMessage(
+                'Dopasowano przez korekte formy wlasnosci w adresie '
+                f'(pozycje [11:13] -> "10"): {skorygowane} wydzielen',
+                'Las-R', Qgis.Info)
 
         return wpol
 
