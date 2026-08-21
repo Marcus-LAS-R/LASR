@@ -1,6 +1,32 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0j — 2026-08-21
+------------------------------------------------
+
+1. NOWOŚĆ: "Przygotuj Lsy z wydzieleń" (menu Przygotowanie danych) - wariant
+   "Przygotuj Lsy" dla gotowej geometrii wydzieleń bez opisu użytku (np.
+   surowy import EGiB), zamiast warstwy KLU. Cała warstwa traktowana jako
+   użytek Ls, AU/SQ dociągane z bazy taksatora per działka. Działki z
+   więcej niż jednym rekordem Ls o różnej bonitacji w bazie trafiają do
+   nowej, trwałej warstwy LS_do_przeciecia (do ręcznego przecięcia)
+
+2. NOWOŚĆ: "Przygotuj Lsy TEST" (obok oryginalnego "Przygotuj Lsy", który
+   zostaje bez zmian) - gdy liczba kawałków Ls w grafice na działce równa
+   się liczbie rekordów Ls w bazie, dopasowuje je parami po powierzchni
+   i koryguje SQ, zamiast zgłaszać "Brak w bazie" przy niezgodnym SQ
+
+3. POPRAWKA: "Przygotuj Dotaks" - warstwa DOTAKS_rb_nielas mogła wyjść
+   pusta, gdy baza przeszła przez "Aktualizuj strukturę bazy" (korekta
+   formy własności w adresie leśnym), a warstwa starych wydzieleń nie -
+   adresy przestawały się parować. Skrypt teraz próbuje też adresu po tej
+   samej korekcie, zanim uzna wydzielenie za nieopisane
+
+4. Drobne poprawki w "Przygotuj Lsy z wydzieleń" znalezione przy testach:
+   okno dialogowe nie zamykało się po OK, błąd przy działce z 2+ Ls w
+   bazie bez żadnej geometrii wydzieleń, błąd przy pustym LANDID
+   placeholdera w raporcie
+
 Wersja 2.0i — 2026-08-20
 ------------------------------------------------
 
