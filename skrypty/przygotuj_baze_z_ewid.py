@@ -52,16 +52,6 @@ def _pow_ha(feature):
     return round(feature.geometry().area() / 10000, 4)
 
 
-def _login():
-    login = os.environ.get('USERNAME') or os.environ.get('USER')
-    if login:
-        return login
-    try:
-        return os.getlogin()
-    except Exception:
-        return None
-
-
 def _nazwy_pol(warstwa):
     return {f.name().lower(): f.name() for f in warstwa.fields()}
 
@@ -498,21 +488,28 @@ def PrzygotujBazeZEWID(iface, shp_sc, baza_sc, dobre, obreby, wlasciciel,
             (wlasciciel['NAME_1'], False, False))
         addr_nr = int(baza.cur.execute('SELECT @@IDENTITY').fetchval())
 
-        login = _login()
-        teraz = datetime.datetime.now()
         for w in unikalne:
             pow_ha = _pow_ha(w['feature'])
             klucz_obr = (w['municipality'], w['community'])
             grupa = land_register_nr_po_obrebie[klucz_obr]
 
+            kolumny = [
+                'PARCEL_NR', 'COUNTY_CD', 'DISTRICT_CD', 'MUNICIPALITY_CD',
+                'COMMUNITY_CD', 'PARCEL_AREA', 'LAND_REGISTER_NR']
+            wartosci = [
+                w['parcel_nr'], w['county'], w['district'], w['municipality'],
+                w['community'], pow_ha, grupa]
+            if w['arkusz']:
+                # brak arkusza -> kolumny REG_SHEET_NR1/2 w ogole pomijane w
+                # INSERT (nie wpisujemy tam jawnego NULL), zamiast tego
+                # zostaja domyslna wartoscia pola w bazie
+                kolumny += ['REG_SHEET_NR1', 'REG_SHEET_NR2']
+                wartosci += [w['arkusz'], w['arkusz']]
+
             baza.cur.execute(
-                'INSERT INTO F_PARCEL (PARCEL_NR, COUNTY_CD, DISTRICT_CD, '
-                'MUNICIPALITY_CD, COMMUNITY_CD, PARCEL_AREA, '
-                'LAND_REGISTER_NR, REG_SHEET_NR1, REG_SHEET_NR2, INS_DAT, '
-                'INS_LOGIN) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                (w['parcel_nr'], w['county'], w['district'],
-                 w['municipality'], w['community'], pow_ha, grupa,
-                 w['arkusz'], w['arkusz'], teraz, login))
+                'INSERT INTO F_PARCEL (' + ', '.join(kolumny) + ') VALUES (' +
+                ','.join('?' * len(kolumny)) + ')',
+                tuple(wartosci))
             parcel_int_num = int(
                 baza.cur.execute('SELECT @@IDENTITY').fetchval())
 
