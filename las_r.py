@@ -91,6 +91,7 @@ from .skrypty import (
     baza_kontrola_opisow_wgSULMN,
     pobierz_BDL,
     utworz_baze_z_BDL,
+    przygotuj_baze_z_ewid,
     shp_aktualizuj_ewidencje,
     shp_buduj_oddzialy,
     napraw_topologie_hierarchii,
@@ -772,6 +773,14 @@ class LasR:
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
 
+        self.m_narzedzia.addSeparator()
+
+        self.a_przygotuj_baze_ewid = QAction(
+            QIcon(None), "Przygotuj bazę z EWID", self.iface.mainWindow()
+        )
+        self.m_narzedzia.addAction(self.a_przygotuj_baze_ewid)
+        self.a_przygotuj_baze_ewid.triggered.connect(self.przygotuj_baze_ewid)
+
         self.a_rap_wyles = QAction(
             QIcon(None), "Karty wylesień na dz.", self.iface.mainWindow()
         )
@@ -1283,6 +1292,9 @@ class LasR:
 
     def utworz_baze_bdl(self):
         utworz_baze_z_BDL.uruchom(self.iface)
+
+    def przygotuj_baze_ewid(self):
+        przygotuj_baze_z_ewid.uruchom(self.iface)
 
     def dopisz_dane_do_wydzielen(self):
         aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)
