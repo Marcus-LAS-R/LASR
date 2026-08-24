@@ -1,6 +1,23 @@
 from qgis.core import Qgis, QgsFeatureRequest, QgsMessageLog
 
 
+def zbuduj_adres(county_l, district, municip, community, grp, oddz, wydz):
+    """Buduje 25-znakowy adres leśny UPUL (TERYT-based) z jego składowych:
+    COUNTY_L(1)+DISTRICT(2)+MUNICIP(3)+COMMUNITY(4)+'-'+GRP(2, wyrównane
+    spacjami jeśli brak)+ODDZ(4, wyrównane spacjami)+'-'+WYDZ(4,
+    wyrównane spacjami)+'-00'. Czysta funkcja (bez zależności od
+    warstwy/iface) wydzielona z Zaadresuj() - żeby dało się jej użyć poza
+    kontekstem edycji warstwy QGIS (patrz konwersja_pul_upul/core/adres.py)."""
+    adr = str(county_l) + str(district) + str(municip) + str(community)
+    if grp is not None and len(str(grp)) == 2:
+        adr += '-' + str(grp)
+    else:
+        adr += '-  '
+    adr += str(oddz).ljust(4) + '-'
+    adr += str(wydz).ljust(4) + '-00'
+    return adr
+
+
 def Zaadresuj(iface, lyr=False):
     if lyr is False:
         lyr = iface.activeLayer()
@@ -51,18 +68,9 @@ def Zaadresuj(iface, lyr=False):
                                            ).setSubsetOfAttributes(
                                                pola, lyr.fields())
     for f in lyr.getFeatures(request):
-        adr = ''.join(map(str, [f['COUNTY_L'],
-                                f['DISTRICT'],
-                                f['MUNICIP'],
-                                f['COMMUNITY']]
-                          )
-                      )
-        if len(str(f['GRP'])) == 2:
-            adr += '-' + f['GRP']
-        else:
-            adr += '-  '
-        adr += str(f['ODDZ']) + (4-len(str(f['ODDZ']))) * ' ' + '-'
-        adr += str(f['WYDZ']) + (4-len(str(f['WYDZ']))) * ' ' + '-00'
+        adr = zbuduj_adres(
+            f['COUNTY_L'], f['DISTRICT'], f['MUNICIP'], f['COMMUNITY'],
+            f['GRP'], f['ODDZ'], f['WYDZ'])
 
         sl[f.id()] = {fnm['ADR_LES']: adr}
 

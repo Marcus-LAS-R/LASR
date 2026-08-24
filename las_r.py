@@ -100,6 +100,7 @@ from .skrypty import (
 )
 
 from .skrypty import aktualizacja_upul
+from .skrypty import konwersja_pul_upul
 from .skrypty import kontrola_terenowa
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
@@ -499,6 +500,12 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_aktualizuj_strukture)
         self.a_aktualizuj_strukture.triggered.connect(
             self.aktualizuj_strukture_bazy)
+
+        self.a_konwertuj_pul_upul = QAction(
+            QIcon(None), "Konwertuj PUL → UPUL", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_konwertuj_pul_upul)
+        self.a_konwertuj_pul_upul.triggered.connect(self.konwertuj_pul_upul)
 
         self.m_aktualizacja_upul.addSeparator()
 
@@ -1567,6 +1574,9 @@ class LasR:
 
     def aktualizuj_strukture_bazy(self):
         baza_aktualizuj_strukture.uruchom(self.iface)
+
+    def konwertuj_pul_upul(self):
+        konwersja_pul_upul.uruchom(self.iface)
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)
