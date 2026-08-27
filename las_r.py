@@ -290,11 +290,11 @@ class LasR:
         self.m_kontrola_sulmn = QMenu("Kontrola wg SULMN", self.menu)
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
         self.m_raporty = QMenu("Raporty", self.menu)
+        self.m_testowe = QMenu("Testowe", self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_aktualizacja_upul)
-        self.menu.addMenu(self.m_aktualizacja_ewid)
         self.menu.addMenu(self.m_kontrola_danych)
         self.menu.addMenu(self.m_kontrola_sulmn)
         self.menu.addMenu(self.m_narzedzia)
@@ -324,12 +324,13 @@ class LasR:
         self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
+        # Ukryty i wyłączony - zastąpiony przez "Przygotuj Lsy TEST" (patrz niżej)
         self.przyg_ls = QAction(QIcon(None), "Przygotuj Lsy", self.iface.mainWindow())
-        self.m_przyg_danych.addAction(self.przyg_ls)
+        self.przyg_ls.setEnabled(False)
         self.przyg_ls.triggered.connect(self.przygotuj_ls)
 
         self.przyg_ls_test = QAction(
-            QIcon(None), "Przygotuj Lsy TEST", self.iface.mainWindow()
+            QIcon(None), "Przygotuj Lsy", self.iface.mainWindow()
         )
         self.m_przyg_danych.addAction(self.przyg_ls_test)
         self.przyg_ls_test.triggered.connect(self.przygotuj_ls_test)
@@ -340,14 +341,15 @@ class LasR:
         self.m_przyg_danych.addAction(self.przyg_ls_wydz)
         self.przyg_ls_wydz.triggered.connect(self.przygotuj_ls_z_wydzielen)
 
+        # Ukryty i wyłączony - zastąpiony przez "Przysnapuj do działek (nowy)" (patrz niżej)
         self.a_snapuj = QAction(
             QIcon(None), "Przysnapuj do dzałek", self.iface.mainWindow()
         )
-        self.m_przyg_danych.addAction(self.a_snapuj)
+        self.a_snapuj.setEnabled(False)
         self.a_snapuj.triggered.connect(self.przysnapuj_do_dzewid)
 
         self.a_snapuj_nowy = QAction(
-            QIcon(None), "Przysnapuj do działek (nowy)",
+            QIcon(None), "Przysnapuj Lsy do DZKAT",
             self.iface.mainWindow()
         )
         self.m_przyg_danych.addAction(self.a_snapuj_nowy)
@@ -412,7 +414,7 @@ class LasR:
         self.zalit.triggered.connect(self.zaliterkuj)
 
         self.dop_adrles = QAction(
-            QIcon(None), "Zaadresuj [ADR_LES]", self.iface.mainWindow()
+            QIcon(None), "Utwórz adresy leśne", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
@@ -424,7 +426,7 @@ class LasR:
         self.dopisz_wydz.triggered.connect(self.dopisz_wydzielenia)
 
         self.rozlicz_wydz = QAction(
-            QIcon(None), "Rozlicz powierzchnię wydz.", self.iface.mainWindow()
+            QIcon(None), "Rozlicz powierzchnię", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
@@ -449,6 +451,12 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.a_fstspec)
         self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
 
+        self.klon = QAction(
+            QIcon(None), "Klonuj opisy wydzieleń", self.iface.mainWindow()
+        )
+        self.m_rozlicz_pow.addAction(self.klon)
+        self.klon.triggered.connect(self.klonuj)
+
         self.dop_fo = QAction(
             QIcon(None), "Dopisz formy ochrony", self.iface.mainWindow()
         )
@@ -456,18 +464,12 @@ class LasR:
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
 
         self.dop_zab_nowe = QAction(
-            QIcon(None), "Zabiegi dopisz/sprawdź", self.iface.mainWindow()
+            QIcon(None), "Dopisz/sprawdź zabiegi", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
 
         self.m_rozlicz_pow.addSeparator()
-
-        self.dolit = QAction(
-            QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
-        )
-        self.m_rozlicz_pow.addAction(self.dolit)
-        self.dolit.triggered.connect(self.doliterkuj_wydzielenia)
 
         self.kasr = QAction(
             QIcon(None), "Skasuj wydz w bazie", self.iface.mainWindow()
@@ -481,14 +483,14 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.kasw)
         self.kasw.triggered.connect(self.skasuj_wydzielenia_z_warstwy)
 
-        self.klon = QAction(
-            QIcon(None), "Klonuj wydzielenia w bazie", self.iface.mainWindow()
+        self.dolit = QAction(
+            QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
         )
-        self.m_rozlicz_pow.addAction(self.klon)
-        self.klon.triggered.connect(self.klonuj)
+        self.m_rozlicz_pow.addAction(self.dolit)
+        self.dolit.triggered.connect(self.doliterkuj_wydzielenia)
 
         self.przelit = QAction(
-            QIcon(None), "Przeliterkuj (Całość)", self.iface.mainWindow()
+            QIcon(None), "Przeliterkuj wydzielenia", self.iface.mainWindow()
         )
         self.m_rozlicz_pow.addAction(self.przelit)
         self.przelit.triggered.connect(self.przeliterkuj)
@@ -501,25 +503,27 @@ class LasR:
         self.a_aktualizuj_strukture.triggered.connect(
             self.aktualizuj_strukture_bazy)
 
+        self.a_aktualizacja_shp = QAction(
+            QIcon(None), "Aktualizuj strukturę SHP", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_aktualizacja_shp)
+        self.a_aktualizacja_shp.triggered.connect(self.uruchom_aktualizacje_shp)
+
         self.a_konwertuj_pul_upul = QAction(
             QIcon(None), "Konwertuj PUL → UPUL", self.iface.mainWindow()
         )
-        self.m_aktualizacja_upul.addAction(self.a_konwertuj_pul_upul)
+        self.m_testowe.addAction(self.a_konwertuj_pul_upul)
         self.a_konwertuj_pul_upul.triggered.connect(self.konwertuj_pul_upul)
+
+        self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
         self.m_aktualizacja_upul.addSeparator()
 
         self.a_aktualizacja_baz = QAction(
-            QIcon(None), "Aktualizacja baz", self.iface.mainWindow()
+            QIcon(None), "Aktualizuj bazę +10 lat", self.iface.mainWindow()
         )
         self.m_aktualizacja_upul.addAction(self.a_aktualizacja_baz)
         self.a_aktualizacja_baz.triggered.connect(self.uruchom_aktualizacje_baz)
-
-        self.a_aktualizacja_shp = QAction(
-            QIcon(None), "Aktualizacja SHP", self.iface.mainWindow()
-        )
-        self.m_aktualizacja_upul.addAction(self.a_aktualizacja_shp)
-        self.a_aktualizacja_shp.triggered.connect(self.uruchom_aktualizacje_shp)
 
         self.m_aktualizacja_upul.addSeparator()
 
@@ -537,6 +541,12 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
+        self.a_dopisz_dane_wydz = QAction(
+            QIcon(None), "Dopisz dane do wydzieleń", self.iface.mainWindow()
+        )
+        self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
+        self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
+
         self.m_aktualizacja_upul.addSeparator()
 
         self.a_pobierz_bdl = QAction(
@@ -550,14 +560,6 @@ class LasR:
         )
         self.m_aktualizacja_upul.addAction(self.a_utworz_baze_bdl)
         self.a_utworz_baze_bdl.triggered.connect(self.utworz_baze_bdl)
-
-        self.m_aktualizacja_upul.addSeparator()
-
-        self.a_dopisz_dane_wydz = QAction(
-            QIcon(None), "Dopisz dane do wydzieleń", self.iface.mainWindow()
-        )
-        self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
-        self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
         # ----------------------------------------
 
         self.a_aktualizuj_ewid = QAction(
@@ -572,6 +574,20 @@ class LasR:
         self.m_aktualizacja_ewid.addAction(self.a_buduj_oddzialy)
         self.a_buduj_oddzialy.triggered.connect(self.buduj_oddzialy_z_wydzielen)
         # ----------------------------------------
+
+        self.dop_dzkat = QAction(
+            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
+        )
+        self.m_kontrola_danych.addAction(self.dop_dzkat)
+        self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
+
+        self.spr_kontr_ls = QAction(
+            QIcon(None), "Kontrola Ls z bazą", self.iface.mainWindow()
+        )
+        self.m_kontrola_danych.addAction(self.spr_kontr_ls)
+        self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
+
+        self.m_kontrola_danych.addSeparator()
 
         self.spr_odl_wydz = QAction(
             QIcon(None), "Sprawdź odległości w wydzieleniach", self.iface.mainWindow()
@@ -590,20 +606,6 @@ class LasR:
         )
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
-
-        self.m_kontrola_danych.addSeparator()
-
-        self.dop_dzkat = QAction(
-            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
-        )
-        self.m_kontrola_danych.addAction(self.dop_dzkat)
-        self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
-
-        self.spr_kontr_ls = QAction(
-            QIcon(None), "Kontrola Ls z bazą", self.iface.mainWindow()
-        )
-        self.m_kontrola_danych.addAction(self.spr_kontr_ls)
-        self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
 
         self.m_kontrola_danych.addSeparator()
 
@@ -629,7 +631,7 @@ class LasR:
             QIcon(None), "Napraw topologię hierarchii warstw (dzew-uzyt-wydz-oddz)",
             self.iface.mainWindow()
         )
-        self.m_kontrola_danych.addAction(self.a_napraw_topo_hier)
+        self.m_aktualizacja_ewid.addAction(self.a_napraw_topo_hier)
         self.a_napraw_topo_hier.triggered.connect(self.napraw_topologie_hierarchii)
 
         self.a_kontrola_topo_hier = QAction(
@@ -637,7 +639,7 @@ class LasR:
             "Kontrola topologii hierarchii warstw (dzew-uzyt-wydz-oddz)",
             self.iface.mainWindow()
         )
-        self.m_kontrola_danych.addAction(self.a_kontrola_topo_hier)
+        self.m_aktualizacja_ewid.addAction(self.a_kontrola_topo_hier)
         self.a_kontrola_topo_hier.triggered.connect(
             self.kontrola_topologii_hierarchii)
 
@@ -674,6 +676,8 @@ class LasR:
         )
         self.menu.addAction(self.okl)
         self.okl.triggered.connect(self.rysuj_okladki)
+
+        self.menu.addMenu(self.m_testowe)
 
         self.menu.addSeparator()
 

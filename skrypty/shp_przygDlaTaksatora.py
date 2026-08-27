@@ -1,7 +1,7 @@
 import glob
 import os
 import re
-import shutil
+import zipfile
 
 import openpyxl
 from PyQt5.QtCore import Qt
@@ -319,10 +319,10 @@ class PrzygotujDlaTaksatora:
         QgsMessageLog.logMessage('--- PRZYGOTUJ DLA TAKSATORA ---', 'Las-R', Qgis.Info)
         kat_shp_wyj = os.path.join(kat_wyj, 'SHP')
         os.makedirs(kat_shp_wyj, exist_ok=True)
-        skopiowane = self._kopiuj_warstwy(folder_proj, kat_shp_wyj)
+        spakowane = self._kopiuj_warstwy(folder_proj, kat_shp_wyj)
         self._eksportuj_uzytki(baza_sc, kat_wyj, nazwa)
         QgsMessageLog.logMessage(
-            f'Skopiowano {skopiowane} warstw(y) do {kat_shp_wyj}', 'Las-R', Qgis.Info)
+            f'Spakowano {spakowane} warstw(y) do zip w {kat_shp_wyj}', 'Las-R', Qgis.Info)
         QgsMessageLog.logMessage('--- KONIEC ---', 'Las-R', Qgis.Info)
         self.iface.messageBar().pushMessage(
             'OK',
@@ -455,33 +455,35 @@ class PrzygotujDlaTaksatora:
             return ''
 
     def _kopiuj_warstwy(self, folder_proj, kat_shp_wyj):
-        skopiowane = 0
+        spakowane = 0
         kat_shp = os.path.join(folder_proj, 'SHP')
         for nazwa in _WARSTWY_SHP:
-            if self._kopiuj_shp(kat_shp, nazwa, kat_shp_wyj):
-                skopiowane += 1
+            if self._spakuj_shp(kat_shp, nazwa, kat_shp_wyj):
+                spakowane += 1
         kat_dotaks = os.path.join(folder_proj, 'SHP_dotaks')
         if os.path.isdir(kat_dotaks):
             for nazwa in _WARSTWY_DOTAKS:
-                if self._kopiuj_shp(kat_dotaks, nazwa, kat_shp_wyj):
-                    skopiowane += 1
+                if self._spakuj_shp(kat_dotaks, nazwa, kat_shp_wyj):
+                    spakowane += 1
         kat_stare = os.path.join(folder_proj, 'SHP_stare')
         if os.path.isdir(kat_stare):
             for nazwa in _WARSTWY_STARE:
-                if self._kopiuj_shp(kat_stare, nazwa, kat_shp_wyj):
-                    skopiowane += 1
-        return skopiowane
+                if self._spakuj_shp(kat_stare, nazwa, kat_shp_wyj):
+                    spakowane += 1
+        return spakowane
 
-    def _kopiuj_shp(self, kat_zrodlo, nazwa, kat_wyj):
+    def _spakuj_shp(self, kat_zrodlo, nazwa, kat_wyj):
         shp_zrodlo = os.path.join(kat_zrodlo, nazwa + '.shp')
         if not os.path.isfile(shp_zrodlo):
             QgsMessageLog.logMessage(
                 f'Brak pliku: {shp_zrodlo}', 'Las-R', Qgis.Warning)
             return False
-        for ext in _ROZSZERZENIA:
-            src = os.path.join(kat_zrodlo, nazwa + ext)
-            if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(kat_wyj, nazwa + ext))
+        zip_sc = os.path.join(kat_wyj, nazwa + '.zip')
+        with zipfile.ZipFile(zip_sc, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for ext in _ROZSZERZENIA:
+                src = os.path.join(kat_zrodlo, nazwa + ext)
+                if os.path.isfile(src):
+                    zf.write(src, nazwa + ext)
         return True
 
     def _eksportuj_uzytki(self, baza_sc, kat_wyj, nazwa):
