@@ -1,6 +1,32 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0k — 2026-08-28
+------------------------------------------------
+
+1. NOWOŚĆ: Kontrola PNSW w "Sprawdź cięcie" (dawniej "Sprawdź karty w
+   wydzieleniach") - dodatkowo sprawdza, czy operator przeniósł do warstwy
+   PNSW w SHP wszystkie powierzchnie niezalesione wrysowane w terenie przez
+   taksatora. Brakujące trafiają jako punkty na nową warstwę
+   PNSW_niewrysowane_w_SHP
+
+2. NOWY SKRYPT: "Uzupełnij uszkodzenia w bazie" (menu Narzędziowe) -
+   uzupełnia w wydzieleniach D-STAN puste pola przyczyny i stopnia
+   uszkodzenia (domyślnie KLIMAT/0, na siedliskach wilgotnych WODA).
+   Zmienia tylko puste pola, robi kopię bazy i pyta o potwierdzenie
+
+3. NOWOŚĆ: "Generuj okładki na atlas" - checkbox "Atlas dla całej gminy":
+   zamiast osobnej okładki na każdy obręb, tworzy jedną zbiorczą okładkę
+   z listą wszystkich obrębów danej gminy
+
+4. ULEPSZENIE: raporty z kontroli słownikowej i kontroli opisu
+   taksacyjnego pokazują teraz ARODES_INT_NUM obok adresu leśnego -
+   łatwiej znaleźć konkretne wydzielenie przy zdublowanych adresach
+
+5. Porządki w menu: "Raporty" -> "Generuj", kilka pozycji przeniesionych
+   do bardziej pasujących grup, każda pozycja menu ma teraz podpowiedź
+   (tooltip) po najechaniu myszką
+
 Wersja 2.0j — 2026-08-21
 ------------------------------------------------
 
