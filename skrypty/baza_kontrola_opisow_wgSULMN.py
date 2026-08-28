@@ -57,12 +57,22 @@ def _formatuj_blad(wiersz, opis: str) -> str:
         kol_wiersz = [_Kolumna(n[0]) for n in wiersz.cursor_description]
         idx_adres = [i for i, k in enumerate(kol_wiersz)
                      if k.standardized.startswith('ADRES')]
+        # ARODES_INT_NUM doklejany oportunistycznie, tylko jesli dana
+        # kwerenda kontroli (zdefiniowana w bazie_kontroli_upul.mdb) akurat
+        # go zwraca w SELECT-cie - nie kazda to gwarantuje
+        idx_arodes = [i for i, k in enumerate(kol_wiersz)
+                      if k.standardized == 'ARODES_INT_NUM']
         for kol in kol_szabl:
             idx = [i for i, k in enumerate(kol_wiersz)
                    if k.standardized == kol.standardized]
             if idx:
                 val = wiersz[idx[0]]
                 opis = opis.replace(kol.name, str(val) if val is not None else '')
+        if idx_adres and idx_arodes:
+            return (
+                f'Adres: {wiersz[idx_adres[0]]}\t{wiersz[idx_arodes[0]]}'
+                f'  Opis: {opis}'
+            )
         if idx_adres:
             return f'Adres: {wiersz[idx_adres[0]]}  Opis: {opis}'
         return f'Opis: {opis}'

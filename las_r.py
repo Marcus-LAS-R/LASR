@@ -97,6 +97,7 @@ from .skrypty import (
     napraw_topologie_hierarchii,
     kontrola_topologii_hierarchii,
     baza_aktualizuj_strukture,
+    baza_uzupelnij_uszkodzenia,
 )
 
 from .skrypty import aktualizacja_upul
@@ -289,7 +290,7 @@ class LasR:
         self.m_kontrola_danych = QMenu("Kontrola danych", self.menu)
         self.m_kontrola_sulmn = QMenu("Kontrola wg SULMN", self.menu)
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
-        self.m_raporty = QMenu("Raporty", self.menu)
+        self.m_raporty = QMenu("Generuj", self.menu)
         self.m_testowe = QMenu("Testowe", self.menu)
 
         self.menu.addMenu(self.m_przyg_danych)
@@ -300,19 +301,33 @@ class LasR:
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
 
+        for m in (
+            self.menu, self.m_przyg_danych, self.m_rozlicz_pow,
+            self.m_aktualizacja_upul, self.m_aktualizacja_ewid,
+            self.m_kontrola_danych, self.m_kontrola_sulmn,
+            self.m_narzedzia, self.m_raporty, self.m_testowe,
+        ):
+            m.setToolTipsVisible(True)
+
         self.kas_op = QAction(QIcon(None), "Kasuj OP", self.iface.mainWindow())
+        self.kas_op.setToolTip(
+            "Usuwa z bazy działki, których właścicielem jest Skarb Państwa (OP).")
         self.m_przyg_danych.addAction(self.kas_op)
         self.kas_op.triggered.connect(self.kasuj_wlas_OP)
 
         self.kas_niels = QAction(
             QIcon(None), "Kasuj nie-Ls", self.iface.mainWindow()
         )
+        self.kas_niels.setToolTip(
+            "Usuwa z bazy działki, które nie są użytkiem leśnym (Ls).")
         self.m_przyg_danych.addAction(self.kas_niels)
         self.kas_niels.triggered.connect(self.kasuj_dzialki_bez_ls)
 
         self.spr_popraw_ls = QAction(
             QIcon(None), "Kontroluj Ls", self.iface.mainWindow()
         )
+        self.spr_popraw_ls.setToolTip(
+            "Sprawdza poprawność zapisu użytku leśnego (Ls) w bazie danych.")
         self.m_przyg_danych.addAction(self.spr_popraw_ls)
         self.spr_popraw_ls.triggered.connect(self.kontrola_ls_w_bazie)
 
@@ -321,6 +336,8 @@ class LasR:
         self.przyg_dzewid = QAction(
             QIcon(None), "Przygotuj działki ewidencyjne", self.iface.mainWindow()
         )
+        self.przyg_dzewid.setToolTip(
+            "Przygotowuje warstwę działek ewidencyjnych do dalszej pracy w projekcie.")
         self.m_przyg_danych.addAction(self.przyg_dzewid)
         self.przyg_dzewid.triggered.connect(self.przygotuj_dzewid)
 
@@ -332,12 +349,18 @@ class LasR:
         self.przyg_ls_test = QAction(
             QIcon(None), "Przygotuj Lsy", self.iface.mainWindow()
         )
+        self.przyg_ls_test.setToolTip(
+            "Wydziela z warstwy działek geometrię gruntów leśnych (Ls) na podstawie "
+            "opisu użytków (KLU) i danych z bazy taksatora.")
         self.m_przyg_danych.addAction(self.przyg_ls_test)
         self.przyg_ls_test.triggered.connect(self.przygotuj_ls_test)
 
         self.przyg_ls_wydz = QAction(
             QIcon(None), "Przygotuj Lsy z wydzieleń", self.iface.mainWindow()
         )
+        self.przyg_ls_wydz.setToolTip(
+            "Jak 'Przygotuj Lsy', ale dla gotowej geometrii wydzieleń bez opisu "
+            "użytku (np. surowego importu z EGiB).")
         self.m_przyg_danych.addAction(self.przyg_ls_wydz)
         self.przyg_ls_wydz.triggered.connect(self.przygotuj_ls_z_wydzielen)
 
@@ -352,94 +375,156 @@ class LasR:
             QIcon(None), "Przysnapuj Lsy do DZKAT",
             self.iface.mainWindow()
         )
+        self.a_snapuj_nowy.setToolTip(
+            "Dociąga granice warstwy Ls do granic działek katastralnych (DZKAT), "
+            "żeby się dokładnie pokrywały.")
         self.m_przyg_danych.addAction(self.a_snapuj_nowy)
         self.a_snapuj_nowy.triggered.connect(self.przysnapuj_do_dzewid_nowy)
 
         self.przyg_teren = QAction(
             QIcon(None), "Przygotuj w teren", self.iface.mainWindow()
         )
+        self.przyg_teren.setToolTip(
+            "Przygotowuje komplet warstw i plików do zabrania w teren przez taksatora.")
         self.m_przyg_danych.addAction(self.przyg_teren)
         self.przyg_teren.triggered.connect(self.przygotuj_do_terenu)
 
         self.a_przyg_dla_taksatora = QAction(
             QIcon(None), "Spakuj taksatorowi", self.iface.mainWindow()
         )
+        self.a_przyg_dla_taksatora.setToolTip(
+            "Pakuje do jednego archiwum ZIP dane potrzebne taksatorowi do pracy "
+            "w terenie.")
         self.m_przyg_danych.addAction(self.a_przyg_dla_taksatora)
         self.a_przyg_dla_taksatora.triggered.connect(self.przygotuj_dla_taksatora)
 
         self.m_przyg_danych.addSeparator()
 
-        self.eksp_kml = QAction(
-            QIcon(None), "Wyeksportuj do KML", self.iface.mainWindow()
+        self.dop_dzkat = QAction(
+            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
         )
-        self.m_przyg_danych.addAction(self.eksp_kml)
-        self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
+        self.dop_dzkat.setToolTip(
+            "Porównuje warstwę działek katastralnych (DZKAT) z danymi w bazie "
+            "i szuka rozbieżności.")
+        self.m_przyg_danych.addAction(self.dop_dzkat)
+        self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
+
+        self.spr_kontr_ls = QAction(
+            QIcon(None), "Kontrola Ls z bazą", self.iface.mainWindow()
+        )
+        self.spr_kontr_ls.setToolTip(
+            "Porównuje warstwę gruntów leśnych (Ls) z danymi w bazie i szuka "
+            "rozbieżności.")
+        self.m_przyg_danych.addAction(self.spr_kontr_ls)
+        self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
+
+        self.m_przyg_danych.addSeparator()
+
+        self.a_przygotuj_baze_ewid = QAction(
+            QIcon(None), "Przygotuj bazę z EWID", self.iface.mainWindow()
+        )
+        self.a_przygotuj_baze_ewid.setToolTip(
+            "Tworzy od zera nową bazę na podstawie warstwy działek ewidencyjnych "
+            "(np. z geoportalu) - jeden właściciel, wszystko jako użytek Ls.")
+        self.m_przyg_danych.addAction(self.a_przygotuj_baze_ewid)
+        self.a_przygotuj_baze_ewid.triggered.connect(self.przygotuj_baze_ewid)
 
         # -----------------------------------------
 
         self.lacz_karty = QAction(
             QIcon(None), "Połącz pomiary od taksatorów", self.iface.mainWindow()
         )
+        self.lacz_karty.setToolTip(
+            "Scala w jeden zestaw warstwy pomiarowe przesłane przez wielu "
+            "taksatorów, usuwając ewentualne duplikaty.")
         self.m_rozlicz_pow.addAction(self.lacz_karty)
         self.lacz_karty.triggered.connect(self.polacz_pliki_teren)
 
         self.przyg_ciec = QAction(
             QIcon(None), "Przygotuj wydzielenia do cięcia", self.iface.mainWindow()
         )
+        self.przyg_ciec.setToolTip(
+            "Przygotowuje warstwę wydzieleń do rozliczenia powierzchni po "
+            "pomiarach terenowych (cięciu).")
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
         self.przyg_klep = QAction(
-            QIcon(None), "Sprawdź karty w wydzieleniach", self.iface.mainWindow()
+            QIcon(None), "Sprawdź cięcie", self.iface.mainWindow()
         )
+        self.przyg_klep.setToolTip(
+            "Sprawdza, czy każde wydzielenie ma dokładnie jedną kartę pomiarową "
+            "i czy operator wrysował dla niego pnsw.")
         self.m_rozlicz_pow.addAction(self.przyg_klep)
         self.przyg_klep.triggered.connect(self.sprawdzenie_ciecia)
 
         self.m_rozlicz_pow.addSeparator()
 
         self.zanum = QAction(QIcon(None), "Zanumeruj oddziały", self.iface.mainWindow())
+        self.zanum.setToolTip(
+            "Automatycznie nadaje numery kolejnym oddziałom leśnym w warstwie.")
         self.m_rozlicz_pow.addAction(self.zanum)
         self.zanum.triggered.connect(self.zanumeruj)
 
         self.dop_w_o = QAction(
             QIcon(None), "Dopisz oddziały do wydzieleń", self.iface.mainWindow()
         )
+        self.dop_w_o.setToolTip(
+            "Uzupełnia w wydzieleniach numer oddziału, w którym się znajdują.")
         self.m_rozlicz_pow.addAction(self.dop_w_o)
         self.dop_w_o.triggered.connect(self.dopisz_wydz_w_oddz)
 
         self.zalit = QAction(
             QIcon(None), "Zaliterkuj wydzielenia", self.iface.mainWindow()
         )
+        self.zalit.setToolTip(
+            "Nadaje literowe oznaczenia (a, b, c...) kolejnym wydzieleniom "
+            "w ramach oddziału.")
         self.m_rozlicz_pow.addAction(self.zalit)
         self.zalit.triggered.connect(self.zaliterkuj)
 
         self.dop_adrles = QAction(
             QIcon(None), "Utwórz adresy leśne", self.iface.mainWindow()
         )
+        self.dop_adrles.setToolTip(
+            "Buduje pełny adres leśny (obręb-oddział-wydzielenie) dla każdego "
+            "wydzielenia.")
         self.m_rozlicz_pow.addAction(self.dop_adrles)
         self.dop_adrles.triggered.connect(self.dopisz_adrles)
 
         self.dopisz_wydz = QAction(
             QIcon(None), "Dopisz/uzupełnij wydzielenia w bazie", self.iface.mainWindow()
         )
+        self.dopisz_wydz.setToolTip(
+            "Zapisuje w bazie danych nowe lub brakujące wydzielenia z warstwy "
+            "mapowej.")
         self.m_rozlicz_pow.addAction(self.dopisz_wydz)
         self.dopisz_wydz.triggered.connect(self.dopisz_wydzielenia)
 
         self.rozlicz_wydz = QAction(
             QIcon(None), "Rozlicz powierzchnię", self.iface.mainWindow()
         )
+        self.rozlicz_wydz.setToolTip(
+            "Wylicza i zapisuje powierzchnię graficzną wydzieleń na podstawie "
+            "geometrii.")
         self.m_rozlicz_pow.addAction(self.rozlicz_wydz)
         self.rozlicz_wydz.triggered.connect(self.rozlicz_pow_wydzielen)
 
         self.dop_pnsw = QAction(
             QIcon(None), "Dopisz/uzupełnij PNSW", self.iface.mainWindow()
         )
+        self.dop_pnsw.setToolTip(
+            "Zapisuje w bazie dane o powierzchniach niezalesionych (pnsw) "
+            "wrysowanych na mapie.")
         self.m_rozlicz_pow.addAction(self.dop_pnsw)
         self.dop_pnsw.triggered.connect(self.dopisz_pnsw)
 
         self.przyg_rap = QAction(
             QIcon(None), "Stwórz raport kart do klepania", self.iface.mainWindow()
         )
+        self.przyg_rap.setToolTip(
+            "Tworzy zestawienie (Excel) numerów kart pomiarowych do wpisania "
+            "(\"klepania\") do bazy.")
         self.m_rozlicz_pow.addAction(self.przyg_rap)
         self.przyg_rap.triggered.connect(self.raport_kart_ciecia)
 
@@ -448,24 +533,43 @@ class LasR:
         self.a_fstspec = QAction(
             QIcon(None), "Napraw F_STOREY_SPECIES", self.iface.mainWindow()
         )
+        self.a_fstspec.setToolTip(
+            "Naprawia błędne lub brakujące dane o gatunkach w piętrach "
+            "drzewostanu (tabela F_STOREY_SPECIES).")
         self.m_rozlicz_pow.addAction(self.a_fstspec)
         self.a_fstspec.triggered.connect(self.napraw_f_stor_spec)
 
         self.klon = QAction(
             QIcon(None), "Klonuj opisy wydzieleń", self.iface.mainWindow()
         )
+        self.klon.setToolTip(
+            "Kopiuje opis taksacyjny z jednego wydzielenia do innych (np. przy "
+            "podziale wydzielenia).")
         self.m_rozlicz_pow.addAction(self.klon)
         self.klon.triggered.connect(self.klonuj)
+
+        self.a_dop_ros = QAction(QIcon(None), "Dopisz rośliny", self.iface.mainWindow())
+        self.a_dop_ros.setToolTip(
+            "Uzupełnia w bazie dane o gatunkach roślin runa/podszytu dla "
+            "wydzieleń.")
+        self.m_rozlicz_pow.addAction(self.a_dop_ros)
+        self.a_dop_ros.triggered.connect(self.dopisz_rosliny)
 
         self.dop_fo = QAction(
             QIcon(None), "Dopisz formy ochrony", self.iface.mainWindow()
         )
+        self.dop_fo.setToolTip(
+            "Uzupełnia w bazie informacje o formach ochrony przyrody dotyczących "
+            "wydzieleń.")
         self.m_rozlicz_pow.addAction(self.dop_fo)
         self.dop_fo.triggered.connect(self.dopisz_f_ochr)
 
         self.dop_zab_nowe = QAction(
             QIcon(None), "Dopisz/sprawdź zabiegi", self.iface.mainWindow()
         )
+        self.dop_zab_nowe.setToolTip(
+            "Uzupełnia i weryfikuje zaplanowane zabiegi gospodarcze (cięcia, "
+            "pielęgnacje) w bazie.")
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
 
@@ -474,24 +578,35 @@ class LasR:
         self.kasr = QAction(
             QIcon(None), "Skasuj wydz w bazie", self.iface.mainWindow()
         )
+        self.kasr.setToolTip(
+            "Usuwa wskazane wydzielenia z bazy danych (rekordy opisu "
+            "taksacyjnego).")
         self.m_rozlicz_pow.addAction(self.kasr)
         self.kasr.triggered.connect(self.skasuj_rekordy_w_bazie_lyr)
 
         self.kasw = QAction(
             QIcon(None), "Skasuj wydzielenia w warstwie", self.iface.mainWindow()
         )
+        self.kasw.setToolTip(
+            "Usuwa wskazane wydzielenia z warstwy mapowej (geometrii).")
         self.m_rozlicz_pow.addAction(self.kasw)
         self.kasw.triggered.connect(self.skasuj_wydzielenia_z_warstwy)
 
         self.dolit = QAction(
             QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
         )
+        self.dolit.setToolTip(
+            "Dopisuje brakujące litery wydzieleń bez zmiany istniejących "
+            "oznaczeń.")
         self.m_rozlicz_pow.addAction(self.dolit)
         self.dolit.triggered.connect(self.doliterkuj_wydzielenia)
 
         self.przelit = QAction(
             QIcon(None), "Przeliterkuj wydzielenia", self.iface.mainWindow()
         )
+        self.przelit.setToolTip(
+            "Od nowa nadaje litery wszystkim wydzieleniom w oddziale (zmienia "
+            "istniejące oznaczenia).")
         self.m_rozlicz_pow.addAction(self.przelit)
         self.przelit.triggered.connect(self.przeliterkuj)
         # ----------------------------------------
@@ -499,6 +614,9 @@ class LasR:
         self.a_aktualizuj_strukture = QAction(
             QIcon(None), "Aktualizuj strukturę bazy", self.iface.mainWindow()
         )
+        self.a_aktualizuj_strukture.setToolTip(
+            "Uaktualnia strukturę (tabele, pola) starszej bazy UPUL do "
+            "aktualnego standardu.")
         self.m_aktualizacja_upul.addAction(self.a_aktualizuj_strukture)
         self.a_aktualizuj_strukture.triggered.connect(
             self.aktualizuj_strukture_bazy)
@@ -506,12 +624,16 @@ class LasR:
         self.a_aktualizacja_shp = QAction(
             QIcon(None), "Aktualizuj strukturę SHP", self.iface.mainWindow()
         )
+        self.a_aktualizacja_shp.setToolTip(
+            "Uaktualnia strukturę starszych warstw SHP do aktualnego standardu.")
         self.m_aktualizacja_upul.addAction(self.a_aktualizacja_shp)
         self.a_aktualizacja_shp.triggered.connect(self.uruchom_aktualizacje_shp)
 
         self.a_konwertuj_pul_upul = QAction(
             QIcon(None), "Konwertuj PUL → UPUL", self.iface.mainWindow()
         )
+        self.a_konwertuj_pul_upul.setToolTip(
+            "Przekształca dane ze starego formatu PUL do nowego standardu UPUL.")
         self.m_testowe.addAction(self.a_konwertuj_pul_upul)
         self.a_konwertuj_pul_upul.triggered.connect(self.konwertuj_pul_upul)
 
@@ -522,6 +644,9 @@ class LasR:
         self.a_aktualizacja_baz = QAction(
             QIcon(None), "Aktualizuj bazę +10 lat", self.iface.mainWindow()
         )
+        self.a_aktualizacja_baz.setToolTip(
+            "Przesuwa dane w bazie o kolejny, 10-letni okres obowiązywania "
+            "planu (UPUL).")
         self.m_aktualizacja_upul.addAction(self.a_aktualizacja_baz)
         self.a_aktualizacja_baz.triggered.connect(self.uruchom_aktualizacje_baz)
 
@@ -531,6 +656,9 @@ class LasR:
             QIcon(None), "Przygotuj warstwy dotaks",
             self.iface.mainWindow()
         )
+        self.a_przyg_dotaks.setToolTip(
+            "Przygotowuje warstwy porównawcze (\"dotaks\") do weryfikacji "
+            "zgodności starego i nowego opisu taksacyjnego.")
         self.m_aktualizacja_upul.addAction(self.a_przyg_dotaks)
         self.a_przyg_dotaks.triggered.connect(self.przygotuj_dotaks)
 
@@ -538,12 +666,18 @@ class LasR:
             QIcon(None), "Przygotuj stare wydzielenia do cięcia",
             self.iface.mainWindow()
         )
+        self.a_przyg_stare_wydz.setToolTip(
+            "Przygotowuje warstwę wydzieleń z poprzedniego planu (UPUL) do "
+            "porównania z nowym cięciem.")
         self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
         self.a_dopisz_dane_wydz = QAction(
             QIcon(None), "Dopisz dane do wydzieleń", self.iface.mainWindow()
         )
+        self.a_dopisz_dane_wydz.setToolTip(
+            "Uzupełnia atrybuty nowych wydzieleń danymi z warstwy, która się "
+            "z nimi pokrywa (np. starych wydzieleń).")
         self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
 
@@ -552,12 +686,18 @@ class LasR:
         self.a_pobierz_bdl = QAction(
             QIcon(None), "Ściągnij dane z BDL", self.iface.mainWindow()
         )
+        self.a_pobierz_bdl.setToolTip(
+            "Pobiera dane o lasach dla wskazanego terenu z Banku Danych "
+            "o Lasach (BDL).")
         self.m_aktualizacja_upul.addAction(self.a_pobierz_bdl)
         self.a_pobierz_bdl.triggered.connect(self.pobierz_bdl)
 
         self.a_utworz_baze_bdl = QAction(
             QIcon(None), "Utwórz bazę z BDL", self.iface.mainWindow()
         )
+        self.a_utworz_baze_bdl.setToolTip(
+            "Tworzy nową bazę UPUL na podstawie danych pobranych z Banku "
+            "Danych o Lasach (BDL).")
         self.m_aktualizacja_upul.addAction(self.a_utworz_baze_bdl)
         self.a_utworz_baze_bdl.triggered.connect(self.utworz_baze_bdl)
         # ----------------------------------------
@@ -565,45 +705,46 @@ class LasR:
         self.a_aktualizuj_ewid = QAction(
             QIcon(None), "Zaktualizuj użytki wg ORYG", self.iface.mainWindow()
         )
+        self.a_aktualizuj_ewid.setToolTip(
+            "Uaktualnia użytki gruntowe w bazie na podstawie oryginalnej "
+            "warstwy ewidencyjnej (ORYG).")
         self.m_aktualizacja_ewid.addAction(self.a_aktualizuj_ewid)
         self.a_aktualizuj_ewid.triggered.connect(self.aktualizuj_ewidencje_nctwo)
 
         self.a_buduj_oddzialy = QAction(
             QIcon(None), "Zbuduj oddziały z wydzieleń", self.iface.mainWindow()
         )
+        self.a_buduj_oddzialy.setToolTip(
+            "Tworzy warstwę oddziałów przez połączenie granic wydzieleń "
+            "należących do tego samego oddziału.")
         self.m_aktualizacja_ewid.addAction(self.a_buduj_oddzialy)
         self.a_buduj_oddzialy.triggered.connect(self.buduj_oddzialy_z_wydzielen)
         # ----------------------------------------
 
-        self.dop_dzkat = QAction(
-            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
-        )
-        self.m_kontrola_danych.addAction(self.dop_dzkat)
-        self.dop_dzkat.triggered.connect(self.dopisanie_dzialek)
-
-        self.spr_kontr_ls = QAction(
-            QIcon(None), "Kontrola Ls z bazą", self.iface.mainWindow()
-        )
-        self.m_kontrola_danych.addAction(self.spr_kontr_ls)
-        self.spr_kontr_ls.triggered.connect(self.kontrola_ls_z_baza)
-
-        self.m_kontrola_danych.addSeparator()
-
         self.spr_odl_wydz = QAction(
             QIcon(None), "Sprawdź odległości w wydzieleniach", self.iface.mainWindow()
         )
+        self.spr_odl_wydz.setToolTip(
+            "Sprawdza, czy wymiary/odległości w wydzieleniach mieszczą się "
+            "w dopuszczalnych normach.")
         self.m_kontrola_danych.addAction(self.spr_odl_wydz)
         self.spr_odl_wydz.triggered.connect(self.sprawdzenie_odl_w_wydz)
 
         self.spr_wl_wydz = QAction(
             QIcon(None), "Sprawdź własności w wydzieleniach", self.iface.mainWindow()
         )
+        self.spr_wl_wydz.setToolTip(
+            "Sprawdza zgodność zapisanej formy własności z danymi dla "
+            "wydzieleń.")
         self.m_kontrola_danych.addAction(self.spr_wl_wydz)
         self.spr_wl_wydz.triggered.connect(self.sprawdzenie_wlasnosci_wydz)
 
         self.spr_w_o = QAction(
             QIcon(None), "Sprawdź wydzielenia w oddziałach", self.iface.mainWindow()
         )
+        self.spr_w_o.setToolTip(
+            "Sprawdza, czy wydzielenia są poprawnie przypisane do właściwych "
+            "oddziałów.")
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
 
@@ -611,19 +752,27 @@ class LasR:
 
         self.spr_rozlicz_wydz = QAction(
             QIcon(None),
-            "Sprawdz rozliczenie powierzchni wydz.",
+            "Sprawdź rozliczenie powierzchni wydz.",
             self.iface.mainWindow(),
         )
+        self.spr_rozlicz_wydz.setToolTip(
+            "Sprawdza, czy suma powierzchni wydzieleń zgadza się z "
+            "powierzchnią oddziału/obrębu.")
         self.m_kontrola_danych.addAction(self.spr_rozlicz_wydz)
         self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
 
         self.spr_wydz = QAction(
             ico_wydz_spr, "Sprawdź wydzielenia", self.iface.mainWindow()
         )
+        self.spr_wydz.setToolTip(
+            "Ogólna kontrola poprawności danych i geometrii wydzieleń.")
         self.m_kontrola_danych.addAction(self.spr_wydz)
         self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
 
         self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
+        self.spr_topo.setToolTip(
+            "Sprawdza błędy topologiczne warstwy (luki, nakładanie się, "
+            "przecięcia).")
         self.m_kontrola_danych.addAction(self.spr_topo)
         self.spr_topo.triggered.connect(self.sprawdz_topologie)
 
@@ -631,6 +780,9 @@ class LasR:
             QIcon(None), "Napraw topologię hierarchii warstw (dzew-uzyt-wydz-oddz)",
             self.iface.mainWindow()
         )
+        self.a_napraw_topo_hier.setToolTip(
+            "Naprawia błędy topologiczne między warstwami drzewostanu, "
+            "użytków, wydzieleń i oddziałów.")
         self.m_aktualizacja_ewid.addAction(self.a_napraw_topo_hier)
         self.a_napraw_topo_hier.triggered.connect(self.napraw_topologie_hierarchii)
 
@@ -639,6 +791,9 @@ class LasR:
             "Kontrola topologii hierarchii warstw (dzew-uzyt-wydz-oddz)",
             self.iface.mainWindow()
         )
+        self.a_kontrola_topo_hier.setToolTip(
+            "Sprawdza (bez naprawiania) błędy topologiczne między warstwami "
+            "drzewostanu, użytków, wydzieleń i oddziałów.")
         self.m_aktualizacja_ewid.addAction(self.a_kontrola_topo_hier)
         self.a_kontrola_topo_hier.triggered.connect(
             self.kontrola_topologii_hierarchii)
@@ -648,12 +803,18 @@ class LasR:
         self.a_kontrola_slownikow = QAction(
             QIcon(None), "Kontrola słownikowa", self.iface.mainWindow()
         )
+        self.a_kontrola_slownikow.setToolTip(
+            "Sprawdza, czy wartości w bazie zgadzają się ze słownikami "
+            "wymaganymi przez standard SULMN.")
         self.m_kontrola_sulmn.addAction(self.a_kontrola_slownikow)
         self.a_kontrola_slownikow.triggered.connect(self.kontrola_slownikow_bazy)
 
         self.a_kontrola_opisow = QAction(
             QIcon(None), "Kontrola opisu taksacyjnego", self.iface.mainWindow()
         )
+        self.a_kontrola_opisow.setToolTip(
+            "Sprawdza poprawność opisu taksacyjnego wydzieleń względem "
+            "wymagań SULMN.")
         self.m_kontrola_sulmn.addAction(self.a_kontrola_opisow)
         self.a_kontrola_opisow.triggered.connect(self.kontrola_opisow_taksacyjnych)
 
@@ -661,27 +822,13 @@ class LasR:
 
         self.menu.addSeparator()
 
-        self.dop_wydz = QAction(
-            ico_wydz_dopisz, "Dopisz atrybuty do wydzieleń", self.iface.mainWindow()
-        )
-        self.menu.addAction(self.dop_wydz)
-        self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
-
-        self.nakl = QAction(QIcon(None), "Generuj naklejki", self.iface.mainWindow())
-        self.menu.addAction(self.nakl)
-        self.nakl.triggered.connect(self.rysuj_naklejki)
-
-        self.okl = QAction(
-            QIcon(None), "Generuj okładki na atlas", self.iface.mainWindow()
-        )
-        self.menu.addAction(self.okl)
-        self.okl.triggered.connect(self.rysuj_okladki)
-
         self.menu.addMenu(self.m_testowe)
 
         self.menu.addSeparator()
 
         self.a_co_nowego = QAction(QIcon(None), "Co nowego?", self.iface.mainWindow())
+        self.a_co_nowego.setToolTip(
+            "Pokazuje listę zmian wprowadzonych w najnowszej wersji wtyczki.")
         self.menu.addAction(self.a_co_nowego)
         self.a_co_nowego.triggered.connect(self.pokaz_changelog)
 
@@ -734,80 +881,148 @@ class LasR:
         )
         self.a_dopasuj_style.triggered.connect(self.dopasuj_style)
 
-        self.a_dod_adm = QAction(
-            QIcon(None), "Dodaj [MUNICIP, COMUNITY]", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_dod_adm)
-        self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
-
-        self.a_dop_adm = QAction(
-            QIcon(None), "Uzupełnij [MUNICIP, COMMUNITY]", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_dop_adm)
-        self.a_dop_adm.triggered.connect(self.dopisz_adradm)
-
-        self.a_dop_own = QAction(
-            QIcon(None), "Dopisz OWNERSHIP", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_dop_own)
-        self.a_dop_own.triggered.connect(self.dopisz_ownera)
-
-        self.a_dop_ros = QAction(QIcon(None), "Dopisz rośliny", self.iface.mainWindow())
-        self.m_narzedzia.addAction(self.a_dop_ros)
-        self.a_dop_ros.triggered.connect(self.dopisz_rosliny)
-
-        self.a_czy_kol = QAction(
-            QIcon(None), "Usuń zawartość kolumn", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_czy_kol)
-        self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
-
         self.a_anon = QAction(
             QIcon(None), "Anonimizuj bazy TPU", self.iface.mainWindow()
         )
+        self.a_anon.setToolTip(
+            "Usuwa z bazy dane osobowe właścicieli (do celów "
+            "testowych/szkoleniowych).")
         self.m_narzedzia.addAction(self.a_anon)
         self.a_anon.triggered.connect(self.anonimizuj)
 
         self.a_usun_kw = QAction(
             QIcon(None), "Usuń kwerendy z baz", self.iface.mainWindow()
         )
+        self.a_usun_kw.setToolTip(
+            "Usuwa zapisane kwerendy (zapytania) z pliku bazy Access.")
         self.m_narzedzia.addAction(self.a_usun_kw)
         self.a_usun_kw.triggered.connect(self.usun_kwerendy)
 
-        self.a_reproj = QAction(
-            QIcon(None), "Reprojekcja warstw", self.iface.mainWindow()
-        )
-        self.m_narzedzia.addAction(self.a_reproj)
-        self.a_reproj.triggered.connect(self.reprojekcja_warstw)
-
         self.a_copy = QAction(QIcon(None), "Połącz bazy TPU", self.iface.mainWindow())
+        self.a_copy.setToolTip(
+            "Scala dane z kilku baz TPU (np. od różnych taksatorów) w jedną "
+            "bazę.")
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
 
         self.m_narzedzia.addSeparator()
 
-        self.a_przygotuj_baze_ewid = QAction(
-            QIcon(None), "Przygotuj bazę z EWID", self.iface.mainWindow()
+        self.dop_wydz = QAction(
+            ico_wydz_dopisz, "Dopisz metadane do wydzieleń", self.iface.mainWindow()
         )
-        self.m_narzedzia.addAction(self.a_przygotuj_baze_ewid)
-        self.a_przygotuj_baze_ewid.triggered.connect(self.przygotuj_baze_ewid)
+        self.dop_wydz.setToolTip(
+            "Uzupełnia w wydzieleniach dodatkowe metadane opisowe.")
+        self.m_narzedzia.addAction(self.dop_wydz)
+        self.dop_wydz.triggered.connect(self.dopisanie_wydzielen)
+
+        self.m_narzedzia.addSeparator()
+
+        self.eksp_kml = QAction(
+            QIcon(None), "Wyeksportuj do KML", self.iface.mainWindow()
+        )
+        self.eksp_kml.setToolTip(
+            "Eksportuje wskazaną warstwę do pliku KML (np. do podglądu "
+            "w Google Earth).")
+        self.m_narzedzia.addAction(self.eksp_kml)
+        self.eksp_kml.triggered.connect(self.eksportuj_do_KML)
+
+        self.a_reproj = QAction(
+            QIcon(None), "Zmień odwzorowanie warstw", self.iface.mainWindow()
+        )
+        self.a_reproj.setToolTip(
+            "Przelicza (reprojektuje) warstwy do innego układu współrzędnych.")
+        self.m_narzedzia.addAction(self.a_reproj)
+        self.a_reproj.triggered.connect(self.reprojekcja_warstw)
+
+        self.m_narzedzia.addSeparator()
+
+        self.a_uzup_uszkodzen = QAction(
+            QIcon(None), "Uzupełnij uszkodzenia w bazie", self.iface.mainWindow()
+        )
+        self.a_uzup_uszkodzen.setToolTip(
+            "Dla wydzieleń D-STAN uzupełnia w bazie puste pola przyczyny "
+            "(CAUSE_CD) i stopnia uszkodzenia (DAMAGE_DEGREE_CD) - domyślnie "
+            "KLIMAT/0, a na siedliskach wilgotnych WODA.")
+        self.m_narzedzia.addAction(self.a_uzup_uszkodzen)
+        self.a_uzup_uszkodzen.triggered.connect(self.uzupelnij_uszkodzenia)
+
+        self.a_dod_adm = QAction(
+            QIcon(None), "Dodaj [MUNICIP, COMMUNITY]", self.iface.mainWindow()
+        )
+        self.a_dod_adm.setToolTip(
+            "Dodaje do warstwy puste kolumny z kodem gminy (MUNICIP) "
+            "i obrębu (COMMUNITY).")
+        self.m_narzedzia.addAction(self.a_dod_adm)
+        self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
+
+        self.a_dop_adm = QAction(
+            QIcon(None), "Uzupełnij [MUNICIP, COMMUNITY]", self.iface.mainWindow()
+        )
+        self.a_dop_adm.setToolTip(
+            "Uzupełnia w warstwie kody gminy (MUNICIP) i obrębu (COMMUNITY) "
+            "na podstawie geometrii.")
+        self.m_narzedzia.addAction(self.a_dop_adm)
+        self.a_dop_adm.triggered.connect(self.dopisz_adradm)
+
+        self.a_dop_own = QAction(
+            QIcon(None), "Dopisz OWNERSHIP", self.iface.mainWindow()
+        )
+        self.a_dop_own.setToolTip(
+            "Uzupełnia w warstwie/bazie formę własności (OWNERSHIP) działek.")
+        self.m_narzedzia.addAction(self.a_dop_own)
+        self.a_dop_own.triggered.connect(self.dopisz_ownera)
+
+        self.a_czy_kol = QAction(
+            QIcon(None), "Usuń zawartość kolumn", self.iface.mainWindow()
+        )
+        self.a_czy_kol.setToolTip(
+            "Czyści zawartość wskazanych kolumn w warstwie, zachowując same "
+            "kolumny.")
+        self.m_narzedzia.addAction(self.a_czy_kol)
+        self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
+
+        self.nakl = QAction(QIcon(None), "Generuj naklejki", self.iface.mainWindow())
+        self.nakl.setToolTip(
+            "Tworzy do wydruku naklejki adresowe na akta/teczki wydzieleń.")
+        self.m_raporty.addAction(self.nakl)
+        self.nakl.triggered.connect(self.rysuj_naklejki)
+
+        self.okl = QAction(
+            QIcon(None), "Generuj okładki na atlas", self.iface.mainWindow()
+        )
+        self.okl.setToolTip(
+            "Tworzy do wydruku okładki dla atlasu leśnictwa/obrębu.")
+        self.m_raporty.addAction(self.okl)
+        self.okl.triggered.connect(self.rysuj_okladki)
+
+        self.m_raporty.addSeparator()
 
         self.a_rap_wyles = QAction(
             QIcon(None), "Karty wylesień na dz.", self.iface.mainWindow()
         )
+        self.a_rap_wyles.setToolTip(
+            "Tworzy karty (raporty) wylesień dla poszczególnych działek.")
         self.m_raporty.addAction(self.a_rap_wyles)
         self.a_rap_wyles.triggered.connect(self.generuj_karty_wylesien)
 
         self.a_wyciagi = QAction(
             QIcon(None), "Wyciagi dla właścicieli", self.iface.mainWindow()
         )
+        self.a_wyciagi.setToolTip(
+            "Generuje wyciągi z planu urządzenia lasu (UPUL) dla "
+            "poszczególnych właścicieli.")
         self.m_raporty.addAction(self.a_wyciagi)
         self.a_wyciagi.triggered.connect(self.generuj_wyciagi)
+
+        self.m_raporty.addSeparator()
 
         self.a_kontrola_terenowa = QAction(
             QIcon(None), "Materiały do kontroli terenowej",
             self.iface.mainWindow()
         )
+        self.a_kontrola_terenowa.setToolTip(
+            "Przygotowuje komplet map i zestawień do przeprowadzenia kontroli "
+            "terenowej.")
         self.m_raporty.addAction(self.a_kontrola_terenowa)
         self.a_kontrola_terenowa.triggered.connect(
             self.materialy_do_kontroli_terenowej)
@@ -1455,6 +1670,7 @@ class LasR:
             return
         sp.przetworz()
         sp.raport_rozbieznosci()
+        sp.sprawdz_pnsw()
 
     def raport_kart_ciecia(self):
         sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)
@@ -1480,6 +1696,16 @@ class LasR:
         np.dopisz_poprawki()
         np.raport()
         np.pokaz_wyniki()
+
+    def uzupelnij_uszkodzenia(self):
+        u = baza_uzupelnij_uszkodzenia.UzupelnijUszkodzenia(self.iface)
+        if not u.pobierz_sciezke():
+            return
+        if not u.policz():
+            return
+        if not u.potwierdz():
+            return
+        u.zapisz()
 
     def polacz_pliki_teren(self):
         shp_polacz_teren.polacz_warstwy(self.iface)

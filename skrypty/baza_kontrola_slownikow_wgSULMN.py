@@ -92,14 +92,15 @@ _WHITELIST_AREA_TYPE_CD = (
 
 
 def _sprawdz_whitelist(baza: Baza, tab_d: str, pole_d: str, whitelist: tuple):
-    """Zwraca listę (adr_les, wartość) dla wartości spoza whitelisty.
-    Pusta lista = brak błędów. False = nie udało się wykonać zapytania.
+    """Zwraca listę (adr_les, arodes_int_num, wartość) dla wartości spoza
+    whitelisty. Pusta lista = brak błędów. False = nie udało się wykonać
+    zapytania.
     """
     warunki = ' AND '.join(
         f"StrComp(RTrim(d.{pole_d}), '{w}', 0) <> 0" for w in whitelist
     )
     sql = (
-        f"SELECT DISTINCT a.ADRESS_FOREST, d.{pole_d} "
+        f"SELECT DISTINCT a.ADRESS_FOREST, a.ARODES_INT_NUM, d.{pole_d} "
         f"FROM F_ARODES AS a "
         f"INNER JOIN {tab_d} AS d ON a.ARODES_INT_NUM = d.ARODES_INT_NUM "
         f"WHERE d.{pole_d} IS NOT NULL AND {warunki} "
@@ -121,11 +122,12 @@ def _sprawdz_f_parameter(baza: Baza):
 
 
 def _sprawdz(baza: Baza, tab_d: str, pole_d: str, tab_sl: str, pole_sl: str):
-    """Zwraca listę (adr_les, wartość) dla rekordów niezgodnych ze słownikiem.
-    Pusta lista = brak błędów. False = nie udało się wykonać zapytania.
+    """Zwraca listę (adr_les, arodes_int_num, wartość) dla rekordów
+    niezgodnych ze słownikiem. Pusta lista = brak błędów. False = nie udało
+    się wykonać zapytania.
     """
     sql = (
-        f"SELECT DISTINCT a.ADRESS_FOREST, d.{pole_d} "
+        f"SELECT DISTINCT a.ADRESS_FOREST, a.ARODES_INT_NUM, d.{pole_d} "
         f"FROM (F_ARODES AS a "
         f"INNER JOIN {tab_d} AS d ON a.ARODES_INT_NUM = d.ARODES_INT_NUM) "
         f"LEFT JOIN {tab_sl} AS s ON "
@@ -268,8 +270,8 @@ def _zapisz_raport(plik, opis_baza, wyniki):
             plik.write(nl + l + nl)
             plik.write(f'[BŁĄD]       {opis}{nl}')
             plik.write(l + nl)
-            for adr, wartosc in bledy:
-                plik.write(f'  {adr}\t{wartosc}{nl}')
+            for wiersz in bledy:
+                plik.write('  ' + '\t'.join(str(x) for x in wiersz) + nl)
 
     plik.write(nl)
 
@@ -367,8 +369,8 @@ def KontrolaSlownikow(iface):
                 plik.write(nl + l + nl)
                 plik.write(f'[BŁĄD]       {opis}{nl}')
                 plik.write(l + nl)
-                for adr, wartosc in bledy:
-                    plik.write(f'  {adr}\t{wartosc}{nl}')
+                for wiersz in bledy:
+                    plik.write('  ' + '\t'.join(str(x) for x in wiersz) + nl)
 
         plik.write(nl + lp + nl)
         plik.write(

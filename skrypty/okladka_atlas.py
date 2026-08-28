@@ -189,6 +189,32 @@ class GenerujOkladki:
         self.ops = {''.join(x[4:]): x[1:4] for x in self.nag_raw}
         return True
 
+    def _grupuj_wg_gminy(self):
+        """Grupuje self.nag_raw po MUNICIPALITY_CD (gminie) - zamiast
+        osobnego wiersza na kazdy obreb, zwraca jeden wiersz na gmine z
+        nazwami wszystkich jej obrebow polaczonymi w jeden tekst (do
+        zbiorczej okladki). Ksztalt wiersza (woj, pow, gmina,
+        obreby_polaczone, municipality_cd) jest zgodny z self.nag_raw, wiec
+        generuj_okladki() moze uzywac obu zamiennie."""
+        grupy = {}
+        kolejnosc = []
+        for row in self.nag_raw:
+            klucz = row[4]  # MUNICIPALITY_CD
+            if klucz not in grupy:
+                grupy[klucz] = {
+                    'woj': row[0], 'pow': row[1], 'gmina': row[2],
+                    'obreby': [],
+                }
+                kolejnosc.append(klucz)
+            if row[3] not in grupy[klucz]['obreby']:
+                grupy[klucz]['obreby'].append(row[3])
+
+        return [
+            (grupy[k]['woj'], grupy[k]['pow'], grupy[k]['gmina'],
+             '\n'.join(sorted(grupy[k]['obreby'])), k)
+            for k in kolejnosc
+        ]
+
     def generuj_okladki(self):  # noqa
         if 'Okladki' in [l.name() for l in self.mn.layouts()]:
             self.mn.removeLayout(self.mn.layoutByName('Okladki'))
@@ -203,7 +229,10 @@ class GenerujOkladki:
         page = QgsLayoutItemPage(lay)
         page.setPageSize('A4', QgsLayoutItemPage.Orientation.Portrait)
 
-        for pg, row in enumerate(self.nag_raw):
+        gmina_zbiorcza = self.info.checkBox_gmina.isChecked()
+        wiersze = self._grupuj_wg_gminy() if gmina_zbiorcza else self.nag_raw
+
+        for pg, row in enumerate(wiersze):
             y = 20
             page = QgsLayoutItemPage(lay)
             page.setPageSize('A4', QgsLayoutItemPage.Orientation.Portrait)
@@ -251,13 +280,21 @@ class GenerujOkladki:
             y += 20
             naz = QgsLayoutItemLabel(lay)
             naz.setReferencePoint(QgsLayoutItem.UpperLeft)
-            naz.attemptResize(
-                QgsLayoutSize(108, 25.1, QgsUnitTypes.LayoutMillimeters))
+            if gmina_zbiorcza:
+                # lista wielu obrebow zamiast jednego - wiekszy box,
+                # mniejsza czcionka, zeby zmiescic kilka/kilkanascie nazw
+                naz.attemptResize(
+                    QgsLayoutSize(108, 58, QgsUnitTypes.LayoutMillimeters))
+                naz.setText('Obręby:\n' + row[3])
+                naz.setFont(QFont("Arial", 12, QFont.Bold))
+            else:
+                naz.attemptResize(
+                    QgsLayoutSize(108, 25.1, QgsUnitTypes.LayoutMillimeters))
+                naz.setText(f'Obręb: {row[3]}')
+                naz.setFont(QFont("Arial", 20, QFont.Bold))
             naz.attemptMove(
                 QgsLayoutPoint(92, y, QgsUnitTypes.LayoutMillimeters), page=pg)
             naz.setHAlign(Qt.AlignLeft)
-            naz.setText(f'Obręb: {row[3]}')
-            naz.setFont(QFont("Arial", 20, QFont.Bold))
             naz.setFontColor(QColor("#000000"))
             lay.addItem(naz)
 
@@ -271,7 +308,7 @@ class GenerujOkladki:
                 QgsLayoutPoint(38, y, QgsUnitTypes.LayoutMillimeters), page=pg)
             lay.addItem(h)
 
-            y += 25
+            y += 58 if gmina_zbiorcza else 25
             naz = QgsLayoutItemLabel(lay)
             naz.setReferencePoint(QgsLayoutItem.UpperLeft)
             naz.attemptResize(

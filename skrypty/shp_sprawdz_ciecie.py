@@ -6,7 +6,7 @@ from collections import Counter
 import openpyxl
 
 from qgis.core import QgsProject, QgsSpatialIndex, QgsFeatureRequest, \
-    QgsMessageLog, QgsWkbTypes, QgsVectorLayer, Qgis, QgsField
+    QgsMessageLog, QgsWkbTypes, QgsVectorLayer, Qgis, QgsField, QgsFeature
 
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QFileDialog
@@ -259,4 +259,66 @@ class SprawdzCiecie:
             'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +
             str(len(wydz_bez)) + ', wydz z wieloma kartami: ' +
             str(len(wydz_wiela)) + ', pkt poza wydz: ' + str(len(lpoz))
+        )
+
+    def sprawdz_pnsw(self):
+        """Kontrola wrysowania pnsw: dla kazdej geometrii pnsw wrysowanej
+        przez taksatora (pomiary/pnsw.shp) sprawdza, czy operator przeniosl
+        ja do warstwy PNSW w folderze SHP. Geometrie nie musza byc idealnie
+        zgodne (recznie przerysowywane), wiec test to punkt-na-powierzchni
+        (gwarantowanie lezacy wewnatrz wielokata) w wielokacie docelowym,
+        zamiast porownania geometrii."""
+        plug = os.path.dirname(__file__)
+        pnsw_pomiary_path = os.path.join(self.kat, '..', 'pomiary', 'pnsw.shp')
+
+        if not os.path.exists(pnsw_pomiary_path):
+            return  # brak pnsw wrysowanych przez taksatorow - nic do sprawdzenia
+
+        pnsw_pomiary = QgsVectorLayer(pnsw_pomiary_path, 'pnsw_pomiary', 'ogr')
+        if not pnsw_pomiary.isValid():
+            self.iface.messageBar().pushWarning(
+                'PNSW', 'Nie udało się wczytać ' + pnsw_pomiary_path)
+            return
+
+        pnsw_shp_path = os.path.join(self.kat, 'PNSW.shp')
+        pnsw_shp = QgsVectorLayer(pnsw_shp_path, 'PNSW', 'ogr')
+
+        si_pnsw = QgsSpatialIndex()
+        sl_pnsw = {}
+        if pnsw_shp.isValid():
+            for feat in pnsw_shp.getFeatures():
+                si_pnsw.insertFeature(feat)
+                sl_pnsw[feat.id()] = feat
+
+        brak = []
+        for feat in pnsw_pomiary.getFeatures():
+            pkt = feat.geometry().pointOnSurface()
+            ids = si_pnsw.intersects(pkt.boundingBox())
+            if not any(sl_pnsw[it].geometry().intersects(pkt) for it in ids):
+                brak.append(feat)
+
+        if len(brak) > 0:
+            lyr = QgsVectorLayer(
+                "MultiPoint?crs=epsg:2180",
+                "PNSW_niewrysowane_w_SHP",
+                "memory")
+            dp = lyr.dataProvider()
+            lyr.startEditing()
+            dp.addAttributes(pnsw_pomiary.dataProvider().fields().toList())
+            lyr.updateFields()
+            nowe = []
+            for feat in brak:
+                nf = QgsFeature(lyr.fields())
+                nf.setGeometry(feat.geometry().pointOnSurface())
+                nf.setAttributes(feat.attributes())
+                nowe.append(nf)
+            dp.addFeatures(nowe)
+            lyr.commitChanges()
+            l = QgsProject.instance().addMapLayer(lyr)
+            l.loadNamedStyle(os.path.join(
+                plug, '..', 'qml', 'point_drop_shadow_red.qml'))
+
+        self.iface.messageBar().pushSuccess(
+            'OK', 'Sprawdzanie PNSW zakończone, brak w SHP\\PNSW: ' +
+            str(len(brak)) + ' z ' + str(pnsw_pomiary.featureCount())
         )
