@@ -650,6 +650,15 @@ class LasR:
         self.m_testowe.addAction(self.a_przyg_ls_chama)
         self.a_przyg_ls_chama.triggered.connect(self.przygotuj_ls_na_chama)
 
+        self.a_kangurkuj = QAction(
+            QIcon(None), "Kangurkuj", self.iface.mainWindow()
+        )
+        self.a_kangurkuj.setToolTip(
+            "Testowe wywołanie Nawigatora błędów (skakanie po waypointach "
+            "na mapie) bez uruchamiania pełnej kontroli Ls/SULMN.")
+        self.m_testowe.addAction(self.a_kangurkuj)
+        self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
+
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
         self.m_aktualizacja_upul.addSeparator()

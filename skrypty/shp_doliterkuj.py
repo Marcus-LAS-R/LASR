@@ -387,8 +387,9 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
     (lub 'Lz') - przypisuje litery tylko nowo dodanym poligonom z pustym
     polem WYDZ, pomijajac przy wyborze litery te, ktore w danej grupie
     (MUNICIP, COMMUNITY, ODDZ) sa juz w uzyciu. Dziala na warstwie
-    przygotowanej tak samo jak do Literkuj (te same kolumny), na koniec
-    rowniez robi backup do temp/ i dissolve (scala fragmenty 'Lz'). """
+    przygotowanej tak samo jak do Literkuj (te same kolumny), na poczatku
+    robi backup do temp/ (przed jakakolwiek modyfikacja warstwy), a na
+    koniec dissolve (scala fragmenty 'Lz'). """
     if lyr is False:
         lyr = iface.activeLayer()
 
@@ -462,6 +463,31 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
                 Qgis.Critical,
                 10)
             return False
+
+    # kopia bezpieczeństwa PRZED jakąkolwiek modyfikacją warstwy (nadpisanie
+    # ODDZ, przypisanie liter, dissolve) - ten sam wzorzec co inne operacje
+    # niszczące w tej wtyczce (kopie_manipulacyjne.zrob_kopie_manipulacyjna)
+    sciezka = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
+    kat = os.path.dirname(sciezka)
+    tempkat = os.path.join(kat, 'temp')
+    czas = datetime.datetime.now().isoformat(
+                    ).replace(":", "")[:-7].replace('-', '')
+
+    if not os.path.isdir(tempkat):
+        os.mkdir(tempkat)
+
+    baza_do_kopii = _zgadnij_baze(sciezka + '.shp') or (sciezka + '.shp')
+    folder_kopii = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
+        baza_do_kopii, [lyr], 'doliterkuj')
+    if folder_kopii is None:
+        iface.messageBar().pushMessage(
+            'BŁĄD', 'Nie udało się utworzyć kopii bezpieczeństwa - '
+            'operacja przerwana (żadne zmiany nie zostały zapisane)',
+            Qgis.Critical, 10)
+        QgsMessageLog.logMessage(
+            '------ KONIEC (błąd kopii bezpieczeństwa) -------- \n',
+            'Las-R', Qgis.Info)
+        return False
 
     fnm = lyr.dataProvider().fieldNameMap()
 
@@ -585,34 +611,8 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
     lyr.commitChanges()
 
     if message_trig == 0:
-        sciezka = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
-        kat = os.path.dirname(sciezka)
-        tempkat = os.path.join(kat, 'temp')
-
-        czas = datetime.datetime.now().isoformat(
-                        ).replace(":", "")[:-7].replace('-', '')
-
-        if not os.path.isdir(tempkat):
-            os.mkdir(tempkat)
-
-        # kopia bezpieczeństwa PRZED dissolve (na wypadek problemu ze
-        # scalaniem) - ten sam wzorzec co inne operacje niszczące w tej
-        # wtyczce (kopie_manipulacyjne.zrob_kopie_manipulacyjna)
-        baza_do_kopii = _zgadnij_baze(sciezka + '.shp') or (sciezka + '.shp')
-        folder_kopii = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
-            baza_do_kopii, [lyr], 'doliterkuj')
-        if folder_kopii is None:
-            iface.messageBar().pushMessage(
-                'BŁĄD', 'Nie udało się utworzyć kopii bezpieczeństwa - '
-                'przerwano scalanie fragmentów Lz (litery zostały już '
-                'przypisane i zapisane)',
-                Qgis.Critical, 10)
-            QgsMessageLog.logMessage(
-                '------ KONIEC (błąd kopii bezpieczeństwa) -------- \n',
-                'Las-R', Qgis.Info)
-            return True
-
-        # zrob dissolva na warstwie wydz (scala fragmenty Lz)
+        # zrob dissolva na warstwie wydz (scala fragmenty Lz) - kopia
+        # bezpieczeństwa zrobiona wcześniej, przed jakąkolwiek modyfikacją
         processing.run("native:dissolve", {
             'INPUT': sciezka+'.shp',
             'FIELD': ['MUNICIP', 'COMMUNITY', 'ODDZ', 'WYDZ', 'GRP'],
