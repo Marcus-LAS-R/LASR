@@ -11,11 +11,13 @@ from datetime import datetime
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtWidgets import (
-    QAction, QButtonGroup, QComboBox, QDockWidget, QFileDialog, QFormLayout,
-    QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QRadioButton, QSizePolicy, QVBoxLayout, QWidget,
+    QAction, QApplication, QButtonGroup, QCheckBox, QComboBox, QDockWidget,
+    QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QRadioButton, QSizePolicy, QVBoxLayout, QWidget,
 )
-from qgis.core import Qgis, QgsFeatureRequest, QgsMapLayerProxyModel
+from qgis.core import (
+    Qgis, QgsFeatureRequest, QgsMapLayerProxyModel, QgsRectangle,
+)
 from qgis.gui import QgsMapLayerComboBox
 
 from . import waypointy
@@ -86,6 +88,20 @@ class NawigatorDock(QDockWidget):
         lay_info.addRow(QLabel('Pozycja:'), self.lbl_licznik)
         lay.addWidget(fra_info)
 
+        fra_kopiuj = QFrame(glowny)
+        lay_kopiuj = QHBoxLayout(fra_kopiuj)
+        lay_kopiuj.setContentsMargins(0, 0, 0, 0)
+        self.txt_kopiuj = QLineEdit()
+        self.txt_kopiuj.setReadOnly(True)
+        self.txt_kopiuj.setPlaceholderText(
+            '(brak wartości do skopiowania w tej sekcji)')
+        self.btn_kopiuj = QPushButton('Kopiuj')
+        self.btn_kopiuj.clicked.connect(self.kopiuj_wartosc)
+        lay_kopiuj.addWidget(QLabel('Do wklejenia w atrybut:'))
+        lay_kopiuj.addWidget(self.txt_kopiuj)
+        lay_kopiuj.addWidget(self.btn_kopiuj)
+        lay.addWidget(fra_kopiuj)
+
         fra_akcja = QFrame(glowny)
         lay_akcja = QHBoxLayout(fra_akcja)
         self.rad_pan = QRadioButton('Pan')
@@ -97,6 +113,14 @@ class NawigatorDock(QDockWidget):
         lay_akcja.addWidget(self.rad_pan)
         lay_akcja.addWidget(self.rad_zoom)
         lay.addWidget(fra_akcja)
+
+        self.chk_zaznacz = QCheckBox('Zaznacz obiekt(y) na warstwie')
+        self.chk_zaznacz.setChecked(False)
+        self.chk_zaznacz.setToolTip(
+            'Zaznacza na warstwie wszystkie obiekty znalezione pod bieżącym '
+            'kluczem - przydatne zwłaszcza przy kilku obiektach naraz '
+            '(np. ZDUBLOWANE LANDID), żeby od razu widzieć, które to.')
+        lay.addWidget(self.chk_zaznacz)
 
         fra_nav = QFrame(glowny)
         lay_nav = QHBoxLayout(fra_nav)
@@ -240,12 +264,22 @@ class NawigatorDock(QDockWidget):
 
     # --------------------------------------------------- wyświetlanie ----
 
+    def kopiuj_wartosc(self):
+        if self.txt_kopiuj.text():
+            QApplication.clipboard().setText(self.txt_kopiuj.text())
+            self.iface.messageBar().pushMessage(
+                self.tytul,
+                f'Skopiowano do schowka: {self.txt_kopiuj.text()}',
+                Qgis.Success, 3)
+
     def _pokaz_biezacy(self):
         wiersze = self._wiersze_sekcji()
         n = len(wiersze)
 
         if n == 0 or self.pozycja < 0:
             self.txt_wartosc.setText('-')
+            self.txt_kopiuj.setText('')
+            self.btn_kopiuj.setEnabled(False)
             self.lbl_licznik.setText('- z -')
             self._ustaw_stan_przyciskow()
             return
@@ -256,6 +290,10 @@ class NawigatorDock(QDockWidget):
         self.lbl_licznik.setText(
             f'{self.pozycja + 1} z {n} ({pozostalo} pozostało){znacznik}')
         self.txt_wartosc.setText(f"{wiersz['klucz']}   {wiersz['opis']}")
+
+        do_skopiowania = wiersz.get('do_skopiowania', '')
+        self.txt_kopiuj.setText(do_skopiowania)
+        self.btn_kopiuj.setEnabled(bool(do_skopiowania))
 
         self._pokaz_na_mapie(wiersz)
         self._ustaw_stan_przyciskow()
@@ -291,8 +329,12 @@ class NawigatorDock(QDockWidget):
 
         klucz = wiersz['klucz'].replace("'", "''")
         req = QgsFeatureRequest().setFilterExpression(f'"{pole}" = \'{klucz}\'')
-        obiekt = next(warstwa.getFeatures(req), None)
-        if obiekt is None:
+        obiekty = [
+            f for f in warstwa.getFeatures(req)
+            if f.geometry() is not None and not f.geometry().isEmpty()
+        ]
+        if len(obiekty) == 0:
+            warstwa.removeSelection()
             self.iface.messageBar().pushMessage(
                 self.tytul,
                 f'Nie znaleziono obiektu {pole}={wiersz["klucz"]} w warstwie '
@@ -300,20 +342,39 @@ class NawigatorDock(QDockWidget):
                 Qgis.Warning, 4)
             return
 
-        geom = obiekt.geometry()
-        if geom is None or geom.isEmpty():
-            self.iface.messageBar().pushMessage(
-                self.tytul, 'Znaleziony obiekt ma pustą geometrię.',
-                Qgis.Warning, 4)
-            return
+        if self.chk_zaznacz.isChecked():
+            warstwa.selectByIds([f.id() for f in obiekty])
 
         canvas = self.iface.mapCanvas()
         renderer = canvas.mapSettings()
-        if self.rad_pan.isChecked():
-            canvas.setCenter(renderer.layerToMapCoordinates(
-                warstwa, geom.centroid().asPoint()))
+
+        if len(obiekty) == 1:
+            # dokładnie jeden obiekt - zwykłe zachowanie pan/zoom
+            geom = obiekty[0].geometry()
+            if self.rad_pan.isChecked():
+                canvas.setCenter(renderer.layerToMapCoordinates(
+                    warstwa, geom.centroid().asPoint()))
+            else:
+                canvas.setExtent(renderer.layerToMapCoordinates(
+                    warstwa, geom.boundingBox()))
+                canvas.zoomByFactor(1.1)
         else:
-            canvas.setExtent(renderer.layerToMapCoordinates(
-                warstwa, geom.boundingBox()))
-            canvas.zoomByFactor(1.1)
+            # kilka obiektów pod tym samym kluczem (np. ZDUBLOWANE LANDID) -
+            # pokaż je wszystkie naraz, żeby nie gubić duplikatów
+            bbox = QgsRectangle()
+            bbox.setMinimal()
+            for f in obiekty:
+                bbox.combineExtentWith(f.geometry().boundingBox())
+            canvas.setExtent(renderer.layerToMapCoordinates(warstwa, bbox))
+            canvas.zoomByFactor(1.2)
+            info_zaznaczenia = (
+                'i zaznaczono ' if self.chk_zaznacz.isChecked() else ''
+            )
+            self.iface.messageBar().pushMessage(
+                self.tytul,
+                f'Znaleziono {len(obiekty)} obiektów {pole}='
+                f'{wiersz["klucz"]} - pokazano {info_zaznaczenia}wszystkie '
+                'naraz.',
+                Qgis.Info, 4)
+
         canvas.refresh()

@@ -11,19 +11,25 @@ import os
 import tempfile
 
 NAGLOWEK = [
-    'zrodlo', 'sekcja', 'typ_klucza', 'klucz', 'opis', 'status',
-    'data_oznaczenia',
+    'zrodlo', 'sekcja', 'typ_klucza', 'klucz', 'opis', 'do_skopiowania',
+    'status', 'data_oznaczenia',
 ]
 
 
-def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis):
-    """Buduje jeden świeży wiersz waypointów (bez oznaczenia)."""
+def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania=''):
+    """Buduje jeden świeży wiersz waypointów (bez oznaczenia).
+
+    do_skopiowania: opcjonalna wartość do wklejenia wprost w atrybut
+    nowo utworzonego obiektu (np. LANDID przy ręcznym dorysowywaniu
+    brakującego Ls) - pokazywana w nawigatorze w osobnym, łatwym do
+    skopiowania polu, żeby nie trzeba było jej wyłuskiwać z opisu."""
     return {
         'zrodlo': zrodlo,
         'sekcja': sekcja,
         'typ_klucza': typ_klucza,
         'klucz': str(klucz),
         'opis': opis,
+        'do_skopiowania': str(do_skopiowania),
         'status': '',
         'data_oznaczenia': '',
     }

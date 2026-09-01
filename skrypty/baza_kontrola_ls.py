@@ -319,17 +319,37 @@ class KontrolaLs:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',
                 self._parcelid_z_landid(k),
-                f'LANDID={k} pow_rej={pow_rej}'))
+                f'LANDID={k} pow_rej={pow_rej}', do_skopiowania=k))
 
         for x in self.brakujace_ls_w_bazie:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'BRAKUJĄCE LSy [W BAZIE]', 'PARCELID',
-                self.d_ls[x]['PARCELID'], f'LANDID={x}'))
+                self.d_ls[x]['PARCELID'], f'LANDID={x}', do_skopiowania=x))
+
+        for k in sorted(self.p.ls_podwojne):
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'POWÓJNE LS [BAZA]', 'LANDID', k,
+                'Ls występuje w bazie więcej niż raz na tej działce'))
+
+        for k in sorted(self.pow_zerowe_baza):
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'LSy z ZEROWĄ POW', 'LANDID', k,
+                'Zerowa powierzchnia Ls w bazie'))
 
         for k, pow_graf, pow_rej, roznica in self.rozb_pow:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', k,
                 f'pow_graf={pow_graf} pow_rej={pow_rej} różnica={roznica}'))
+
+        # self.zdublowane_lid ma wpis za KAŻDY dodatkowy poligon ponad
+        # pierwszy (więc przy 3 poligonach z tym samym LANDID pojawi się tu
+        # 2 razy) - do nawigacji wystarczy raz na unikalny LANDID, bo
+        # nawigator i tak pokazuje na mapie wszystkie obiekty pod danym
+        # kluczem naraz (patrz nawigator_dock._pokaz_na_mapie).
+        for k in sorted(set(self.zdublowane_lid)):
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'ZDUBLOWANE LANDID [SHP]', 'LANDID', k,
+                'Najprawdopodobniej niepołączone w multipoligony'))
 
         return wiersze
 
