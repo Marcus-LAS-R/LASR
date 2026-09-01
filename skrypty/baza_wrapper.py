@@ -954,8 +954,16 @@ class Baza(object):
         if not self.baza.endswith('.mdb'):
             return []
 
+        # Jet/ACE nie znosi rownoczesnego otwarcia tego samego pliku .mdb
+        # przez ODBC (self.con) i DAO/COM - grozi to access violation.
+        # Zamykamy polaczenie ODBC na czas operacji DAO.
+        self.zamknij()
+
         import win32com.client
-        dao = win32com.client.Dispatch('DAO.DBEngine.120')
+        # dynamic.Dispatch zamiast Dispatch - omija cache gen_py, ktory
+        # bywa nieaktualny wzgledem zainstalowanej wersji Access Database
+        # Engine i tez potrafi wywolac access violation.
+        dao = win32com.client.dynamic.Dispatch('DAO.DBEngine.120')
         db = dao.OpenDatabase(self.baza)
 
         do_usuniecia = [
@@ -967,6 +975,7 @@ class Baza(object):
 
         db.Close()
 
+        self.polacz()
         self.usun_tabele(['F_TABLICA', 'F_TABLICA_ROZSZERZONA'])
 
         return do_usuniecia
