@@ -52,6 +52,7 @@ from .skrypty import (
     naklejki,
     przygotuj_ls,
     przygotuj_ls_test,
+    przygotuj_ls_na_chama,
     przygotuj_ls_z_wydzielen,
     shp_eksport_kml,
     baza_rozlicz_pow_wydz,
@@ -62,6 +63,7 @@ from .skrypty import (
     baza_przeliterkuj,
     baza_dopisz_pnsw,
     baza_klonuj_wydz,
+    nawigator_dock,
     shp_atlasuj,
     baza_usun_op,
     baza_usun_nieLs,
@@ -637,6 +639,17 @@ class LasR:
         self.m_testowe.addAction(self.a_konwertuj_pul_upul)
         self.a_konwertuj_pul_upul.triggered.connect(self.konwertuj_pul_upul)
 
+        self.a_przyg_ls_chama = QAction(
+            QIcon(None), "Przygotuj Lsy (na chama)", self.iface.mainWindow()
+        )
+        self.a_przyg_ls_chama.setToolTip(
+            "Prototyp \"Przygotuj Lsy\" do jednorazowego zadania - dopasowuje "
+            "kawałki Ls do rekordów w bazie po powierzchni graficznej "
+            "(mniejszy do mniejszego, większy do większego), bez progu "
+            "odrzucenia.")
+        self.m_testowe.addAction(self.a_przyg_ls_chama)
+        self.a_przyg_ls_chama.triggered.connect(self.przygotuj_ls_na_chama)
+
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
         self.m_aktualizacja_upul.addSeparator()
@@ -981,6 +994,16 @@ class LasR:
         self.m_narzedzia.addAction(self.a_czy_kol)
         self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
 
+        self.a_nawigator = QAction(
+            QIcon(None), "Nawigator błędów", self.iface.mainWindow()
+        )
+        self.a_nawigator.setToolTip(
+            "Otwiera panel do przeskakiwania na mapie po błędach z raportów "
+            "kontrolnych (Kontrola Ls, Kontrola słownikowa SULMN) zapisanych "
+            "jako plik waypointów.")
+        self.m_narzedzia.addAction(self.a_nawigator)
+        self.a_nawigator.triggered.connect(self.pokaz_nawigator)
+
         self.nakl = QAction(QIcon(None), "Generuj naklejki", self.iface.mainWindow())
         self.nakl.setToolTip(
             "Tworzy do wydruku naklejki adresowe na akta/teczki wydzieleń.")
@@ -1162,6 +1185,10 @@ class LasR:
         self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockWidget)
         self.dockWidget.hide()
 
+        self.dockNawigator = nawigator_dock.NawigatorDock(self.iface)
+        self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockNawigator)
+        self.dockNawigator.hide()
+
         self._pokaz_changelog_jesli_nowy()
 
     def _changelog_sc(self):
@@ -1230,6 +1257,10 @@ class LasR:
         self.dockWidget.close()
         self.iface.removeDockWidget(self.dockWidget)
 
+        self.dockNawigator.wyrejestruj_skroty()
+        self.dockNawigator.close()
+        self.iface.removeDockWidget(self.dockNawigator)
+
     def run(self):
         """Run method that performs all the real work"""
         # show the dialog
@@ -1259,6 +1290,17 @@ class LasR:
 
     def przygotuj_ls_test(self):
         spr = przygotuj_ls_test.PrzygotujLsTest(self.iface)
+        if not spr.sprawdz_warstwy():
+            return
+        if not spr.wczytaj():
+            return
+        if not spr.sprawdz():
+            return
+        if spr.przygotuj():
+            spr.przetworz()
+
+    def przygotuj_ls_na_chama(self):
+        spr = przygotuj_ls_na_chama.PrzygotujLsNaChama(self.iface)
         if not spr.sprawdz_warstwy():
             return
         if not spr.wczytaj():
@@ -1550,7 +1592,10 @@ class LasR:
                                     #         Qgis.Critical, 0)
 
     def kontrola_slownikow_bazy(self):
-        baza_kontrola_slownikow_wgSULMN.KontrolaSlownikow(self.iface)
+        waypointy_sc = baza_kontrola_slownikow_wgSULMN.KontrolaSlownikow(self.iface)
+        if waypointy_sc:
+            self.dockNawigator.wczytaj_plik(waypointy_sc)
+            self.dockNawigator.show()
 
     def kontrola_opisow_taksacyjnych(self):
         baza_kontrola_opisow_wgSULMN.KontrolaOpisow(self.iface)
@@ -1561,6 +1606,12 @@ class LasR:
             k.przetworz_dane()
             k.zestawienia()
             k.generuj_raport()
+            if k.waypointy_sc:
+                self.dockNawigator.wczytaj_plik(k.waypointy_sc)
+                self.dockNawigator.show()
+
+    def pokaz_nawigator(self):
+        self.dockNawigator.show()
 
     def kontrola_ls_w_bazie(self):
         baza_popraw_LS.SprawdzBazy(self.iface)

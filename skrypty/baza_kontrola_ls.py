@@ -6,6 +6,7 @@ from qgis.core import Qgis
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
+from . import waypointy
 
 
 class KontrolaLs:
@@ -15,6 +16,7 @@ class KontrolaLs:
         self.baza = False
         self.kat = ''
         self.dopisane = 0
+        self.waypointy_sc = None
         self.uzytki = []
         self.wlasnosci = []
         self.wl = 'OF'
@@ -301,6 +303,36 @@ class KontrolaLs:
             self.rozb_pow, key=lambda x: x[3], reverse=True
         )
 
+    def _parcelid_z_landid(self, lid):
+        """Wylicza PARCELID z LANDID wg tej samej reguły co sprawdz_puste()
+        - potrzebne dla Ls-ów brakujących w SHP, dla których nie ma
+        obiektu (a więc i pola PARCELID) do odczytania wprost."""
+        ind = 2 if len(lid.split('.')) == 4 else 1
+        return '.'.join(lid.split('.')[:ind + 1])
+
+    def _zbierz_waypointy(self):
+        """Buduje listę waypointów (do Nawigatora błędów) z zestawień
+        policzonych w zestawienia()."""
+        wiersze = []
+
+        for k, pow_rej in self.brakujace_ls_w_shp:
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',
+                self._parcelid_z_landid(k),
+                f'LANDID={k} pow_rej={pow_rej}'))
+
+        for x in self.brakujace_ls_w_bazie:
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'BRAKUJĄCE LSy [W BAZIE]', 'PARCELID',
+                self.d_ls[x]['PARCELID'], f'LANDID={x}'))
+
+        for k, pow_graf, pow_rej, roznica in self.rozb_pow:
+            wiersze.append(waypointy.wiersz(
+                'Kontrola Ls', 'LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', k,
+                f'pow_graf={pow_graf} pow_rej={pow_rej} różnica={roznica}'))
+
+        return wiersze
+
     def generuj_raport(self):  # noqa
         """Metoda generuj raport zapisany w zmiennej self.wypis"""
         self.postep.setValue(80)
@@ -398,6 +430,12 @@ class KontrolaLs:
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(self.wypis)
         plik.close()
+
+        wiersze_wp = self._zbierz_waypointy()
+        if len(wiersze_wp) > 0:
+            self.waypointy_sc = os.path.join(
+                self.kat, '..', "ls_waypointy_"+self.baza.czas+".csv")
+            waypointy.zapisz(self.waypointy_sc, wiersze_wp)
 
         self.iface.messageBar().clearWidgets()
         message = QMessageBox()

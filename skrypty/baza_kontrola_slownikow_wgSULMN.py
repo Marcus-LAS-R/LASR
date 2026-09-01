@@ -4,6 +4,7 @@ from datetime import date, datetime
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from . import waypointy
 
 # (tabela_danych, pole, tabela_słownikowa, pole_sl, opis)
 KONTROLE = [
@@ -181,11 +182,25 @@ def _sprawdz_whitelist_parcel_dziecko(baza: Baza, tab_d: str, pole_d: str,
 
 def _uruchom_kontrole(baza: Baza):
     """Uruchamia wszystkie kontrole słownikowe (KONTROLE + whitelisty + F_PARAMETER)
-    na już połączonej bazie. Zwraca listę (opis, bledy)."""
+    na już połączonej bazie. Zwraca listę (opis, bledy, typ_klucza).
+
+    typ_klucza mówi, jak zbudować waypoint z wiersza błędu (patrz
+    _zbierz_waypointy poniżej):
+      'arodes' - wiersz (ADRESS_FOREST, ARODES_INT_NUM, wartość), błąd
+                 nawigowalny po adresie leśnym (pole ADR_LES w warstwie
+                 wydzieleń - UWAGA: to NIE jest LANDID z warstwy Ls, LANDID
+                 to kod klasoużytku na działce, zupełnie inny byt niż adres
+                 leśny)
+      'parcel' - wiersz (adres_dzialki, wartość), błąd nawigowalny po
+                 adresie działki (PARCELID w warstwie działek)
+      'brak'   - kształt wiersza niewystarczający do wskazania obiektu na
+                 mapie (np. sam PARCEL_NR bez pełnego adresu, albo brak
+                 adresu w ogóle) - błąd trafia tylko do raportu TXT
+    """
     wyniki = []
     for tab_d, pole_d, tab_sl, pole_sl, opis in KONTROLE:
         bledy = _sprawdz(baza, tab_d, pole_d, tab_sl, pole_sl)
-        wyniki.append((opis, bledy))
+        wyniki.append((opis, bledy, 'arodes'))
         if bledy is False:
             QgsMessageLog.logMessage(
                 f'Kontrola słowników — pominięto: {opis}', 'Las-R', Qgis.Warning
@@ -193,7 +208,7 @@ def _uruchom_kontrole(baza: Baza):
 
     for tab_d, pole_d, tab_sl, pole_sl, opis in KONTROLE_PARCEL:
         bledy = _sprawdz_parcel(baza, pole_d, tab_sl, pole_sl)
-        wyniki.append((opis, bledy))
+        wyniki.append((opis, bledy, 'parcel'))
         if bledy is False:
             QgsMessageLog.logMessage(
                 f'Kontrola słowników — pominięto: {opis}', 'Las-R', Qgis.Warning
@@ -201,7 +216,7 @@ def _uruchom_kontrole(baza: Baza):
 
     opis_set = 'F_SET.SET_TYPE_FL — wartości spoza listy dopuszczalnych'
     bledy_set = _sprawdz_whitelist(baza, 'F_SET', 'SET_TYPE_FL', _WHITELIST_SET_TYPE_FL)
-    wyniki.append((opis_set, bledy_set))
+    wyniki.append((opis_set, bledy_set, 'arodes'))
     if bledy_set is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_set}', 'Las-R', Qgis.Warning
@@ -209,16 +224,20 @@ def _uruchom_kontrole(baza: Baza):
 
     opis_urg = 'F_AROD_CUE.URGENCY — wartości spoza listy dopuszczalnych'
     bledy_urg = _sprawdz_whitelist(baza, 'F_AROD_CUE', 'URGENCY', _WHITELIST_URGENCY)
-    wyniki.append((opis_urg, bledy_urg))
+    wyniki.append((opis_urg, bledy_urg, 'arodes'))
     if bledy_urg is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_urg}', 'Las-R', Qgis.Warning
         )
 
+    # Uwaga: V_PARCEL_PARTICIPATION nie ma powiązania z F_ARODES ani pełnego
+    # adresu działki (tylko PARCEL_NR) - błędy tej kontroli nie da się
+    # jednoznacznie wskazać na mapie, więc typ='brak' (pomijane w
+    # waypointach, obecne tylko w raporcie TXT).
     opis_cwd = 'V_PARCEL_PARTICIPATION.cwd — wartości spoza listy dopuszczalnych'
     bledy_cwd = _sprawdz_whitelist_parcel_dziecko(
         baza, 'V_PARCEL_PARTICIPATION', 'cwd', _WHITELIST_CWD)
-    wyniki.append((opis_cwd, bledy_cwd))
+    wyniki.append((opis_cwd, bledy_cwd, 'brak'))
     if bledy_cwd is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_cwd}', 'Las-R', Qgis.Warning
@@ -226,7 +245,7 @@ def _uruchom_kontrole(baza: Baza):
 
     opis_wl = 'F_SUBAREA.AREA_TYPE_CD — wartości spoza listy dopuszczalnych'
     bledy_wl = _sprawdz_whitelist(baza, 'F_SUBAREA', 'AREA_TYPE_CD', _WHITELIST_AREA_TYPE_CD)
-    wyniki.append((opis_wl, bledy_wl))
+    wyniki.append((opis_wl, bledy_wl, 'arodes'))
     if bledy_wl is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_wl}', 'Las-R', Qgis.Warning
@@ -234,21 +253,45 @@ def _uruchom_kontrole(baza: Baza):
 
     opis_goal = 'F_AROD_GOAL.GOAL_TYPE_FL — wartości spoza listy dopuszczalnych'
     bledy_goal = _sprawdz_whitelist(baza, 'F_AROD_GOAL', 'GOAL_TYPE_FL', _WHITELIST_GOAL_TYPE_FL)
-    wyniki.append((opis_goal, bledy_goal))
+    wyniki.append((opis_goal, bledy_goal, 'arodes'))
     if bledy_goal is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_goal}', 'Las-R', Qgis.Warning
         )
 
+    # F_PARAMETER nie ma adresu w ogóle (jeden rekord globalny) - typ='brak'.
     opis_param = 'F_PARAMETER.ObjectFullName — nazwa obiektu leśnego'
     bledy_param = _sprawdz_f_parameter(baza)
-    wyniki.append((opis_param, bledy_param))
+    wyniki.append((opis_param, bledy_param, 'brak'))
     if bledy_param is False:
         QgsMessageLog.logMessage(
             f'Kontrola słowników — pominięto: {opis_param}', 'Las-R', Qgis.Warning
         )
 
     return wyniki
+
+
+def _zbierz_waypointy(wyniki):
+    """Buduje listę waypointów (do Nawigatora błędów) z wyników
+    _uruchom_kontrole(). Pomija kontrole typu 'brak' (nienawigowalne) oraz
+    te bez błędów."""
+    wiersze = []
+    for opis, bledy, typ in wyniki:
+        if bledy is False or len(bledy) == 0 or typ == 'brak':
+            continue
+
+        if typ == 'arodes':
+            for adr_les, arodes_int_num, wartosc in bledy:
+                wiersze.append(waypointy.wiersz(
+                    'Kontrola słownikowa SULMN', opis, 'ADR_LES', adr_les,
+                    f'wartość={wartosc!r}'))
+        elif typ == 'parcel':
+            for adr_dzialki, wartosc in bledy:
+                wiersze.append(waypointy.wiersz(
+                    'Kontrola słownikowa SULMN', opis, 'PARCELID', adr_dzialki,
+                    f'wartość={wartosc!r}'))
+
+    return wiersze
 
 
 def _zapisz_raport(plik, opis_baza, wyniki):
@@ -261,7 +304,7 @@ def _zapisz_raport(plik, opis_baza, wyniki):
     plik.write(f'Baza:  {opis_baza}{nl}')
     plik.write(lp + nl + nl)
 
-    for opis, bledy in wyniki:
+    for opis, bledy, _typ in wyniki:
         if bledy is False:
             plik.write(f'[POMINIĘTO]  {opis}{nl}')
         elif len(bledy) == 0:
@@ -304,7 +347,7 @@ def KontrolaSlownikowWiele(katalog_raportu: str, sciezki: list):
             baza.zamknij()
 
             ile_blednych += sum(
-                len(b) for _, b in wyniki if b is not False and len(b) > 0
+                len(b) for _, b, _typ in wyniki if b is not False and len(b) > 0
             )
             _zapisz_raport(plik, baza_sc, wyniki)
 
@@ -337,10 +380,10 @@ def KontrolaSlownikow(iface):
     czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
     baza.zamknij()
 
-    ile_blednych = sum(len(b) for _, b in wyniki if b is not False and len(b) > 0)
-    ile_z_bledami = sum(1 for _, b in wyniki if b is not False and len(b) > 0)
-    ile_ok = sum(1 for _, b in wyniki if b is not False and len(b) == 0)
-    ile_pom = sum(1 for _, b in wyniki if b is False)
+    ile_blednych = sum(len(b) for _, b, _t in wyniki if b is not False and len(b) > 0)
+    ile_z_bledami = sum(1 for _, b, _t in wyniki if b is not False and len(b) > 0)
+    ile_ok = sum(1 for _, b, _t in wyniki if b is not False and len(b) == 0)
+    ile_pom = sum(1 for _, b, _t in wyniki if b is False)
 
     # raport TXT obok bazy
     nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
@@ -360,7 +403,7 @@ def KontrolaSlownikow(iface):
         plik.write(f'Data:  {date.today()}{nl}')
         plik.write(lp + nl + nl)
 
-        for opis, bledy in wyniki:
+        for opis, bledy, _typ in wyniki:
             if bledy is False:
                 plik.write(f'[POMINIĘTO]  {opis}{nl}')
             elif len(bledy) == 0:
@@ -377,6 +420,15 @@ def KontrolaSlownikow(iface):
             f'OK: {ile_ok} | Z błędami: {ile_z_bledami} | '
             f'Pominięto: {ile_pom} | Błędnych wartości łącznie: {ile_blednych}{nl}'
         )
+
+    waypointy_sc = None
+    wiersze_wp = _zbierz_waypointy(wyniki)
+    if len(wiersze_wp) > 0:
+        waypointy_sc = os.path.join(
+            os.path.dirname(baza_sc),
+            f'kontrola_slownikow_waypointy_{nazwa_bazy}_{czas}.csv'
+        )
+        waypointy.zapisz(waypointy_sc, wiersze_wp)
 
     poziom = Qgis.Success if ile_blednych == 0 else Qgis.Warning
     iface.messageBar().pushMessage(
@@ -397,3 +449,5 @@ def KontrolaSlownikow(iface):
     msg.addButton('Tak', QMessageBox.ActionRole)
     if msg.exec_() == 1 and platform.system()[:3] == 'Win':
         os.startfile(rap_sc)
+
+    return waypointy_sc
