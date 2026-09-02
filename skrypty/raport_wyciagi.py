@@ -1033,7 +1033,11 @@ class Wyciag:
                                 f'{idx}. {ww}{udzial}'
                         ) > _SZER_KOLUMNY_WSPOLWL:
                             ww = self.sl_wl[x]['opis']['nazwisko'] + ' '
-                            ims = self.sl_wl[x]['opis']['imie'].strip().split(' ')
+                            ims = [
+                                i for i in
+                                self.sl_wl[x]['opis']['imie'].strip().split(' ')
+                                if i
+                            ]
                             if len(ims) > 0:
                                 ww += '. '.join(im[0] for im in ims).strip()
 
