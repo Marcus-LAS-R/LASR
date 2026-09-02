@@ -30,7 +30,21 @@ def _ma_juz_litere(wartosc):
     """ Czy pole WYDZ jest juz wypelnione (nie jest puste/NULL)? Wzorowane
     1:1 na warunku z shp_literkuj.Literkuj, dla zgodnosci zachowania na
     tych samych danych (shapefile/DBF). """
-    return str(wartosc) not in ["", " ", 'NULL', None]
+    if wartosc is None:
+        return False
+    return str(wartosc) not in ["", " ", "NULL"]
+
+
+def _oddz_nieprawidlowy(wartosc):
+    """ Czy wartosc pola ODDZ NIE jest liczba naturalna z zakresu 1-9999?
+    Jedyne dopuszczalne wartosci w kolumnie ODDZ to liczby calkowite
+    1..9999 (np. '007' tez jest ok - liczy sie wartosc liczbowa). """
+    if wartosc is None:
+        return True
+    tekst = str(wartosc).strip()
+    if not tekst.isdigit():
+        return True
+    return not (1 <= int(tekst) <= 9999)
 
 
 def _tekst(wartosc):
@@ -428,31 +442,35 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
             10)
         return False
 
-    if not oddz_reczny:
-        oddz_puste = sum(
-            1 for f in lyr.getFeatures() if not _ma_juz_litere(f['ODDZ']))
-        if oddz_puste > 0:
-            odp = QMessageBox.question(
-                iface.mainWindow(),
-                'Puste pole ODDZ',
-                'W warstwie jest ' + str(oddz_puste) + ' wydzieleń bez '
-                'uzupełnionego pola ODDZ - doliterowanie w takich grupach '
-                'może być nieprzewidywalne.\n\nKontynuować mimo to?',
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if odp != QMessageBox.Yes:
-                iface.messageBar().pushMessage(
-                    'ANULOWANO',
-                    'Doliterowanie przerwane przez użytkownika',
-                    Qgis.Warning,
-                    10)
-                QgsMessageLog.logMessage(
-                    '------ KONIEC (anulowano) -------- \n',
-                    'Las-R',
-                    Qgis.Info
-                )
-                return False
+    zle_oddz = sorted(
+        {str(f['ODDZ']).strip() for f in lyr.getFeatures()
+         if _oddz_nieprawidlowy(f['ODDZ'])},
+        key=lambda x: (len(x), x)
+    )
+    if zle_oddz:
+        pokazane = zle_oddz[:20]
+        wartosci = ', '.join(repr(v) for v in pokazane)
+        if len(zle_oddz) > len(pokazane):
+            wartosci += ', ...'
+        QMessageBox.critical(
+            iface.mainWindow(),
+            'Nieprawidłowe wartości ODDZ',
+            'W kolumnie ODDZ mogą być tylko liczby naturalne od 1 do 9999.'
+            '\n\nZnaleziono nieprawidłowe wartości: ' + wartosci +
+            '.\n\nPopraw oddziały przed doliterowaniem.'
+        )
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Nieprawidłowe wartości w kolumnie ODDZ - popraw oddziały przed '
+            'doliterowaniem',
+            Qgis.Critical,
+            10)
+        QgsMessageLog.logMessage(
+            '------ KONIEC (nieprawidlowe ODDZ: ' + wartosci + ') -------- \n',
+            'Las-R',
+            Qgis.Info
+        )
+        return False
 
     if od_litery:
         nieprawidlowe = sorted({w for w in od_litery.values() if w not in LITERY})

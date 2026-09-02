@@ -51,6 +51,18 @@ def _puste(wartosc):
     return str(wartosc) in ["", " ", "NULL"]
 
 
+def _oddz_nieprawidlowy(wartosc):
+    """ Czy wartosc pola ODDZ NIE jest liczba naturalna z zakresu 1-9999?
+    Jedyne dopuszczalne wartosci w kolumnie ODDZ to liczby calkowite
+    1..9999 (np. '007' tez jest ok - liczy sie wartosc liczbowa). """
+    if wartosc is None:
+        return True
+    tekst = str(wartosc).strip()
+    if not tekst.isdigit():
+        return True
+    return not (1 <= int(tekst) <= 9999)
+
+
 def Literkuj(iface, lyr=False):  # noqa
     if lyr is False:
         lyr = iface.activeLayer()
@@ -141,29 +153,35 @@ def Literkuj(iface, lyr=False):  # noqa
             )
             return False
 
-    oddz_puste = sum(1 for f in lyr.getFeatures() if _puste(f['ODDZ']))
-    if oddz_puste > 0:
-        odp = QMessageBox.question(
+    zle_oddz = sorted(
+        {str(f['ODDZ']).strip() for f in lyr.getFeatures()
+         if _oddz_nieprawidlowy(f['ODDZ'])},
+        key=lambda x: (len(x), x)
+    )
+    if zle_oddz:
+        pokazane = zle_oddz[:20]
+        wartosci = ', '.join(repr(v) for v in pokazane)
+        if len(zle_oddz) > len(pokazane):
+            wartosci += ', ...'
+        QMessageBox.critical(
             iface.mainWindow(),
-            'Puste pole ODDZ',
-            'W warstwie jest ' + str(oddz_puste) + ' wydzieleń bez '
-            'uzupełnionego pola ODDZ - literowanie w takich grupach może '
-            'być nieprzewidywalne.\n\nKontynuować mimo to?',
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            'Nieprawidłowe wartości ODDZ',
+            'W kolumnie ODDZ mogą być tylko liczby naturalne od 1 do 9999.'
+            '\n\nZnaleziono nieprawidłowe wartości: ' + wartosci +
+            '.\n\nPopraw oddziały przed literowaniem.'
         )
-        if odp != QMessageBox.Yes:
-            iface.messageBar().pushMessage(
-                'ANULOWANO',
-                'Literowanie przerwane przez użytkownika',
-                Qgis.Warning,
-                10)
-            QgsMessageLog.logMessage(
-                '------ KONIEC (anulowano) -------- \n',
-                'Las-R',
-                Qgis.Info
-            )
-            return False
+        iface.messageBar().pushMessage(
+            'BŁĄD',
+            'Nieprawidłowe wartości w kolumnie ODDZ - popraw oddziały przed '
+            'literowaniem',
+            Qgis.Critical,
+            10)
+        QgsMessageLog.logMessage(
+            '------ KONIEC (nieprawidlowe ODDZ: ' + wartosci + ') -------- \n',
+            'Las-R',
+            Qgis.Info
+        )
+        return False
 
     fnm = lyr.dataProvider().fieldNameMap()  # slownik kolejnosci nazw w shp
     for f in lyr.getFeatures():
