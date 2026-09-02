@@ -1,6 +1,46 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0l — 2026-09-02
+------------------------------------------------
+
+1. NOWOŚĆ: Nawigator błędów - okno, które przeskakuje po mapie po
+   kolejnych błędach z Kontroli Ls i Kontroli słownikowej SULMN (skróty
+   klawiszowe do "następny/poprzedni"), zamiast ręcznego przeglądania
+   raportu. Można oznaczyć pozycję jako zrobioną i wrócić do przeglądania
+   później. Dla zdublowanych LANDID pokazuje od razu wszystkie duplikaty
+   i pozwala skopiować LANDID do wklejenia przy ręcznym rysowaniu
+   brakującego Ls
+
+2. NOWOŚĆ: warstwa "Klon" i skrypt "Utwórz KLON.txt" (menu Aktualizacja
+   UPUL) - przygotowują plik do klonowania opisu taksacyjnego przy
+   podziale wydzielenia: rysujesz strzałkę od wydzielenia źródłowego do
+   docelowego, skrypt sam sprawdza poprawność (m.in. czy strzałki nie
+   "zapętlają się" i czy kilka źródeł nie klonuje do tego samego celu) i
+   od razu tworzy gotowy plik instrukcji
+
+3. NOWOŚĆ: w "Aktualizacja UPUL" dodane skróty do najczęściej potrzebnych
+   po cięciu kroków - Dopisz oddziały do wydzieleń, Doliteruj wydzielenia,
+   Utwórz adresy leśne - bez przełączania się do innego menu
+
+4. POPRAWKA: naprawiony crash (access violation) w "Usuń kwerendy" przy
+   niektórych konfiguracjach Accessa na komputerze
+
+5. POPRAWKA: "Doliteruj wydzielenia" - kopia bezpieczeństwa robiona jest
+   teraz na samym początku działania, żeby błąd w trakcie pracy nie
+   zostawiał zmienionej warstwy bez kopii
+
+6. ZMIANA: kontrola opisu taksacyjnego SULMN nie sprawdza już
+   automatycznie nowszej wersji bazy kontroli przy każdym uruchomieniu -
+   zamiast tego osobny przycisk "Zaktualizuj słownik kontroli"
+
+7. POPRAWKA: "Dopisz dane do wydzieleń" uproszczony - dopisuje teraz
+   zawsze tylko numer oddziału i wydzielenia, bez wybierania pól z listy
+
+8. POPRAWKA: wyciągi dla właścicieli - naprawiony błąd uniemożliwiający
+   wygenerowanie wyciągów, gdy nazwa gminy w bazie miała dodatkowe spacje
+   na końcu
+
 Wersja 2.0k — 2026-08-28
 ------------------------------------------------
 
