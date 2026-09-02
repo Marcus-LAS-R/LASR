@@ -662,27 +662,6 @@ class LasR:
         self.m_testowe.addAction(self.a_kangurkuj)
         self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
 
-        self.a_warstwa_opisow = QAction(
-            QIcon(None), "Utwórz warstwy do opisów", self.iface.mainWindow()
-        )
-        self.a_warstwa_opisow.setToolTip(
-            "Tworzy warstwę Klon (do KLON.txt) i warstwę punktową do "
-            "szybkiego oznaczania grup (INNE WYL, L ENERG, SUKCESJA, "
-            "DROGI L) pod generyczne opisy taksacyjne.")
-        self.m_testowe.addAction(self.a_warstwa_opisow)
-        self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
-
-        self.a_dopisz_opisy_taks = QAction(
-            QIcon(None), "Dopisz opisy taksacyjne do bazy",
-            self.iface.mainWindow()
-        )
-        self.a_dopisz_opisy_taks.setToolTip(
-            "Na podstawie warstwy punktowej (GRUPA) i warstwy WYDZ dopisuje "
-            "do bazy F_SUBAREA.AREA_TYPE_CD (dla LZ-Ł dodatkowo "
-            "SUBAREA_INFO).")
-        self.m_testowe.addAction(self.a_dopisz_opisy_taks)
-        self.a_dopisz_opisy_taks.triggered.connect(self.dopisz_opisy_taks)
-
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
         self.m_aktualizacja_upul.addSeparator()
@@ -717,6 +696,17 @@ class LasR:
             "porównania z nowym cięciem.")
         self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
+
+        self.a_warstwa_opisow = QAction(
+            QIcon(None), "Utwórz warstwy do opisów", self.iface.mainWindow()
+        )
+        self.a_warstwa_opisow.setToolTip(
+            "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
+            "szybkiego oznaczania grup (INNE WYL, L ENERG, SUKCESJA, "
+            "DROGI L, LZ-Ł, ZRĄB) i warstwę notatek pod generyczne opisy "
+            "taksacyjne.")
+        self.m_aktualizacja_upul.addAction(self.a_warstwa_opisow)
+        self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
         self.a_dopisz_dane_wydz = QAction(
             QIcon(None), "Przepisz ODDZ i WYDZ ze starych WYDZ",
@@ -753,6 +743,17 @@ class LasR:
             "wydzielenia.")
         self.m_aktualizacja_upul.addAction(self.a_dop_adrles_upul)
         self.a_dop_adrles_upul.triggered.connect(self.dopisz_adrles)
+
+        self.a_dopisz_opisy_taks = QAction(
+            QIcon(None), "Dopisz opisy taksacyjne do bazy",
+            self.iface.mainWindow()
+        )
+        self.a_dopisz_opisy_taks.setToolTip(
+            "Na podstawie warstwy punktowej (GRUPA) i warstwy WYDZ dopisuje "
+            "do bazy F_SUBAREA.AREA_TYPE_CD (dla LZ-Ł dodatkowo "
+            "SUBAREA_INFO).")
+        self.m_aktualizacja_upul.addAction(self.a_dopisz_opisy_taks)
+        self.a_dopisz_opisy_taks.triggered.connect(self.dopisz_opisy_taks)
 
         self.a_utworz_klon_txt = QAction(
             QIcon(None), "Utwórz raporty KLON i NOTATKI",

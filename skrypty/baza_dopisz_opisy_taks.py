@@ -1,8 +1,9 @@
 """Dopisz opisy taksacyjne do bazy - na podstawie warstwy punktowej (pole
-GRUPA: INNE WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł - patrz
+GRUPA: INNE WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł, ZRĄB - patrz
 warstwa_opisow_dock.py) i warstwy WYDZ (pole ADR_LES) dopisuje do
-wskazanej bazy Taksatora F_SUBAREA.AREA_TYPE_CD (dla LZ-Ł dodatkowo
-SUBAREA_INFO = "LZ ze względu na powierzchnię").
+wskazanej bazy Taksatora F_SUBAREA.AREA_TYPE_CD. Dodatkowo do
+SUBAREA_INFO: dla LZ-Ł stały tekst "LZ ze względu na powierzchnię", dla
+INNE WYL treść pola INF_ROZNE punktu (jeśli warstwa punktowa je ma).
 
 Przed zapisem kontrole geometryczne (patrz `waliduj_geometrie`), wszystkie
 sprawdzane naraz - jeśli którakolwiek nie przejdzie, generowane są warstwy
@@ -40,6 +41,7 @@ from .baza_wrapper import Baza
 
 GRUPY_VALIDNE = ('INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB')
 INFO_LZ = 'LZ ze względu na powierzchnię'
+GRUPA_WYMAGA_INF_ROZNE = 'INNE WYL'
 
 
 def _warstwy_wektorowe(typ_geometrii):
@@ -161,9 +163,17 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         return _raport_bledow_geometrii(
             bledy, pkt_feats, wydz_feats, pkt_lyr.crs(), wydz_lyr)
 
+    ma_inf_rozne = 'INF_ROZNE' in {pole.name() for pole in pkt_lyr.fields()}
+
+    def _inf_rozne(pf):
+        if not ma_inf_rozne:
+            return ''
+        wartosc = pf['INF_ROZNE']
+        return str(wartosc).strip() if wartosc is not None else ''
+
     pary = [
         (wydz_feats[wfid]['ADR_LES'], str(pkt_feats[pfid]['GRUPA']).strip(),
-         pfid)
+         _inf_rozne(pkt_feats[pfid]), pfid)
         for pfid, wfid in jednoznaczne.items()
     ]
     return {'ok': True, 'pary': pary}
@@ -229,7 +239,7 @@ def _raport_bledow_geometrii(bledy, pkt_feats, wydz_feats, pkt_crs, wydz_lyr):
 
 
 def zapisz_do_bazy(baza_sc, pary):
-    """pary: lista (adr_les, grupa, pkt_fid).
+    """pary: lista (adr_les, grupa, inf_rozne, pkt_fid).
 
     Returns:
         Dict z kluczem 'ok' i 'komunikat' (raport do pokazania
@@ -248,9 +258,9 @@ def zapisz_do_bazy(baza_sc, pary):
 
     brak_w_bazie = []
     konflikty = []  # (adr_les, obecna_wartosc, nowa_wartosc)
-    do_zapisu = []  # (arodes_int_num, grupa, adr_les)
+    do_zapisu = []  # (arodes_int_num, grupa, adr_les, inf_rozne)
 
-    for adr_les, grupa, _pfid in pary:
+    for adr_les, grupa, inf_rozne, _pfid in pary:
         if adr_les not in wydzielenia:
             brak_w_bazie.append(adr_les)
             continue
@@ -267,7 +277,7 @@ def zapisz_do_bazy(baza_sc, pary):
             konflikty.append((adr_les, obecna, grupa))
             continue
 
-        do_zapisu.append((aint, grupa, adr_les))
+        do_zapisu.append((aint, grupa, adr_les, inf_rozne))
 
     if brak_w_bazie or konflikty:
         czesci = []
@@ -308,8 +318,15 @@ def zapisz_do_bazy(baza_sc, pary):
 
     zapisano = 0
     bledy_zapisu = []
-    for aint, grupa, adr_les in do_zapisu:
+    for aint, grupa, adr_les, inf_rozne in do_zapisu:
         if grupa == 'LZ-Ł':
+            dopisek = INFO_LZ
+        elif grupa == GRUPA_WYMAGA_INF_ROZNE and inf_rozne:
+            dopisek = inf_rozne
+        else:
+            dopisek = ''
+
+        if dopisek:
             wynik = baza.pobierz(
                 'select SUBAREA_INFO from F_SUBAREA where '
                 'ARODES_INT_NUM = ' + str(aint) + ';')
@@ -317,12 +334,12 @@ def zapisz_do_bazy(baza_sc, pary):
             if wynik and wynik[0][0] is not None:
                 info_obecne = str(wynik[0][0])
 
-            if INFO_LZ in info_obecne:
+            if dopisek in info_obecne:
                 info_nowe = info_obecne
             elif info_obecne.strip():
-                info_nowe = info_obecne.rstrip() + '; ' + INFO_LZ
+                info_nowe = info_obecne.rstrip() + '; ' + dopisek
             else:
-                info_nowe = INFO_LZ
+                info_nowe = dopisek
 
             ok = baza.wpisz_tab([
                 'update F_SUBAREA set AREA_TYPE_CD = ?, SUBAREA_INFO = ? '
@@ -366,7 +383,7 @@ class DopiszOpisyTaksDialog(QDialog):
         layout.addWidget(QLabel(
             'Na podstawie warstwy punktowej (pole GRUPA) i warstwy WYDZ '
             '(pole ADR_LES) dopisuje do bazy F_SUBAREA.AREA_TYPE_CD (dla '
-            'LZ-Ł dodatkowo SUBAREA_INFO).\n'
+            'LZ-Ł i INNE WYL dodatkowo SUBAREA_INFO).\n'
             'Każdy punkt musi leżeć na dokładnie jednym WYDZ, bez dubletów '
             'w jednym wydzieleniu; LZ-Ł musi leżeć na wydzieleniu z '
             "WYDZ='Lz'."

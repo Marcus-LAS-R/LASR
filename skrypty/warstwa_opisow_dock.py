@@ -32,9 +32,9 @@ import os
 from PyQt5.QtCore import QVariant
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QDockWidget, QFileDialog, QGroupBox, QGridLayout,
-    QInputDialog, QLabel, QMessageBox, QPushButton, QSizePolicy, QVBoxLayout,
-    QWidget,
+    QDialog, QDialogButtonBox, QDockWidget, QFileDialog, QGroupBox,
+    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsEditFormConfig, QgsFeature, QgsField,
@@ -54,6 +54,47 @@ GRUPY = ['INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB']
 
 # jedyna grupa, dla ktorej pole INF_ROZNE jest wymagane przy dodawaniu punktu
 GRUPA_WYMAGA_INF_ROZNE = 'INNE WYL'
+
+# przyciski szybkiego uzupelniania pola INF_ROZNE: (etykieta, wstawiany tekst)
+PRESETY_INF_ROZNE = [
+    ('GUR', 'Grunt użytkowany rolniczo'),
+    ('Droga', 'Droga'),
+    ('Woda', 'Woda'),
+    ('Zabudowania', 'Zabudowania'),
+]
+
+
+class _InfoRozneDialog(QDialog):
+    """Okienko do wpisania INF_ROZNE przy dodawaniu punktu grupy
+    GRUPA_WYMAGA_INF_ROZNE - z przyciskami szybkiego uzupełniania pola
+    gotowymi frazami (PRESETY_INF_ROZNE)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Informacje różne')
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(
+            f'Podaj informacje różne dla punktu ({GRUPA_WYMAGA_INF_ROZNE}):'))
+
+        self.pole = QLineEdit()
+        lay.addWidget(self.pole)
+
+        siatka = QHBoxLayout()
+        for etykieta, wartosc in PRESETY_INF_ROZNE:
+            btn = QPushButton(etykieta)
+            btn.clicked.connect(
+                lambda _checked, w=wartosc: self.pole.setText(w))
+            siatka.addWidget(btn)
+        lay.addLayout(siatka)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+
+    def tekst(self):
+        return self.pole.text().strip()
 
 
 def _opcje_zapisu():
@@ -422,11 +463,9 @@ class WarstwaOpisowDock(QDockWidget):
 
         inf_rozne = ''
         if self._grupa_aktywna == GRUPA_WYMAGA_INF_ROZNE:
-            tekst, ok = QInputDialog.getText(
-                self, 'Informacje różne',
-                f'Podaj informacje różne dla punktu ({GRUPA_WYMAGA_INF_ROZNE}):')
-            tekst = tekst.strip()
-            if not ok or not tekst:
+            dlg = _InfoRozneDialog(self)
+            tekst = dlg.tekst() if dlg.exec_() == QDialog.Accepted else ''
+            if not tekst:
                 QMessageBox.warning(
                     self, 'Wymagane pole',
                     f'Dla grupy {GRUPA_WYMAGA_INF_ROZNE} pole "informacje '
