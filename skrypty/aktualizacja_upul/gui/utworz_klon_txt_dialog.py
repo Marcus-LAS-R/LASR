@@ -75,7 +75,7 @@ class UtworzKlonTxtDialog(QDialog):
         if self._odcinki:
             i = next(
                 (i for i, lyr in enumerate(self._odcinki)
-                 if lyr.name().upper() == 'KLON'), 0)
+                 if lyr.name().upper() == 'OPIS_KLON'), 0)
             self.combo_klon.setCurrentIndex(i)
 
         if self._wydzielenia:

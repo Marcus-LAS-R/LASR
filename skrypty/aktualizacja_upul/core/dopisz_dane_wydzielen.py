@@ -10,7 +10,10 @@ nowe) są pomijane i zgłaszane w raporcie - nie ma jednoznacznego wyboru,
 którego punktu dane wpisać.
 """
 
-from qgis.core import QgsSpatialIndex
+from PyQt5.QtCore import QVariant
+from qgis.core import (
+    QgsFeature, QgsField, QgsProject, QgsSpatialIndex, QgsVectorLayer,
+)
 
 TRYB_PUSTE = 'puste'
 TRYB_NADPISZ = 'nadpisz'
@@ -21,6 +24,128 @@ _PUSTE_WARTOSCI = ('', ' ', 'NULL', None)
 def _puste(wartosc):
     return wartosc in _PUSTE_WARTOSCI or (
         isinstance(wartosc, str) and wartosc.strip() == '')
+
+
+def _warstwa_pkt_bledow(crs, tytul, punkty_z_opisem):
+    """punkty_z_opisem: lista (QgsGeometry punktowa, opis)."""
+    lyr = QgsVectorLayer(f'Point?crs={crs.authid()}', tytul, 'memory')
+    lyr.dataProvider().addAttributes(
+        [QgsField('OPIS', QVariant.String, '', 150)])
+    lyr.updateFields()
+    feats = []
+    for geom, opis in punkty_z_opisem:
+        f = QgsFeature(lyr.fields())
+        f.setGeometry(geom)
+        f['OPIS'] = opis
+        feats.append(f)
+    lyr.dataProvider().addFeatures(feats)
+    QgsProject.instance().addMapLayer(lyr)
+    return lyr
+
+
+def _warstwa_poly_bledow(cel_lyr, cel_feats, fidy, tytul):
+    lyr = QgsVectorLayer(
+        f'MultiPolygon?crs={cel_lyr.crs().authid()}', tytul, 'memory')
+    lyr.dataProvider().addAttributes(cel_lyr.fields().toList())
+    lyr.updateFields()
+    feats = [cel_feats[fid] for fid in fidy]
+    lyr.dataProvider().addFeatures(feats)
+    QgsProject.instance().addMapLayer(lyr)
+    return lyr
+
+
+def waliduj_geometrie(zrodlo_lyr, cel_lyr):
+    """Kontrola geometryczna PRZED wykonaj() - kazdy punkt zrodlowy musi
+    trafiac w dokladnie jeden poligon celu (nie 0 - poza WYDZ, nie >1 -
+    nakladajace sie poligony WYDZ), a kazdy poligon celu moze miec
+    najwyzej jeden trafiajacy punkt (dublet = scalenie kilku starych
+    wydzielen w jedno nowe - nie da sie jednoznacznie rozstrzygnac,
+    ktorego punktu dane wpisac).
+
+    Returns:
+        Dict z kluczem 'ok'. Gdy False - dodatkowo 'komunikat' (str), a
+        warstwy bledow sa juz dodane do projektu.
+    """
+    zrodlo_feats = {f.id(): f for f in zrodlo_lyr.getFeatures()}
+    cel_feats = {f.id(): f for f in cel_lyr.getFeatures()}
+
+    si = QgsSpatialIndex()
+    for f in cel_feats.values():
+        si.insertFeature(f)
+
+    trafienia = {}
+    for zfid, zf in zrodlo_feats.items():
+        geom = zf.geometry()
+        trafienia[zfid] = [
+            cfid for cfid in si.intersects(geom.boundingBox())
+            if cel_feats[cfid].geometry().contains(geom)
+        ]
+
+    poza_cel = [zfid for zfid, t in trafienia.items() if len(t) == 0]
+    niejednoznaczne = [zfid for zfid, t in trafienia.items() if len(t) > 1]
+    jednoznaczne = {
+        zfid: t[0] for zfid, t in trafienia.items() if len(t) == 1
+    }
+
+    wg_cel = {}
+    for zfid, cfid in jednoznaczne.items():
+        wg_cel.setdefault(cfid, []).append(zfid)
+    dublety_cel = {cfid for cfid, zfidy in wg_cel.items() if len(zfidy) > 1}
+    dublety_pkt = {zfid for cfid in dublety_cel for zfid in wg_cel[cfid]}
+
+    bledy = {}
+    if poza_cel:
+        bledy['poza_cel'] = poza_cel
+    if niejednoznaczne:
+        bledy['niejednoznaczne'] = niejednoznaczne
+    if dublety_cel:
+        bledy['dublety_pkt'] = sorted(dublety_pkt)
+        bledy['dublety_cel'] = sorted(dublety_cel)
+
+    if not bledy:
+        return {'ok': True}
+
+    czesci = []
+    crs = zrodlo_lyr.crs()
+
+    if 'poza_cel' in bledy:
+        pkty = [(zrodlo_feats[fid].geometry(), 'poza WYDZ')
+                for fid in bledy['poza_cel']]
+        _warstwa_pkt_bledow(
+            crs, 'Przepisz ODDZ/WYDZ - punkty poza WYDZ', pkty)
+        czesci.append(f"{len(bledy['poza_cel'])} punkt(ów) poza WYDZ")
+
+    if 'niejednoznaczne' in bledy:
+        pkty = [(zrodlo_feats[fid].geometry(), 'nakładające się WYDZ')
+                for fid in bledy['niejednoznaczne']]
+        _warstwa_pkt_bledow(
+            crs, 'Przepisz ODDZ/WYDZ - punkty niejednoznaczne', pkty)
+        czesci.append(
+            f"{len(bledy['niejednoznaczne'])} punkt(ów) leży na więcej niż "
+            "jednym WYDZ (nakładające się wydzielenia)")
+
+    if 'dublety_cel' in bledy:
+        pkty = [
+            (zrodlo_feats[fid].geometry(),
+             'dublet - kilka punktów na tym samym WYDZ')
+            for fid in bledy['dublety_pkt']
+        ]
+        _warstwa_pkt_bledow(
+            crs, 'Przepisz ODDZ/WYDZ - dublety (punkty)', pkty)
+        _warstwa_poly_bledow(
+            cel_lyr, cel_feats, bledy['dublety_cel'],
+            'Przepisz ODDZ/WYDZ - dublety (poligony)')
+        czesci.append(
+            f"{len(bledy['dublety_cel'])} wydzielenie(a) WYDZ mają więcej "
+            f"niż 1 trafiający punkt ({len(bledy['dublety_pkt'])} "
+            "punkt(ów) łącznie)")
+
+    komunikat = (
+        'Znaleziono błędy do poprawy:\n- ' + '\n- '.join(czesci) +
+        '\n\nSzczegóły w dodanych warstwach memory. Popraw dane i uruchom '
+        'ponownie.'
+    )
+    return {'ok': False, 'komunikat': komunikat}
 
 
 def _etykieta_obiektu(f):

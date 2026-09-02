@@ -38,7 +38,7 @@ from qgis.core import (
 
 from .baza_wrapper import Baza
 
-GRUPY_VALIDNE = ('INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł')
+GRUPY_VALIDNE = ('INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB')
 INFO_LZ = 'LZ ze względu na powierzchnię'
 
 
@@ -379,7 +379,7 @@ class DopiszOpisyTaksDialog(QDialog):
         layout.addLayout(wydz_row)
 
         pkt_row = QHBoxLayout()
-        pkt_row.addWidget(QLabel('Warstwa punktowa (Opisy_pkt):'))
+        pkt_row.addWidget(QLabel('Warstwa punktowa (opis_pkt):'))
         self.combo_pkt = QComboBox()
         pkt_row.addWidget(self.combo_pkt, 1)
         layout.addLayout(pkt_row)
@@ -416,7 +416,7 @@ class DopiszOpisyTaksDialog(QDialog):
         if self._punkty_lyr:
             i = next(
                 (i for i, lyr in enumerate(self._punkty_lyr)
-                 if lyr.name().upper() == 'OPISY_PKT'), 0)
+                 if lyr.name().upper() == 'OPIS_PKT'), 0)
             self.combo_pkt.setCurrentIndex(i)
 
         self._zgadnij_baze()
@@ -463,7 +463,7 @@ class DopiszOpisyTaksDialog(QDialog):
             QMessageBox.warning(
                 self, 'Brak warstw',
                 'W projekcie brakuje warstwy poligonowej (WYDZ) i/lub '
-                'punktowej (Opisy_pkt).')
+                'punktowej (opis_pkt).')
             return
 
         baza_sc = self.line_baza.text().strip()

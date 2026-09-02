@@ -1,16 +1,23 @@
-"""Dialog "Dopisz dane do wydzieleń" - odpowiednik "Join attributes by
-location" z QGIS Processing, ale zapisujący wynik bezpośrednio do
-wskazanej warstwy docelowej (WYDZ) zamiast tworzyć nową warstwę.
+"""Dialog "Przepisz ODDZ i WYDZ ze starych WYDZ" - odpowiednik "Join
+attributes by location" z QGIS Processing, ale zapisujący wynik
+bezpośrednio do wskazanej warstwy docelowej (WYDZ) zamiast tworzyć nową
+warstwę.
 
 Domyślnie warstwa źródłowa to pierwsza punktowa warstwa w projekcie,
 której nazwa zawiera "stare" (np. WYDZ_PKT_stare), a docelowa to pierwsza
 poligonowa warstwa nazwana "WYDZ" (bez "stare" w nazwie). Dopisywane są
 zawsze tylko pola ODDZ i WYDZ (tryb: uzupełnij puste).
+
+Przed właściwym dopisaniem (`logika.wykonaj`) uruchamiana jest kontrola
+geometryczna (`logika.waliduj_geometrie`) - relacja punkt-poligon musi
+być jeden do jednego (bez punktów poza WYDZ, bez nakładających się
+poligonów, bez dubletów - kilku punktów na tym samym poligonie). Przy
+naruszeniu dopisywanie jest całkowicie blokowane.
 """
 
 from PyQt5.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-    QMessageBox, QPushButton, QTextEdit, QVBoxLayout,
+    QMessageBox, QVBoxLayout,
 )
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
@@ -33,7 +40,7 @@ def _warstwy_wektorowe(typ_geometrii):
 class DopiszDaneWydzielenDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Dopisz dane do wydzieleń")
+        self.setWindowTitle("Przepisz ODDZ i WYDZ ze starych WYDZ")
         self.setMinimumSize(480, 160)
         self._zrodla = []
         self._cele = []
@@ -47,8 +54,9 @@ class DopiszDaneWydzielenDialog(QDialog):
             "do warstwy poligonowej (nowe wydzielenia) na podstawie "
             "położenia punktu wewnątrz poligonu — tylko tam, gdzie pole "
             "docelowe jest puste.\n"
-            "Wydzielenia, w których trafi więcej niż jeden stary punkt "
-            "(scalenie), są pomijane i zgłoszone w raporcie."
+            "Każdy punkt musi leżeć na dokładnie jednym WYDZ, bez "
+            "dubletów (kilku punktów na tym samym WYDZ) - w przeciwnym "
+            "razie dopisywanie jest blokowane do czasu poprawy danych."
         ))
 
         zrodlo_row = QHBoxLayout()
@@ -65,7 +73,7 @@ class DopiszDaneWydzielenDialog(QDialog):
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Dopisz dane")
+        buttons.button(QDialogButtonBox.Ok).setText("Przepisz dane")
         buttons.accepted.connect(self._uruchom)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -113,47 +121,17 @@ class DopiszDaneWydzielenDialog(QDialog):
                 "Warstwa źródłowa i docelowa muszą być różne.")
             return
 
+        walidacja = logika.waliduj_geometrie(zrodlo, cel)
+        if not walidacja['ok']:
+            QMessageBox.warning(self, "Popraw dane", walidacja['komunikat'])
+            return
+
         raport = logika.wykonaj(zrodlo, cel, _POLA_DOPISYWANE)
-        self._pokaz_raport(raport)
+        self._pokaz_raport(raport, cel)
         self.accept()
 
-    def _pokaz_raport(self, raport):
-        linie = [
-            "RAPORT — DOPISZ DANE DO WYDZIELEŃ", "=" * 40, "",
-            f"Zaktualizowanych wydzieleń: {raport['zaktualizowane']}",
-        ]
-
-        if raport['zmiany_na_pole']:
-            linie.append("")
-            linie.append("Zmienione wartości per pole:")
-            for nazwa, ile in raport['zmiany_na_pole'].items():
-                linie.append(f"  {nazwa}: {ile}")
-
-        if raport['pola_pominiete']:
-            linie.append("")
-            linie.append(
-                "Pola pominięte (brak takiej kolumny w warstwie "
-                "docelowej):")
-            for nazwa in raport['pola_pominiete']:
-                linie.append(f"  {nazwa}")
-
-        if raport['scalenia_pominiete']:
-            linie.append("")
-            linie.append(
-                "Pominięte wydzielenia ze scaleniem (więcej niż jeden "
-                f"stary punkt w środku) — {len(raport['scalenia_pominiete'])}:")
-            for etykieta in raport['scalenia_pominiete']:
-                linie.append(f"  {etykieta}")
-
-        dialog = QDialog(self.parent())
-        dialog.setWindowTitle("Raport")
-        dialog.setMinimumSize(520, 420)
-        lay = QVBoxLayout(dialog)
-        pole = QTextEdit()
-        pole.setReadOnly(True)
-        pole.setPlainText("\n".join(linie))
-        lay.addWidget(pole)
-        zamknij = QPushButton("Zamknij")
-        zamknij.clicked.connect(dialog.accept)
-        lay.addWidget(zamknij)
-        dialog.exec_()
+    def _pokaz_raport(self, raport, cel):
+        QMessageBox.information(
+            self, "OK",
+            f"Dopisano ODDZ i WYDZ w {raport['zaktualizowane']} "
+            f"wydzieleń z {cel.featureCount()}")

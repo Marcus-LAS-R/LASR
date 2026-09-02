@@ -663,7 +663,7 @@ class LasR:
         self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
 
         self.a_warstwa_opisow = QAction(
-            QIcon(None), "Utwórz warstwę do opisów", self.iface.mainWindow()
+            QIcon(None), "Utwórz warstwy do opisów", self.iface.mainWindow()
         )
         self.a_warstwa_opisow.setToolTip(
             "Tworzy warstwę Klon (do KLON.txt) i warstwę punktową do "
@@ -719,11 +719,12 @@ class LasR:
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
         self.a_dopisz_dane_wydz = QAction(
-            QIcon(None), "Dopisz dane do wydzieleń", self.iface.mainWindow()
+            QIcon(None), "Przepisz ODDZ i WYDZ ze starych WYDZ",
+            self.iface.mainWindow()
         )
         self.a_dopisz_dane_wydz.setToolTip(
-            "Uzupełnia atrybuty nowych wydzieleń danymi z warstwy, która się "
-            "z nimi pokrywa (np. starych wydzieleń).")
+            "Uzupełnia ODDZ i WYDZ nowych wydzieleń na podstawie warstwy "
+            "punktowej starych wydzieleń, która się z nimi pokrywa.")
         self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
 

@@ -34,8 +34,8 @@ def uruchom_konwersja_shp(iface):
 
 
 def uruchom_dopisz_dane_wydzielen(iface):
-    """Dopisz dane do wydzieleń - odpowiednik "Join attributes by
-    location", zapisujący wynik od razu do wskazanej warstwy WYDZ.
+    """Przepisz ODDZ i WYDZ ze starych WYDZ - odpowiednik "Join attributes
+    by location", zapisujący wynik od razu do wskazanej warstwy WYDZ.
 
     Osobna pozycja menu — działa na warstwach z TOC bieżącego projektu,
     nie wymaga pliku .mdb.
