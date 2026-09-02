@@ -120,9 +120,9 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
     wg_wydz = {}
     for pfid, wfid in jednoznaczne.items():
         wg_wydz.setdefault(wfid, []).append(pfid)
+    dublety_wydz = {wfid for wfid, pfidy in wg_wydz.items() if len(pfidy) > 1}
     dublety = {
-        pfid for pfidy in wg_wydz.values() if len(pfidy) > 1
-        for pfid in pfidy
+        pfid for wfid in dublety_wydz for pfid in wg_wydz[wfid]
     }
 
     # 5. GRUPA spoza whitelisty
@@ -149,8 +149,9 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         bledy['poza_wydz'] = poza_wydz
     if niejednoznaczne:
         bledy['niejednoznaczne'] = niejednoznaczne
-    if dublety:
+    if dublety_wydz:
         bledy['dublety'] = sorted(dublety)
+        bledy['dublety_wydz'] = sorted(dublety_wydz)
     if grupa_nieznana:
         bledy['grupa_nieznana'] = grupa_nieznana
     if lzl_niezgodne:
@@ -193,15 +194,14 @@ def _raport_bledow_geometrii(bledy, pkt_feats, wydz_feats, pkt_crs, wydz_lyr):
             f"{len(bledy['niejednoznaczne'])} punkt(ów) leży na więcej niż "
             "jednym WYDZ (nakładające się wydzielenia)")
 
-    if 'dublety' in bledy:
-        pkty = [
-            (pkt_feats[fid].geometry(), 'kilka punktów w tym samym WYDZ')
-            for fid in bledy['dublety']
-        ]
-        _warstwa_pkt_bledow(pkt_crs, 'Opisy - dublety w wydzieleniu', pkty)
+    if 'dublety_wydz' in bledy:
+        _warstwa_poly_bledow(
+            wydz_lyr, wydz_feats, bledy['dublety_wydz'],
+            'Opisy - dublety w wydzieleniu')
         czesci.append(
-            f"{len(bledy['dublety'])} punkt(ów) dzieli wydzielenie z innym "
-            "punktem (więcej niż 1 punkt na tym samym WYDZ)")
+            f"{len(bledy['dublety_wydz'])} wydzielenie(a) mają więcej niż "
+            f"1 punkt ({len(bledy['dublety'])} punkt(ów) łącznie dzieli "
+            "wydzielenie z innym punktem)")
 
     if 'grupa_nieznana' in bledy:
         pkty = [(pkt_feats[fid].geometry(), 'nieznana wartość GRUPA')

@@ -1270,7 +1270,7 @@ class LasR:
         self.dockNawigator.hide()
 
         self.dockWarstwaOpisow = warstwa_opisow_dock.WarstwaOpisowDock(self.iface)
-        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockWarstwaOpisow)
+        self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockWarstwaOpisow)
         self.dockWarstwaOpisow.hide()
 
         self._pokaz_changelog_jesli_nowy()

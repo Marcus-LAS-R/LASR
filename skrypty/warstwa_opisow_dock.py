@@ -19,15 +19,17 @@ klikania, tylko zmienia wartość wpisywaną w kolejnych punktach.
 import os
 
 from PyQt5.QtCore import QVariant
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QDockWidget, QFileDialog, QGroupBox, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 from qgis.core import (
-    QgsCoordinateReferenceSystem, QgsFeature, QgsField, QgsGeometry,
-    QgsProject, QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes,
+    QgsCoordinateReferenceSystem, QgsEditFormConfig, QgsFeature, QgsField,
+    QgsGeometry, QgsProject, QgsVectorFileWriter, QgsVectorLayer,
+    QgsWkbTypes,
 )
-from qgis.gui import QgsMapToolEmitPoint
+from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 
 CRS = QgsCoordinateReferenceSystem('EPSG:2180')
 
@@ -77,6 +79,26 @@ def _utworz_warstwe(sciezka, typ_geom_txt, pola, nazwa):
     return lyr
 
 
+def _zaladuj_styl_klon(lyr):
+    """Ładuje domyślny styl (strzałka) na warstwę Klon z pliku qml
+    dołączonego do wtyczki - patrz qml/Arrow_klon.qml."""
+    sciezka = os.path.join(os.path.dirname(__file__), '..', 'qml', 'Arrow_klon.qml')
+    lyr.loadNamedStyle(sciezka)
+    lyr.triggerRepaint()
+
+
+def _wylacz_formularz(lyr):
+    """Wyłącza formularz atrybutów przy dodawaniu obiektu (ADR_Z/ADR_DO
+    warstwy Klon i tak są nadpisywane później przez "Utwórz KLON.txt" na
+    podstawie geometrii - ręczne wypełnianie ich przy rysowaniu odcinka
+    jest zbędnym klikaniem). editFormConfig() bywa zwracane przez wartość,
+    więc konfigurację trzeba jawnie zapisać z powrotem przez
+    setEditFormConfig()."""
+    cfg = lyr.editFormConfig()
+    cfg.setSuppress(QgsEditFormConfig.SuppressOn)
+    lyr.setEditFormConfig(cfg)
+
+
 class WarstwaOpisowDock(QDockWidget):
 
     tytul = 'Warstwa do opisów'
@@ -92,6 +114,9 @@ class WarstwaOpisowDock(QDockWidget):
         self.pkt_lyr = None
         self._grupa_aktywna = None
         self._narzedzie_pkt = None
+        self._narzedzie_klon = None
+        self._klon_pierwszy = None
+        self._rubber_klon = None
 
         self._zbuduj_ui()
         self._odswiez()
@@ -117,8 +142,9 @@ class WarstwaOpisowDock(QDockWidget):
 
         self.btn_klonuj = QPushButton('Klonuj')
         self.btn_klonuj.setToolTip(
-            'Włącza edycję warstwy Klon i tryb dodawania nowego odcinka '
-            '(początek = wydzielenie źródłowe, koniec = docelowe).')
+            'Tryb dodawania odcinka dwoma kliknięciami na mapie: pierwszy '
+            'klik = wydzielenie źródłowe, drugi klik = docelowe - po '
+            'drugim kliknięciu odcinek jest od razu zapisywany.')
         self.btn_klonuj.clicked.connect(self._klonuj)
         row_klon.addWidget(self.btn_klonuj)
         lay_klon.addLayout(row_klon)
@@ -164,7 +190,14 @@ class WarstwaOpisowDock(QDockWidget):
             btn.setEnabled(self.pkt_lyr is not None)
 
     def _folder_startowy(self):
-        for lyr in QgsProject.instance().mapLayers().values():
+        """Folder domyślny do zapisu nowych warstw - obok WYDZ, jeśli taka
+        warstwa jest wczytana w projekcie, w przeciwnym razie obok
+        pierwszej napotkanej warstwy z plikiem na dysku."""
+        wydz = _znajdz_warstwe('WYDZ', QgsWkbTypes.PolygonGeometry)
+        warstwy = [wydz] if wydz is not None else []
+        warstwy += list(QgsProject.instance().mapLayers().values())
+
+        for lyr in warstwy:
             try:
                 sc = lyr.dataProvider().dataSourceUri().split('|')[0]
                 if sc and os.path.isfile(sc):
@@ -179,6 +212,7 @@ class WarstwaOpisowDock(QDockWidget):
         istniejaca = _znajdz_warstwe(NAZWA_KLON, QgsWkbTypes.LineGeometry)
         if istniejaca is not None:
             self.klon_lyr = istniejaca
+            _wylacz_formularz(self.klon_lyr)
             self._odswiez()
             return
 
@@ -196,15 +230,47 @@ class WarstwaOpisowDock(QDockWidget):
         self.klon_lyr = _utworz_warstwe(
             sciezka, 'LineString', pola, os.path.splitext(
                 os.path.basename(sciezka))[0])
+        _zaladuj_styl_klon(self.klon_lyr)
+        _wylacz_formularz(self.klon_lyr)
         self._odswiez()
 
     def _klonuj(self):
         if self.klon_lyr is None:
             return
-        self.iface.setActiveLayer(self.klon_lyr)
-        if not self.klon_lyr.isEditable():
-            self.klon_lyr.startEditing()
-        self.iface.actionAddFeature().trigger()
+
+        self._klon_pierwszy = None
+        if self._rubber_klon is None:
+            self._rubber_klon = QgsRubberBand(
+                self.iface.mapCanvas(), QgsWkbTypes.PointGeometry)
+            self._rubber_klon.setColor(QColor(255, 0, 0))
+            self._rubber_klon.setWidth(4)
+        self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
+
+        if self._narzedzie_klon is None:
+            self._narzedzie_klon = QgsMapToolEmitPoint(self.iface.mapCanvas())
+            self._narzedzie_klon.canvasClicked.connect(self._klik_klon)
+        self.iface.mapCanvas().setMapTool(self._narzedzie_klon)
+
+    def _klik_klon(self, koord, _btn):
+        if self.klon_lyr is None:
+            return
+
+        if self._klon_pierwszy is None:
+            # pierwszy klik - zapamiętaj punkt startowy, pokaż go na mapie
+            self._klon_pierwszy = koord
+            self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
+            self._rubber_klon.addPoint(koord)
+            return
+
+        # drugi klik - dokladnie 2 wierzcholki, odcinek od razu zapisywany
+        geom = QgsGeometry.fromPolylineXY([self._klon_pierwszy, koord])
+        f = QgsFeature(self.klon_lyr.fields())
+        f.setGeometry(geom)
+        self.klon_lyr.dataProvider().addFeatures([f])
+        self.klon_lyr.triggerRepaint()
+
+        self._klon_pierwszy = None
+        self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
 
     # -------------------------------------------------- warstwa punktowa
 
