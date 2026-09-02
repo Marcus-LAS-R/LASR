@@ -4,6 +4,7 @@ from .core.config import Config
 from .gui.main_dialog import MainDialog
 from .gui.konwersja_shp_dialog import KonwersjaShpDialog
 from .gui.dopisz_dane_wydzielen_dialog import DopiszDaneWydzielenDialog
+from .gui.utworz_klon_txt_dialog import UtworzKlonTxtDialog
 
 
 def uruchom(iface):
@@ -40,4 +41,15 @@ def uruchom_dopisz_dane_wydzielen(iface):
     nie wymaga pliku .mdb.
     """
     dialog = DopiszDaneWydzielenDialog(parent=iface.mainWindow())
+    dialog.exec_()
+
+
+def uruchom_utworz_klon_txt(iface):
+    """Utwórz KLON.txt - na podstawie warstwy odcinków "Klon" i warstwy
+    WYDZ buduje plik instrukcji do narzędzia "Klonuj opisy wydzieleń".
+
+    Osobna pozycja menu — działa na warstwach z TOC bieżącego projektu,
+    nie wymaga pliku .mdb.
+    """
+    dialog = UtworzKlonTxtDialog(parent=iface.mainWindow())
     dialog.exec_()

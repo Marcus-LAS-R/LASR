@@ -184,18 +184,45 @@ def _zapisz_raport(kontrole: list, baza_sc: str,
     return rap_sc
 
 
-def _sprawdz_aktualizacje(iface) -> bool:
-    """Porównuje mtime bazy kontroli w szablony/ z wersją w Mapa_PU.
-    Zwraca False jeśli użytkownik wybrał Porzuć — wtedy KontrolaOpisow kończy działanie.
+def AktualizujSlownikKontroli(iface) -> None:
+    """Porównuje mtime lokalnej bazy kontroli (szablony/) z wersją we wtyczce
+    Mapa_PU i na żądanie użytkownika kopiuje nowszą wersję do szablonu.
+    Wywoływane ręcznie z menu — nie jest już częścią KontrolaOpisow.
     """
-    if not os.path.exists(_BAZA_KONTROLI) or not os.path.exists(_MAPA_PU_BAZA_KONTROLI):
-        return True
+    if not os.path.exists(_MAPA_PU_BAZA_KONTROLI):
+        iface.messageBar().pushMessage(
+            'LASR', 'Nie znaleziono bazy kontroli we wtyczce Mapa_PU.',
+            Qgis.Warning, 6
+        )
+        return
+
+    if not os.path.exists(_BAZA_KONTROLI):
+        klikniety_pierwsza = QMessageBox.question(
+            iface.mainWindow(), 'Baza kontroli — brak lokalnej kopii',
+            'Brak lokalnej bazy kontroli. Czy skopiować ją z wtyczki Mapa_PU?'
+        )
+        if klikniety_pierwsza != QMessageBox.Yes:
+            return
+        try:
+            shutil.copy2(_MAPA_PU_BAZA_KONTROLI, _BAZA_KONTROLI)
+            iface.messageBar().pushMessage(
+                'LASR', 'Skopiowano bazę kontroli z Mapa_PU.', Qgis.Success, 8
+            )
+        except Exception as e:
+            iface.messageBar().pushMessage(
+                'BŁĄD', f'Nie udało się skopiować bazy kontroli: {e}',
+                Qgis.Critical, 10
+            )
+        return
 
     mtime_local  = os.path.getmtime(_BAZA_KONTROLI)
     mtime_mapaPU = os.path.getmtime(_MAPA_PU_BAZA_KONTROLI)
 
     if mtime_local == mtime_mapaPU:
-        return True
+        iface.messageBar().pushMessage(
+            'LASR', 'Baza kontroli jest aktualna.', Qgis.Info, 5
+        )
+        return
 
     dt_local  = datetime.fromtimestamp(mtime_local).strftime('%Y-%m-%d %H:%M')
     dt_mapaPU = datetime.fromtimestamp(mtime_mapaPU).strftime('%Y-%m-%d %H:%M')
@@ -209,23 +236,15 @@ def _sprawdz_aktualizacje(iface) -> bool:
         f'({czy_nowsza}: Mapa_PU {dt_mapaPU}, bieżąca {dt_local}).\n\n'
         f'Czy skopiować tę bazę do szablonu kontroli?'
     )
-    btn_tak  = msg.addButton('Tak',    QMessageBox.AcceptRole)
-    btn_nie  = msg.addButton('Nie',    QMessageBox.RejectRole)
-    btn_por  = msg.addButton('Porzuć', QMessageBox.DestructiveRole)
+    btn_tak = msg.addButton('Tak', QMessageBox.AcceptRole)
+    btn_nie = msg.addButton('Nie', QMessageBox.RejectRole)
     btn_tak.setToolTip('Zarchiwizuj bieżącą bazę i skopiuj wersję z Mapa_PU')
-    btn_nie.setToolTip('Kontynuuj kontrolę wg bieżącej bazy w szablonach')
-    btn_por.setToolTip('Przerwij działanie skryptu')
+    btn_nie.setToolTip('Nie zmieniaj lokalnej bazy kontroli')
     msg.exec_()
 
-    klikniety = msg.clickedButton()
+    if msg.clickedButton() != btn_tak:
+        return
 
-    if klikniety == btn_nie:
-        return True
-
-    if klikniety != btn_tak:
-        return False
-
-    # TAK — kopia zapasowa bieżącej + kopiuj z Mapa_PU
     znacznik  = datetime.now().strftime('%d-%m-%Y')
     backup_sc = os.path.join(_SZABLONY_DIR, f'baza_kontroli_upul_{znacznik}.mdb')
     try:
@@ -241,15 +260,9 @@ def _sprawdz_aktualizacje(iface) -> bool:
             'BŁĄD', f'Nie udało się zaktualizować bazy kontroli: {e}',
             Qgis.Critical, 10
         )
-        return False
-
-    return True
 
 
 def KontrolaOpisow(iface):
-    if not _sprawdz_aktualizacje(iface):
-        return
-
     # wybór bazy UPUL
     baza_sc = QFileDialog().getOpenFileName(
         iface.mainWindow(),

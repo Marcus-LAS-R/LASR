@@ -24,7 +24,8 @@
 """
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QAction, QMenu, QToolButton, QPushButton
+from PyQt5.QtWidgets import QAction, QMenu, QToolButton, QPushButton, \
+    QInputDialog
 import configparser
 
 # Initialize Qt resources from file resources.py
@@ -703,6 +704,41 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
 
+        self.a_dop_w_o_upul = QAction(
+            QIcon(None), "Dopisz oddziały do wydzieleń", self.iface.mainWindow()
+        )
+        self.a_dop_w_o_upul.setToolTip(
+            "Uzupełnia w wydzieleniach numer oddziału, w którym się znajdują.")
+        self.m_aktualizacja_upul.addAction(self.a_dop_w_o_upul)
+        self.a_dop_w_o_upul.triggered.connect(self.dopisz_wydz_w_oddz_wybierz)
+
+        self.a_dolit_upul = QAction(
+            QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
+        )
+        self.a_dolit_upul.setToolTip(
+            "Dopisuje brakujące litery wydzieleń bez zmiany istniejących "
+            "oznaczeń.")
+        self.m_aktualizacja_upul.addAction(self.a_dolit_upul)
+        self.a_dolit_upul.triggered.connect(self.doliterkuj_wydzielenia)
+
+        self.a_dop_adrles_upul = QAction(
+            QIcon(None), "Utwórz adresy leśne", self.iface.mainWindow()
+        )
+        self.a_dop_adrles_upul.setToolTip(
+            "Buduje pełny adres leśny (obręb-oddział-wydzielenie) dla każdego "
+            "wydzielenia.")
+        self.m_aktualizacja_upul.addAction(self.a_dop_adrles_upul)
+        self.a_dop_adrles_upul.triggered.connect(self.dopisz_adrles)
+
+        self.a_utworz_klon_txt = QAction(
+            QIcon(None), "Utwórz KLON.txt", self.iface.mainWindow()
+        )
+        self.a_utworz_klon_txt.setToolTip(
+            "Na podstawie warstwy odcinków \"Klon\" i warstwy WYDZ tworzy "
+            "plik instrukcji dla narzędzia \"Klonuj opisy wydzieleń\".")
+        self.m_aktualizacja_upul.addAction(self.a_utworz_klon_txt)
+        self.a_utworz_klon_txt.triggered.connect(self.utworz_klon_txt)
+
         self.m_aktualizacja_upul.addSeparator()
 
         self.a_pobierz_bdl = QAction(
@@ -839,6 +875,18 @@ class LasR:
             "wymagań SULMN.")
         self.m_kontrola_sulmn.addAction(self.a_kontrola_opisow)
         self.a_kontrola_opisow.triggered.connect(self.kontrola_opisow_taksacyjnych)
+
+        self.m_kontrola_sulmn.addSeparator()
+
+        self.a_aktualizuj_slownik_kontroli = QAction(
+            QIcon(None), "Zaktualizuj słownik kontroli", self.iface.mainWindow()
+        )
+        self.a_aktualizuj_slownik_kontroli.setToolTip(
+            "Porównuje lokalną bazę kontroli z wersją we wtyczce Mapa_PU "
+            "i pozwala skopiować nowszą, jeśli jest dostępna.")
+        self.m_kontrola_sulmn.addAction(self.a_aktualizuj_slownik_kontroli)
+        self.a_aktualizuj_slownik_kontroli.triggered.connect(
+            self.aktualizuj_slownik_kontroli)
 
         # ------------------------------------
 
@@ -1506,6 +1554,28 @@ class LasR:
     def dopisz_wydz_w_oddz(self):
         shp_dopOddzWydz.dopOddzWydz(self.iface)
 
+    def dopisz_wydz_w_oddz_wybierz(self):
+        """Jak dopisz_wydz_w_oddz, ale zawsze każe wskazać warstwę ODDZ w
+        combo - nawet gdy w TOC jest tylko jeden pasujący kandydat."""
+        kandydaci = [
+            x for x in QgsProject.instance().mapLayers().values()
+            if x.name()[:4] == 'ODDZ'
+        ]
+        if not kandydaci:
+            self.iface.messageBar().pushMessage(
+                'ODDZ', 'W TOC nie znaleziono warstwy ODDZ', Qgis.Critical, 10)
+            return
+
+        nazwy = [x.name() for x in kandydaci]
+        wybor, ok = QInputDialog.getItem(
+            self.iface.mainWindow(), 'Wybierz warstwę',
+            'Wskaż warstwę ODDZ:', nazwy, 0, False)
+        if not ok:
+            return
+
+        oddz = kandydaci[nazwy.index(wybor)]
+        shp_dopOddzWydz.dopOddzWydz(self.iface, oddz=oddz)
+
     def przygotuj_do_ciecia(self):
         shp_przygCiecie.przygotuj_wydz_do_ciecia(self.iface)
 
@@ -1576,6 +1646,9 @@ class LasR:
     def dopisz_dane_do_wydzielen(self):
         aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)
 
+    def utworz_klon_txt(self):
+        aktualizacja_upul.uruchom_utworz_klon_txt(self.iface)
+
     def aktualizuj_ewidencje_nctwo(self):
         shp_aktualizuj_ewidencje.uruchom(self.iface)
 
@@ -1608,6 +1681,9 @@ class LasR:
 
     def kontrola_opisow_taksacyjnych(self):
         baza_kontrola_opisow_wgSULMN.KontrolaOpisow(self.iface)
+
+    def aktualizuj_slownik_kontroli(self):
+        baza_kontrola_opisow_wgSULMN.AktualizujSlownikKontroli(self.iface)
 
     def kontrola_ls_z_baza(self):
         k = baza_kontrola_ls.KontrolaLs(self.iface)

@@ -3,15 +3,15 @@ import os
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from PyQt5.QtCore import QVariant
 from qgis.core import (
-    Qgis, QgsFeature, QgsMessageLog, QgsProject, QgsVectorLayer,
-    QgsField, QgsFields,
+    Qgis, QgsArrowSymbolLayer, QgsCoordinateReferenceSystem, QgsFeature,
+    QgsLineSymbol, QgsMessageLog, QgsProject, QgsSingleSymbolRenderer,
+    QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes, QgsField, QgsFields,
 )
 import processing
 
 from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
 from .ui.ui_przygCiecieStUPUL import Ui_Dialog
-from .funkcje import wyczysc_katalog_temp
 
 _TEMP = 'WYDZ_POL_stare_multipart'
 
@@ -30,6 +30,14 @@ _KOLUMNY_POL = [
     QgsField('POW_WYDZ', QVariant.String, '', 10, 4),
 ]
 
+# warstwa "Klon" - odcinki wskazujące klonowanie opisu taksacyjnego
+# (start = wydzielenie źródłowe, koniec = wydzielenie docelowe); adresy
+# leśne początku/końca są wypełniane w osobnym, późniejszym kroku
+_KOLUMNY_KLON = [
+    QgsField('ADR_Z',  QVariant.String, '', 25),
+    QgsField('ADR_DO', QVariant.String, '', 25),
+]
+
 # mapowanie starych nazw pól (stary UPUL) na nowe
 _MAPA_STARYCH_POL = [
     ('COUNTY_CD',  'COUNTY',    2),
@@ -37,6 +45,16 @@ _MAPA_STARYCH_POL = [
     ('MUNICIPALI', 'MUNICIP',   3),
     ('COMMUNITY_', 'COMMUNITY', 4),
 ]
+
+
+def _styl_strzalka():
+    """Symbol linii z grotem na końcu - wizualnie pokazuje kierunek
+    klonowania (od źródła do celu)."""
+    strzalka = QgsArrowSymbolLayer()
+    strzalka.setIsCurved(False)
+    symbol = QgsLineSymbol()
+    symbol.changeSymbolLayer(0, strzalka)
+    return symbol
 
 
 class _Dialog(QDialog):
@@ -122,8 +140,7 @@ class PrzygotujCiecieStUPUL:
             return
 
         kat_wyj = os.path.join(os.path.dirname(baza_sc), 'SHP_stare')
-        temp_kat = os.path.join(kat_wyj, 'temp')
-        os.makedirs(temp_kat, exist_ok=True)
+        os.makedirs(kat_wyj, exist_ok=True)
 
         QgsMessageLog.logMessage(
             '--- PRZYGOTUJ CIECIE ST UPUL ---', 'Las-R', Qgis.Info)
@@ -132,34 +149,51 @@ class PrzygotujCiecieStUPUL:
         if wpol_temp is None:
             return
 
-        temp_full_sc = os.path.join(temp_kat, 'WYDZ_stare_full.shp')
-        processing.run('native:multiparttosingleparts', {
-            'INPUT': wpol_temp,
-            'OUTPUT': temp_full_sc,
-        })
-        del wpol_temp
-
         wydz_pkt_sc = os.path.join(kat_wyj, 'WYDZ_PKT_stare.shp')
         processing.run('native:pointonsurface', {
-            'INPUT': temp_full_sc,
+            'INPUT': wpol_temp,
             'OUTPUT': wydz_pkt_sc,
         })
 
         wydz_pol_sc = os.path.join(kat_wyj, 'WYDZ_POL_stare.shp')
-        self._buduj_pol_uproszczona(temp_full_sc, wydz_pol_sc)
+        self._buduj_pol_uproszczona(wpol_temp, wydz_pol_sc)
+        del wpol_temp
 
         wydz_pol = QgsVectorLayer(wydz_pol_sc, 'WYDZ_POL_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pol)
         wydz_pkt = QgsVectorLayer(wydz_pkt_sc, 'WYDZ_PKT_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pkt)
-
-        # finalne warstwy leza poza temp_kat (w kat_wyj) - bezpiecznie
-        # czyscimy dane posrednie
-        wyczysc_katalog_temp(temp_kat)
+        self._utworz_warstwe_klon(kat_wyj)
 
         self.iface.messageBar().pushMessage(
             'OK', 'Warstwy utworzone w folderze SHP_stare', Qgis.Success, 10)
         QgsMessageLog.logMessage('--- KONIEC ---', 'Las-R', Qgis.Info)
+
+    def _utworz_warstwe_klon(self, kat_wyj):
+        """Tworzy pustą warstwę liniową "Klon" (styl: strzałka) gotową do
+        ręcznego rysowania w QGIS. Odcinek: początek = wydzielenie
+        źródłowe, koniec = wydzielenie docelowe (tam trafi kopia opisu).
+        Uzupełnienie ADR_Z/ADR_DO na podstawie geometrii i eksport do
+        pliku KLON.txt to osobny, późniejszy krok.
+        """
+        pola = QgsFields()
+        for p in _KOLUMNY_KLON:
+            pola.append(p)
+
+        klon_sc = os.path.join(kat_wyj, 'Klon.shp')
+        writer = QgsVectorFileWriter(
+            klon_sc, 'UTF-8', pola, QgsWkbTypes.LineString,
+            QgsCoordinateReferenceSystem('EPSG:2180'), 'ESRI Shapefile')
+        if writer.hasError() != QgsVectorFileWriter.NoError:
+            QgsMessageLog.logMessage(
+                f'Nie udało się utworzyć warstwy Klon: {writer.errorMessage()}',
+                'Las-R', Qgis.Warning)
+            return
+        del writer
+
+        klon = QgsVectorLayer(klon_sc, 'Klon', 'ogr')
+        klon.setRenderer(QgsSingleSymbolRenderer(_styl_strzalka()))
+        QgsProject.instance().addMapLayer(klon)
 
     def _normalizuj_stara_struktura(self, wpol, wpol_data):
         obecne = [f.name() for f in wpol.fields()]
@@ -184,9 +218,10 @@ class PrzygotujCiecieStUPUL:
                 attrs[fnm[nowe_n]] = val
             wpol_data.changeAttributeValues({feat.id(): attrs})
 
-    def _buduj_pol_uproszczona(self, src_sc, wyj_sc):
-        src = QgsVectorLayer(src_sc, 'src_full_tmp', 'ogr')
-        wyj = QgsVectorLayer('Polygon?crs=epsg:2180', 'pol_uproszczona', 'memory')
+    def _buduj_pol_uproszczona(self, src, wyj_sc):
+        # geometrie moga byc MultiPolygon (brak wczesniejszego rozbicia na
+        # singleparts) - warstwa pomocnicza musi to dopuszczac
+        wyj = QgsVectorLayer('MultiPolygon?crs=epsg:2180', 'pol_uproszczona', 'memory')
         wyj_data = wyj.dataProvider()
         wyj_data.addAttributes(_KOLUMNY_POL)
         wyj.updateFields()

@@ -1170,8 +1170,13 @@ class Baza(object):
         """
 
         obr = self.cur.execute(sql).fetchall()
-        return {x[0].upper(): x[1].upper() for x in obr}, {
-            x[2] + x[3]: x[0] for x in obr
+        # .strip() - pola tekstowe w Access bywają wypełnione spacjami na
+        # końcu; te nazwy trafiają wprost jako nazwy katalogów
+        # (raport_wyciagi.py), a Windows przy tworzeniu katalogu ucina
+        # końcowe spacje, co potem psuje kolejne os.mkdir na dziecku
+        # (FileNotFoundError, bo ścieżka ze spacjami już nie pasuje).
+        return {x[0].strip().upper(): x[1].strip().upper() for x in obr}, {
+            x[2] + x[3]: x[0].strip() for x in obr
         }
 
     def pobierz_wyk_zalec(self):
