@@ -45,8 +45,9 @@ def uruchom_dopisz_dane_wydzielen(iface):
 
 
 def uruchom_utworz_klon_txt(iface):
-    """Utwórz KLON.txt - na podstawie warstwy odcinków "Klon" i warstwy
-    WYDZ buduje plik instrukcji do narzędzia "Klonuj opisy wydzieleń".
+    """Utwórz raporty KLON i NOTATKI - na podstawie warstwy odcinków
+    "Klon", warstwy notatek i warstwy WYDZ buduje KLON.txt (instrukcja
+    dla "Klonuj opisy wydzieleń") i NOTATKI_zmiany.txt.
 
     Osobna pozycja menu — działa na warstwach z TOC bieżącego projektu,
     nie wymaga pliku .mdb.

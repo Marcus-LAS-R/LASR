@@ -1,13 +1,14 @@
-"""Tworzy plik KLON.txt na podstawie warstwy odcinków "Klon" i warstwy
+"""Tworzy raporty KLON.txt i NOTATKI_zmiany.txt na podstawie warstwy
+odcinków "Klon", warstwy punktowej notatek (opis_notatki) i warstwy
 wydzieleń WYDZ - format zgodny z Klonuj.dane_konf() z baza_klonuj_wydz.py
-(ADR_LES źródłowy TAB ADR_LES docelowy, jedna para na linię).
+(wartość TAB wartość, jedna para na linię).
 
-Każdy odcinek warstwy Klon: początek = wydzielenie źródłowe (skąd
-kopiujemy opis), koniec = wydzielenie docelowe. Tylko pierwszy i ostatni
-wierzchołek odcinka mają znaczenie - ewentualne pośrednie wierzchołki są
-ignorowane.
+KLON.txt (patrz `wykonaj`): każdy odcinek warstwy Klon - początek =
+wydzielenie źródłowe (skąd kopiujemy opis), koniec = wydzielenie
+docelowe. Tylko pierwszy i ostatni wierzchołek odcinka mają znaczenie -
+ewentualne pośrednie wierzchołki są ignorowane.
 
-Przed zapisem trzy kontrole (patrz `wykonaj`):
+Przed zapisem KLON.txt trzy kontrole:
 
 1. Oba końce KAŻDEGO odcinka muszą leżeć na jakimś wydzieleniu WYDZ -
    inaczej nie da się rozstrzygnąć adresu. Punkty poza wydzieleniami
@@ -22,6 +23,12 @@ Przed zapisem trzy kontrole (patrz `wykonaj`):
    wydzielenia docelowego (klonowanie w bazie i tak odrzuciłoby wszystkie
    pary oprócz pierwszej). Trafia do warstwy memory + komunikat,
    generowanie przerywane.
+
+NOTATKI_zmiany.txt (patrz `wykonaj_notatki`): każdy punkt warstwy notatek
+musi leżeć na jakimś wydzieleniu WYDZ - punkty poza wydzieleniami trafiają
+do warstwy memory + komunikat, generowanie przerywane. W odróżnieniu od
+KLON.txt NIE ma kontroli 1:1/dubletów - kilka notatek na tym samym
+wydzieleniu jest normalne i dopuszczalne.
 """
 
 from PyQt5.QtCore import QVariant
@@ -47,11 +54,9 @@ def _konce_odcinka(geom):
     return linia[0], linia[-1]
 
 
-def _warstwa_bledow_punktowych(crs, punkty):
+def _warstwa_bledow_punktowych(crs, tytul, punkty):
     """punkty: lista (QgsPointXY, opis)."""
-    lyr = QgsVectorLayer(
-        f'Point?crs={crs.authid()}', 'Klon - punkty poza wydzieleniami',
-        'memory')
+    lyr = QgsVectorLayer(f'Point?crs={crs.authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(
         [QgsField('OPIS', QVariant.String, '', 100)])
     lyr.updateFields()
@@ -110,7 +115,8 @@ def wykonaj(klon_lyr, wydz_lyr):
             dopasowania[f.id()] = (start_fid, koniec_fid)
 
     if zle_punkty:
-        _warstwa_bledow_punktowych(klon_lyr.crs(), zle_punkty)
+        _warstwa_bledow_punktowych(
+            klon_lyr.crs(), 'Klon - punkty poza wydzieleniami', zle_punkty)
         return {
             'ok': False,
             'komunikat': (
@@ -181,9 +187,55 @@ def wykonaj(klon_lyr, wydz_lyr):
     return {'ok': True, 'pary': pary}
 
 
+def wykonaj_notatki(notatki_lyr, wydz_lyr):
+    """Dla każdego punktu warstwy notatek (opis_notatki) znajduje adres
+    leśny wydzielenia WYDZ, na którym leży.
+
+    W odróżnieniu od `wykonaj` (Klon) sprawdzane jest TYLKO położenie -
+    punkt musi trafiać w jakieś WYDZ - bez kontroli 1:1/dubletów, bo kilka
+    notatek na tym samym wydzieleniu jest normalne i dopuszczalne.
+
+    Returns:
+        Dict z kluczem 'ok'. Gdy False - dodatkowo 'komunikat' (str),
+        warstwa błędów już dodana do projektu. Gdy True - dodatkowo
+        'pary': lista (adr_les, notatka).
+    """
+    poligony = {f.id(): f for f in wydz_lyr.getFeatures()}
+    si = QgsSpatialIndex()
+    for f in poligony.values():
+        si.insertFeature(f)
+
+    zle_punkty = []
+    pary = []
+    for f in notatki_lyr.getFeatures():
+        geom = f.geometry()
+        fid = _znajdz_poligon(si, poligony, geom)
+        if fid is None:
+            zle_punkty.append((geom.asPoint(), f'notatka fid={f.id()}'))
+            continue
+        pary.append((poligony[fid]['ADR_LES'], f['NOTATKA']))
+
+    if zle_punkty:
+        _warstwa_bledow_punktowych(
+            notatki_lyr.crs(), 'Notatki - punkty poza wydzieleniami',
+            zle_punkty)
+        return {
+            'ok': False,
+            'komunikat': (
+                f'{len(zle_punkty)} punkt(ów) warstwy notatek nie leży na '
+                'żadnym wydzieleniu warstwy WYDZ. Popraw geometrię (patrz '
+                'warstwa "Notatki - punkty poza wydzieleniami") i uruchom '
+                'ponownie.'
+            ),
+        }
+
+    return {'ok': True, 'pary': pary}
+
+
 def zapisz_plik(pary, sciezka):
-    """Zapisuje plik KLON.txt - format wymagany przez Klonuj.dane_konf():
-    dwie kolumny rozdzielone tabulatorem, bez pustej linii na końcu."""
+    """Zapisuje plik tekstowy (KLON.txt w formacie wymaganym przez
+    Klonuj.dane_konf(), albo NOTATKI_zmiany.txt) - dwie kolumny
+    rozdzielone tabulatorem, bez pustej linii na końcu."""
     with open(sciezka, 'w', encoding='utf-8', newline='') as plik:
-        for adr_z, adr_do in pary:
-            plik.write(f'{adr_z}\t{adr_do}\n')
+        for a, b in pary:
+            plik.write(f'{a}\t{b}\n')

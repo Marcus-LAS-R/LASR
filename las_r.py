@@ -755,11 +755,13 @@ class LasR:
         self.a_dop_adrles_upul.triggered.connect(self.dopisz_adrles)
 
         self.a_utworz_klon_txt = QAction(
-            QIcon(None), "Utwórz KLON.txt", self.iface.mainWindow()
+            QIcon(None), "Utwórz raporty KLON i NOTATKI",
+            self.iface.mainWindow()
         )
         self.a_utworz_klon_txt.setToolTip(
-            "Na podstawie warstwy odcinków \"Klon\" i warstwy WYDZ tworzy "
-            "plik instrukcji dla narzędzia \"Klonuj opisy wydzieleń\".")
+            "Na podstawie warstwy odcinków \"Klon\", warstwy notatek i "
+            "warstwy WYDZ tworzy KLON.txt (instrukcja dla \"Klonuj opisy "
+            "wydzieleń\") i NOTATKI_zmiany.txt.")
         self.m_aktualizacja_upul.addAction(self.a_utworz_klon_txt)
         self.a_utworz_klon_txt.triggered.connect(self.utworz_klon_txt)
 
