@@ -65,6 +65,8 @@ from .skrypty import (
     baza_dopisz_pnsw,
     baza_klonuj_wydz,
     nawigator_dock,
+    warstwa_opisow_dock,
+    baza_dopisz_opisy_taks,
     shp_atlasuj,
     baza_usun_op,
     baza_usun_nieLs,
@@ -660,6 +662,27 @@ class LasR:
         self.m_testowe.addAction(self.a_kangurkuj)
         self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
 
+        self.a_warstwa_opisow = QAction(
+            QIcon(None), "Utwórz warstwę do opisów", self.iface.mainWindow()
+        )
+        self.a_warstwa_opisow.setToolTip(
+            "Tworzy warstwę Klon (do KLON.txt) i warstwę punktową do "
+            "szybkiego oznaczania grup (INNE WYL, L ENERG, SUKCESJA, "
+            "DROGI L) pod generyczne opisy taksacyjne.")
+        self.m_testowe.addAction(self.a_warstwa_opisow)
+        self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
+
+        self.a_dopisz_opisy_taks = QAction(
+            QIcon(None), "Dopisz opisy taksacyjne do bazy",
+            self.iface.mainWindow()
+        )
+        self.a_dopisz_opisy_taks.setToolTip(
+            "Na podstawie warstwy punktowej (GRUPA) i warstwy WYDZ dopisuje "
+            "do bazy F_SUBAREA.AREA_TYPE_CD (dla LZ-Ł dodatkowo "
+            "SUBAREA_INFO).")
+        self.m_testowe.addAction(self.a_dopisz_opisy_taks)
+        self.a_dopisz_opisy_taks.triggered.connect(self.dopisz_opisy_taks)
+
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
         self.m_aktualizacja_upul.addSeparator()
@@ -1246,6 +1269,10 @@ class LasR:
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockNawigator)
         self.dockNawigator.hide()
 
+        self.dockWarstwaOpisow = warstwa_opisow_dock.WarstwaOpisowDock(self.iface)
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockWarstwaOpisow)
+        self.dockWarstwaOpisow.hide()
+
         self._pokaz_changelog_jesli_nowy()
 
     def _changelog_sc(self):
@@ -1317,6 +1344,9 @@ class LasR:
         self.dockNawigator.wyrejestruj_skroty()
         self.dockNawigator.close()
         self.iface.removeDockWidget(self.dockNawigator)
+
+        self.dockWarstwaOpisow.close()
+        self.iface.removeDockWidget(self.dockWarstwaOpisow)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -1697,6 +1727,12 @@ class LasR:
 
     def pokaz_nawigator(self):
         self.dockNawigator.show()
+
+    def pokaz_warstwa_opisow(self):
+        self.dockWarstwaOpisow.show()
+
+    def dopisz_opisy_taks(self):
+        baza_dopisz_opisy_taks.uruchom(self.iface)
 
     def kontrola_ls_w_bazie(self):
         baza_popraw_LS.SprawdzBazy(self.iface)
