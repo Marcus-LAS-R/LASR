@@ -698,7 +698,7 @@ class LasR:
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
         self.a_warstwa_opisow = QAction(
-            QIcon(None), "Utwórz warstwy do opisów", self.iface.mainWindow()
+            QIcon(None), "Utwórz/edytuj warstwy do opisów", self.iface.mainWindow()
         )
         self.a_warstwa_opisow.setToolTip(
             "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
@@ -709,7 +709,7 @@ class LasR:
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
         self.a_dopisz_dane_wydz = QAction(
-            QIcon(None), "Przepisz ODDZ i WYDZ ze starych WYDZ",
+            QIcon(None), "Dopisz ODDZ do WYDZ (bez nadpisania)",
             self.iface.mainWindow()
         )
         self.a_dopisz_dane_wydz.setToolTip(
@@ -749,9 +749,7 @@ class LasR:
             self.iface.mainWindow()
         )
         self.a_dopisz_opisy_taks.setToolTip(
-            "Na podstawie warstwy punktowej (GRUPA) i warstwy WYDZ dopisuje "
-            "do bazy F_SUBAREA.AREA_TYPE_CD (dla LZ-Ł dodatkowo "
-            "SUBAREA_INFO).")
+            "Dopisuje generyczne opisy do bazy na podstawie opis_pkt")
         self.m_aktualizacja_upul.addAction(self.a_dopisz_opisy_taks)
         self.a_dopisz_opisy_taks.triggered.connect(self.dopisz_opisy_taks)
 
@@ -1276,6 +1274,10 @@ class LasR:
         self.dockWarstwaOpisow = warstwa_opisow_dock.WarstwaOpisowDock(self.iface)
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockWarstwaOpisow)
         self.dockWarstwaOpisow.hide()
+        QgsProject.instance().readProject.connect(
+            self.dockWarstwaOpisow.zastosuj_stan_z_projektu)
+        QgsProject.instance().cleared.connect(
+            self.dockWarstwaOpisow.zresetuj_stan_projektu)
 
         self._pokaz_changelog_jesli_nowy()
 

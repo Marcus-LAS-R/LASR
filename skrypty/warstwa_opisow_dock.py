@@ -29,8 +29,10 @@ punktach.
 """
 import os
 
-from PyQt5.QtCore import QVariant
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import QPoint, Qt, QVariant
+from PyQt5.QtGui import (
+    QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygon,
+)
 from PyQt5.QtWidgets import (
     QDialog, QDialogButtonBox, QDockWidget, QFileDialog, QGroupBox,
     QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
@@ -50,7 +52,32 @@ NAZWA_PUNKTY = 'opis_pkt'
 NAZWA_NOTATKI = 'opis_notatki'
 NAZWA_FOLDER_OPIS = 'SHP_opis'
 
-GRUPY = ['INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB']
+GRUPY = ['DROGI L', 'INNE WYL', 'ZRĄB', 'L ENERG', 'LZ-Ł', 'SUKCESJA']
+
+# klucz w projekcie (QgsProject.writeEntry/readBoolEntry) pod którym
+# zapisywana jest flaga "dockwidget ma się sam otwierać przy wczytaniu
+# tego projektu" - patrz _toggle_przypiecie/zastosuj_stan_z_projektu
+_PROJ_SCOPE = 'LasR'
+_PROJ_KEY_PRZYPIETY = 'opis_dock_przypiety'
+
+
+def _ikona_flagi(kolor):
+    """Rysuje prostą ikonę flagi (maszt + proporzec) w podanym kolorze -
+    używana na przycisku "Przypnij do pola pracy", żeby stan przypięcia
+    był widoczny na pierwszy rzut oka niezależnie od stylu Qt (na to
+    nakłada się jeszcze natywny "wciśnięty" wygląd z setCheckable)."""
+    pix = QPixmap(16, 16)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(QPen(QColor(70, 70, 70), 1.5))
+    p.drawLine(3, 1, 3, 15)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QBrush(kolor))
+    p.drawPolygon(QPolygon(
+        [QPoint(3, 2), QPoint(14, 5), QPoint(3, 8)]))
+    p.end()
+    return QIcon(pix)
 
 # jedyna grupa, dla ktorej pole INF_ROZNE jest wymagane przy dodawaniu punktu
 GRUPA_WYMAGA_INF_ROZNE = 'INNE WYL'
@@ -183,14 +210,6 @@ def _utworz_warstwe(sciezka, typ_geom_txt, pola, nazwa):
     return _wczytaj_plik(sciezka, nazwa)
 
 
-def _zaladuj_styl_klon(lyr):
-    """Ładuje domyślny styl (strzałka) na warstwę Klon z pliku qml
-    dołączonego do wtyczki - patrz qml/Arrow_klon.qml."""
-    sciezka = os.path.join(os.path.dirname(__file__), '..', 'qml', 'Arrow_klon.qml')
-    lyr.loadNamedStyle(sciezka)
-    lyr.triggerRepaint()
-
-
 def _wylacz_formularz(lyr):
     """Wyłącza formularz atrybutów przy dodawaniu obiektu (ADR_Z/ADR_DO
     warstwy Klon i tak są nadpisywane później przez "Utwórz KLON.txt" na
@@ -226,6 +245,7 @@ class WarstwaOpisowDock(QDockWidget):
 
         self._zbuduj_ui()
         self._odswiez()
+        self.zastosuj_stan_z_projektu()
 
     # ------------------------------------------------------------ UI ----
 
@@ -234,16 +254,28 @@ class WarstwaOpisowDock(QDockWidget):
         self.setWidget(glowny)
         lay = QVBoxLayout(glowny)
 
+        # --- przypięcie do pola pracy ------------------------------------
+        self.btn_przypnij = QPushButton('Przypnij do pola pracy')
+        self.btn_przypnij.setCheckable(True)
+        self.btn_przypnij.setToolTip(
+            'Zapamiętuje w projekcie, że ten widget ma się sam otwierać '
+            'przy jego wczytaniu (np. w szablonowym "polu pracy"). '
+            'Ustawienie zapisuje się dopiero przy zapisie projektu '
+            '(Ctrl+S).')
+        self.btn_przypnij.clicked.connect(self._toggle_przypiecie)
+        self._ikona_przypieta = _ikona_flagi(QColor(200, 0, 0))
+        self._ikona_wolna = _ikona_flagi(QColor(160, 160, 160))
+        self.btn_przypnij.setIcon(self._ikona_wolna)
+        lay.addWidget(self.btn_przypnij, alignment=Qt.AlignRight)
+
         # --- warstwa Klon --------------------------------------------
-        box_klon = QGroupBox('Warstwa Klon (do KLON.txt)', glowny)
+        box_klon = QGroupBox(f'Warstwa {NAZWA_KLON} (do KLON.txt)', glowny)
         lay_klon = QVBoxLayout(box_klon)
 
-        self.lab_klon = QLabel('Warstwa: brak')
-        lay_klon.addWidget(self.lab_klon)
-
-        btn = QPushButton(f'Utwórz/wskaż ({NAZWA_KLON})')
+        btn = QPushButton('Utwórz/wskaż')
+        btn.setMaximumWidth(100)
         btn.clicked.connect(self._utworz_klon)
-        lay_klon.addWidget(btn)
+        lay_klon.addWidget(btn, alignment=Qt.AlignLeft)
 
         self.btn_klonuj = QPushButton('Klonuj')
         self.btn_klonuj.setToolTip(
@@ -256,15 +288,13 @@ class WarstwaOpisowDock(QDockWidget):
         lay.addWidget(box_klon)
 
         # --- warstwa punktowa (grupy) -----------------------------------
-        box_pkt = QGroupBox('Warstwa punktowa (opisy generyczne)', glowny)
+        box_pkt = QGroupBox(f'Warstwa {NAZWA_PUNKTY} (opisy generyczne)', glowny)
         lay_pkt = QVBoxLayout(box_pkt)
 
-        self.lab_pkt = QLabel('Warstwa: brak')
-        lay_pkt.addWidget(self.lab_pkt)
-
-        btn = QPushButton(f'Utwórz/wskaż ({NAZWA_PUNKTY})')
+        btn = QPushButton('Utwórz/wskaż')
+        btn.setMaximumWidth(90)
         btn.clicked.connect(self._utworz_punkty)
-        lay_pkt.addWidget(btn)
+        lay_pkt.addWidget(btn, alignment=Qt.AlignLeft)
 
         lay_pkt.addWidget(QLabel('Grupa (klik = tryb dodawania punktów):'))
         siatka = QGridLayout()
@@ -281,15 +311,14 @@ class WarstwaOpisowDock(QDockWidget):
         lay.addWidget(box_pkt)
 
         # --- warstwa notatek ---------------------------------------------
-        box_notatki = QGroupBox('Warstwa notatek', glowny)
+        box_notatki = QGroupBox(
+            f'Warstwa {NAZWA_NOTATKI} (notatki tekstowe)', glowny)
         lay_notatki = QVBoxLayout(box_notatki)
 
-        self.lab_notatki = QLabel('Warstwa: brak')
-        lay_notatki.addWidget(self.lab_notatki)
-
-        btn = QPushButton(f'Utwórz/wskaż ({NAZWA_NOTATKI})')
+        btn = QPushButton('Utwórz/wskaż')
+        btn.setMaximumWidth(100)
         btn.clicked.connect(self._utworz_notatki)
-        lay_notatki.addWidget(btn)
+        lay_notatki.addWidget(btn, alignment=Qt.AlignLeft)
 
         self.btn_notatki = QPushButton('Notatki')
         self.btn_notatki.setToolTip(
@@ -301,21 +330,45 @@ class WarstwaOpisowDock(QDockWidget):
         lay.addWidget(box_notatki)
         lay.addStretch(1)
 
+    # ------------------------------------------------- pole pracy (pin) --
+
+    def _toggle_przypiecie(self, przypiety):
+        QgsProject.instance().writeEntry(
+            _PROJ_SCOPE, _PROJ_KEY_PRZYPIETY, przypiety)
+        self._odswiez_przycisk_przypniecia(przypiety)
+
+    def _odswiez_przycisk_przypniecia(self, przypiety):
+        self.btn_przypnij.setChecked(przypiety)
+        self.btn_przypnij.setText(
+            'Odepnij od pola pracy' if przypiety else 'Przypnij do pola pracy')
+        self.btn_przypnij.setIcon(
+            self._ikona_przypieta if przypiety else self._ikona_wolna)
+
+    def zastosuj_stan_z_projektu(self):
+        """Pokazuje/ukrywa widget zgodnie z flagą zapisaną w projekcie
+        (patrz _toggle_przypiecie). Podpięte pod
+        QgsProject.instance().readProject w las_r.py, żeby dockwidget sam
+        się otwierał przy wczytaniu zapisanego "pola pracy"."""
+        przypiety, _ = QgsProject.instance().readBoolEntry(
+            _PROJ_SCOPE, _PROJ_KEY_PRZYPIETY, False)
+        self._odswiez_przycisk_przypniecia(przypiety)
+        self.setVisible(przypiety)
+
+    def zresetuj_stan_projektu(self):
+        """Podpięte pod QgsProject.instance().cleared (nowy/pusty projekt)
+        - taki projekt nie ma zapisanej flagi, więc ukrywamy widget i
+        odznaczamy przycisk przypięcia."""
+        self._odswiez_przycisk_przypniecia(False)
+        self.hide()
+
     # --------------------------------------------------------- stan UI --
 
     def _odswiez(self):
-        self.lab_klon.setText(
-            'Warstwa: ' + (self.klon_lyr.name() if self.klon_lyr else 'brak'))
         self.btn_klonuj.setEnabled(self.klon_lyr is not None)
 
-        self.lab_pkt.setText(
-            'Warstwa: ' + (self.pkt_lyr.name() if self.pkt_lyr else 'brak'))
         for btn in self.btn_grupy.values():
             btn.setEnabled(self.pkt_lyr is not None)
 
-        self.lab_notatki.setText(
-            'Warstwa: ' +
-            (self.notatki_lyr.name() if self.notatki_lyr else 'brak'))
         self.btn_notatki.setEnabled(self.notatki_lyr is not None)
 
     # ------------------------------------------------- wspolna logika ---
@@ -382,7 +435,6 @@ class WarstwaOpisowDock(QDockWidget):
         if lyr is None:
             return
         self.klon_lyr = lyr
-        _zaladuj_styl_klon(self.klon_lyr)
         _wylacz_formularz(self.klon_lyr)
         self._odswiez()
 

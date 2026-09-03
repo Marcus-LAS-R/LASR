@@ -40,7 +40,7 @@ def _warstwy_wektorowe(typ_geometrii):
 class DopiszDaneWydzielenDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Przepisz ODDZ i WYDZ ze starych WYDZ")
+        self.setWindowTitle("Dopisz ODDZ do WYDZ (bez nadpisania)")
         self.setMinimumSize(480, 160)
         self._zrodla = []
         self._cele = []
