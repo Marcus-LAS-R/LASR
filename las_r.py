@@ -79,6 +79,7 @@ from .skrypty import (
     baza_usun_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
+    shp_sprawdz_polozenie_opisow,
     shp_atlasuj_auto,
     baza_napraw_stor_spec,
     shp_polacz_teren,
@@ -698,7 +699,7 @@ class LasR:
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
         self.a_warstwa_opisow = QAction(
-            QIcon(None), "Utwórz/edytuj warstwy do opisów", self.iface.mainWindow()
+            QIcon(None), "Edytuj warstwy do opisów", self.iface.mainWindow()
         )
         self.a_warstwa_opisow.setToolTip(
             "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
@@ -707,6 +708,20 @@ class LasR:
             "taksacyjne.")
         self.m_aktualizacja_upul.addAction(self.a_warstwa_opisow)
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
+
+        self.a_sprawdz_polozenie_opisow = QAction(
+            QIcon(None), "Sprawdź położenie warstw opisowych",
+            self.iface.mainWindow()
+        )
+        self.a_sprawdz_polozenie_opisow.setToolTip(
+            "Sprawdza, czy WYDZ_PKT_stare, opis_klon, opis_pkt i "
+            "opis_notatki leżą na wydzieleniach z warstwy WYDZ. Punkty "
+            "poza WYDZ trafiają na osobną, czerwoną warstwę do korekty.")
+        self.m_aktualizacja_upul.addAction(self.a_sprawdz_polozenie_opisow)
+        self.a_sprawdz_polozenie_opisow.triggered.connect(
+            self.sprawdz_polozenie_opisow)
+
+        self.m_aktualizacja_upul.addSeparator()
 
         self.a_dopisz_dane_wydz = QAction(
             QIcon(None), "Przepisz ODDZ i WYDZ ze starych WYDZ",
@@ -1849,6 +1864,10 @@ class LasR:
         sp.przetworz()
         sp.raport_rozbieznosci()
         sp.sprawdz_pnsw()
+
+    def sprawdz_polozenie_opisow(self):
+        shp_sprawdz_polozenie_opisow.SprawdzPolozenieOpisow(
+            self.iface).uruchom()
 
     def raport_kart_ciecia(self):
         sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)
