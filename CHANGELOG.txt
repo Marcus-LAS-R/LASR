@@ -22,10 +22,14 @@ Wersja 2.0m — 2026-09-03
    nazwą warstwy), usunięte zbędne podpisy, przyciski "Utwórz/wskaż"
    mniejsze i po lewej, żeby się nie myliły z przyciskami wyboru grupy
 
-5. ZMIANA NAZW: "Utwórz warstwy do opisów" -> "Utwórz/edytuj warstwy do
-   opisów"; "Przepisz ODDZ i WYDZ ze starych WYDZ" -> "Dopisz ODDZ do WYDZ
-   (bez nadpisania)" - dla jasności, że narzędzie nigdy nie nadpisuje już
-   wpisanych numerów oddziału/wydzielenia
+5. ZMIANA NAZWY: "Utwórz warstwy do opisów" -> "Utwórz/edytuj warstwy do
+   opisów"
+
+6. POPRAWKA: "Dopisz oddziały do wydzieleń" (dostępne zarówno w
+   Rozliczenie powierzchni jak i Aktualizacja UPUL) nadpisywał numer
+   oddziału (ODDZ) w wydzieleniu nawet wtedy, gdy było już wypełnione -
+   teraz zapisuje ODDZ tylko tam, gdzie pole jest puste. Nazwa
+   przemianowana na "Dopisz ODDZ do WYDZ (bez nadpisania)" dla jasności
 
 Wersja 2.0l — 2026-09-02
 ------------------------------------------------
