@@ -11,6 +11,7 @@ import processing
 
 from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
+from . import warstwa_opisow_dock as opis
 from .ui.ui_przygCiecieStUPUL import Ui_Dialog
 
 _TEMP = 'WYDZ_POL_stare_multipart'
@@ -164,10 +165,26 @@ class PrzygotujCiecieStUPUL:
         wydz_pkt = QgsVectorLayer(wydz_pkt_sc, 'WYDZ_PKT_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pkt)
         self._utworz_warstwe_klon(kat_wyj)
+        self._utworz_warstwy_opis(os.path.dirname(baza_sc))
 
         self.iface.messageBar().pushMessage(
-            'OK', 'Warstwy utworzone w folderze SHP_stare', Qgis.Success, 10)
+            'OK', 'Warstwy utworzone w folderach SHP_stare i SHP_opis',
+            Qgis.Success, 10)
         QgsMessageLog.logMessage('--- KONIEC ---', 'Las-R', Qgis.Info)
+
+    def _utworz_warstwy_opis(self, kat_root):
+        """Tworzy folder SHP_opis (siostrzany do SHP_stare) z pustymi
+        warstwami "grupy opis" (opis_klon/opis_pkt/opis_notatki, patrz
+        warstwa_opisow_dock.py) - gotowymi do podjęcia przez dockwidget
+        "Warstwy do opisów" bez ręcznego tworzenia ich od zera. Nie
+        nadpisuje plików, jeśli już istnieją (np. z poprzedniego
+        uruchomienia)."""
+        kat_opis = os.path.join(kat_root, opis.NAZWA_FOLDER_OPIS)
+        for nazwa, typ_geom_txt, pola in opis.WARSTWY_OPIS:
+            sciezka = os.path.join(kat_opis, nazwa + '.shp')
+            if os.path.isfile(sciezka):
+                continue
+            opis._utworz_warstwe(sciezka, typ_geom_txt, pola, nazwa)
 
     def _utworz_warstwe_klon(self, kat_wyj):
         """Tworzy pustą warstwę liniową "Klon" (styl: strzałka) gotową do

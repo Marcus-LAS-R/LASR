@@ -52,6 +52,26 @@ NAZWA_PUNKTY = 'opis_pkt'
 NAZWA_NOTATKI = 'opis_notatki'
 NAZWA_FOLDER_OPIS = 'SHP_opis'
 
+POLA_KLON = [
+    QgsField('ADR_Z', QVariant.String, '', 25),
+    QgsField('ADR_DO', QVariant.String, '', 25),
+]
+POLA_PUNKTY = [
+    QgsField('GRUPA', QVariant.String, '', 20),
+    QgsField('INF_ROZNE', QVariant.String, '', 254),
+]
+POLA_NOTATKI = [
+    QgsField('NOTATKA', QVariant.String, '', 254),
+]
+
+# (nazwa, typ geometrii jako tekst dla QgsVectorLayer, pola) - "grupa opis":
+# komplet warstw pomocniczych do opisów taksacyjnych, patrz moduł wyżej
+WARSTWY_OPIS = [
+    (NAZWA_KLON, 'LineString', POLA_KLON),
+    (NAZWA_PUNKTY, 'Point', POLA_PUNKTY),
+    (NAZWA_NOTATKI, 'Point', POLA_NOTATKI),
+]
+
 GRUPY = ['DROGI L', 'INNE WYL', 'ZRĄB', 'L ENERG', 'LZ-Ł', 'SUKCESJA']
 
 # klucz w projekcie (QgsProject.writeEntry/readBoolEntry) pod którym
@@ -429,9 +449,7 @@ class WarstwaOpisowDock(QDockWidget):
 
     def _utworz_klon(self):
         lyr = self._pobierz_lub_wskaz(
-            NAZWA_KLON, QgsWkbTypes.LineGeometry, 'LineString',
-            [QgsField('ADR_Z', QVariant.String, '', 25),
-             QgsField('ADR_DO', QVariant.String, '', 25)])
+            NAZWA_KLON, QgsWkbTypes.LineGeometry, 'LineString', POLA_KLON)
         if lyr is None:
             return
         self.klon_lyr = lyr
@@ -480,9 +498,7 @@ class WarstwaOpisowDock(QDockWidget):
 
     def _utworz_punkty(self):
         lyr = self._pobierz_lub_wskaz(
-            NAZWA_PUNKTY, QgsWkbTypes.PointGeometry, 'Point',
-            [QgsField('GRUPA', QVariant.String, '', 20),
-             QgsField('INF_ROZNE', QVariant.String, '', 254)])
+            NAZWA_PUNKTY, QgsWkbTypes.PointGeometry, 'Point', POLA_PUNKTY)
         if lyr is None:
             return
         self.pkt_lyr = lyr
@@ -537,8 +553,7 @@ class WarstwaOpisowDock(QDockWidget):
 
     def _utworz_notatki(self):
         lyr = self._pobierz_lub_wskaz(
-            NAZWA_NOTATKI, QgsWkbTypes.PointGeometry, 'Point',
-            [QgsField('NOTATKA', QVariant.String, '', 254)])
+            NAZWA_NOTATKI, QgsWkbTypes.PointGeometry, 'Point', POLA_NOTATKI)
         if lyr is None:
             return
         self.notatki_lyr = lyr
