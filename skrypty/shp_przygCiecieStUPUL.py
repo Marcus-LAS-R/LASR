@@ -3,14 +3,14 @@ import os
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from PyQt5.QtCore import QVariant
 from qgis.core import (
-    Qgis, QgsArrowSymbolLayer, QgsCoordinateReferenceSystem, QgsFeature,
-    QgsLineSymbol, QgsMessageLog, QgsProject, QgsSingleSymbolRenderer,
-    QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes, QgsField, QgsFields,
+    Qgis, QgsFeature, QgsMessageLog, QgsProject, QgsVectorFileWriter,
+    QgsVectorLayer, QgsField, QgsFields,
 )
 import processing
 
 from .baza_wrapper import Baza
 from .shp_dopisz_kody import DopiszKody
+from . import kasowniki
 from . import warstwa_opisow_dock as opis
 from .ui.ui_przygCiecieStUPUL import Ui_Dialog
 
@@ -31,14 +31,6 @@ _KOLUMNY_POL = [
     QgsField('POW_WYDZ', QVariant.String, '', 10, 4),
 ]
 
-# warstwa "Klon" - odcinki wskazujące klonowanie opisu taksacyjnego
-# (start = wydzielenie źródłowe, koniec = wydzielenie docelowe); adresy
-# leśne początku/końca są wypełniane w osobnym, późniejszym kroku
-_KOLUMNY_KLON = [
-    QgsField('ADR_Z',  QVariant.String, '', 25),
-    QgsField('ADR_DO', QVariant.String, '', 25),
-]
-
 # mapowanie starych nazw pól (stary UPUL) na nowe
 _MAPA_STARYCH_POL = [
     ('COUNTY_CD',  'COUNTY',    2),
@@ -46,16 +38,6 @@ _MAPA_STARYCH_POL = [
     ('MUNICIPALI', 'MUNICIP',   3),
     ('COMMUNITY_', 'COMMUNITY', 4),
 ]
-
-
-def _styl_strzalka():
-    """Symbol linii z grotem na końcu - wizualnie pokazuje kierunek
-    klonowania (od źródła do celu)."""
-    strzalka = QgsArrowSymbolLayer()
-    strzalka.setIsCurved(False)
-    symbol = QgsLineSymbol()
-    symbol.changeSymbolLayer(0, strzalka)
-    return symbol
 
 
 class _Dialog(QDialog):
@@ -150,21 +132,19 @@ class PrzygotujCiecieStUPUL:
         if wpol_temp is None:
             return
 
-        wydz_pkt_sc = os.path.join(kat_wyj, 'WYDZ_PKT_stare.shp')
-        processing.run('native:pointonsurface', {
-            'INPUT': wpol_temp,
-            'OUTPUT': wydz_pkt_sc,
-        })
-
         wydz_pol_sc = os.path.join(kat_wyj, 'WYDZ_POL_stare.shp')
-        self._buduj_pol_uproszczona(wpol_temp, wydz_pol_sc)
+        wpol_uproszczona = self._buduj_pol_uproszczona(wpol_temp, wydz_pol_sc)
+
+        wydz_pkt_sc = os.path.join(kat_wyj, 'WYDZ_PKT_stare.shp')
+        self._buduj_pkt(wpol_uproszczona, wydz_pkt_sc)
+
+        self._utworz_warstwe_kas(wpol_temp, kat_wyj, baza_sc)
         del wpol_temp
 
         wydz_pol = QgsVectorLayer(wydz_pol_sc, 'WYDZ_POL_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pol)
         wydz_pkt = QgsVectorLayer(wydz_pkt_sc, 'WYDZ_PKT_stare', 'ogr')
         QgsProject.instance().addMapLayer(wydz_pkt)
-        self._utworz_warstwe_klon(kat_wyj)
         self._utworz_warstwy_opis(os.path.dirname(baza_sc))
 
         self.iface.messageBar().pushMessage(
@@ -186,31 +166,28 @@ class PrzygotujCiecieStUPUL:
                 continue
             opis._utworz_warstwe(sciezka, typ_geom_txt, pola, nazwa)
 
-    def _utworz_warstwe_klon(self, kat_wyj):
-        """Tworzy pustą warstwę liniową "Klon" (styl: strzałka) gotową do
-        ręcznego rysowania w QGIS. Odcinek: początek = wydzielenie
-        źródłowe, koniec = wydzielenie docelowe (tam trafi kopia opisu).
-        Uzupełnienie ADR_Z/ADR_DO na podstawie geometrii i eksport do
-        pliku KLON.txt to osobny, późniejszy krok.
-        """
-        pola = QgsFields()
-        for p in _KOLUMNY_KLON:
-            pola.append(p)
+    def _utworz_warstwe_kas(self, wpol_temp, kat_wyj, baza_sc):
+        """Generuje warstwę kasowników (KAS_stare) na podstawie tej samej
+        wieloczęściowej warstwy, z której budowane są WYDZ_POL_stare/
+        WYDZ_PKT_stare - patrz kasowniki.py (port z wtyczki LCH). Jeśli w
+        folderze SHP (siostrzanym do SHP_stare) jest LINIE.shp, dodatkowo
+        dokładane są kasowniki na przecięciach z tą warstwą."""
+        linie_sc = os.path.join(
+            os.path.dirname(baza_sc), 'SHP', 'LINIE.shp')
+        if not os.path.isfile(linie_sc):
+            linie_sc = None
 
-        klon_sc = os.path.join(kat_wyj, 'Klon.shp')
-        writer = QgsVectorFileWriter(
-            klon_sc, 'UTF-8', pola, QgsWkbTypes.LineString,
-            QgsCoordinateReferenceSystem('EPSG:2180'), 'ESRI Shapefile')
-        if writer.hasError() != QgsVectorFileWriter.NoError:
+        try:
+            kas = kasowniki.GenerujKasowniki(
+                wpol_temp, kat_wyj, nazwa='KAS_stare', linie_sc=linie_sc)
+        except Exception:
             QgsMessageLog.logMessage(
-                f'Nie udało się utworzyć warstwy Klon: {writer.errorMessage()}',
-                'Las-R', Qgis.Warning)
+                'Nie udało się wygenerować warstwy KAS_stare', 'Las-R',
+                Qgis.Warning)
             return
-        del writer
 
-        klon = QgsVectorLayer(klon_sc, 'Klon', 'ogr')
-        klon.setRenderer(QgsSingleSymbolRenderer(_styl_strzalka()))
-        QgsProject.instance().addMapLayer(klon)
+        if kas.warstwa is not None:
+            QgsProject.instance().addMapLayer(kas.warstwa)
 
     def _normalizuj_stara_struktura(self, wpol, wpol_data):
         obecne = [f.name() for f in wpol.fields()]
@@ -236,6 +213,12 @@ class PrzygotujCiecieStUPUL:
             wpol_data.changeAttributeValues({feat.id(): attrs})
 
     def _buduj_pol_uproszczona(self, src, wyj_sc):
+        """Buduje uproszczoną warstwę poligonową (tylko pola z _KOLUMNY_POL)
+        i zapisuje ją na dysk pod wyj_sc - zawsze jawnie w UTF-8 (nie
+        zdajemy się na domyślne kodowanie processing/OGR, które na tym
+        systemie to Windows-1250 i psuje polskie znaki w dalszych
+        narzędziach). Zwraca warstwę pamięciową (do dalszego użycia, np.
+        point on surface bez ponownego wczytywania z dysku)."""
         # geometrie moga byc MultiPolygon (brak wczesniejszego rozbicia na
         # singleparts) - warstwa pomocnicza musi to dopuszczac
         wyj = QgsVectorLayer('MultiPolygon?crs=epsg:2180', 'pol_uproszczona', 'memory')
@@ -253,10 +236,24 @@ class PrzygotujCiecieStUPUL:
             feats.append(nf)
         wyj_data.addFeatures(feats)
 
-        processing.run('native:savefeatures', {
-            'INPUT': wyj,
-            'OUTPUT': wyj_sc,
-        })
+        QgsVectorFileWriter.writeAsVectorFormatV3(
+            wyj, wyj_sc, QgsProject.instance().transformContext(),
+            opis._opcje_zapisu())
+        return wyj
+
+    def _buduj_pkt(self, wpol_uproszczona, wyj_sc):
+        """WYDZ_PKT_stare = point on surface WYDZ_POL_stare (ta sama
+        uproszczona struktura pól, nie pełny zestaw z wpol_temp). Liczone
+        w pamięci (bez pośredniego zapisu na dysk) i zapisywane jawnie w
+        UTF-8, tym samym mechanizmem co _buduj_pol_uproszczona."""
+        wynik = processing.run('native:pointonsurface', {
+            'INPUT': wpol_uproszczona,
+            'OUTPUT': 'memory:',
+        })['OUTPUT']
+
+        QgsVectorFileWriter.writeAsVectorFormatV3(
+            wynik, wyj_sc, QgsProject.instance().transformContext(),
+            opis._opcje_zapisu())
 
     def _dopisz_metadane(self, wydz, wydz_path, baza_sc):
         d = DopiszKody(self.iface)
