@@ -472,7 +472,7 @@ class LasR:
         self.zanum.triggered.connect(self.zanumeruj)
 
         self.dop_w_o = QAction(
-            QIcon(None), "Dopisz oddziały do wydzieleń", self.iface.mainWindow()
+            QIcon(None), "Dopisz ODDZ do WYDZ (bez nadpisania)", self.iface.mainWindow()
         )
         self.dop_w_o.setToolTip(
             "Uzupełnia w wydzieleniach numer oddziału, w którym się znajdują.")
@@ -709,7 +709,7 @@ class LasR:
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
         self.a_dopisz_dane_wydz = QAction(
-            QIcon(None), "Dopisz ODDZ do WYDZ (bez nadpisania)",
+            QIcon(None), "Przepisz ODDZ i WYDZ ze starych WYDZ",
             self.iface.mainWindow()
         )
         self.a_dopisz_dane_wydz.setToolTip(
@@ -719,7 +719,7 @@ class LasR:
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
 
         self.a_dop_w_o_upul = QAction(
-            QIcon(None), "Dopisz oddziały do wydzieleń", self.iface.mainWindow()
+            QIcon(None), "Dopisz ODDZ do WYDZ (bez nadpisania)", self.iface.mainWindow()
         )
         self.a_dop_w_o_upul.setToolTip(
             "Uzupełnia w wydzieleniach numer oddziału, w którym się znajdują.")

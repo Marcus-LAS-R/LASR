@@ -5,6 +5,13 @@ from PyQt5.QtCore import QVariant
 
 from .funkcje import wybierz_warstwe_z_kandydatow
 
+_PUSTE_WARTOSCI = ('', ' ', 'NULL', None)
+
+
+def _puste(wartosc):
+    return wartosc in _PUSTE_WARTOSCI or (
+        isinstance(wartosc, str) and wartosc.strip() == '')
+
 
 def dopOddzWydz(iface, oddz=False):  # noqa
     QgsMessageLog.logMessage(
@@ -117,11 +124,7 @@ def dopOddzWydz(iface, oddz=False):  # noqa
                     if abs(inter.area() /
                            sl_wydz[idk].geometry().area()) >= 0.99:
                         if idk not in f_dop:
-                            wydz.changeAttributeValues(idk,
-                                                       {fnm['ODDZ']:
-                                                        str(foddz['ODDZ'])})
                             f_dop.append(idk)
-                            dopisano += 1
 
                             # zestawa adres dla slowniki zliczajacego wydz
                             gm = sl_wydz[idk]['MUNICIP']
@@ -137,6 +140,12 @@ def dopOddzWydz(iface, oddz=False):  # noqa
                             # dodaj do slownika liczbe jezeli nie jest lz
                             if str(sl_wydz[idk]['WYDZ']).upper() != 'LZ':
                                 sl_licz[adr][0] += 1
+
+                            # nie nadpisuj ODDZ, jesli wydzielenie juz je ma
+                            if _puste(sl_wydz[idk]['ODDZ']):
+                                wydz.changeAttributeValues(
+                                    idk, {fnm['ODDZ']: str(foddz['ODDZ'])})
+                                dopisano += 1
 
                     elif abs(inter.area() /
                              sl_wydz[idk].geometry().area()) > 0.01\
