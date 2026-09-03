@@ -13,13 +13,14 @@ pomocniczych przy pracy nad opisami taksacyjnymi:
 - warstwa punktowa "opis_notatki" (pole NOTATKA) - każdy dodany punkt
   wymaga wypełnienia tekstu notatki.
 
-Przycisk "Utwórz/wskaż" dla każdej warstwy najpierw szuka automatycznie -
-już wczytanej warstwy o domyślnej nazwie w projekcie, potem pliku o tej
-nazwie w folderze SHP_opis, siostrzanym do folderu SHP warstwy WYDZ
-(patrz `_folder_opis`). Dopiero gdy nic nie znajdzie, otwiera okienko, w
-którym można ręcznie wskazać (istniejący plik) albo utworzyć (nowa
-nazwa/lokalizacja) warstwę - wymagane kolumny są wtedy sprawdzane, żeby
-uniknąć późniejszego crasha przy braku pola.
+Warstwy są wyszukiwane automatycznie przy każdym pokazaniu docka
+(`showEvent`) - najpierw już wczytana warstwa o domyślnej nazwie w
+projekcie, potem plik o tej nazwie w folderze SHP_opis, siostrzanym do
+folderu SHP warstwy WYDZ (patrz `_folder_opis`). Dopiero gdy dla którejś
+z trzech warstw nic nie znaleziono, pojawia się jeden zbiorczy popup z
+pytaniem, czy utworzyć brakujące warstwy w tej domyślnej lokalizacji -
+"Nie" zostawia je bez zmian (odpowiednie przyciski trybu zostają
+wyłączone), do ponownej próby trzeba schować i pokazać dock jeszcze raz.
 
 Punkty dodawane są przez własne narzędzie mapy (QgsMapToolEmitPoint)
 bezpośrednio przez dataProvider - bez formularza atrybutów. Można klikać
@@ -34,7 +35,7 @@ from PyQt5.QtGui import (
     QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygon,
 )
 from PyQt5.QtWidgets import (
-    QDialog, QDialogButtonBox, QDockWidget, QFileDialog, QGroupBox,
+    QDialog, QDialogButtonBox, QDockWidget, QGroupBox,
     QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
     QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
@@ -202,11 +203,6 @@ def _folder_opis():
     return os.path.join(os.path.dirname(folder_zrodlowy), NAZWA_FOLDER_OPIS)
 
 
-def _ma_pola(lyr, wymagane_pola):
-    nazwy = {pole.name() for pole in lyr.fields()}
-    return set(wymagane_pola).issubset(nazwy)
-
-
 def _wczytaj_plik(sciezka, nazwa):
     lyr = QgsVectorLayer(sciezka, nazwa, 'ogr')
     QgsProject.instance().addMapLayer(lyr)
@@ -292,11 +288,6 @@ class WarstwaOpisowDock(QDockWidget):
         box_klon = QGroupBox(f'Warstwa {NAZWA_KLON} (do KLON.txt)', glowny)
         lay_klon = QVBoxLayout(box_klon)
 
-        btn = QPushButton('Utwórz/wskaż')
-        btn.setMaximumWidth(100)
-        btn.clicked.connect(self._utworz_klon)
-        lay_klon.addWidget(btn, alignment=Qt.AlignLeft)
-
         self.btn_klonuj = QPushButton('Klonuj')
         self.btn_klonuj.setToolTip(
             'Tryb dodawania odcinka dwoma kliknięciami na mapie: pierwszy '
@@ -310,11 +301,6 @@ class WarstwaOpisowDock(QDockWidget):
         # --- warstwa punktowa (grupy) -----------------------------------
         box_pkt = QGroupBox(f'Warstwa {NAZWA_PUNKTY} (opisy generyczne)', glowny)
         lay_pkt = QVBoxLayout(box_pkt)
-
-        btn = QPushButton('Utwórz/wskaż')
-        btn.setMaximumWidth(90)
-        btn.clicked.connect(self._utworz_punkty)
-        lay_pkt.addWidget(btn, alignment=Qt.AlignLeft)
 
         lay_pkt.addWidget(QLabel('Grupa (klik = tryb dodawania punktów):'))
         siatka = QGridLayout()
@@ -334,11 +320,6 @@ class WarstwaOpisowDock(QDockWidget):
         box_notatki = QGroupBox(
             f'Warstwa {NAZWA_NOTATKI} (notatki tekstowe)', glowny)
         lay_notatki = QVBoxLayout(box_notatki)
-
-        btn = QPushButton('Utwórz/wskaż')
-        btn.setMaximumWidth(100)
-        btn.clicked.connect(self._utworz_notatki)
-        lay_notatki.addWidget(btn, alignment=Qt.AlignLeft)
 
         self.btn_notatki = QPushButton('Notatki')
         self.btn_notatki.setToolTip(
@@ -393,15 +374,14 @@ class WarstwaOpisowDock(QDockWidget):
 
     # ------------------------------------------------- wspolna logika ---
 
-    def _pobierz_lub_wskaz(self, nazwa, typ_geom, typ_geom_txt, pola):
-        """Zwraca warstwę: już wczytaną w projekcie pod domyślną nazwą,
-        albo istniejący plik o tej nazwie w folderze SHP_opis. Dopiero
-        gdy nic nie znaleziono automatycznie, otwiera okienko, w którym
-        można wskazać istniejący plik (zostanie wczytany, po sprawdzeniu
-        typu geometrii i wymaganych kolumn) albo podać nową
-        nazwę/lokalizację (zostanie utworzona). `pola` (lista QgsField)
-        określa też wymagane kolumny przy wskazywaniu ręcznym. None, jeśli
-        użytkownik anulował albo wskazana warstwa nie pasuje."""
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._sprawdz_warstwy_opisowe()
+
+    def _znajdz_automatycznie(self, nazwa, typ_geom):
+        """Warstwa już wczytana w projekcie pod domyślną nazwą, albo
+        istniejący plik o tej nazwie w folderze SHP_opis - bez otwierania
+        żadnego okna. None, jeśli nic nie znaleziono."""
         istniejaca = _znajdz_warstwe(nazwa, typ_geom)
         if istniejaca is not None:
             return istniejaca
@@ -411,50 +391,66 @@ class WarstwaOpisowDock(QDockWidget):
             sciezka = os.path.join(folder, nazwa + '.shp')
             if os.path.isfile(sciezka):
                 return _wczytaj_plik(sciezka, nazwa)
+        return None
 
-        domyslna_sciezka = (
-            os.path.join(folder, nazwa + '.shp') if folder else nazwa + '.shp')
-        sciezka, _ = QFileDialog.getSaveFileName(
-            self, f'Wskaż lub utwórz warstwę {nazwa}', domyslna_sciezka,
-            'Shapefile (*.shp)', options=QFileDialog.DontConfirmOverwrite)
-        if not sciezka:
-            return None
+    def _sprawdz_warstwy_opisowe(self):
+        """Uruchamiane przy każdym pokazaniu docka (showEvent) - dla
+        każdej z trzech warstw szuka automatycznie już wczytanej warstwy
+        albo pliku w SHP_opis (`_znajdz_automatycznie`). Dla warstw,
+        których nie znaleziono, pokazuje jeden zbiorczy popup z pytaniem,
+        czy je utworzyć w domyślnej lokalizacji - "Nie" zostawia je jako
+        None (odpowiednie przyciski trybu zostają wyłączone w
+        `_odswiez`)."""
+        spec = [
+            (NAZWA_KLON, 'klon_lyr', QgsWkbTypes.LineGeometry,
+             'LineString', POLA_KLON),
+            (NAZWA_PUNKTY, 'pkt_lyr', QgsWkbTypes.PointGeometry,
+             'Point', POLA_PUNKTY),
+            (NAZWA_NOTATKI, 'notatki_lyr', QgsWkbTypes.PointGeometry,
+             'Point', POLA_NOTATKI),
+        ]
 
-        if not os.path.isfile(sciezka):
-            return _utworz_warstwe(
-                sciezka, typ_geom_txt,
-                pola, os.path.splitext(os.path.basename(sciezka))[0])
+        brakujace = []
+        for nazwa, atrybut, typ_geom, typ_geom_txt, pola in spec:
+            if getattr(self, atrybut) is not None:
+                continue
+            lyr = self._znajdz_automatycznie(nazwa, typ_geom)
+            if lyr is not None:
+                setattr(self, atrybut, lyr)
+                if nazwa == NAZWA_KLON:
+                    _wylacz_formularz(lyr)
+            else:
+                brakujace.append((nazwa, atrybut, typ_geom_txt, pola))
 
-        # wskazano istniejacy plik - wczytaj go i sprawdz czy pasuje
-        wybrana_nazwa = os.path.splitext(os.path.basename(sciezka))[0]
-        lyr = QgsVectorLayer(sciezka, wybrana_nazwa, 'ogr')
-        wymagane_pola = [pole.name() for pole in pola]
-        if not lyr.isValid() or lyr.geometryType() != typ_geom:
-            QMessageBox.warning(
-                self, 'Nieprawidłowa warstwa',
-                'Wskazany plik nie jest poprawną warstwą oczekiwanego '
-                'typu geometrii.')
-            return None
-        if not _ma_pola(lyr, wymagane_pola):
-            QMessageBox.warning(
-                self, 'Brak kolumn',
-                'Wskazanej warstwie brakuje wymaganych kolumn: ' +
-                ', '.join(wymagane_pola))
-            return None
+        if brakujace:
+            folder = _folder_opis()
+            odp = QMessageBox.question(
+                self, 'Warstwy opisowe',
+                'Nie znaleziono w domyślnej lokalizacji'
+                + (f' ({folder})' if folder else '')
+                + ' następujących warstw:\n- '
+                + '\n- '.join(n for n, *_ in brakujace)
+                + '\n\nUtworzyć brakujące warstwy?',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if odp == QMessageBox.Yes:
+                if not folder:
+                    QMessageBox.warning(
+                        self, 'Brak lokalizacji',
+                        'Nie udało się ustalić domyślnej lokalizacji '
+                        '(brak wczytanej warstwy z plikiem na dysku w '
+                        'projekcie) - nie można utworzyć warstw.')
+                else:
+                    for nazwa, atrybut, typ_geom_txt, pola in brakujace:
+                        sciezka = os.path.join(folder, nazwa + '.shp')
+                        lyr = _utworz_warstwe(
+                            sciezka, typ_geom_txt, pola, nazwa)
+                        setattr(self, atrybut, lyr)
+                        if nazwa == NAZWA_KLON:
+                            _wylacz_formularz(lyr)
 
-        QgsProject.instance().addMapLayer(lyr)
-        return lyr
+        self._odswiez()
 
     # ------------------------------------------------------ warstwa Klon
-
-    def _utworz_klon(self):
-        lyr = self._pobierz_lub_wskaz(
-            NAZWA_KLON, QgsWkbTypes.LineGeometry, 'LineString', POLA_KLON)
-        if lyr is None:
-            return
-        self.klon_lyr = lyr
-        _wylacz_formularz(self.klon_lyr)
-        self._odswiez()
 
     def _klonuj(self):
         if self.klon_lyr is None:
@@ -495,14 +491,6 @@ class WarstwaOpisowDock(QDockWidget):
         self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
 
     # -------------------------------------------------- warstwa punktowa
-
-    def _utworz_punkty(self):
-        lyr = self._pobierz_lub_wskaz(
-            NAZWA_PUNKTY, QgsWkbTypes.PointGeometry, 'Point', POLA_PUNKTY)
-        if lyr is None:
-            return
-        self.pkt_lyr = lyr
-        self._odswiez()
 
     def _wybierz_grupe(self, grupa):
         if self.pkt_lyr is None:
@@ -550,14 +538,6 @@ class WarstwaOpisowDock(QDockWidget):
         self.pkt_lyr.triggerRepaint()
 
     # --------------------------------------------------- warstwa notatek
-
-    def _utworz_notatki(self):
-        lyr = self._pobierz_lub_wskaz(
-            NAZWA_NOTATKI, QgsWkbTypes.PointGeometry, 'Point', POLA_NOTATKI)
-        if lyr is None:
-            return
-        self.notatki_lyr = lyr
-        self._odswiez()
 
     def _notatki_toggle(self):
         if self.notatki_lyr is None:
