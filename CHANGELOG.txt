@@ -1,6 +1,32 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0m — 2026-09-03
+------------------------------------------------
+
+1. NOWOŚĆ: w widgecie "Utwórz/edytuj warstwy do opisów" nowy przycisk
+   "Przypnij do pola pracy" (z ikoną flagi) - pozwala zapisać w projekcie,
+   żeby ten widget sam się otwierał przy wczytaniu Twojego szablonowego
+   "pola pracy", a chował się dla innych projektów. Ustawienie zapisuje
+   się razem z projektem (Ctrl+S)
+
+2. POPRAWKA: kliknięcie "Utwórz/wskaż" dla warstw Klon i Notatek
+   potrafiło nadpisać wcześniej ustawiony przez Ciebie styl warstwy (np.
+   regułowy) domyślnym stylem wtyczki, nawet gdy warstwa była już
+   wczytana - teraz żaden styl nie jest już wymuszany
+
+3. ZMIANA: układ przycisków grup w warstwie punktowej - lewa kolumna
+   DROGI L / ZRĄB / LZ-Ł, prawa INNE WYL / L ENERG / SUKCESJA
+
+4. PORZĄDKI w widgecie opisów: czytelniejsze tytuły sekcji (od razu z
+   nazwą warstwy), usunięte zbędne podpisy, przyciski "Utwórz/wskaż"
+   mniejsze i po lewej, żeby się nie myliły z przyciskami wyboru grupy
+
+5. ZMIANA NAZW: "Utwórz warstwy do opisów" -> "Utwórz/edytuj warstwy do
+   opisów"; "Przepisz ODDZ i WYDZ ze starych WYDZ" -> "Dopisz ODDZ do WYDZ
+   (bez nadpisania)" - dla jasności, że narzędzie nigdy nie nadpisuje już
+   wpisanych numerów oddziału/wydzielenia
+
 Wersja 2.0l — 2026-09-02
 ------------------------------------------------
 
