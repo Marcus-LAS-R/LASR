@@ -6,7 +6,10 @@ warstwę.
 Domyślnie warstwa źródłowa to pierwsza punktowa warstwa w projekcie,
 której nazwa zawiera "stare" (np. WYDZ_PKT_stare), a docelowa to pierwsza
 poligonowa warstwa nazwana "WYDZ" (bez "stare" w nazwie). Dopisywane są
-zawsze tylko pola ODDZ i WYDZ (tryb: uzupełnij puste).
+zawsze tylko pola ODDZ i WYDZ. Domyślny tryb to uzupełnianie pustych -
+jeśli wśród dopasowanych wydzieleń są takie z już wypełnionym ODDZ/WYDZ,
+użytkownik jest pytany, czy je nadpisać (logika.policz_juz_wypelnione);
+"Nie" zachowuje dotychczasowe zachowanie (tylko puste pola).
 
 Przed właściwym dopisaniem (`logika.wykonaj`) uruchamiana jest kontrola
 geometryczna (`logika.waliduj_geometrie`) - relacja punkt-poligon musi
@@ -126,7 +129,22 @@ class DopiszDaneWydzielenDialog(QDialog):
             QMessageBox.warning(self, "Popraw dane", walidacja['komunikat'])
             return
 
-        raport = logika.wykonaj(zrodlo, cel, _POLA_DOPISYWANE)
+        pola_dopisywane = _POLA_DOPISYWANE
+        nazwy_pol = [nazwa for nazwa, _ in _POLA_DOPISYWANE]
+        juz_wypelnione = logika.policz_juz_wypelnione(zrodlo, cel, nazwy_pol)
+        if juz_wypelnione > 0:
+            odpowiedz = QMessageBox.question(
+                self, "Nadpisać wypełnione?",
+                f"Znaleziono {juz_wypelnione} wydzieleń z już wypełnionym "
+                "ODDZ lub WYDZ, które mają dopasowany stary punkt.\n\n"
+                "Nadpisać te wartości?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            tryb = (
+                logika.TRYB_NADPISZ if odpowiedz == QMessageBox.Yes
+                else logika.TRYB_PUSTE)
+            pola_dopisywane = [(nazwa, tryb) for nazwa in nazwy_pol]
+
+        raport = logika.wykonaj(zrodlo, cel, pola_dopisywane)
         self._pokaz_raport(raport, cel)
         self.accept()
 

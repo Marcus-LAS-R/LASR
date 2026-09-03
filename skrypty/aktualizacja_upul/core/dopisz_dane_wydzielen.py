@@ -157,6 +157,37 @@ def _etykieta_obiektu(f):
     return f"fid={f.id()}"
 
 
+def policz_juz_wypelnione(zrodlo_lyr, cel_lyr, nazwy_pol):
+    """Liczy wydzielenia `cel_lyr`, które mają jednoznacznie dopasowany
+    punkt `zrodlo_lyr` ORAZ przynajmniej jedno z `nazwy_pol` już
+    wypełnione - używane PRZED `wykonaj()`, żeby zapytać użytkownika, czy
+    nadpisać te wartości, czy zostawić je bez zmian (TRYB_PUSTE)."""
+    nazwy_pol_cel = {pole.name() for pole in cel_lyr.fields()}
+    pola = [n for n in nazwy_pol if n in nazwy_pol_cel]
+    if not pola:
+        return 0
+
+    si = QgsSpatialIndex()
+    zrodlo_pkt = {}
+    for f in zrodlo_lyr.getFeatures():
+        si.insertFeature(f)
+        zrodlo_pkt[f.id()] = f
+
+    liczba = 0
+    for f in cel_lyr.getFeatures():
+        geom = f.geometry()
+        kandydaci = si.intersects(geom.boundingBox())
+        trafienia = [
+            idk for idk in kandydaci
+            if geom.contains(zrodlo_pkt[idk].geometry())
+        ]
+        if len(trafienia) != 1:
+            continue
+        if any(not _puste(f[nazwa]) for nazwa in pola):
+            liczba += 1
+    return liczba
+
+
 def wykonaj(zrodlo_lyr, cel_lyr, wybor_pol):
     """Dopisuje dane z `zrodlo_lyr` (punkty) do `cel_lyr` (poligony).
 
