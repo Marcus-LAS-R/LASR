@@ -1,6 +1,74 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0n — 2026-09-04
+------------------------------------------------
+
+1. NOWOŚĆ: "Utwórz ADR_LES dla starych wydzieleń" (menu Aktualizacja
+   UPUL) - jak "Utwórz pozostałe ADR_LES dla nowych wydzieleń", ale
+   pozwala wybrać dowolną warstwę (domyślnie WYDZ) i buduje adres leśny
+   wyłącznie dla wydzieleń z uzupełnionym oddziałem i literą - resztę
+   zostawia bez zmian, zamiast wywalać błędny adres.
+
+2. NOWOŚĆ: "Usuń nadmiarowe WYDZ w bazie" (menu Aktualizacja UPUL) -
+   przed usunięciem z bazy wydzieleń, których nie ma już w warstwie,
+   automatycznie poprawia adresy różniące się wyłącznie leśnictwem, żeby
+   nie skasować danych, które po prostu zmieniły przynależność do
+   leśnictwa.
+
+3. NOWOŚĆ: "Doliteruj wydzielenia" w Aktualizacji UPUL sprawdza teraz
+   punkty opisowe LZ-Ł i automatycznie wpisuje "Lz" tam, gdzie taki
+   punkt leży na jeszcze niezaliterowanym wydzieleniu (checkbox "Dopisz
+   Lz na podstawie opis_pkt", domyślnie włączony - można wyłączyć).
+   Dialog uproszczony do samego wyboru warstwy. Wersja w Rozliczeniu
+   powierzchni działa jak dotychczas, bez zmian.
+
+4. NOWOŚĆ: cztery nowe kontrole w "Sprawdź położenie warstw punktowych
+   (opisów)" - wykrywają wydzielenia z więcej niż jednym punktem
+   WYDZ_PKT_stare albo opis_pkt na tym samym poligonie, wydzielenia z
+   obydwoma naraz oraz wydzielenia bez żadnego punktu opisowego
+   ("sieroty"). Wyjątek: kilka punktów opis_pkt "LZ-Ł" na jednym
+   wielopoligonowym wydzieleniu Lz nie jest już traktowane jako błąd.
+
+5. ZMIANA: kilka kontroli w Aktualizacji UPUL ("Przepisz ODDZ i WYDZ ze
+   starych WYDZ", "Dopisz generyczne OT (opis_pkt)", "Utwórz raporty
+   KLON i NOTATKI") pokazuje teraz błędy w spójnych kolorach - czerwone
+   punkty dla problemów z położeniem, pomarańczowe/żółte poligony dla
+   wydzieleń z konfliktem/duplikatem albo brakującym opisem - łatwiej
+   je odróżnić na mapie.
+
+6. NOWOŚĆ: dwie nowe pozycje "Uzupełnij wydzielenia w bazie" w
+   Aktualizacji UPUL (po "Utwórz ADR_LES dla starych wydzieleń" i po
+   "Utwórz pozostałe ADR_LES dla nowych wydzieleń") - ten sam,
+   sprawdzony skrypt co dotychczasowy "Dopisz/uzupełnij wydzielenia w
+   bazie", tylko bliżej pod ręką w nowym przepływie pracy.
+
+7. ZMIANA NAZW w menu Aktualizacja UPUL: "Przygotuj warstwy dotaks" ->
+   "Przygotuj warstwy DOTAKS", "Przygotuj stare wydzielenia do cięcia"
+   -> "Przygotuj stare WYDZ do cięcia", "Edytuj warstwy do opisów" ->
+   "Edytor warstw do opisów", "Sprawdź położenie warstw opisowych" ->
+   "Sprawdź położenie warstw punktowych (opisów)", "Doliteruj
+   wydzielenia" -> "Doliteruj pozostałe wydzielenia", "Utwórz adresy
+   leśne" -> "Utwórz pozostałe ADR_LES dla nowych wydzieleń", "Dopisz
+   opisy taksacyjne do bazy" -> "Dopisz generyczne OT (opis_pkt)".
+
+8. NOWOŚĆ: automatyczne wyszukiwanie warstw opisowych (Klon/opis_pkt/
+   notatki) zamiast ręcznego "Utwórz/wskaż" - wtyczka sama znajduje te
+   warstwy przy otwarciu okna "Edytor warstw do opisów", a gdy czegoś
+   brakuje, pyta raz, czy je założyć.
+
+9. NOWOŚĆ: preset "Przydomowy" przy oznaczaniu punktów opisowych grupy
+   "INNE WYL" - szybciej uzupełnisz typowy opis "teren przydomowy".
+
+10. POPRAWKA: "Przepisz ODDZ i WYDZ ze starych WYDZ" ma teraz opcję
+    nadpisania już wypełnionych pól (wcześniej dopisywał tylko do
+    pustych, bez możliwości wyboru).
+
+11. POPRAWKA: "Utwórz ADR_LES dla starych wydzieleń" (i pokrewne
+    skrypty adresujące) potrafiły wpisać do adresu leśnego dosłowny
+    tekst "NULL" zamiast pominąć wydzielenie bez oddziału/litery -
+    poprawione.
+
 Wersja 2.0m — 2026-09-03
 ------------------------------------------------
 
