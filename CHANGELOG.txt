@@ -69,6 +69,11 @@ Wersja 2.0n — 2026-09-04
     tekst "NULL" zamiast pominąć wydzielenie bez oddziału/litery -
     poprawione.
 
+12. POPRAWKA: "Edytor warstw do opisów" zgłaszał brak warstw opisowych
+    nawet w zupełnie pustym "polu pracy", chociaż SHP_opis stało tuż
+    obok zapisanego projektu - wyszukiwanie patrzy teraz najpierw w
+    folder samego projektu, nie tylko na wczytane warstwy.
+
 Wersja 2.0m — 2026-09-03
 ------------------------------------------------
 

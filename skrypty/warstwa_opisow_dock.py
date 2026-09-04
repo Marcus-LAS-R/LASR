@@ -193,11 +193,18 @@ def _folder_startowy():
 
 
 def _folder_opis():
-    """Folder SHP_opis, siostrzany do folderu warstwy WYDZ (albo
-    pierwszej napotkanej warstwy z plikiem na dysku) - domyślna
-    lokalizacja tworzenia/wyszukiwania warstw opisowych. Nie tworzy
-    folderu - to robi _utworz_warstwe w razie potrzeby. Pusty string,
-    jeśli nie da się ustalić żadnego punktu odniesienia."""
+    """Folder SHP_opis - domyślna lokalizacja tworzenia/wyszukiwania
+    warstw opisowych. Najpierw folder samego (zapisanego) projektu QGIS -
+    działa nawet w pustym "polu pracy" bez ani jednej wczytanej warstwy.
+    Dopiero gdy projekt nie jest jeszcze zapisany na dysku, fallback na
+    folder siostrzany do SHP wczytanej warstwy WYDZ (albo pierwszej
+    napotkanej warstwy z plikiem na dysku). Nie tworzy folderu - to robi
+    _utworz_warstwe w razie potrzeby. Pusty string, jeśli nie da się
+    ustalić żadnego punktu odniesienia."""
+    projekt = QgsProject.instance().absolutePath()
+    if projekt:
+        return os.path.join(projekt, NAZWA_FOLDER_OPIS)
+
     folder_zrodlowy = _folder_startowy()
     if not folder_zrodlowy:
         return ''
