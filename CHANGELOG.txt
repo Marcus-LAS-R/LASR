@@ -81,6 +81,18 @@ Wersja 2.0n — 2026-09-04
     blokowało ponowne wyszukanie/utworzenie warstw. Teraz widget
     prawidłowo zapomina stare warstwy przy zmianie projektu.
 
+14. POPRAWKA KRYTYCZNA: jeśli w projekcie/SHP_opis trafiła się warstwa
+    "opis_pkt" z innym zestawem kolumn (np. z innego szablonu), "Edytor
+    warstw do opisów" przyjmował ją bez sprawdzenia i wywalał się przy
+    pierwszym dodanym punkcie. Teraz taka warstwa jest odrzucana (z
+    ostrzeżeniem na pasku), a wyszukiwanie szuka dalej/proponuje
+    utworzenie nowej.
+
+15. NOWOŚĆ: przycisk "Wczytaj/utwórz warstwy" w Edytorze warstw do
+    opisów (lewy górny róg, obok "Przypnij do pola pracy") - ręcznie
+    uruchamia wyszukanie/utworzenie trzech warstw opisowych, bez
+    chowania i pokazywania okna od nowa.
+
 Wersja 2.0m — 2026-09-03
 ------------------------------------------------
 

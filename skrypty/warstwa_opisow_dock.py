@@ -15,12 +15,14 @@ pomocniczych przy pracy nad opisami taksacyjnymi:
 
 Warstwy są wyszukiwane automatycznie przy każdym pokazaniu docka
 (`showEvent`) - najpierw już wczytana warstwa o domyślnej nazwie w
-projekcie, potem plik o tej nazwie w folderze SHP_opis, siostrzanym do
-folderu SHP warstwy WYDZ (patrz `_folder_opis`). Dopiero gdy dla którejś
-z trzech warstw nic nie znaleziono, pojawia się jeden zbiorczy popup z
-pytaniem, czy utworzyć brakujące warstwy w tej domyślnej lokalizacji -
-"Nie" zostawia je bez zmian (odpowiednie przyciski trybu zostają
-wyłączone), do ponownej próby trzeba schować i pokazać dock jeszcze raz.
+projekcie (z weryfikacją, że ma wymagane pola - inaczej pomijana z
+ostrzeżeniem), potem plik o tej nazwie w folderze SHP_opis, siostrzanym
+do folderu projektu (patrz `_folder_opis`). Dopiero gdy dla którejś z
+trzech warstw nic poprawnego nie znaleziono, pojawia się jeden zbiorczy
+popup z pytaniem, czy utworzyć brakujące warstwy w tej domyślnej
+lokalizacji - "Nie" zostawia je bez zmian (odpowiednie przyciski trybu
+zostają wyłączone). Przycisk "Wczytaj/utwórz warstwy" pozwala uruchomić
+to samo wyszukiwanie ręcznie, bez chowania/pokazywania docka od nowa.
 
 Punkty dodawane są przez własne narzędzie mapy (QgsMapToolEmitPoint)
 bezpośrednio przez dataProvider - bez formularza atrybutów. Można klikać
@@ -152,6 +154,15 @@ def _opcje_zapisu():
     opcje.driverName = 'ESRI Shapefile'
     opcje.fileEncoding = 'UTF-8'
     return opcje
+
+
+def _ma_pola(lyr, pola):
+    """Czy `lyr` ma wszystkie pola z listy `pola` (QgsField)? Bez tej
+    kontroli warstwa o właściwej nazwie/geometrii, ale z innego szablonu
+    (obcy zestaw kolumn) zostaje cicho przyjęta jako "ta" warstwa opisowa,
+    a pierwszy zapis punktu/odcinka wywala KeyError na brakującym polu."""
+    nazwy = {f.name() for f in lyr.fields()}
+    return all(p.name() in nazwy for p in pola)
 
 
 def _zywa(lyr):
@@ -288,7 +299,21 @@ class WarstwaOpisowDock(QDockWidget):
         self.setWidget(glowny)
         lay = QVBoxLayout(glowny)
 
-        # --- przypięcie do pola pracy ------------------------------------
+        # --- gorny wiersz: reczne wczytaj/utworz (lewo) + przypiecie (prawo)
+        gorny_wiersz = QHBoxLayout()
+
+        self.btn_wczytaj = QPushButton('Wczytaj/utwórz warstwy')
+        self.btn_wczytaj.setToolTip(
+            'Ręcznie uruchamia wyszukanie/utworzenie trzech warstw '
+            'opisowych - to samo, co dzieje się automatycznie przy każdym '
+            'pokazaniu tego okna. Przydatne, gdy trzeba spróbować ponownie '
+            'bez chowania i pokazywania docka (np. po dodaniu SHP_opis '
+            'ręcznie, albo po odrzuceniu wcześniejszego pytania).')
+        self.btn_wczytaj.clicked.connect(self._sprawdz_warstwy_opisowe)
+        gorny_wiersz.addWidget(self.btn_wczytaj)
+
+        gorny_wiersz.addStretch(1)
+
         self.btn_przypnij = QPushButton('Przypnij do pola pracy')
         self.btn_przypnij.setCheckable(True)
         self.btn_przypnij.setToolTip(
@@ -300,7 +325,9 @@ class WarstwaOpisowDock(QDockWidget):
         self._ikona_przypieta = _ikona_flagi(QColor(200, 0, 0))
         self._ikona_wolna = _ikona_flagi(QColor(160, 160, 160))
         self.btn_przypnij.setIcon(self._ikona_wolna)
-        lay.addWidget(self.btn_przypnij, alignment=Qt.AlignRight)
+        gorny_wiersz.addWidget(self.btn_przypnij)
+
+        lay.addLayout(gorny_wiersz)
 
         # --- warstwa Klon --------------------------------------------
         box_klon = QGroupBox(f'Warstwa {NAZWA_KLON} (do KLON.txt)', glowny)
@@ -416,19 +443,35 @@ class WarstwaOpisowDock(QDockWidget):
         super().showEvent(event)
         self._sprawdz_warstwy_opisowe()
 
-    def _znajdz_automatycznie(self, nazwa, typ_geom):
+    def _znajdz_automatycznie(self, nazwa, typ_geom, pola):
         """Warstwa już wczytana w projekcie pod domyślną nazwą, albo
         istniejący plik o tej nazwie w folderze SHP_opis - bez otwierania
-        żadnego okna. None, jeśli nic nie znaleziono."""
+        żadnego okna. Odrzuca (z ostrzeżeniem na pasku) warstwę/plik o
+        właściwej nazwie i geometrii, ale BEZ wymaganych pól (np. obca
+        warstwa o tej samej nazwie z innego szablonu) - inaczej pierwszy
+        zapis punktu/odcinka wywala KeyError na brakującym polu. None,
+        jeśli nic poprawnego nie znaleziono."""
         istniejaca = _znajdz_warstwe(nazwa, typ_geom)
         if istniejaca is not None:
-            return istniejaca
+            if _ma_pola(istniejaca, pola):
+                return istniejaca
+            self.iface.messageBar().pushWarning(
+                'Warstwy opisowe',
+                f'Wczytana warstwa "{nazwa}" ma niezgodny zestaw pól - '
+                'pomijam ją, szukam/tworzę inną.')
 
         folder = _folder_opis()
         if folder:
             sciezka = os.path.join(folder, nazwa + '.shp')
             if os.path.isfile(sciezka):
-                return _wczytaj_plik(sciezka, nazwa)
+                lyr = _wczytaj_plik(sciezka, nazwa)
+                if _ma_pola(lyr, pola):
+                    return lyr
+                QgsProject.instance().removeMapLayer(lyr.id())
+                self.iface.messageBar().pushWarning(
+                    'Warstwy opisowe',
+                    f'Plik "{nazwa}.shp" w {folder} ma niezgodny zestaw '
+                    'pól - pomijam.')
         return None
 
     def _sprawdz_warstwy_opisowe(self):
@@ -453,7 +496,7 @@ class WarstwaOpisowDock(QDockWidget):
             if _zywa(getattr(self, atrybut)):
                 continue
             setattr(self, atrybut, None)
-            lyr = self._znajdz_automatycznie(nazwa, typ_geom)
+            lyr = self._znajdz_automatycznie(nazwa, typ_geom, pola)
             if lyr is not None:
                 setattr(self, atrybut, lyr)
                 if nazwa == NAZWA_KLON:
