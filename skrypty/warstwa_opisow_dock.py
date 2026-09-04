@@ -109,6 +109,7 @@ PRESETY_INF_ROZNE = [
     ('Droga', 'Droga'),
     ('Woda', 'Woda'),
     ('Zabudowania', 'Zabudowania'),
+    ('Przydomowy', 'Teren przydomowy'),
 ]
 
 

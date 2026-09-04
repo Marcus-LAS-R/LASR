@@ -1406,3 +1406,34 @@ class Baza(object):
             'Las-R', Qgis.Info
         )
         return True
+
+    def zmien_adresy(self, zmiany: dict) -> bool:
+        """ Nadpisuje ADRESS_FOREST w F_ARODES dla wskazanych rekordów (po
+        ARODES_INT_NUM) - używane do korekty adresu leśnego, gdy różni się
+        on wyłącznie grupą (patrz baza_synchronizuj_wydz.py). Jedna
+        transakcja - błąd wycofuje wszystkie zmiany. `zmiany` to słownik
+        {ARODES_INT_NUM: nowy_adres}. """
+        if not zmiany:
+            QgsMessageLog.logMessage(
+                'zmien_adresy: brak adresów do zmiany', 'Las-R', Qgis.Warning
+            )
+            return False
+
+        try:
+            sql = "UPDATE F_ARODES SET ADRESS_FOREST = ? WHERE ARODES_INT_NUM = ?"
+            for numer, nowy_adres in zmiany.items():
+                self.cur.execute(sql, (nowy_adres, numer))
+            self.con.commit()
+        except Exception as e:
+            self.con.rollback()
+            QgsMessageLog.logMessage(
+                f'zmien_adresy: błąd, wycofano wszystkie zmiany: {e}',
+                'Las-R', Qgis.Critical
+            )
+            return False
+
+        QgsMessageLog.logMessage(
+            f'zmien_adresy: poprawiono adres (grupę) w {len(zmiany)} rekordach',
+            'Las-R', Qgis.Info
+        )
+        return True

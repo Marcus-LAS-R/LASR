@@ -92,6 +92,7 @@ from .skrypty import (
     okladka_atlas,
     baza_kontrola_dzkat,
     baza_usun_wydz,
+    baza_synchronizuj_wydz,
     shp_usun_wydz,
     baza_kontrola_slownikow_wgSULMN,
     baza_kontrola_opisow_wgSULMN,
@@ -732,6 +733,29 @@ class LasR:
             "punktowej starych wydzieleń, która się z nimi pokrywa.")
         self.m_aktualizacja_upul.addAction(self.a_dopisz_dane_wydz)
         self.a_dopisz_dane_wydz.triggered.connect(self.dopisz_dane_do_wydzielen)
+
+        self.a_dop_adrles_stare_wydz = QAction(
+            QIcon(None), "Utwórz ADR_LES dla starych wydzieleń",
+            self.iface.mainWindow()
+        )
+        self.a_dop_adrles_stare_wydz.setToolTip(
+            "Buduje adres leśny w wybranej warstwie (domyślnie WYDZ) "
+            "wyłącznie dla wydzieleń z uzupełnionym ODDZ i WYDZ - resztę "
+            "zostawia bez zmian.")
+        self.m_aktualizacja_upul.addAction(self.a_dop_adrles_stare_wydz)
+        self.a_dop_adrles_stare_wydz.triggered.connect(
+            self.utworz_adrles_stare_wydz)
+
+        self.a_synchronizuj_wydz = QAction(
+            QIcon(None), "Usuń nadmiarowe WYDZ w bazie",
+            self.iface.mainWindow()
+        )
+        self.a_synchronizuj_wydz.setToolTip(
+            "Porównuje adresy leśne z warstwy WYDZ z bazą: poprawia adresy "
+            "różniące się wyłącznie grupą (leśnictwem), a wydzielenia, "
+            "których nie ma już w warstwie, usuwa z bazy.")
+        self.m_aktualizacja_upul.addAction(self.a_synchronizuj_wydz)
+        self.a_synchronizuj_wydz.triggered.connect(self.synchronizuj_wydz_z_baza)
 
         self.a_dop_w_o_upul = QAction(
             QIcon(None), "Dopisz ODDZ do WYDZ (bez nadpisania)", self.iface.mainWindow()
@@ -1696,6 +1720,12 @@ class LasR:
 
     def dopisz_dane_do_wydzielen(self):
         aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)
+
+    def utworz_adrles_stare_wydz(self):
+        shp_adr_les.ZaadresujStareWydz(self.iface)
+
+    def synchronizuj_wydz_z_baza(self):
+        baza_synchronizuj_wydz.synchronizuj_wydz(self.iface)
 
     def utworz_klon_txt(self):
         aktualizacja_upul.uruchom_utworz_klon_txt(self.iface)
