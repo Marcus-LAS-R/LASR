@@ -10,10 +10,14 @@ nowe) są pomijane i zgłaszane w raporcie - nie ma jednoznacznego wyboru,
 którego punktu dane wpisać.
 """
 
+import os
+
 from PyQt5.QtCore import QVariant
 from qgis.core import (
     QgsFeature, QgsField, QgsProject, QgsSpatialIndex, QgsVectorLayer,
 )
+
+_QML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'qml')
 
 TRYB_PUSTE = 'puste'
 TRYB_NADPISZ = 'nadpisz'
@@ -27,7 +31,10 @@ def _puste(wartosc):
 
 
 def _warstwa_pkt_bledow(crs, tytul, punkty_z_opisem):
-    """punkty_z_opisem: lista (QgsGeometry punktowa, opis)."""
+    """punkty_z_opisem: lista (QgsGeometry punktowa, opis). Styl -
+    point_drop_shadow_red.qml, tak jak warstwy błędów w
+    shp_sprawdz_polozenie_opisow.py (zaczerpnięty ze
+    shp_sprawdz_ciecie.py - "Sprawdź karty w wydzieleniach")."""
     lyr = QgsVectorLayer(f'Point?crs={crs.authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(
         [QgsField('OPIS', QVariant.String, '', 150)])
@@ -39,19 +46,26 @@ def _warstwa_pkt_bledow(crs, tytul, punkty_z_opisem):
         f['OPIS'] = opis
         feats.append(f)
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(
+        os.path.join(_QML_DIR, 'point_drop_shadow_red.qml'))
+    return dodana
 
 
 def _warstwa_poly_bledow(cel_lyr, cel_feats, fidy, tytul):
+    """Styl - WYDZ_z_wieloma_kartami.qml (poligony z więcej niż jednym
+    trafiającym punktem - ten sam sens co "wiele kart" w
+    shp_sprawdz_ciecie.py)."""
     lyr = QgsVectorLayer(
         f'MultiPolygon?crs={cel_lyr.crs().authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(cel_lyr.fields().toList())
     lyr.updateFields()
     feats = [cel_feats[fid] for fid in fidy]
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(
+        os.path.join(_QML_DIR, 'WYDZ_z_wieloma_kartami.qml'))
+    return dodana
 
 
 def waliduj_geometrie(zrodlo_lyr, cel_lyr):
@@ -125,13 +139,6 @@ def waliduj_geometrie(zrodlo_lyr, cel_lyr):
             "jednym WYDZ (nakładające się wydzielenia)")
 
     if 'dublety_cel' in bledy:
-        pkty = [
-            (zrodlo_feats[fid].geometry(),
-             'dublet - kilka punktów na tym samym WYDZ')
-            for fid in bledy['dublety_pkt']
-        ]
-        _warstwa_pkt_bledow(
-            crs, 'Przepisz ODDZ/WYDZ - dublety (punkty)', pkty)
         _warstwa_poly_bledow(
             cel_lyr, cel_feats, bledy['dublety_cel'],
             'Przepisz ODDZ/WYDZ - dublety (poligony)')

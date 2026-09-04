@@ -46,6 +46,7 @@ from .skrypty import (
     shp_adr_les,
     shp_literkuj,
     shp_doliterkuj,
+    shp_doliterkuj_upul,
     shp_numeruj,
     shp_sprWydzOddz,
     shp_przygCiecie,
@@ -680,7 +681,7 @@ class LasR:
         self.m_aktualizacja_upul.addSeparator()
 
         self.a_przyg_dotaks = QAction(
-            QIcon(None), "Przygotuj warstwy dotaks",
+            QIcon(None), "Przygotuj warstwy DOTAKS",
             self.iface.mainWindow()
         )
         self.a_przyg_dotaks.setToolTip(
@@ -690,7 +691,7 @@ class LasR:
         self.a_przyg_dotaks.triggered.connect(self.przygotuj_dotaks)
 
         self.a_przyg_stare_wydz = QAction(
-            QIcon(None), "Przygotuj stare wydzielenia do cięcia",
+            QIcon(None), "Przygotuj stare WYDZ do cięcia",
             self.iface.mainWindow()
         )
         self.a_przyg_stare_wydz.setToolTip(
@@ -700,7 +701,7 @@ class LasR:
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
         self.a_warstwa_opisow = QAction(
-            QIcon(None), "Edytuj warstwy do opisów", self.iface.mainWindow()
+            QIcon(None), "Edytor warstw do opisów", self.iface.mainWindow()
         )
         self.a_warstwa_opisow.setToolTip(
             "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
@@ -711,7 +712,7 @@ class LasR:
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
         self.a_sprawdz_polozenie_opisow = QAction(
-            QIcon(None), "Sprawdź położenie warstw opisowych",
+            QIcon(None), "Sprawdź położenie warstw punktowych (opisów)",
             self.iface.mainWindow()
         )
         self.a_sprawdz_polozenie_opisow.setToolTip(
@@ -746,6 +747,16 @@ class LasR:
         self.a_dop_adrles_stare_wydz.triggered.connect(
             self.utworz_adrles_stare_wydz)
 
+        self.a_uzup_wydz_stare = QAction(
+            QIcon(None), "Uzupełnij wydzielenia w bazie",
+            self.iface.mainWindow()
+        )
+        self.a_uzup_wydz_stare.setToolTip(
+            "Zapisuje w bazie danych nowe lub brakujące wydzielenia z "
+            "warstwy mapowej.")
+        self.m_aktualizacja_upul.addAction(self.a_uzup_wydz_stare)
+        self.a_uzup_wydz_stare.triggered.connect(self.dopisz_wydzielenia)
+
         self.a_synchronizuj_wydz = QAction(
             QIcon(None), "Usuń nadmiarowe WYDZ w bazie",
             self.iface.mainWindow()
@@ -766,16 +777,19 @@ class LasR:
         self.a_dop_w_o_upul.triggered.connect(self.dopisz_wydz_w_oddz_wybierz)
 
         self.a_dolit_upul = QAction(
-            QIcon(None), "Doliteruj wydzielenia", self.iface.mainWindow()
+            QIcon(None), "Doliteruj pozostałe wydzielenia",
+            self.iface.mainWindow()
         )
         self.a_dolit_upul.setToolTip(
             "Dopisuje brakujące litery wydzieleń bez zmiany istniejących "
-            "oznaczeń.")
+            "oznaczeń. Opcjonalnie (domyślnie włączone) dopisuje WYDZ='Lz' "
+            "na podstawie punktów opisowych LZ-Ł.")
         self.m_aktualizacja_upul.addAction(self.a_dolit_upul)
-        self.a_dolit_upul.triggered.connect(self.doliterkuj_wydzielenia)
+        self.a_dolit_upul.triggered.connect(self.doliterkuj_wydzielenia_upul)
 
         self.a_dop_adrles_upul = QAction(
-            QIcon(None), "Utwórz adresy leśne", self.iface.mainWindow()
+            QIcon(None), "Utwórz pozostałe ADR_LES dla nowych wydzieleń",
+            self.iface.mainWindow()
         )
         self.a_dop_adrles_upul.setToolTip(
             "Buduje pełny adres leśny (obręb-oddział-wydzielenie) dla każdego "
@@ -783,8 +797,18 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_dop_adrles_upul)
         self.a_dop_adrles_upul.triggered.connect(self.dopisz_adrles)
 
+        self.a_uzup_wydz_nowe = QAction(
+            QIcon(None), "Uzupełnij wydzielenia w bazie",
+            self.iface.mainWindow()
+        )
+        self.a_uzup_wydz_nowe.setToolTip(
+            "Zapisuje w bazie danych nowe lub brakujące wydzielenia z "
+            "warstwy mapowej.")
+        self.m_aktualizacja_upul.addAction(self.a_uzup_wydz_nowe)
+        self.a_uzup_wydz_nowe.triggered.connect(self.dopisz_wydzielenia)
+
         self.a_dopisz_opisy_taks = QAction(
-            QIcon(None), "Dopisz opisy taksacyjne do bazy",
+            QIcon(None), "Dopisz generyczne OT (opis_pkt)",
             self.iface.mainWindow()
         )
         self.a_dopisz_opisy_taks.setToolTip(
@@ -1662,6 +1686,9 @@ class LasR:
 
     def doliterkuj_wydzielenia(self):
         shp_doliterkuj.uruchom(self.iface)
+
+    def doliterkuj_wydzielenia_upul(self):
+        shp_doliterkuj_upul.uruchom(self.iface)
 
     def przeliterkuj(self):
         p = baza_przeliterkuj.Przeliterkuj(self.iface)

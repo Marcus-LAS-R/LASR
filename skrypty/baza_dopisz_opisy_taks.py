@@ -43,6 +43,8 @@ GRUPY_VALIDNE = ('INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB')
 INFO_LZ = 'LZ ze względu na powierzchnię'
 GRUPA_WYMAGA_INF_ROZNE = 'INNE WYL'
 
+_QML_DIR = os.path.join(os.path.dirname(__file__), '..', 'qml')
+
 
 def _warstwy_wektorowe(typ_geometrii):
     return [
@@ -53,7 +55,9 @@ def _warstwy_wektorowe(typ_geometrii):
 
 
 def _warstwa_pkt_bledow(crs, tytul, punkty_z_opisem):
-    """punkty_z_opisem: lista (QgsGeometry punktowa, opis)."""
+    """punkty_z_opisem: lista (QgsGeometry punktowa, opis). Styl -
+    point_drop_shadow_red.qml, tak jak warstwy błędów w
+    shp_sprawdz_polozenie_opisow.py."""
     lyr = QgsVectorLayer(f'Point?crs={crs.authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(
         [QgsField('OPIS', QVariant.String, '', 150)])
@@ -65,19 +69,22 @@ def _warstwa_pkt_bledow(crs, tytul, punkty_z_opisem):
         f['OPIS'] = opis
         feats.append(f)
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(
+        os.path.join(_QML_DIR, 'point_drop_shadow_red.qml'))
+    return dodana
 
 
-def _warstwa_poly_bledow(wydz_lyr, wydz_feats, fidy, tytul):
+def _warstwa_poly_bledow(wydz_lyr, wydz_feats, fidy, tytul, qml):
     lyr = QgsVectorLayer(
         f'MultiPolygon?crs={wydz_lyr.crs().authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(wydz_lyr.fields().toList())
     lyr.updateFields()
     feats = [wydz_feats[fid] for fid in fidy]
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(os.path.join(_QML_DIR, qml))
+    return dodana
 
 
 def waliduj_geometrie(pkt_lyr, wydz_lyr):
@@ -132,6 +139,12 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         pfid for pfid, pf in pkt_feats.items()
         if str(pf['GRUPA']).strip() not in GRUPY_VALIDNE
     ]
+    # wydzielenia do warstwy bledow (poligon) - tylko te punkty grupa_nieznana,
+    # ktore jednoznacznie trafiaja w jeden WYDZ (poza_wydz/niejednoznaczne sa
+    # juz osobno pokazane jako punkty)
+    grupa_nieznana_wydz = sorted({
+        jednoznaczne[pfid] for pfid in grupa_nieznana if pfid in jednoznaczne
+    })
 
     # 4. LZ-Ł musi trafiać w WYDZ='Lz' - liczone tylko dla punktów już
     # jednoznacznych, bez dubletu i z poprawną GRUPA
@@ -142,7 +155,7 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         if str(pkt_feats[pfid]['GRUPA']).strip() != 'LZ-Ł':
             continue
         if str(wydz_feats[wfid]['WYDZ']).strip().upper() != 'LZ':
-            lzl_niezgodne.append(pfid)
+            lzl_niezgodne.append(wfid)
 
     bledy = {}
     if adr_les_puste:
@@ -156,8 +169,9 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         bledy['dublety_wydz'] = sorted(dublety_wydz)
     if grupa_nieznana:
         bledy['grupa_nieznana'] = grupa_nieznana
+        bledy['grupa_nieznana_wydz'] = grupa_nieznana_wydz
     if lzl_niezgodne:
-        bledy['lzl_niezgodne'] = lzl_niezgodne
+        bledy['lzl_niezgodne'] = sorted(lzl_niezgodne)
 
     if bledy:
         return _raport_bledow_geometrii(
@@ -185,7 +199,7 @@ def _raport_bledow_geometrii(bledy, pkt_feats, wydz_feats, pkt_crs, wydz_lyr):
     if 'adr_les_puste' in bledy:
         _warstwa_poly_bledow(
             wydz_lyr, wydz_feats, bledy['adr_les_puste'],
-            'Opisy - WYDZ bez adresu leśnego')
+            'Opisy - WYDZ bez adresu leśnego', 'WYDZ_bez_kart.qml')
         czesci.append(
             f"{len(bledy['adr_les_puste'])} wydzielenie(a) WYDZ bez "
             "uzupełnionego adresu leśnego")
@@ -207,28 +221,28 @@ def _raport_bledow_geometrii(bledy, pkt_feats, wydz_feats, pkt_crs, wydz_lyr):
     if 'dublety_wydz' in bledy:
         _warstwa_poly_bledow(
             wydz_lyr, wydz_feats, bledy['dublety_wydz'],
-            'Opisy - dublety w wydzieleniu')
+            'Opisy - dublety w wydzieleniu', 'WYDZ_z_wieloma_kartami.qml')
         czesci.append(
             f"{len(bledy['dublety_wydz'])} wydzielenie(a) mają więcej niż "
             f"1 punkt ({len(bledy['dublety'])} punkt(ów) łącznie dzieli "
             "wydzielenie z innym punktem)")
 
     if 'grupa_nieznana' in bledy:
-        pkty = [(pkt_feats[fid].geometry(), 'nieznana wartość GRUPA')
-                for fid in bledy['grupa_nieznana']]
-        _warstwa_pkt_bledow(pkt_crs, 'Opisy - nieznana GRUPA', pkty)
+        if bledy['grupa_nieznana_wydz']:
+            _warstwa_poly_bledow(
+                wydz_lyr, wydz_feats, bledy['grupa_nieznana_wydz'],
+                'Opisy - nieznana GRUPA', 'WYDZ_bez_kart.qml')
         czesci.append(
             f"{len(bledy['grupa_nieznana'])} punkt(ów) ma wartość GRUPA "
             "spoza listy (" + ', '.join(GRUPY_VALIDNE) + ")")
 
     if 'lzl_niezgodne' in bledy:
-        pkty = [(pkt_feats[fid].geometry(), "LZ-Ł poza WYDZ='Lz'")
-                for fid in bledy['lzl_niezgodne']]
-        _warstwa_pkt_bledow(
-            pkt_crs, "Opisy - LZ-Ł niezgodne z WYDZ='Lz'", pkty)
+        _warstwa_poly_bledow(
+            wydz_lyr, wydz_feats, bledy['lzl_niezgodne'],
+            "Opisy - LZ-Ł niezgodne z WYDZ='Lz'", 'WYDZ_bez_kart.qml')
         czesci.append(
-            f"{len(bledy['lzl_niezgodne'])} punkt(ów) GRUPA=LZ-Ł leży na "
-            "wydzieleniu, które NIE ma WYDZ='Lz'")
+            f"{len(bledy['lzl_niezgodne'])} wydzielenie(a) mają punkt "
+            "GRUPA=LZ-Ł, ale WYDZ różne od 'Lz'")
 
     komunikat = (
         'Znaleziono błędy do poprawy:\n- ' + '\n- '.join(czesci) +

@@ -31,11 +31,15 @@ KLON.txt NIE ma kontroli 1:1/dubletów - kilka notatek na tym samym
 wydzieleniu jest normalne i dopuszczalne.
 """
 
+import os
+
 from PyQt5.QtCore import QVariant
 from qgis.core import (
     QgsFeature, QgsField, QgsGeometry, QgsProject, QgsSpatialIndex,
     QgsVectorLayer,
 )
+
+_QML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'qml')
 
 
 def _znajdz_poligon(si, poligony, punkt_geom):
@@ -55,7 +59,8 @@ def _konce_odcinka(geom):
 
 
 def _warstwa_bledow_punktowych(crs, tytul, punkty):
-    """punkty: lista (QgsPointXY, opis)."""
+    """punkty: lista (QgsPointXY, opis). Styl - point_drop_shadow_red.qml,
+    tak jak warstwy błędów w shp_sprawdz_polozenie_opisow.py."""
     lyr = QgsVectorLayer(f'Point?crs={crs.authid()}', tytul, 'memory')
     lyr.dataProvider().addAttributes(
         [QgsField('OPIS', QVariant.String, '', 100)])
@@ -67,20 +72,25 @@ def _warstwa_bledow_punktowych(crs, tytul, punkty):
         f['OPIS'] = opis
         feats.append(f)
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(
+        os.path.join(_QML_DIR, 'point_drop_shadow_red.qml'))
+    return dodana
 
 
-def _warstwa_bledow_liniowych(klon_lyr, fidy, tytul):
-    """Kopiuje wskazane odcinki Klon do nowej warstwy memory (podgląd błędu)."""
+def _warstwa_bledow_poligonowych(wydz_lyr, poligony, fidy, tytul):
+    """Kopiuje wskazane poligony WYDZ do nowej warstwy memory (podgląd
+    błędu). Styl - WYDZ_z_wieloma_kartami.qml."""
     lyr = QgsVectorLayer(
-        f'LineString?crs={klon_lyr.crs().authid()}', tytul, 'memory')
-    lyr.dataProvider().addAttributes(klon_lyr.fields().toList())
+        f'MultiPolygon?crs={wydz_lyr.crs().authid()}', tytul, 'memory')
+    lyr.dataProvider().addAttributes(wydz_lyr.fields().toList())
     lyr.updateFields()
-    feats = [f for f in klon_lyr.getFeatures() if f.id() in fidy]
+    feats = [poligony[fid] for fid in fidy]
     lyr.dataProvider().addFeatures(feats)
-    QgsProject.instance().addMapLayer(lyr)
-    return lyr
+    dodana = QgsProject.instance().addMapLayer(lyr)
+    dodana.loadNamedStyle(
+        os.path.join(_QML_DIR, 'WYDZ_z_wieloma_kartami.qml'))
+    return dodana
 
 
 def wykonaj(klon_lyr, wydz_lyr):
@@ -131,8 +141,10 @@ def wykonaj(klon_lyr, wydz_lyr):
         klon_fid for klon_fid, (s, k) in dopasowania.items() if s == k
     }
     if petle:
-        _warstwa_bledow_liniowych(
-            klon_lyr, petle, 'Klon - źródło i cel w tym samym wydzieleniu')
+        petle_wydz = {dopasowania[klon_fid][0] for klon_fid in petle}
+        _warstwa_bledow_poligonowych(
+            wydz_lyr, poligony, petle_wydz,
+            'Klon - źródło i cel w tym samym wydzieleniu')
         return {
             'ok': False,
             'komunikat': (
@@ -150,12 +162,9 @@ def wykonaj(klon_lyr, wydz_lyr):
 
     kolizyjne_cele = {k for k, v in cele.items() if len(v) > 1}
     if kolizyjne_cele:
-        fidy_bledne = {
-            klon_fid for klon_fid, (s, k) in dopasowania.items()
-            if k in kolizyjne_cele
-        }
-        _warstwa_bledow_liniowych(
-            klon_lyr, fidy_bledne, 'Klon - konflikt wiele-do-jeden')
+        _warstwa_bledow_poligonowych(
+            wydz_lyr, poligony, kolizyjne_cele,
+            'Klon - konflikt wiele-do-jeden')
         return {
             'ok': False,
             'komunikat': (

@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QVBoxLayout,
 )
 from qgis.core import (
-    Qgis, QgsFeatureRequest, QgsMessageLog, QgsProject, QgsVectorLayer,
+    NULL, Qgis, QgsFeatureRequest, QgsMessageLog, QgsProject, QgsVectorLayer,
 )
 
 
@@ -197,7 +197,7 @@ def ZaadresujStareWydz(iface):
     for f in lyr.getFeatures(request):
         oddz = f['ODDZ']
         wydz = f['WYDZ']
-        if (oddz is None or wydz is None
+        if (oddz is None or wydz is None or oddz == NULL or wydz == NULL
                 or str(oddz).strip() == '' or str(wydz).strip() == ''):
             pominieto += 1
             continue
