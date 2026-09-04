@@ -74,6 +74,13 @@ Wersja 2.0n — 2026-09-04
     obok zapisanego projektu - wyszukiwanie patrzy teraz najpierw w
     folder samego projektu, nie tylko na wczytane warstwy.
 
+13. POPRAWKA KRYTYCZNA: po otwarciu innego/nowego projektu "Edytor
+    warstw do opisów" mógł nie zauważyć, że warstwy z poprzedniego
+    projektu już nie istnieją - dawało to błąd "wrapped C/C++ object
+    ... has been deleted" przy próbie rysowania (np. "Klonuj") i
+    blokowało ponowne wyszukanie/utworzenie warstw. Teraz widget
+    prawidłowo zapomina stare warstwy przy zmianie projektu.
+
 Wersja 2.0m — 2026-09-03
 ------------------------------------------------
 

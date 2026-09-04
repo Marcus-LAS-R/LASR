@@ -30,6 +30,7 @@ punktach.
 """
 import os
 
+from PyQt5 import sip
 from PyQt5.QtCore import QPoint, Qt, QVariant
 from PyQt5.QtGui import (
     QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygon,
@@ -151,6 +152,15 @@ def _opcje_zapisu():
     opcje.driverName = 'ESRI Shapefile'
     opcje.fileEncoding = 'UTF-8'
     return opcje
+
+
+def _zywa(lyr):
+    """Czy `lyr` to wciąż żywy obiekt QgsVectorLayer (nie None, nie
+    usunięty z projektu/zamknięty razem z poprzednim projektem)? Bez tej
+    kontroli martwy wskaźnik po QgsProject.cleared (nowy/inny projekt)
+    wygląda jak poprawna warstwa (nie jest None), ale każde jej użycie
+    wywala RuntimeError: wrapped C/C++ object ... has been deleted."""
+    return lyr is not None and not sip.isdeleted(lyr)
 
 
 def _znajdz_warstwe(nazwa, typ_geom):
@@ -364,15 +374,35 @@ class WarstwaOpisowDock(QDockWidget):
         self.setVisible(przypiety)
 
     def zresetuj_stan_projektu(self):
-        """Podpięte pod QgsProject.instance().cleared (nowy/pusty projekt)
-        - taki projekt nie ma zapisanej flagi, więc ukrywamy widget i
-        odznaczamy przycisk przypięcia."""
+        """Podpięte pod QgsProject.instance().cleared (nowy/pusty projekt,
+        albo wczytanie innego projektu) - taki projekt nie ma zapisanej
+        flagi, więc ukrywamy widget i odznaczamy przycisk przypięcia.
+        Czyścimy też referencje do warstw z poprzedniego projektu - ich
+        obiekty C++ znikają razem z projektem, a bez tego resetu wyglądają
+        jak wciąż poprawne (nie są None), co powodowało RuntimeError
+        "wrapped C/C++ object ... has been deleted" przy próbie użycia i
+        blokowało ponowne wyszukanie/zapytanie o utworzenie warstw."""
         self._odswiez_przycisk_przypniecia(False)
         self.hide()
+
+        self.klon_lyr = None
+        self.pkt_lyr = None
+        self.notatki_lyr = None
+        self._grupa_aktywna = None
+        for btn in self.btn_grupy.values():
+            btn.setChecked(False)
+        self._odswiez()
 
     # --------------------------------------------------------- stan UI --
 
     def _odswiez(self):
+        if not _zywa(self.klon_lyr):
+            self.klon_lyr = None
+        if not _zywa(self.pkt_lyr):
+            self.pkt_lyr = None
+        if not _zywa(self.notatki_lyr):
+            self.notatki_lyr = None
+
         self.btn_klonuj.setEnabled(self.klon_lyr is not None)
 
         for btn in self.btn_grupy.values():
@@ -420,8 +450,9 @@ class WarstwaOpisowDock(QDockWidget):
 
         brakujace = []
         for nazwa, atrybut, typ_geom, typ_geom_txt, pola in spec:
-            if getattr(self, atrybut) is not None:
+            if _zywa(getattr(self, atrybut)):
                 continue
+            setattr(self, atrybut, None)
             lyr = self._znajdz_automatycznie(nazwa, typ_geom)
             if lyr is not None:
                 setattr(self, atrybut, lyr)
@@ -461,7 +492,7 @@ class WarstwaOpisowDock(QDockWidget):
     # ------------------------------------------------------ warstwa Klon
 
     def _klonuj(self):
-        if self.klon_lyr is None:
+        if not _zywa(self.klon_lyr):
             return
 
         self._klon_pierwszy = None
@@ -478,7 +509,7 @@ class WarstwaOpisowDock(QDockWidget):
         self.iface.mapCanvas().setMapTool(self._narzedzie_klon)
 
     def _klik_klon(self, koord, _btn):
-        if self.klon_lyr is None:
+        if not _zywa(self.klon_lyr):
             return
 
         if self._klon_pierwszy is None:
@@ -501,7 +532,7 @@ class WarstwaOpisowDock(QDockWidget):
     # -------------------------------------------------- warstwa punktowa
 
     def _wybierz_grupe(self, grupa):
-        if self.pkt_lyr is None:
+        if not _zywa(self.pkt_lyr):
             self.btn_grupy[grupa].setChecked(False)
             return
 
@@ -522,7 +553,7 @@ class WarstwaOpisowDock(QDockWidget):
         self.iface.mapCanvas().setMapTool(self._narzedzie_pkt)
 
     def _dodaj_punkt(self, koord, _btn):
-        if self.pkt_lyr is None or self._grupa_aktywna is None:
+        if not _zywa(self.pkt_lyr) or self._grupa_aktywna is None:
             return
 
         inf_rozne = ''
@@ -548,7 +579,7 @@ class WarstwaOpisowDock(QDockWidget):
     # --------------------------------------------------- warstwa notatek
 
     def _notatki_toggle(self):
-        if self.notatki_lyr is None:
+        if not _zywa(self.notatki_lyr):
             return
 
         if self._narzedzie_notatki is None:
@@ -558,7 +589,7 @@ class WarstwaOpisowDock(QDockWidget):
         self.iface.mapCanvas().setMapTool(self._narzedzie_notatki)
 
     def _klik_notatki(self, koord, _btn):
-        if self.notatki_lyr is None:
+        if not _zywa(self.notatki_lyr):
             return
 
         tekst, ok = QInputDialog.getText(
