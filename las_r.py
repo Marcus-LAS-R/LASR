@@ -747,16 +747,6 @@ class LasR:
         self.a_dop_adrles_stare_wydz.triggered.connect(
             self.utworz_adrles_stare_wydz)
 
-        self.a_uzup_wydz_stare = QAction(
-            QIcon(None), "Uzupełnij wydzielenia w bazie",
-            self.iface.mainWindow()
-        )
-        self.a_uzup_wydz_stare.setToolTip(
-            "Zapisuje w bazie danych nowe lub brakujące wydzielenia z "
-            "warstwy mapowej.")
-        self.m_aktualizacja_upul.addAction(self.a_uzup_wydz_stare)
-        self.a_uzup_wydz_stare.triggered.connect(self.dopisz_wydzielenia)
-
         self.a_synchronizuj_wydz = QAction(
             QIcon(None), "Usuń nadmiarowe WYDZ w bazie",
             self.iface.mainWindow()

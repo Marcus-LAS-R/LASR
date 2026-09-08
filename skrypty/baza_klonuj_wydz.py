@@ -271,50 +271,29 @@ class Klonuj():
         except:  # nopep8
             return False
 
+        kolumny = [
+            'DAMAGE_DEGREE_CD', 'CAUSE_CD', 'AREA_TYPE_CD', 'POSITION_CD',
+            'RELIEF_CD', 'SITE_TYPE_CD', 'DEGRADATION_CD', 'VEG_COVER_CD',
+            'STAND_STRUCT_CD', 'SLOPE_CD', 'EXPOSURE_CD', 'MOISTURE_CD',
+            'SOIL_PEC_CD', 'SOIL_SUBTYPE_CD', 'PLANT_COMM_CD',
+            'FOREST_FUNC_CD', 'ROTATION_AGE', 'DEAD_WOOD',
+        ]
+        wartosci = list(item[:len(kolumny)])
+
+        # SUBAREA_INFO - nie nadpisuj opisu wydzielenia docelowego
+        # pustą/NULL wartością, jeśli źródło go nie ma (inaczej klonowanie
+        # kasuje istniejący, ręcznie wpisany opis).
+        subarea_info = item[len(kolumny)]
+        if subarea_info is not None and str(subarea_info).strip() != '':
+            kolumny.append('SUBAREA_INFO')
+            wartosci.append(subarea_info)
+
+        ustawienia = ', '.join(f'{kolumna} = ?' for kolumna in kolumny)
+        wartosci.append(self.wydz[do])
+
         sql = [
-            """update f_subarea set
-            DAMAGE_DEGREE_CD = ?,
-            CAUSE_CD =  ?,
-            AREA_TYPE_CD = ?,
-            POSITION_CD= ?,
-            RELIEF_CD= ?,
-            SITE_TYPE_CD= ?,
-            DEGRADATION_CD= ?,
-            VEG_COVER_CD = ?,
-            STAND_STRUCT_CD = ?,
-            SLOPE_CD = ?,
-            EXPOSURE_CD = ?,
-            MOISTURE_CD = ?,
-            SOIL_PEC_CD = ?,
-            SOIL_SUBTYPE_CD = ?,
-            PLANT_COMM_CD = ?,
-            FOREST_FUNC_CD = ?,
-            ROTATION_AGE = ?,
-            DEAD_WOOD  = ?,
-            SUBAREA_INFO  = ?
-            where ARODES_INT_NUM = ?; """,
-            (
-                item[0],
-                item[1],
-                item[2],
-                item[3],
-                item[4],
-                item[5],
-                item[6],
-                item[7],
-                item[8],
-                item[9],
-                item[10],
-                item[11],
-                item[12],
-                item[13],
-                item[14],
-                item[15],
-                item[16],
-                item[17],
-                item[18],
-                self.wydz[do]
-            )
+            f'update f_subarea set {ustawienia} where ARODES_INT_NUM = ?; ',
+            tuple(wartosci),
         ]
         if not self.baza.wpisz_tab(sql):
             return False
