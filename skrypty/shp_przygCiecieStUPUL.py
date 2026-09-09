@@ -40,6 +40,22 @@ _MAPA_STARYCH_POL = [
 ]
 
 
+def _koryguj_forme_wlasnosci(adres):
+    """Pozycje [11:13] ADR_LES (2 znaki zaraz po pierwszym myślniku) to
+    nie GRP tylko "forma własności" starej struktury (04/10/99 w
+    próbkach) - w bazie (już zmigrowanej) jest bezwarunkowo nadpisywana
+    na '10', patrz baza_aktualizuj_strukture.py::_koryguj_forme_wlasnosci.
+    Warstwa starych wydzieleń (SHP) tej migracji nigdy nie przechodzi -
+    bez tej samej korekty tutaj klucz ADR_LES nie trafia do d.sl (bazy) i
+    metadane nie są dopisywane. Puste (rekordy OBRĘB/L-CTWO bez
+    oddziału/wydzielenia) zostają puste."""
+    if not adres or len(adres) < 13:
+        return adres
+    if adres[11:13].strip() == '':
+        return adres
+    return adres[:11] + '10' + adres[13:]
+
+
 class _Dialog(QDialog):
     def __init__(self, iface):
         super().__init__(iface.mainWindow())
@@ -189,6 +205,24 @@ class PrzygotujCiecieStUPUL:
         if kas.warstwa is not None:
             QgsProject.instance().addMapLayer(kas.warstwa)
 
+    def _koryguj_adresy(self, wpol, wpol_data):
+        """Nadpisuje ADR_LES każdej cechy skorygowaną 'formą własności'
+        (patrz _koryguj_forme_wlasnosci) - musi zajść przed jakimkolwiek
+        lookupem po ADR_LES (_zapisz_atrybuty), inaczej klucz nie trafi
+        do d.sl (bazy, już zmigrowanej na '10') i metadane nie zostaną
+        dopisane."""
+        fnm = wpol_data.fieldNameMap()
+        if 'ADR_LES' not in fnm:
+            return
+        zmiany = {}
+        for feat in wpol.getFeatures():
+            adr = feat['ADR_LES']
+            nowy = _koryguj_forme_wlasnosci(adr)
+            if nowy != adr:
+                zmiany[feat.id()] = {fnm['ADR_LES']: nowy}
+        if zmiany:
+            wpol_data.changeAttributeValues(zmiany)
+
     def _normalizuj_stara_struktura(self, wpol, wpol_data):
         obecne = [f.name() for f in wpol.fields()]
         if 'COUNTY' in obecne or 'COUNTY_CD' not in obecne:
@@ -272,6 +306,7 @@ class PrzygotujCiecieStUPUL:
         wpol.updateFields()
         wpol_data.addFeatures(list(wydz.getFeatures()))
 
+        self._koryguj_adresy(wpol, wpol_data)
         self._normalizuj_stara_struktura(wpol, wpol_data)
         self._dodaj_pola(wpol, wpol_data, d.przestoje_flag)
         self._zapisz_atrybuty(wpol, wpol_data, d)
