@@ -1341,8 +1341,8 @@ class Baza(object):
         tabele_wydz = [
             "F_STOREY_SPECIES",
             "F_AROD_CUE",
-            "F_AROD_STOREY",
             "F_SUBAREA",
+            "F_AROD_STOREY",
             "F_ERROR_HEAD",
             "F_SET",
             "F_ARODES",
@@ -1360,16 +1360,25 @@ class Baza(object):
                     self.cur.execute(sql_usun, (numer,))
 
             # usun oddzialy, ktore przez usuniecie wydzielen zostaly puste
-            # (prefiks adresu - 16 pierwszych znakow - identyfikuje oddzial;
-            # jezeli po usunieciu zostal pod nim tylko 1 rekord [sam ODDZ,
-            # bez zadnego WYDZIEL], oddzial jest pusty)
+            # (prefiks adresu - 16 pierwszych znakow - grupuje ODDZ z jego
+            # WYDZIEL-ami; jezeli pod danym prefiksem zostal tylko 1
+            # rekord, MOZE to byc sam ODDZ bez zadnego WYDZIEL - ale rowna
+            # sie tez sytuacji, gdy dany oddzial nigdy nie mial wlasnego
+            # wiersza ODDZ, a to jedyny WYDZIEL pod nim wciaz zyje (np.
+            # nietypowa forma wlasnosci, patrz [[project_grp_forma_wlasnosci]])
+            # - dlatego trzeba jawnie sprawdzic typ tego jedynego wiersza,
+            # zamiast zakladac po samej liczbie)
             tab = self.cur.execute(
-                "select ADRESS_FOREST, ARODES_INT_NUM from F_ARODES "
+                "select ADRESS_FOREST, ARODES_INT_NUM, ARODES_TYP_CD "
+                "from F_ARODES "
                 "where ARODES_TYP_CD = 'ODDZ' or ARODES_TYP_CD = 'WYDZIEL'"
             ).fetchall()
             oddz = Counter([x[0][:16] for x in tab])
             oddz_puste = {kk for kk, vv in oddz.items() if vv == 1}
-            usun_oddz = [vi for ki, vi in tab if ki[:16] in oddz_puste]
+            usun_oddz = [
+                vi for ki, vi, typ in tab
+                if ki[:16] in oddz_puste and typ == 'ODDZ'
+            ]
 
             for tabela in tabele_oddz_les:
                 sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
@@ -1377,13 +1386,20 @@ class Baza(object):
                     self.cur.execute(sql_usun, (numer,))
 
             # usun lesnictwa, ktore przez to zostaly puste (prefiks 10
-            # znakow, ta sama logika co dla oddzialow, ale o poziom wyzej)
+            # znakow, ta sama logika co dla oddzialow, ale o poziom wyzej;
+            # ten sam typ-check co wyzej, zeby nie skasowac przypadkiem
+            # zywego ODDZ/WYDZIEL, gdyby byl jedynym rekordem pod tym
+            # krotszym prefiksem)
             tab = self.cur.execute(
-                "select ADRESS_FOREST, ARODES_INT_NUM from F_ARODES"
+                "select ADRESS_FOREST, ARODES_INT_NUM, ARODES_TYP_CD "
+                "from F_ARODES"
             ).fetchall()
             les = Counter([x[0][:10] for x in tab])
             les_puste = {kk for kk, vv in les.items() if vv == 1}
-            usun_les = [vi for ki, vi in tab if ki[:10] in les_puste]
+            usun_les = [
+                vi for ki, vi, typ in tab
+                if ki[:10] in les_puste and typ == 'L-CTWO'
+            ]
 
             for tabela in tabele_oddz_les:
                 sql_usun = f"DELETE FROM {tabela} WHERE ARODES_INT_NUM = ?"
