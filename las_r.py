@@ -1094,21 +1094,15 @@ class LasR:
         self.m_narzedzia.addAction(self.a_uzup_uszkodzen)
         self.a_uzup_uszkodzen.triggered.connect(self.uzupelnij_uszkodzenia)
 
-        self.a_dod_adm = QAction(
-            QIcon(None), "Dodaj [MUNICIP, COMMUNITY]", self.iface.mainWindow()
-        )
-        self.a_dod_adm.setToolTip(
-            "Dodaje do warstwy puste kolumny z kodem gminy (MUNICIP) "
-            "i obrębu (COMMUNITY).")
-        self.m_narzedzia.addAction(self.a_dod_adm)
-        self.a_dod_adm.triggered.connect(self.dodaj_mun_comm)
-
         self.a_dop_adm = QAction(
-            QIcon(None), "Uzupełnij [MUNICIP, COMMUNITY]", self.iface.mainWindow()
+            QIcon(None), "Dodaj i uzupełnij [MUNICIP, COMMUNITY]",
+            self.iface.mainWindow()
         )
         self.a_dop_adm.setToolTip(
-            "Uzupełnia w warstwie kody gminy (MUNICIP) i obrębu (COMMUNITY) "
-            "na podstawie geometrii.")
+            "Dokłada do warstwy brakujące kolumny z kodem gminy (MUNICIP) "
+            "i obrębu (COMMUNITY), po czym je uzupełnia na podstawie "
+            "identyfikatora z pola źródłowego (G5IDD/IDENTYFIKA/G5NRO albo "
+            "wskazanego ręcznie).")
         self.m_narzedzia.addAction(self.a_dop_adm)
         self.a_dop_adm.triggered.connect(self.dopisz_adradm)
 
@@ -1877,9 +1871,6 @@ class LasR:
     def powierzchnia_graf(self):
         funkcje.oblicz_pow_graf(self.iface)
 
-    def dodaj_mun_comm(self):
-        funkcje.dodaj_adm(self.iface)
-
     def przysnapuj_do_dzewid(self):
         s = shp_dociagnij_poly.Przyciagnij(self.iface)
         if not s.pobierz_dane():
@@ -1967,7 +1958,7 @@ class LasR:
         rep.show()
 
     def dopisz_adradm(self):
-        shp_uzup_adradm.DopiszAdres()
+        shp_uzup_adradm.DodajIUzupelnijAdm()
 
     def dopisz_ownera(self):
         baza_dopisz_ownership.dopisz_ownership_do_bazy(self.iface)

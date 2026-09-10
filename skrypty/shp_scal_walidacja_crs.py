@@ -38,6 +38,8 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QFileDialog, QMessageBox, QTableWidgetItem,
 )
 
+from .funkcje import rozbij_adres_gmina_obreb
+
 from .pw import PasekPostepu
 
 FORM_CLASS, _ = loadUiType(os.path.join(
@@ -323,11 +325,12 @@ _KOREKTY_GMINY = {
 
 def dodaj_municip_community(sciezka_shp, pole_identyfikatora):
     """Dopisuje pola MUNICIP (gmina+rodzaj, 3 znaki) i COMMUNITY (obręb,
-    4 znaki), wycięte z identyfikatora wg tej samej konwencji co
-    shp_uzup_adradm.DopiszAdres: adr[4:8] to gmina (z podkreślnikiem do
-    usunięcia), adr[9:13] to obręb. Po drodze poprawia znane błędne kody
-    gminy (patrz _KOREKTY_GMINY) - zarówno w MUNICIP, jak i w samym
-    identyfikatorze, żeby nie rozjechały się między sobą."""
+    4 znaki), wycięte z identyfikatora tym samym parserem co
+    shp_uzup_adradm.DodajIUzupelnijAdm (patrz funkcje.rozbij_adres_gmina_
+    obreb - wzorzec "SS_R.OOOO", niezależny od długości prefiksu). Po
+    drodze poprawia znane błędne kody gminy (patrz _KOREKTY_GMINY) -
+    zarówno w MUNICIP, jak i w samym identyfikatorze, żeby nie rozjechały
+    się między sobą."""
     lyr = QgsVectorLayer(sciezka_shp, 'x', 'ogr')
     nazwy_pol = lyr.fields().names()
     if pole_identyfikatora not in nazwy_pol:
@@ -345,18 +348,19 @@ def dodaj_municip_community(sciezka_shp, pole_identyfikatora):
 
     for f in lyr.getFeatures():
         adr = f.attributes()[idx_id]
-        if not adr or len(adr) < 14:
+        wynik = rozbij_adres_gmina_obreb(adr)
+        if wynik is None:
             continue
+        gmina, community, (start, koniec) = wynik
 
-        gmina = adr[4:8]
         if gmina in _KOREKTY_GMINY:
             poprawiona = _KOREKTY_GMINY[gmina]
-            adr = adr[:4] + poprawiona + adr[8:]
+            adr = adr[:start] + poprawiona + adr[koniec:]
             lyr.changeAttributeValue(f.id(), idx_id, adr)
             gmina = poprawiona
 
         lyr.changeAttributeValue(f.id(), idx_municip, gmina.replace('_', ''))
-        lyr.changeAttributeValue(f.id(), idx_community, adr[9:13])
+        lyr.changeAttributeValue(f.id(), idx_community, community)
 
     lyr.commitChanges()
 

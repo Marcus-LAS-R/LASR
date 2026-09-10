@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import glob
+import re
 import numpy as np
 from qgis.core import (
     QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField,
@@ -325,44 +326,31 @@ def oblicz_pow_graf(iface):
     iface.messageBar().pushMessage(wyps_gl, wyps, typ)
 
 
-def dodaj_adm(iface):
-    # metoda dodaje do zaznaczonej warstwy wektorowej, kolumny MUNICIP,
-    # COMMUNITY o ile ich już nie ma w terj warstwie
-    lyr = iface.activeLayer()
-    try:
-        if lyr.wkbType() in [1, 2, 3, 4, 5, 6]:
-            pass
-    except:  # nopep8
-        iface.messageBar().pushMessage(
-            'BŁĄD',
-            'Wspierane są tylko warstwy wektorowe',
-            Qgis.Warning
-        )
+_WZORZEC_GMINA_OBREB = re.compile(r'(\d{2}_\d)\.(\d{4})')
 
-    pola = [
-        QgsField("MUNICIP", QVariant.String, len=3),
-        QgsField("COMMUNITY", QVariant.String, len=4),
-    ]
-    attr = [y for y in pola if y.name() not in
-            [x.name() for x in lyr.fields()]]
-    if len(attr) > 0:
-        lyr.startEditing()
-        lyr.dataProvider().addAttributes(attr)
-        lyr.updateFields()
-        lyr.commitChanges()
 
-        iface.messageBar().pushMessage(
-            'OK',
-            'Warstwa uzupełniono o brakujące pola [' +
-            ', '.join([x.name() for x in attr]),
-            Qgis.Success
-        )
-    else:
-        iface.messageBar().pushMessage(
-            'OK',
-            'W warstwie były już niezbędne pola, nic nie zmieniałem...',
-            Qgis.Success
-        )
+def rozbij_adres_gmina_obreb(adr):
+    """Wyciąga kod gminy (z podkreślnikiem, np. "08_5") i kod obrębu (np.
+    "0051") z identyfikatora typu "160908_5.0051" (ODDZ, pole G5NRO) albo
+    dłuższego "...08_5.0051..." (np. G5IDD/IDENTYFIKA z dalszym ciągiem po
+    obrębie). MUNICIP to gmina.replace('_', ''), COMMUNITY to obreb wprost.
+
+    Szuka wzorca "SS_R.OOOO" (2 cyfry gminy, podkreślnik, rodzaj gminy,
+    kropka, 4 cyfry obrębu) niezależnie od długości prefiksu przed nim -
+    zamiast dawnego sztywnego adr[4:8]/adr[9:13] z progiem len(adr) < 14,
+    które łamały się na krótszych identyfikatorach (np. G5NRO ma 13 znaków,
+    bo kończy się dokładnie na obrębie, bez żadnego dalszego ciągu).
+
+    Zwraca (gmina, obreb, span_gminy) albo None, gdy adr nie pasuje do
+    wzorca. span_gminy to (start, end) dopasowania samej gminy w adr,
+    przydatne do podmiany fragmentu identyfikatora w miejscu (np. przy
+    korekcie znanych błędnych kodów gminy)."""
+    if not adr:
+        return None
+    m = _WZORZEC_GMINA_OBREB.search(adr)
+    if not m:
+        return None
+    return m.group(1), m.group(2), m.span(1)
 
 
 def otworz_kompozycje(iface):
