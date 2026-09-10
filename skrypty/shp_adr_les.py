@@ -1,3 +1,5 @@
+import os
+
 from PyQt5.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QVBoxLayout,
 )
@@ -21,6 +23,59 @@ def zbuduj_adres(county_l, district, municip, community, grp, oddz, wydz):
     adr += str(oddz).ljust(4) + '-'
     adr += str(wydz).ljust(4) + '-00'
     return adr
+
+
+def _znajdz_duplikaty_adresu(sl, fnm, wydz_by_id):
+    """Wśród adresów zbudowanych w tym przebiegu (sl) szuka takich samych
+    ADR_LES przypisanych do różnych wydzieleń - pomijając te z WYDZ='Lz'
+    (kompleksy Lz z natury mają wiele fragmentów pod jednym wspólnym
+    adresem, jeden na każdą część, patrz GRUPA='LZ-Ł' w
+    warstwa_opisow_dock.py/shp_doliterkuj*.py). Zwraca listę fid-ów
+    wydzieleń z duplikatem (do podświetlenia), pustą gdy wszystko OK."""
+    wg_adresu = {}
+    for fid, atrybuty in sl.items():
+        if str(wydz_by_id.get(fid)).strip().upper() == 'LZ':
+            continue
+        adr = atrybuty[fnm['ADR_LES']]
+        wg_adresu.setdefault(adr, []).append(fid)
+    return [fid for fidy in wg_adresu.values() if len(fidy) > 1 for fid in fidy]
+
+
+def _utworz_warstwe_duplikatow_adresu(lyr, fidy):
+    plug = os.path.dirname(__file__)
+    nowa = QgsVectorLayer(
+        f'MultiPolygon?crs={lyr.crs().authid()}', 'ADR_LES_duplikaty',
+        'memory')
+    dp = nowa.dataProvider()
+    nowa.startEditing()
+    dp.addAttributes(lyr.fields().toList())
+    nowa.updateFields()
+    dp.addFeatures(list(
+        lyr.getFeatures(QgsFeatureRequest().setFilterFids(fidy))))
+    nowa.commitChanges()
+
+    dodana = QgsProject.instance().addMapLayer(nowa)
+    dodana.loadNamedStyle(os.path.join(
+        plug, '..', 'qml', 'WYDZ_z_wieloma_kartami.qml'))
+    return dodana
+
+
+def _zgloszenie_duplikatow_adresu(iface, nazwa_funkcji, lyr, duplikaty_fid):
+    """Jeśli są duplikaty, tworzy warstwę podglądową i ostrzega - wywołać
+    PO commitChanges(), bo adresy i tak zostają zapisane (do ręcznej
+    korekty), tylko flagowane do poprawy."""
+    if not duplikaty_fid:
+        return
+    _utworz_warstwe_duplikatow_adresu(lyr, duplikaty_fid)
+    iface.messageBar().pushWarning(
+        'ADRES LEŚNY',
+        f'Znaleziono {len(duplikaty_fid)} wydzieleń (poza Lz) ze '
+        'zduplikowanym adresem ADR_LES - patrz warstwa ADR_LES_duplikaty')
+    QgsMessageLog.logMessage(
+        f'{nazwa_funkcji}: {len(duplikaty_fid)} wydzieleń ze '
+        'zduplikowanym ADR_LES (poza Lz)',
+        'Las-R', Qgis.Warning
+    )
 
 
 def Zaadresuj(iface, lyr=False):
@@ -56,6 +111,7 @@ def Zaadresuj(iface, lyr=False):
             'GRP',
             ]
     sl = {}  # slownik z adrles do dopisania w postaci {feat.id(): {i: adrles}}
+    wydz_by_id = {}  # {feat.id(): WYDZ} - do kontroli duplikatow (poza Lz)
 
     # sprawdz czy mamy wszystkie pola w bazie
     braki = [x for x in pola if x not in [y.name() for y in lyr.fields()]]
@@ -78,6 +134,7 @@ def Zaadresuj(iface, lyr=False):
             f['GRP'], f['ODDZ'], f['WYDZ'])
 
         sl[f.id()] = {fnm['ADR_LES']: adr}
+        wydz_by_id[f.id()] = f['WYDZ']
 
     message_trig = 0
     for key, adr in sl.items():
@@ -106,6 +163,9 @@ def Zaadresuj(iface, lyr=False):
             'Adres leśny uzupełniony bez problemów',
             Qgis.Success,
             10)
+
+    duplikaty_fid = _znajdz_duplikaty_adresu(sl, fnm, wydz_by_id)
+    _zgloszenie_duplikatow_adresu(iface, 'Zaadresuj', lyr, duplikaty_fid)
 
     QgsMessageLog.logMessage(
         '------ KONIEC -------- \n',
@@ -193,6 +253,7 @@ def ZaadresujStareWydz(iface):
                                                pola, lyr.fields())
 
     sl = {}
+    wydz_by_id = {}  # {feat.id(): WYDZ} - do kontroli duplikatow (poza Lz)
     pominieto = 0
     for f in lyr.getFeatures(request):
         oddz = f['ODDZ']
@@ -205,6 +266,7 @@ def ZaadresujStareWydz(iface):
             f['COUNTY_L'], f['DISTRICT'], f['MUNICIP'], f['COMMUNITY'],
             f['GRP'], oddz, wydz)
         sl[f.id()] = {fnm['ADR_LES']: adr}
+        wydz_by_id[f.id()] = wydz
 
     if len(sl) == 0:
         lyr.rollBack()
@@ -248,4 +310,8 @@ def ZaadresujStareWydz(iface):
         'Las-R',
         Qgis.Info
     )
+
+    duplikaty_fid = _znajdz_duplikaty_adresu(sl, fnm, wydz_by_id)
+    _zgloszenie_duplikatow_adresu(iface, 'ZaadresujStareWydz', lyr, duplikaty_fid)
+
     return True
