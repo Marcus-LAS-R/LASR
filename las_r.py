@@ -712,13 +712,18 @@ class LasR:
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
         self.a_sprawdz_polozenie_opisow = QAction(
-            QIcon(None), "Sprawdź położenie warstw punktowych (opisów)",
+            QIcon(None), "Sprawdź cięcie starych WYDZ",
             self.iface.mainWindow()
         )
         self.a_sprawdz_polozenie_opisow.setToolTip(
-            "Sprawdza, czy WYDZ_PKT_stare, opis_klon, opis_pkt i "
-            "opis_notatki leżą na wydzieleniach z warstwy WYDZ. Punkty "
-            "poza WYDZ trafiają na osobną, czerwoną warstwę do korekty.")
+            "Sprawdza, czy WYDZ_PKT_stare, opis_klon, opis_pkt, "
+            "opis_notatki i adr_upul leżą na wydzieleniach z warstwy WYDZ. "
+            "Punkty poza WYDZ trafiają na osobną, czerwoną warstwę do "
+            "korekty. WYDZ_sieroty to wydzielenia bez żadnego adresu "
+            "(WYDZ_PKT_stare/opis_pkt/adr_upul), WYDZ_wiele_opisow to "
+            "wydzielenia z więcej niż jednym punktem adresowym łącznie. "
+            "Sprawdza też, czy pnsw wrysowane w terenie (pomiary/pnsw.shp) "
+            "trafiło do docelowej warstwy SHP/PNSW.shp.")
         self.m_aktualizacja_upul.addAction(self.a_sprawdz_polozenie_opisow)
         self.a_sprawdz_polozenie_opisow.triggered.connect(
             self.sprawdz_polozenie_opisow)
