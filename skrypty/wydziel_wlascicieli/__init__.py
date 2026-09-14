@@ -23,11 +23,11 @@ from .gui.dialog import WydzielWlascicieliDialog
 from .core import eksport
 
 # style do wizualnej kontroli wydzieleń mieszanych (patrz _uruchom_eksport) -
-# wskazane przez użytkownika, poza katalogiem wtyczki
-_STYL_DZIALKI_WLASCIWE = (
-    r'C:\Praca\Podrecznik\Do_QGIS\QGIS style\_NOWE\WYDZ_z_wieloma_kartami.qml')
-_STYL_DZIALKI_OBCE = (
-    r'C:\Praca\Podrecznik\Do_QGIS\QGIS style\_NOWE\WYDZ_bez_kart.qml')
+# z wbudowanego folderu qml/ wtyczki (niezależne od lokalizacji na dysku
+# użytkownika), te same pliki co np. shp_adr_les.py/shp_sprawdz_ciecie.py
+_QML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'qml')
+_STYL_DZIALKI_WLASCIWE = os.path.join(_QML_DIR, 'WYDZ_z_wieloma_kartami.qml')
+_STYL_DZIALKI_OBCE = os.path.join(_QML_DIR, 'WYDZ_bez_kart.qml')
 
 
 def _blad(iface, tekst):
@@ -82,6 +82,20 @@ def _potwierdz_mieszane(iface, mieszane):
     return odp == QMessageBox.Yes
 
 
+def _potwierdz_rozliczenie_powierzchni(iface):
+    """Przy eksporcie grafiki cała kontrola wydzieleń mieszanych opiera się
+    na F_AROD_LAND_USE (rozliczenie powierzchni) - jeśli jest nieaktualne,
+    kontrola nic nie wykryje mimo realnego ryzyka (patrz
+    policz_wydzielenia_mieszane). Pyta o potwierdzenie przed uruchomieniem
+    analizy. Zwraca True (kontynuuj) / False (przerwij cały skrypt)."""
+    odp = QMessageBox.question(
+        iface.mainWindow(), 'Wydziel właścicieli do nowej bazy',
+        'Aby kontynuować upewnij się, że baza posiada aktualne rozliczenie '
+        'powierzchni!\n\nCzy rozpocząć analizę i eksport danych?',
+        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+    return odp == QMessageBox.Yes
+
+
 def _wczytaj_warstwy_shp(folder):
     warstwy = []
     for nazwa in ('DZKAT', 'LS', 'WYDZ', 'PNSW'):
@@ -118,6 +132,12 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
 
     arodes_wszystkie = eksport.policz_arodes_wydziel(baza, parcels_final)
     arodes_opisy = arodes_wszystkie if opcja_opisy else set()
+
+    if opcja_grafika and not _potwierdz_rozliczenie_powierzchni(iface):
+        baza.zamknij()
+        baza0.zamknij()
+        _blad(iface, 'Przerwano - nic nie zmieniono.')
+        return False
 
     # --- kontrola grup rejestrowych - PRZED jakąkolwiek zmianą w źródle ---
     grupy_dozwolone = eksport.policz_grupy_rejestrowe_wlasciciela(baza, addr_wybrani)

@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 
 from qgis.core import (
-    Qgis, QgsMessageLog, QgsVectorLayer, QgsVectorFileWriter,
+    Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsVectorFileWriter,
 )
 
 from ...baza_polacz import Laczenie
@@ -67,15 +67,19 @@ def policz_zbior_eksportu(baza, addr_wybrani):
     wszystkich właścicieli/współwłaścicieli zapisanych na tych działkach
     (podejście potwierdzone z użytkownikiem 2026-09-14 jako dokładniejsze
     niż rekonstrukcja współwłasności ze skanu V_PARCEL_PARTICIPATION -
-    LAND_REGISTER_NR jest tu zawsze pewny i kompletny)."""
+    LAND_REGISTER_NR jest tu zawsze pewny i kompletny w obrębie JEDNEGO
+    obrębu ewidencyjnego - patrz policz_grupy_rejestrowe_wlasciciela)."""
     grupy = policz_grupy_rejestrowe_wlasciciela(baza, addr_wybrani)
     if not grupy:
         return set(addr_wybrani), set()
 
-    parcels = {
-        w[0] for w in _pobierz_filtrowane(
-            baza, 'F_PARCEL', ['PARCEL_INT_NUM'], 'LAND_REGISTER_NR', grupy)
-    }
+    numery = {g[4] for g in grupy}
+    kandydaci = _pobierz_filtrowane(
+        baza, 'F_PARCEL',
+        ['PARCEL_INT_NUM', 'COUNTY_CD', 'DISTRICT_CD', 'MUNICIPALITY_CD',
+         'COMMUNITY_CD', 'LAND_REGISTER_NR'],
+        'LAND_REGISTER_NR', numery)
+    parcels = {w[0] for w in kandydaci if tuple(w[1:]) in grupy}
     if not parcels:
         return set(addr_wybrani), set()
 
@@ -123,11 +127,14 @@ def policz_adresy_wydz(baza, arodes):
 
 
 def policz_grupy_rejestrowe_wlasciciela(baza, addr_wybrani):
-    """Zwraca zbiór LAND_REGISTER_NR (F_PARCEL) działek, na których
+    """Zwraca zbiór grup rejestrowych - krotek (COUNTY_CD, DISTRICT_CD,
+    MUNICIPALITY_CD, COMMUNITY_CD, LAND_REGISTER_NR) - działek, na których
     występuje którykolwiek z addr_wybrani (jako addr_nr LUB second_addr_nr
-    w V_PARCEL_PARTICIPATION) - czyli wszystkie grupy rejestrowe, do
-    których należy wybrany właściciel (jeden właściciel może występować w
-    kilku grupach, z różnymi współwłaścicielami, na różnych działkach)."""
+    w V_PARCEL_PARTICIPATION). LAND_REGISTER_NR jest unikalny TYLKO w
+    obrębie jednego obrębu ewidencyjnego (np. "G118" może niezależnie
+    istnieć w dwóch różnych obrębach, dla zupełnie innych właścicieli -
+    stwierdzone empirycznie 2026-09-14) - dlatego samo LAND_REGISTER_NR
+    nie wystarcza jako klucz, potrzebny jest pełny kod obrębu."""
     wiersze = baza.pobierz(
         'select addr_nr, parcel_int_num, second_addr_nr '
         'from V_PARCEL_PARTICIPATION;')
@@ -137,8 +144,11 @@ def policz_grupy_rejestrowe_wlasciciela(baza, addr_wybrani):
     if not parcels:
         return set()
     wiersze2 = _pobierz_filtrowane(
-        baza, 'F_PARCEL', ['LAND_REGISTER_NR'], 'PARCEL_INT_NUM', parcels)
-    return {w[0] for w in wiersze2 if w[0] is not None}
+        baza, 'F_PARCEL',
+        ['COUNTY_CD', 'DISTRICT_CD', 'MUNICIPALITY_CD', 'COMMUNITY_CD',
+         'LAND_REGISTER_NR'],
+        'PARCEL_INT_NUM', parcels)
+    return {tuple(w) for w in wiersze2 if w[4] is not None}
 
 
 def _slownik_adresow_wydz(baza, arodes):
@@ -184,23 +194,25 @@ def policz_wydzielenia_mieszane(baza, arodes, grupy_dozwolone):
         parcele_wydz.setdefault(arod, set()).add(parcel)
 
     wszystkie_parcele = {p for parcele in parcele_wydz.values() for p in parcele}
-    dane_dzialek = {
-        w[0]: (w[1], _wyr1(w[2:])) for w in _pobierz_filtrowane(
+    dane_dzialek = {}
+    for w in _pobierz_filtrowane(
             baza, 'F_PARCEL',
             ['PARCEL_INT_NUM', 'LAND_REGISTER_NR', 'COUNTY_CD', 'DISTRICT_CD',
              'MUNICIPALITY_CD', 'COMMUNITY_CD', 'REG_SHEET_NR2', 'PARCEL_NR'],
-            'PARCEL_INT_NUM', wszystkie_parcele)
-    }
+            'PARCEL_INT_NUM', wszystkie_parcele):
+        pid, lrn, county, district, municip, community, ark, nr = w
+        grupa = (county, district, municip, community, lrn)
+        dane_dzialek[pid] = (grupa, _wyr1((county, district, municip, community, ark, nr)))
     adresy = _slownik_adresow_wydz(baza, arodes)
 
     mieszane = []
     for arod, parcele in parcele_wydz.items():
         obce, wlasciwe = [], []
         for p in parcele:
-            rejestr, parcelid = dane_dzialek.get(p, (None, None))
+            grupa, parcelid = dane_dzialek.get(p, (None, None))
             if parcelid is None:
                 continue
-            if rejestr in grupy_dozwolone:
+            if grupa in grupy_dozwolone:
                 wlasciwe.append(parcelid)
             else:
                 obce.append(parcelid)
@@ -535,9 +547,12 @@ def _zapisz_podzbior(lyr, features, folder_docelowy, nazwa):
         return 0
     lyr.selectByIds([f.id() for f in features])
     sciezka = os.path.join(folder_docelowy, nazwa + '.shp')
-    QgsVectorFileWriter.writeAsVectorFormat(
-        lyr, sciezka, 'UTF-8', lyr.crs(), 'ESRI Shapefile',
-        onlySelectedFeatures=True)
+    opcje = QgsVectorFileWriter.SaveVectorOptions()
+    opcje.driverName = 'ESRI Shapefile'
+    opcje.fileEncoding = 'UTF-8'
+    opcje.onlySelectedFeatures = True
+    QgsVectorFileWriter.writeAsVectorFormatV3(
+        lyr, sciezka, QgsProject.instance().transformContext(), opcje)
     lyr.removeSelection()
     return len(features)
 
