@@ -114,6 +114,7 @@ from .skrypty import kontrola_terenowa
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
+from .skrypty import wydziel_wlascicieli
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -1058,6 +1059,16 @@ class LasR:
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
 
+        self.a_wydziel_wlasc = QAction(
+            QIcon(None), "Wydziel właścicieli do nowej bazy", self.iface.mainWindow()
+        )
+        self.a_wydziel_wlasc.setToolTip(
+            "Eksportuje wskazanych właścicieli (i ich współwłaścicieli) wraz "
+            "z działkami, opcjonalnie opisem taksacyjnym i grafiką, do innej "
+            "bazy - z opcją uprzątnięcia bazy źródłowej.")
+        self.m_narzedzia.addAction(self.a_wydziel_wlasc)
+        self.a_wydziel_wlasc.triggered.connect(self.wydziel_wlascicieli)
+
         self.m_narzedzia.addSeparator()
 
         self.dop_wydz = QAction(
@@ -1751,6 +1762,9 @@ class LasR:
 
     def buduj_oddzialy_z_wydzielen(self):
         shp_buduj_oddzialy.uruchom(self.iface)
+
+    def wydziel_wlascicieli(self):
+        wydziel_wlascicieli.uruchom(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)
