@@ -174,15 +174,15 @@ def policz_wydzielenia_mieszane(baza, arodes, grupy_dozwolone):
     gospodarki leśnej niezależna od granic własności - jedno wydzielenie
     może obejmować działki z RÓŻNYCH grup rejestrowych (F_PARCEL.
     LAND_REGISTER_NR, jedna działka = jedna grupa). Zwraca listę krotek
-    (ADRESS_FOREST, [PARCELID obcej działki, ...], [PARCELID właściwej
-    działki, ...]) dla wydzieleń z `arodes`, w których choć jedna działka
-    (wg F_AROD_LAND_USE - musi być uzupełnione, inaczej kontrola nic nie
-    wykryje) należy do grupy rejestrowej spoza `grupy_dozwolone` - obce to
-    działki, które nie powinny się znaleźć w eksportowanym wydzieleniu
-    (należą do kogoś, kto nie jest eksportowany), właściwe to reszta
-    działek tego samego wydzielenia (należą do eksportowanej grupy) - oba
-    zestawy trafiają do raportu, bo zależnie od sytuacji wygodniej może
-    być filtrować w jedną albo drugą stronę przy ręcznym rozdzielaniu."""
+    (ADRESS_FOREST, [PARCELID obcej działki, ...]) dla wydzieleń z
+    `arodes`, w których choć jedna działka (wg F_AROD_LAND_USE - musi być
+    uzupełnione, inaczej kontrola nic nie wykryje) należy do grupy
+    rejestrowej spoza `grupy_dozwolone` - czyli działki, które nie powinny
+    się znaleźć w eksportowanym wydzieleniu (należą do kogoś, kto nie jest
+    eksportowany). "Działki właściwe" NIE są tu liczone per-wydzielenie -
+    to po prostu wszystkie parcels_final (patrz policz_wszystkie_parcelid),
+    myślące byłoby pokazywanie ich tylko dla wydzieleń mieszanych (feedback
+    użytkownika 2026-09-14)."""
     if not arodes:
         return []
 
@@ -207,66 +207,80 @@ def policz_wydzielenia_mieszane(baza, arodes, grupy_dozwolone):
 
     mieszane = []
     for arod, parcele in parcele_wydz.items():
-        obce, wlasciwe = [], []
+        obce = []
         for p in parcele:
             grupa, parcelid = dane_dzialek.get(p, (None, None))
             if parcelid is None:
                 continue
-            if grupa in grupy_dozwolone:
-                wlasciwe.append(parcelid)
-            else:
+            if grupa not in grupy_dozwolone:
                 obce.append(parcelid)
         if obce:
-            mieszane.append(
-                (adresy.get(arod, str(arod)), sorted(obce), sorted(wlasciwe)))
+            mieszane.append((adresy.get(arod, str(arod)), sorted(obce)))
     return mieszane
 
 
-def zapisz_raport_wydzielen_mieszanych(katalog, mieszane):
-    """Zapisuje listę wydzieleń mieszanych (patrz policz_wydzielenia_
-    mieszane) do pliku txt - dla każdego adresu leśnego (posortowane) dwie
-    podsekcje: działki obce (do wydzielenia z wydzielenia) i działki
-    właściwe (należące do eksportowanej grupy rejestrowej, obie
-    posortowane po PARCELID) - zależnie od sytuacji łatwiej może być
-    rozdzielać wydzielenie filtrując w jedną albo drugą stronę."""
+def policz_wszystkie_parcelid(baza, parcels):
+    """Zwraca posortowaną listę PARCELID (patrz _wyr1) dla podanego zbioru
+    PARCEL_INT_NUM - "działki właściwe" to WSZYSTKIE działki przeznaczone
+    do eksportu (parcels_final), niezależnie od podziału na wydzielenia
+    mieszane/czyste."""
+    wiersze = _pobierz_filtrowane(
+        baza, 'F_PARCEL',
+        ['PARCEL_INT_NUM', 'COUNTY_CD', 'DISTRICT_CD', 'MUNICIPALITY_CD',
+         'COMMUNITY_CD', 'REG_SHEET_NR2', 'PARCEL_NR'],
+        'PARCEL_INT_NUM', parcels)
+    return sorted({_wyr1(w[1:]) for w in wiersze})
+
+
+def zapisz_raport_wydzielen_mieszanych(katalog, mieszane, wszystkie_wlasciwe):
+    """Zapisuje listę wydzieleń mieszanych do pliku txt - sekcja "Działki
+    obce" per adres leśny (tylko wydzielenia mieszane, patrz
+    policz_wydzielenia_mieszane), potem JEDNA płaska sekcja "Działki
+    właściwe" ze WSZYSTKIMI działkami przeznaczonymi do eksportu
+    (wszystkie_wlasciwe, patrz policz_wszystkie_parcelid) - podział
+    właściwych per-wydzielenie byłby mylący dla operatora (feedback
+    użytkownika 2026-09-14)."""
     czas = datetime.now().isoformat().replace(':', '')[:-7]
     rap_sc = os.path.join(katalog, 'wydzielenia_mieszane_' + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:
         plik.write('WYDZIELENIA DO ROZDZIELENIA PRZED PONOWNYM URUCHOMIENIEM\r\n')
         plik.write('=' * 72 + '\r\n\r\n')
-        for adres, obce, wlasciwe in sorted(mieszane):
+
+        plik.write('DZIAŁKI OBCE (do rozdzielenia z wydzieleń mieszanych)\r\n')
+        plik.write('-' * 72 + '\r\n')
+        for adres, obce in sorted(mieszane):
             plik.write(adres + '\r\n')
-            plik.write('    Działki obce:\r\n')
             for parcelid in obce:
-                plik.write('        ' + parcelid + '\r\n')
-            plik.write('    Działki właściwe:\r\n')
-            for parcelid in wlasciwe:
-                plik.write('        ' + parcelid + '\r\n')
+                plik.write('    ' + parcelid + '\r\n')
             plik.write('\r\n')
+
+        plik.write('DZIAŁKI WŁAŚCIWE (wszystkie przeznaczone do eksportu)\r\n')
+        plik.write('-' * 72 + '\r\n')
+        for parcelid in wszystkie_wlasciwe:
+            plik.write(parcelid + '\r\n')
 
     return rap_sc
 
 
-def zapisz_warstwy_wydzielen_mieszanych(folder_shp_zrodlowy, folder_docelowy, mieszane):
+def zapisz_warstwy_wydzielen_mieszanych(folder_shp_zrodlowy, folder_docelowy,
+                                         obce_parcelid, wlasciwe_parcelid):
     """Zapisuje w folder_docelowy dwie warstwy dopasowane po PARCELID z
-    warstwy DZKAT (folder_shp_zrodlowy) - Dzialki_wlasciwe.shp (należące do
-    eksportowanej grupy rejestrowej) i Dzialki_obce.shp (te, które trzeba
-    wydzielić z wydzieleń mieszanych, patrz policz_wydzielenia_mieszane) -
-    do wizualnej kontroli na mapie. Zwraca {'Dzialki_wlasciwe': sciezka|None,
-    'Dzialki_obce': sciezka|None} - None gdy brak warstwy DZKAT albo brak
-    dopasowanych obiektów danego rodzaju."""
+    warstwy DZKAT (folder_shp_zrodlowy) - Dzialki_wlasciwe.shp (WSZYSTKIE
+    działki przeznaczone do eksportu, patrz policz_wszystkie_parcelid) i
+    Dzialki_obce.shp (tylko te, które trzeba wydzielić z wydzieleń
+    mieszanych, patrz policz_wydzielenia_mieszane) - do wizualnej kontroli
+    na mapie. Zwraca {'Dzialki_wlasciwe': sciezka|None, 'Dzialki_obce':
+    sciezka|None} - None gdy brak warstwy DZKAT albo brak dopasowanych
+    obiektów danego rodzaju."""
     lyr = _wczytaj_shp(folder_shp_zrodlowy, 'DZKAT')
     if lyr is None:
         return {'Dzialki_wlasciwe': None, 'Dzialki_obce': None}
 
-    obce_id = {p for _, obce, _ in mieszane for p in obce}
-    wlasciwe_id = {p for _, _, wlasciwe in mieszane for p in wlasciwe}
-
     os.makedirs(folder_docelowy, exist_ok=True)
     wyniki = {}
-    for nazwa, parcelidy in (('Dzialki_wlasciwe', wlasciwe_id),
-                              ('Dzialki_obce', obce_id)):
+    for nazwa, parcelidy in (('Dzialki_wlasciwe', set(wlasciwe_parcelid)),
+                              ('Dzialki_obce', set(obce_parcelid))):
         dopasowane = [f for f in lyr.getFeatures() if f['PARCELID'] in parcelidy]
         if _zapisz_podzbior(lyr, dopasowane, folder_docelowy, nazwa):
             wyniki[nazwa] = os.path.join(folder_docelowy, nazwa + '.shp')

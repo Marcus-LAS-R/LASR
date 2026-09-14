@@ -64,7 +64,7 @@ def _potwierdz_mieszane(iface, mieszane):
     adresy i PARCELID - trafiają do raportu txt tylko przy "Nie", patrz
     zapisz_raport_wydzielen_mieszanych) i pyta czy mimo to kontynuować.
     Zwraca True (kontynuuj) / False (przerwij)."""
-    liczba_dzialek = len({p for _, obce, _ in mieszane for p in obce})
+    liczba_dzialek = len({p for _, obce in mieszane for p in obce})
     tresc = (
         f'Wykryto {len(mieszane)} wydzieleń zawierających łącznie '
         f'{liczba_dzialek} działek, które nie powinny się w nich znaleźć '
@@ -145,13 +145,17 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
         baza, arodes_wszystkie, grupy_dozwolone)
     if mieszane and not _potwierdz_mieszane(iface, mieszane):
         katalog_zrodla = os.path.dirname(baza.baza)
-        rap_sc = eksport.zapisz_raport_wydzielen_mieszanych(katalog_zrodla, mieszane)
+        obce_id = {p for _, obce in mieszane for p in obce}
+        wszystkie_wlasciwe = eksport.policz_wszystkie_parcelid(baza, parcels_final)
+        rap_sc = eksport.zapisz_raport_wydzielen_mieszanych(
+            katalog_zrodla, mieszane, wszystkie_wlasciwe)
         komunikat = ('Przerwano - nic nie zmieniono. Wydzielenia do '
                      'rozdzielenia przed ponownym uruchomieniem: ' + rap_sc)
 
         if folder_shp:
             warstwy = eksport.zapisz_warstwy_wydzielen_mieszanych(
-                folder_shp, os.path.join(katalog_zrodla, 'SHP'), mieszane)
+                folder_shp, os.path.join(katalog_zrodla, 'SHP'),
+                obce_id, wszystkie_wlasciwe)
             if warstwy.get('Dzialki_wlasciwe'):
                 _dodaj_warstwe_ze_stylem(
                     warstwy['Dzialki_wlasciwe'], 'Dzialki_wlasciwe',
