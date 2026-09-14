@@ -17,7 +17,7 @@ zapisane - błąd w jednej blokuje zapis OBU plików (patrz
 import os
 
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel,
+    QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
     QMessageBox, QVBoxLayout,
 )
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
@@ -124,14 +124,25 @@ class UtworzKlonTxtDialog(QDialog):
         i = self.combo_wydz.currentIndex()
         return self._wydzielenia[i] if 0 <= i < len(self._wydzielenia) else None
 
-    def _domyslna_sciezka(self, lyr, nazwa_pliku):
-        try:
-            zrodlo = lyr.dataProvider().dataSourceUri().split('|')[0]
-            if zrodlo and os.path.isfile(zrodlo):
-                return os.path.join(os.path.dirname(zrodlo), nazwa_pliku)
-        except Exception:
-            pass
-        return nazwa_pliku
+    def _domyslny_katalog_raportow(self, wydz_lyr, klon_lyr):
+        """Katalog "na poziomie SHP i bazy" - bez pytania użytkownika o
+        lokalizację, ten sam wzorzec co warstwa_opisow_dock._folder_opis():
+        najpierw folder samego (zapisanego) projektu QGIS, w przeciwnym
+        razie folder nadrzędny względem SHP wybranej warstwy WYDZ (a gdy
+        i to zawiedzie - względem warstwy Klon, np. gdy leży w SHP_opis
+        obok, ale WYDZ akurat nie ma pliku na dysku)."""
+        projekt = QgsProject.instance().absolutePath()
+        if projekt:
+            return projekt
+
+        for lyr in (wydz_lyr, klon_lyr):
+            try:
+                zrodlo = lyr.dataProvider().dataSourceUri().split('|')[0]
+                if zrodlo and os.path.isfile(zrodlo):
+                    return os.path.dirname(os.path.dirname(zrodlo))
+            except Exception:
+                continue
+        return ''
 
     def _uruchom(self):
         klon = self._wybrany_klon()
@@ -164,14 +175,17 @@ class UtworzKlonTxtDialog(QDialog):
                 "danych do przetworzenia.")
             return
 
-        sciezka_klon, _ = QFileDialog.getSaveFileName(
-            self, "Zapisz KLON.txt",
-            self._domyslna_sciezka(klon, 'KLON.txt'), "Plik tekstowy (*.txt)")
-        if not sciezka_klon:
+        katalog = self._domyslny_katalog_raportow(wydz, klon)
+        if not katalog:
+            QMessageBox.warning(
+                self, "Brak lokalizacji",
+                "Nie udało się ustalić lokalizacji projektu/warstw na "
+                "dysku - nie wiadomo, gdzie zapisać raporty. Zapisz "
+                "projekt QGIS na dysku i spróbuj ponownie.")
             return
 
-        sciezka_notatki = os.path.join(
-            os.path.dirname(sciezka_klon), 'NOTATKI_zmiany.txt')
+        sciezka_klon = os.path.join(katalog, 'KLON.txt')
+        sciezka_notatki = os.path.join(katalog, 'NOTATKI_zmiany.txt')
 
         logika.zapisz_plik(wynik_klon['pary'], sciezka_klon)
         logika.zapisz_plik(wynik_notatki['pary'], sciezka_notatki)

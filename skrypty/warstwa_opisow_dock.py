@@ -47,7 +47,7 @@ from qgis.core import (
     QgsGeometry, QgsProject, QgsVectorFileWriter, QgsVectorLayer,
     QgsWkbTypes,
 )
-from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
+from qgis.gui import QgsMapTool, QgsMapToolEmitPoint, QgsRubberBand
 
 CRS = QgsCoordinateReferenceSystem('EPSG:2180')
 
@@ -267,6 +267,71 @@ def _wylacz_formularz(lyr):
     lyr.setEditFormConfig(cfg)
 
 
+class _NarzedzieOdcinka(QgsMapTool):
+    """Digitalizacja jednego odcinka źródło->cel (dokładnie 2 wierzchołki),
+    tak jak natywne narzędzia QGIS: LPM dodaje kolejno źródło i cel (z
+    linią "na żywo" śledzącą kursor po pierwszym kliknięciu), PPM
+    zatwierdza gotowy odcinek (nie dodaje nowego punktu - działa tylko
+    gdy oba wierzchołki są już ustawione), Esc anuluje w dowolnym
+    momencie. Trzeci LPM przed PPM jest ignorowany."""
+
+    def __init__(self, canvas, rubber_band, on_zakonczono):
+        super().__init__(canvas)
+        self._rubber = rubber_band
+        self._on_zakonczono = on_zakonczono
+        self._zrodlo = None
+        self._cel = None
+        self.setCursor(Qt.CrossCursor)
+
+    def canvasPressEvent(self, event):
+        punkt = self.toMapCoordinates(event.pos())
+
+        if event.button() == Qt.RightButton:
+            if self._zrodlo is not None and self._cel is not None:
+                self._on_zakonczono(self._zrodlo, self._cel)
+            self._resetuj()
+            return
+
+        if event.button() != Qt.LeftButton:
+            return
+
+        if self._zrodlo is None:
+            self._zrodlo = punkt
+            self._rubber.reset(QgsWkbTypes.LineGeometry)
+            self._rubber.addPoint(punkt)
+        elif self._cel is None:
+            self._cel = punkt
+            self._rubber.reset(QgsWkbTypes.LineGeometry)
+            self._rubber.addPoint(self._zrodlo)
+            self._rubber.addPoint(self._cel)
+        # trzeci i kolejne LPM (oba wierzchołki już ustawione) - ignorowane
+
+    def canvasMoveEvent(self, event):
+        if self._zrodlo is None or self._cel is not None:
+            return
+        punkt = self.toMapCoordinates(event.pos())
+        self._rubber.reset(QgsWkbTypes.LineGeometry)
+        self._rubber.addPoint(self._zrodlo)
+        self._rubber.addPoint(punkt)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self._resetuj()
+
+    def activate(self):
+        super().activate()
+        self._resetuj()
+
+    def deactivate(self):
+        self._resetuj()
+        super().deactivate()
+
+    def _resetuj(self):
+        self._zrodlo = None
+        self._cel = None
+        self._rubber.reset(QgsWkbTypes.LineGeometry)
+
+
 class WarstwaOpisowDock(QDockWidget):
 
     tytul = 'Warstwy do opisów'
@@ -285,7 +350,6 @@ class WarstwaOpisowDock(QDockWidget):
         self._narzedzie_pkt = None
         self._narzedzie_klon = None
         self._narzedzie_notatki = None
-        self._klon_pierwszy = None
         self._rubber_klon = None
 
         self._zbuduj_ui()
@@ -538,39 +602,27 @@ class WarstwaOpisowDock(QDockWidget):
         if not _zywa(self.klon_lyr):
             return
 
-        self._klon_pierwszy = None
         if self._rubber_klon is None:
             self._rubber_klon = QgsRubberBand(
-                self.iface.mapCanvas(), QgsWkbTypes.PointGeometry)
+                self.iface.mapCanvas(), QgsWkbTypes.LineGeometry)
             self._rubber_klon.setColor(QColor(255, 0, 0))
-            self._rubber_klon.setWidth(4)
-        self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
+            self._rubber_klon.setWidth(2)
+        self._rubber_klon.reset(QgsWkbTypes.LineGeometry)
 
         if self._narzedzie_klon is None:
-            self._narzedzie_klon = QgsMapToolEmitPoint(self.iface.mapCanvas())
-            self._narzedzie_klon.canvasClicked.connect(self._klik_klon)
+            self._narzedzie_klon = _NarzedzieOdcinka(
+                self.iface.mapCanvas(), self._rubber_klon, self._zapisz_klon)
         self.iface.mapCanvas().setMapTool(self._narzedzie_klon)
 
-    def _klik_klon(self, koord, _btn):
+    def _zapisz_klon(self, zrodlo, cel):
         if not _zywa(self.klon_lyr):
             return
 
-        if self._klon_pierwszy is None:
-            # pierwszy klik - zapamiętaj punkt startowy, pokaż go na mapie
-            self._klon_pierwszy = koord
-            self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
-            self._rubber_klon.addPoint(koord)
-            return
-
-        # drugi klik - dokladnie 2 wierzcholki, odcinek od razu zapisywany
-        geom = QgsGeometry.fromPolylineXY([self._klon_pierwszy, koord])
+        geom = QgsGeometry.fromPolylineXY([zrodlo, cel])
         f = QgsFeature(self.klon_lyr.fields())
         f.setGeometry(geom)
         self.klon_lyr.dataProvider().addFeatures([f])
         self.klon_lyr.triggerRepaint()
-
-        self._klon_pierwszy = None
-        self._rubber_klon.reset(QgsWkbTypes.PointGeometry)
 
     # -------------------------------------------------- warstwa punktowa
 
