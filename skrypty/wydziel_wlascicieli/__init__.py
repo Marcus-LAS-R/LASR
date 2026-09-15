@@ -174,9 +174,9 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
     # klucze do dopasowania grafiki - policzone TERAZ (baza źródłowa jeszcze
     # nietknięta), żeby uprzątnięcie (które usuwa F_PARCEL/F_ARODES) nie
     # sprawiło, że te same zapytania zwrócą później pusty zbiór
-    klucze_dzialek = adresy_wydz = None
+    parcelid_final = adresy_wydz = None
     if opcja_grafika and folder_shp:
-        klucze_dzialek = eksport.policz_klucze_dzialek(baza, parcels_final)
+        parcelid_final = eksport.policz_wszystkie_parcelid(baza, parcels_final)
         adresy_wydz = eksport.policz_adresy_wydz(baza, arodes_wszystkie)
 
     postep.setValue(10)
@@ -220,7 +220,7 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
         folder_docelowy = os.path.join(
             os.path.dirname(cel_sc), 'SHP_eksport_wlascicieli')
         ile_shp_eksport = eksport.eksportuj_grafike(
-            folder_shp, folder_docelowy, klucze_dzialek, adresy_wydz)
+            folder_shp, folder_docelowy, parcelid_final, adresy_wydz)
 
     postep.setValue(80)
 
@@ -238,7 +238,7 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
             return False
         if opcja_grafika and folder_shp:
             ile_shp_usuniete = eksport.uprzatnij_shp(
-                folder_shp, klucze_dzialek, adresy_wydz)
+                folder_shp, parcelid_final, adresy_wydz)
             iface.mapCanvas().refreshAllLayers()
 
     postep.setValue(100)
@@ -265,9 +265,12 @@ def _uruchom_eksport(iface, baza, wybor):  # noqa
     tresc += '. Kopia zapasowa: ' + folder_kopii + '. Raport: ' + rap_eksportu
 
     if bledy:
+        rap_bledow = eksport.zapisz_raport_bledow(
+            os.path.dirname(baza.baza), ekst.l_bledy_wpisu, ekst.l_bledy_odczytu)
         iface.messageBar().pushMessage(
             'EKSPORT Z BŁĘDAMI',
-            tresc + f'. Wystąpiło {bledy} błędów odczytu/zapisu - sprawdź log Las-R.',
+            tresc + f'. Wystąpiło {bledy} błędów odczytu/zapisu - '
+            f'szczegóły: {rap_bledow}',
             Qgis.Warning, 0)
     else:
         iface.messageBar().pushMessage('EKSPORT ZAKOŃCZONY', tresc, Qgis.Success, 0)

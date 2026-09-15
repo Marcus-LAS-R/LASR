@@ -168,19 +168,31 @@ class KontrolaLs:
         if self.d_ls[lid]['COMMUNITY'] != lid[7:11]:
             s['COMMUNITY'] = lid[7:11]
 
-        ind = 1
-        try:
-            if len(lid.split('.')) == 4:
-                ind = 2
-                if self.d_ls[lid]['ARK'] != lid.split('.')[1]:
-                    s['ARK'] = lid.split('.')[1]
-        except IndexError:
+        # LANDID = PARCELID + '.' + AU + SQ, a PARCELID to ADMIN[.ARK].NUMER
+        # - numer działki jest zawsze PRZEDOSTATNIM segmentem, a PARCELID
+        # wszystkim OPRÓCZ ostatniego (AU+SQ). Dawniej pozycję numeru
+        # zgadywano z CAŁKOWITEJ liczby segmentów (4 = jest ARK, inaczej
+        # numer na pozycji 1) - jeśli PARCELID był już wcześniej okaleczony
+        # (np. przez tę samą metodę przy poprzednim uruchomieniu), dawało to
+        # 3 segmenty zamiast 4 i błędnie brało ARK za numer działki,
+        # obcinając PARCELID - błąd samopodtrzymujący się. Odporne na to
+        # liczenie "od końca" (jak w baza_kontrola_dzkat.py) nie zależy od
+        # tego, czy ARK jest obecny.
+        czesci = lid.split('.')
+        if len(czesci) < 3:
             print('Niepoprawny LANDID: '+lid)
+            nr = lid
+            parcelid_z_lid = lid
+        else:
+            nr = czesci[-2]
+            parcelid_z_lid = '.'.join(czesci[:-1])
+            if len(czesci) == 4 and self.d_ls[lid]['ARK'] != czesci[1]:
+                s['ARK'] = czesci[1]
 
-        if self.d_ls[lid]['PARCELNR'] != lid.split('.')[ind]:
-            s['PARCELNR'] = lid.split('.')[ind]
-        if self.d_ls[lid]['PARCELID'] != '.'.join(lid.split('.')[:ind+1]):
-            s['PARCELID'] = '.'.join(lid.split('.')[:ind+1])
+        if self.d_ls[lid]['PARCELNR'] != nr:
+            s['PARCELNR'] = nr
+        if self.d_ls[lid]['PARCELID'] != parcelid_z_lid:
+            s['PARCELID'] = parcelid_z_lid
         pow_graf = round(
             self.d_ls[lid]['feat'].geometry().area()/10000, 4)
         if self.d_ls[lid]['LAND_POW'] != pow_graf:
@@ -194,7 +206,7 @@ class KontrolaLs:
             if self.d_ls[lid]['LAND_AR'] != self.p.uzytki[lid][2]:
                 s['LAND_AR'] = self.p.uzytki[lid][2]
 
-            dzid = lid[4:11] + '.' + lid.split('.')[ind]
+            dzid = lid[4:11] + '.' + nr
             if dzid in self.p.sl_kody_wlasciceli_na_dzialce:
                 wlas_set = set(self.p.sl_kody_wlasciceli_na_dzialce[dzid])
                 if wlas_set == set(['OF']):
@@ -306,9 +318,10 @@ class KontrolaLs:
     def _parcelid_z_landid(self, lid):
         """Wylicza PARCELID z LANDID wg tej samej reguły co sprawdz_puste()
         - potrzebne dla Ls-ów brakujących w SHP, dla których nie ma
-        obiektu (a więc i pola PARCELID) do odczytania wprost."""
-        ind = 2 if len(lid.split('.')) == 4 else 1
-        return '.'.join(lid.split('.')[:ind + 1])
+        obiektu (a więc i pola PARCELID) do odczytania wprost. PARCELID to
+        LANDID bez ostatniego segmentu (AU+SQ) - niezależnie od tego, czy
+        ARK jest obecny (patrz sprawdz_puste)."""
+        return '.'.join(lid.split('.')[:-1])
 
     def _zbierz_waypointy(self):
         """Buduje listę waypointów (do Nawigatora błędów) z zestawień

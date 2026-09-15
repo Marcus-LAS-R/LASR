@@ -103,21 +103,6 @@ def policz_arodes_wydziel(baza, parcels):
     return {w[0] for w in wiersze}
 
 
-def policz_klucze_dzialek(baza, parcels):
-    """Zwraca zbiór kluczy (kod_gminy, COMMUNITY_CD, PARCEL_NR) - do
-    dopasowania obiektów DZKAT/LS (opcja 2), tym samym kształtem klucza co
-    kontrola_terenowa/core/dzkat_kontrola._klucz_dzkat."""
-    wiersze = _pobierz_filtrowane(
-        baza, 'F_PARCEL',
-        ['COUNTY_CD', 'DISTRICT_CD', 'MUNICIPALITY_CD', 'COMMUNITY_CD',
-         'PARCEL_NR'],
-        'PARCEL_INT_NUM', parcels)
-    return {
-        (isNone(w[0]) + isNone(w[1]) + isNone(w[2]), isNone(w[3]), isNone(w[4]))
-        for w in wiersze
-    }
-
-
 def policz_adresy_wydz(baza, arodes):
     """Zwraca zbiór ADRESS_FOREST (ADR_LES) dla podanych ARODES_INT_NUM -
     do dopasowania obiektów WYDZ/PNSW (opcja 2)."""
@@ -157,15 +142,34 @@ def _slownik_adresow_wydz(baza, arodes):
         'ARODES_INT_NUM', arodes))
 
 
+def _rozbij_ark_numer(ark, nr):
+    """Normalizuje parę (arkusz, numer działki) - zależnie od źródłowych
+    danych bywa różnie zapisana: czasem REG_SHEET_NR2 (baza) / ARK (SHP)
+    jest osobnym, wypełnionym polem, a czasem jest puste i arkusz jest
+    wbudowany na początku numeru działki (np. PARCEL_NR="AR_2.673/6" przy
+    pustym REG_SHEET_NR2 - stwierdzone empirycznie 2026-09-15). Gdy `ark`
+    jest puste, a `nr` zawiera kropkę, część przed pierwszą kropką jest
+    traktowana jako arkusz - używane przy budowie PARCELID z danych bazy
+    (_wyr1), żeby niezależnie od konwencji zapisu w danym projekcie dawało
+    ten sam wynik co PARCELID już zapisane wprost w DZKAT/LS (które jest
+    tam ufane bezpośrednio, bez rekonstrukcji z ARK+PARCELNR)."""
+    ark = isNone(ark)
+    nr = isNone(nr)
+    if not ark and '.' in nr:
+        ark, nr = nr.split('.', 1)
+    return ark, nr
+
+
 def _wyr1(dane):
-    """Buduje czytelny identyfikator działki (jak Wyr1 w Baza.uzytki())
+    """Buduje czytelny identyfikator działki (PARCELID - jak w DZKAT/LS)
     z (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD,
-    REG_SHEET_NR2, PARCEL_NR)."""
+    REG_SHEET_NR2, PARCEL_NR), z normalizacją arkusza (_rozbij_ark_numer)."""
     county, district, municip, community, ark, nr = dane
+    ark, nr = _rozbij_ark_numer(ark, nr)
     wyr1 = isNone(county) + isNone(district) + isNone(municip) + isNone(community)
-    if isNone(ark):
-        wyr1 += '.' + isNone(ark)
-    wyr1 += '.' + isNone(nr)
+    if ark:
+        wyr1 += '.' + ark
+    wyr1 += '.' + nr
     return wyr1
 
 
@@ -230,6 +234,38 @@ def policz_wszystkie_parcelid(baza, parcels):
          'COMMUNITY_CD', 'REG_SHEET_NR2', 'PARCEL_NR'],
         'PARCEL_INT_NUM', parcels)
     return sorted({_wyr1(w[1:]) for w in wiersze})
+
+
+def zapisz_raport_bledow(katalog, l_bledy_wpisu, l_bledy_odczytu):
+    """Zapisuje do pliku txt szczegóły błędów zapisu/odczytu z eksportu do
+    bazy docelowej (Laczenie.l_bledy_wpisu/l_bledy_odczytu) - dotąd tylko
+    liczone w podsumowaniu, nigdy nigdzie nie zapisywane, więc komunikat
+    "sprawdź log Las-R" nie prowadził do żadnych szczegółów (zgłoszone
+    przez użytkownika 2026-09-15)."""
+    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    rap_sc = os.path.join(katalog, 'bledy_eksportu_' + czas + '.txt')
+
+    with open(rap_sc, 'w', encoding='utf-8') as plik:
+        plik.write('BŁĘDY EKSPORTU WŁAŚCICIELI\r\n')
+        plik.write('=' * 72 + '\r\n\r\n')
+
+        if l_bledy_wpisu:
+            plik.write('BŁĘDY ZAPISU (do bazy docelowej)\r\n')
+            plik.write('-' * 72 + '\r\n')
+            for tabela, opis_wiersza, blad in l_bledy_wpisu:
+                plik.write('Tabela: ' + tabela + '\r\n')
+                plik.write('Wiersz: ' + opis_wiersza + '\r\n')
+                plik.write('Błąd:   ' + blad + '\r\n\r\n')
+
+        if l_bledy_odczytu:
+            plik.write('BŁĘDY ODCZYTU (z bazy źródłowej/docelowej)\r\n')
+            plik.write('-' * 72 + '\r\n')
+            for baza_sc, tabela, blad in l_bledy_odczytu:
+                plik.write('Baza:   ' + baza_sc + '\r\n')
+                plik.write('Tabela: ' + tabela + '\r\n')
+                plik.write('Błąd:   ' + blad + '\r\n\r\n')
+
+    return rap_sc
 
 
 def zapisz_raport_wydzielen_mieszanych(katalog, mieszane, wszystkie_wlasciwe):
@@ -491,20 +527,22 @@ class EksportWlascicieli:
         self.laczenie.d_tabele()
 
 
-def eksportuj_grafike(folder_shp_zrodlowy, folder_docelowy, klucze_dzialek,
+def eksportuj_grafike(folder_shp_zrodlowy, folder_docelowy, parcelid_zbior,
                        adresy_wydz):
     """Zapisuje w folder_docelowy podzbiory DZKAT/LS/WYDZ/PNSW z
-    folder_shp_zrodlowy dopasowane do klucze_dzialek (DZKAT/LS, po kluczu
-    z policz_klucze_dzialek) i adresy_wydz (WYDZ/PNSW, po ADR_LES/ADR_BDL).
-    Zwraca {nazwa_warstwy: liczba_wyeksportowanych_obiektow}."""
+    folder_shp_zrodlowy dopasowane do parcelid_zbior (DZKAT/LS, po polu
+    PARCELID - patrz policz_wszystkie_parcelid/_wyr1) i adresy_wydz
+    (WYDZ/PNSW, po ADR_LES/ADR_BDL). Zwraca {nazwa_warstwy:
+    liczba_wyeksportowanych_obiektow}."""
     os.makedirs(folder_docelowy, exist_ok=True)
     wyniki = {}
+    parcelid_zbior = set(parcelid_zbior)
 
     for nazwa in ('DZKAT', 'LS'):
         lyr = _wczytaj_shp(folder_shp_zrodlowy, nazwa)
         if lyr is None:
             continue
-        dopasowane = [f for f in lyr.getFeatures() if _klucz_dzkat(f) in klucze_dzialek]
+        dopasowane = [f for f in lyr.getFeatures() if f['PARCELID'] in parcelid_zbior]
         wyniki[nazwa] = _zapisz_podzbior(lyr, dopasowane, folder_docelowy, nazwa)
 
     for nazwa, kolumna in (('WYDZ', 'ADR_LES'), ('PNSW', 'ADR_BDL')):
@@ -517,18 +555,19 @@ def eksportuj_grafike(folder_shp_zrodlowy, folder_docelowy, klucze_dzialek,
     return wyniki
 
 
-def uprzatnij_shp(folder_shp_zrodlowy, klucze_dzialek, adresy_wydz):
+def uprzatnij_shp(folder_shp_zrodlowy, parcelid_zbior, adresy_wydz):
     """Trwale usuwa z warstw źródłowych (DZKAT/LS/WYDZ/PNSW) obiekty
     dopasowane do wyeksportowanych właścicieli/działek/wydzieleń. Zwraca
     {nazwa_warstwy: liczba_usunietych}."""
     usuniete = {}
+    parcelid_zbior = set(parcelid_zbior)
 
     for nazwa in ('DZKAT', 'LS'):
         lyr = _wczytaj_shp(folder_shp_zrodlowy, nazwa)
         if lyr is None:
             continue
         do_usun = [f.id() for f in lyr.getFeatures()
-                   if _klucz_dzkat(f) in klucze_dzialek]
+                   if f['PARCELID'] in parcelid_zbior]
         usuniete[nazwa] = _usun_z_warstwy(lyr, do_usun)
 
     for nazwa, kolumna in (('WYDZ', 'ADR_LES'), ('PNSW', 'ADR_BDL')):
@@ -539,13 +578,6 @@ def uprzatnij_shp(folder_shp_zrodlowy, klucze_dzialek, adresy_wydz):
         usuniete[nazwa] = _usun_z_warstwy(lyr, do_usun)
 
     return usuniete
-
-
-def _klucz_dzkat(feat):
-    return (
-        isNone(feat['COUNTY']) + isNone(feat['DISTRICT']) + isNone(feat['MUNICIP']),
-        isNone(feat['COMMUNITY']), isNone(feat['PARCELNR']),
-    )
 
 
 def _wczytaj_shp(folder, nazwa):

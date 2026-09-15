@@ -213,7 +213,7 @@ class NawigatorDock(QDockWidget):
         if self.pozycja == -1 and len(wiersze) > 0:
             self.pozycja = 0
 
-        self._pokaz_biezacy()
+        self._pokaz_biezacy(cichy=True)
 
     # ---------------------------------------------------- nawigacja ----
 
@@ -272,7 +272,7 @@ class NawigatorDock(QDockWidget):
                 f'Skopiowano do schowka: {self.txt_kopiuj.text()}',
                 Qgis.Success, 3)
 
-    def _pokaz_biezacy(self):
+    def _pokaz_biezacy(self, cichy=False):
         wiersze = self._wiersze_sekcji()
         n = len(wiersze)
 
@@ -295,7 +295,7 @@ class NawigatorDock(QDockWidget):
         self.txt_kopiuj.setText(do_skopiowania)
         self.btn_kopiuj.setEnabled(bool(do_skopiowania))
 
-        self._pokaz_na_mapie(wiersz)
+        self._pokaz_na_mapie(wiersz, cichy=cichy)
         self._ustaw_stan_przyciskow()
 
     def _ustaw_stan_przyciskow(self):
@@ -305,7 +305,7 @@ class NawigatorDock(QDockWidget):
         self.btn_next.setEnabled(aktywne and self.pozycja < n - 1)
         self.btn_oznacz.setEnabled(aktywne)
 
-    def _pokaz_na_mapie(self, wiersz):
+    def _pokaz_na_mapie(self, wiersz, cichy=False):
         # LANDID (warstwa Ls) = konkretny klasoużytek na działce.
         # PARCELID (warstwa działek) = działka katastralna.
         # ADR_LES (warstwa wydzieleń) = adres leśny (oddział-pododdział) -
@@ -321,10 +321,18 @@ class NawigatorDock(QDockWidget):
             pole = 'ADR_LES'
 
         if warstwa is None:
-            self.iface.messageBar().pushMessage(
-                self.tytul,
-                f'Nie wskazano warstwy dla klucza typu {wiersz["typ_klucza"]}.',
-                Qgis.Warning, 4)
+            # cichy=True przy automatycznym pokazaniu pierwszego wiersza po
+            # wczytaniu pliku/zmianie sekcji (patrz _zmien_sekcje) - w tym
+            # momencie użytkownik nie zdążył jeszcze wskazać warstw w
+            # combo, więc to nie błąd, tylko oczekiwany stan początkowy.
+            # Przy ręcznej nawigacji (poprzedni/następny/oznacz i dalej)
+            # ostrzeżenie zostaje, bo tam użytkownik aktywnie próbuje
+            # przeskoczyć na mapę.
+            if not cichy:
+                self.iface.messageBar().pushMessage(
+                    self.tytul,
+                    f'Nie wskazano warstwy dla klucza typu {wiersz["typ_klucza"]}.',
+                    Qgis.Warning, 4)
             return
 
         klucz = wiersz['klucz'].replace("'", "''")
