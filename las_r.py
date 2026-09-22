@@ -116,6 +116,7 @@ from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
 from .skrypty.testowe import eksport_shp_gml
+from .skrypty.testowe import rozdziel_wg_baz
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -676,6 +677,16 @@ class LasR:
             "z opcjonalnym scaleniem wyników ze wszystkich folderów.")
         self.m_testowe.addAction(self.a_eksport_shp_gml)
         self.a_eksport_shp_gml.triggered.connect(self.eksportuj_shp_z_gml)
+
+        self.a_rozdziel_wg_baz = QAction(
+            QIcon(None), "Rozdziel warstwy wg baz", self.iface.mainWindow()
+        )
+        self.a_rozdziel_wg_baz.setToolTip(
+            "Rozdziela zbiorcze warstwy DZKAT/LS/LZ_potencjalne/OBR z "
+            "folderu nadrzędnego na podfoldery wg działek znalezionych w "
+            "bazach .mdb tych podfolderów.")
+        self.m_testowe.addAction(self.a_rozdziel_wg_baz)
+        self.a_rozdziel_wg_baz.triggered.connect(self.uruchom_rozdziel_wg_baz)
 
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
@@ -2075,6 +2086,9 @@ class LasR:
 
     def eksportuj_shp_z_gml(self):
         eksport_shp_gml.uruchom(self.iface)
+
+    def uruchom_rozdziel_wg_baz(self):
+        rozdziel_wg_baz.uruchom(self.iface)
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)
