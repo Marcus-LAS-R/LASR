@@ -1341,8 +1341,8 @@ class Baza(object):
         tabele_wydz = [
             "F_STOREY_SPECIES",
             "F_AROD_CUE",
-            "F_SUBAREA",
             "F_AROD_STOREY",
+            "F_SUBAREA",
             "F_ERROR_HEAD",
             "F_SET",
             "F_ARODES",
