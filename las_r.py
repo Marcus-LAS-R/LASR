@@ -115,6 +115,7 @@ from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
+from .skrypty.testowe import eksport_shp_gml
 
 from .skrypty.zabiegi.main import Zabiegi
 from .qml_templates.main import QmlCacheModule
@@ -665,6 +666,16 @@ class LasR:
             "na mapie) bez uruchamiania pełnej kontroli Ls/SULMN.")
         self.m_testowe.addAction(self.a_kangurkuj)
         self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
+
+        self.a_eksport_shp_gml = QAction(
+            QIcon(None), "Wyeksportuj SHP z GML", self.iface.mainWindow()
+        )
+        self.a_eksport_shp_gml.setToolTip(
+            "Rekurencyjnie eksportuje wybrane warstwy EGiB (działki, "
+            "kontury klasyfikacyjne, ...) z plików GML do SHP w EPSG:2180, "
+            "z opcjonalnym scaleniem wyników ze wszystkich folderów.")
+        self.m_testowe.addAction(self.a_eksport_shp_gml)
+        self.a_eksport_shp_gml.triggered.connect(self.eksportuj_shp_z_gml)
 
         self.m_testowe.addMenu(self.m_aktualizacja_ewid)
 
@@ -2061,6 +2072,9 @@ class LasR:
 
     def konwertuj_pul_upul(self):
         konwersja_pul_upul.uruchom(self.iface)
+
+    def eksportuj_shp_z_gml(self):
+        eksport_shp_gml.uruchom(self.iface)
 
     def uruchom_aktualizacje_baz(self):
         aktualizacja_upul.uruchom(self.iface)
