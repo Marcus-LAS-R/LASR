@@ -1,6 +1,6 @@
 """Dopisz opisy taksacyjne do bazy - na podstawie warstwy punktowej (pole
-GRUPA: INNE WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł, ZRĄB - patrz
-warstwa_opisow_dock.py) i warstwy WYDZ (pole ADR_LES) dopisuje do
+GRUPA: INNE WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł, ZRĄB, TURYST, RETENCJA -
+patrz warstwa_opisow_dock.py) i warstwy WYDZ (pole ADR_LES) dopisuje do
 wskazanej bazy Taksatora F_SUBAREA.AREA_TYPE_CD. Dodatkowo do
 SUBAREA_INFO: dla LZ-Ł stały tekst "LZ ze względu na powierzchnię", dla
 INNE WYL treść pola INF_ROZNE punktu (jeśli warstwa punktowa je ma).
@@ -23,14 +23,27 @@ AREA_TYPE_CD niż ta z punktu, zapis dla całości jest wstrzymywany i
 zgłaszany jako konflikt (zamiast cichego nadpisania) - dopiero gdy
 wszystkie pary są bezkonfliktowe, wykonywana jest kopia zapasowa bazy i
 faktyczny zapis.
+
+Obok AREA_TYPE_CD zapisywane są F_SUBAREA.SITE_TYPE_CD (pole STL punktu) i
+VEG_COVER_CD (pole POKRYWA) - tylko niepuste i nigdy dla L ENERG / LZ-Ł
+(patrz opis_stl.py). Punkty bez STL (postawione przed dodaniem pola)
+dostają STL z WYDZ_POL_stare tą samą metodą co w Edytorze (poligon pod
+punktem albo najbliższy do 20 m). Gdy wydzielenie ma już w bazie inną,
+niepustą wartość STL/pokrywy - użytkownik decyduje, czy nadpisać.
+
+STL/pokrywa są sprawdzane dokładnie (co do znaku) ze słownikami tej bazy
+(F_SITE_TYPE_DIC, F_VEG_COVER_DIC). Zepsute polskie znaki są naprawiane
+automatycznie, jeśli naprawa jest jednoznaczna (opis_stl.napraw_kod, lista
+napraw w raporcie). Wartość, której nie da się naprawić, wstrzymuje cały
+zapis - jak konflikt AREA_TYPE_CD.
 """
 import glob
 import os
 
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
+    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
+    QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
 )
 from qgis.core import (
     QgsFeature, QgsField, QgsProject, QgsSpatialIndex, QgsVectorLayer,
@@ -38,8 +51,12 @@ from qgis.core import (
 )
 
 from .baza_wrapper import Baza
+from . import opis_stl
 
-GRUPY_VALIDNE = ('INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB')
+GRUPY_VALIDNE = (
+    'INNE WYL', 'L ENERG', 'SUKCESJA', 'DROGI L', 'LZ-Ł', 'ZRĄB', 'TURYST',
+    'RETENCJA',
+)
 INFO_LZ = 'LZ ze względu na powierzchnię'
 GRUPA_WYMAGA_INF_ROZNE = 'INNE WYL'
 
@@ -94,7 +111,8 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
     Returns:
         Dict z kluczem 'ok'. Gdy False - dodatkowo 'komunikat' (str), a
         warstwy błędów są już dodane do projektu. Gdy True - dodatkowo
-        'pary': lista (adr_les, grupa, pkt_fid).
+        'pary': lista (adr_les, grupa, inf_rozne, pkt_fid, stl,
+        pokrywa).
     """
     pkt_feats = {f.id(): f for f in pkt_lyr.getFeatures()}
     wydz_feats = {f.id(): f for f in wydz_lyr.getFeatures()}
@@ -177,17 +195,20 @@ def waliduj_geometrie(pkt_lyr, wydz_lyr):
         return _raport_bledow_geometrii(
             bledy, pkt_feats, wydz_feats, pkt_lyr.crs(), wydz_lyr)
 
-    ma_inf_rozne = 'INF_ROZNE' in {pole.name() for pole in pkt_lyr.fields()}
+    pola_pkt = {pole.name().upper(): pole.name() for pole in pkt_lyr.fields()}
 
-    def _inf_rozne(pf):
-        if not ma_inf_rozne:
+    def _pole(pf, nazwa):
+        if nazwa not in pola_pkt:
             return ''
-        wartosc = pf['INF_ROZNE']
-        return str(wartosc).strip() if wartosc is not None else ''
+        wartosc = pf[pola_pkt[nazwa]]
+        if wartosc is None or str(wartosc).strip() in ('NULL', 'None'):
+            return ''
+        return str(wartosc).strip()
 
     pary = [
         (wydz_feats[wfid]['ADR_LES'], str(pkt_feats[pfid]['GRUPA']).strip(),
-         _inf_rozne(pkt_feats[pfid]), pfid)
+         _pole(pkt_feats[pfid], 'INF_ROZNE'), pfid,
+         _pole(pkt_feats[pfid], 'STL'), _pole(pkt_feats[pfid], 'POKRYWA'))
         for pfid, wfid in jednoznaczne.items()
     ]
     return {'ok': True, 'pary': pary}
@@ -252,8 +273,13 @@ def _raport_bledow_geometrii(bledy, pkt_feats, wydz_feats, pkt_crs, wydz_lyr):
     return {'ok': False, 'komunikat': komunikat}
 
 
-def zapisz_do_bazy(baza_sc, pary):
-    """pary: lista (adr_les, grupa, inf_rozne, pkt_fid).
+def zapisz_do_bazy(baza_sc, pary, pytaj_nadpisanie=None):
+    """pary: lista (adr_les, grupa, inf_rozne, pkt_fid, stl, pokrywa).
+
+    pytaj_nadpisanie: funkcja(lista (adr_les, pole, jest, ma_byc)) -> bool,
+    wołana przed zapisem, gdy wydzielenia mają w bazie inne, niepuste
+    SITE_TYPE_CD/VEG_COVER_CD niż punkty. True = nadpisać, False =
+    zostawić wartości z bazy (dla tych pól). Brak funkcji = nie nadpisuj.
 
     Returns:
         Dict z kluczem 'ok' i 'komunikat' (raport do pokazania
@@ -270,11 +296,27 @@ def zapisz_do_bazy(baza_sc, pary):
             'ok': False,
             'komunikat': 'Nie udało się pobrać wydzieleń z bazy.'}
 
+    slowniki = {}
+    for pole, sql in (
+            ('SITE_TYPE_CD', 'select SITE_TYPE_CD from F_SITE_TYPE_DIC;'),
+            ('VEG_COVER_CD', 'select VEG_COVER_CD from F_VEG_COVER_DIC;')):
+        wynik = baza.pobierz(sql)
+        if not wynik:
+            baza.zamknij()
+            return {
+                'ok': False,
+                'komunikat': f'Nie udało się pobrać słownika dla {pole} z '
+                'bazy - nic nie zostało zapisane.'}
+        slowniki[pole] = [r[0] for r in wynik]
+
     brak_w_bazie = []
     konflikty = []  # (adr_les, obecna_wartosc, nowa_wartosc)
-    do_zapisu = []  # (arodes_int_num, grupa, adr_les, inf_rozne)
+    spoza_slownika = []  # (adr_les, pole, wartosc)
+    naprawy = []  # (adr_les, pole, bylo, jest)
+    do_zapisu = []  # (arodes_int_num, grupa, adr_les, inf_rozne, stl, pokr)
+    rozne_stl_pokr = []  # (adr_les, pole, jest, ma_byc)
 
-    for adr_les, grupa, inf_rozne, _pfid in pary:
+    for adr_les, grupa, inf_rozne, _pfid, stl, pokrywa in pary:
         if adr_les not in wydzielenia:
             brak_w_bazie.append(adr_les)
             continue
@@ -291,10 +333,47 @@ def zapisz_do_bazy(baza_sc, pary):
             konflikty.append((adr_les, obecna, grupa))
             continue
 
-        do_zapisu.append((aint, grupa, adr_les, inf_rozne))
+        if not opis_stl.grupa_wymaga_stl(grupa):
+            stl = pokrywa = ''
 
-    if brak_w_bazie or konflikty:
+        poprawne = {}
+        for pole, wartosc in (
+                ('SITE_TYPE_CD', stl), ('VEG_COVER_CD', pokrywa)):
+            if not wartosc:
+                poprawne[pole] = ''
+                continue
+            kod, naprawiony = opis_stl.napraw_kod(wartosc, slowniki[pole])
+            if kod is None:
+                spoza_slownika.append((adr_les, pole, wartosc))
+            elif naprawiony:
+                naprawy.append((adr_les, pole, wartosc, kod))
+            poprawne[pole] = kod or ''
+        stl = poprawne['SITE_TYPE_CD']
+        pokrywa = poprawne['VEG_COVER_CD']
+        if stl or pokrywa:
+            wynik = baza.pobierz(
+                'select SITE_TYPE_CD, VEG_COVER_CD from F_SUBAREA where '
+                'ARODES_INT_NUM = ' + str(aint) + ';')
+            if wynik:
+                for pole, jest, ma_byc in (
+                        ('SITE_TYPE_CD', wynik[0][0], stl),
+                        ('VEG_COVER_CD', wynik[0][1], pokrywa)):
+                    jest = '' if jest is None else str(jest).strip()
+                    if ma_byc and jest and jest != ma_byc:
+                        rozne_stl_pokr.append((adr_les, pole, jest, ma_byc))
+
+        do_zapisu.append((aint, grupa, adr_les, inf_rozne, stl, pokrywa))
+
+    if brak_w_bazie or konflikty or spoza_slownika:
         czesci = []
+        if spoza_slownika:
+            pokazane = spoza_slownika[:20]
+            czesci.append(
+                f'{len(spoza_slownika)} wartość(i) STL/pokrywy spoza '
+                'słownika bazy, których nie da się naprawić (popraw pole '
+                'STL/POKRYWA w warstwie punktów): ' + '; '.join(
+                    f'{a} {p}={w!r}' for a, p, w in pokazane) +
+                (', ...' if len(spoza_slownika) > len(pokazane) else ''))
         if brak_w_bazie:
             pokazane = brak_w_bazie[:20]
             czesci.append(
@@ -323,6 +402,14 @@ def zapisz_do_bazy(baza_sc, pary):
         baza.zamknij()
         return {'ok': True, 'komunikat': 'Brak zmian do zapisania.'}
 
+    # wydzielenia, dla których zostawiamy STL/pokrywę z bazy
+    nie_nadpisuj = set()
+    if rozne_stl_pokr:
+        nadpisac = pytaj_nadpisanie(rozne_stl_pokr) if pytaj_nadpisanie \
+            else False
+        if not nadpisac:
+            nie_nadpisuj = {(a, pole) for a, pole, _j, _m in rozne_stl_pokr}
+
     baza.utworz_kopie('dopisz_opisy_taksacyjne')
     if not baza.polacz():
         return {
@@ -332,7 +419,7 @@ def zapisz_do_bazy(baza_sc, pary):
 
     zapisano = 0
     bledy_zapisu = []
-    for aint, grupa, adr_les, inf_rozne in do_zapisu:
+    for aint, grupa, adr_les, inf_rozne, stl, pokrywa in do_zapisu:
         if grupa == 'LZ-Ł':
             dopisek = INFO_LZ
         elif grupa == GRUPA_WYMAGA_INF_ROZNE and inf_rozne:
@@ -354,18 +441,26 @@ def zapisz_do_bazy(baza_sc, pary):
                 info_nowe = info_obecne.rstrip() + '; ' + dopisek
             else:
                 info_nowe = dopisek
-
-            ok = baza.wpisz_tab([
-                'update F_SUBAREA set AREA_TYPE_CD = ?, SUBAREA_INFO = ? '
-                'where ARODES_INT_NUM = ?;',
-                (grupa, info_nowe, aint)
-            ])
         else:
-            ok = baza.wpisz_tab([
-                'update F_SUBAREA set AREA_TYPE_CD = ? '
-                'where ARODES_INT_NUM = ?;',
-                (grupa, aint)
-            ])
+            info_nowe = None
+
+        kolumny = ['AREA_TYPE_CD']
+        wartosci = [grupa]
+        if info_nowe is not None:
+            kolumny.append('SUBAREA_INFO')
+            wartosci.append(info_nowe)
+        if stl and (adr_les, 'SITE_TYPE_CD') not in nie_nadpisuj:
+            kolumny.append('SITE_TYPE_CD')
+            wartosci.append(stl)
+        if pokrywa and (adr_les, 'VEG_COVER_CD') not in nie_nadpisuj:
+            kolumny.append('VEG_COVER_CD')
+            wartosci.append(pokrywa)
+
+        ok = baza.wpisz_tab([
+            'update F_SUBAREA set ' + ', '.join(f'{k} = ?' for k in kolumny)
+            + ' where ARODES_INT_NUM = ?;',
+            tuple(wartosci) + (aint,)
+        ])
 
         if ok:
             zapisano += 1
@@ -375,6 +470,13 @@ def zapisz_do_bazy(baza_sc, pary):
     baza.zamknij()
 
     komunikat = f'Zapisano {zapisano} wydzieleń.'
+    if naprawy:
+        pokazane = naprawy[:20]
+        komunikat += (
+            f'\nNaprawiono automatycznie {len(naprawy)} wartość(i) z '
+            'zepsutymi znakami: ' + '; '.join(
+                f'{a} {p}: {b!r} -> {j!r}' for a, p, b, j in pokazane) +
+            (', ...' if len(naprawy) > len(pokazane) else ''))
     if bledy_zapisu:
         komunikat += (
             f'\nBłędy zapisu ({len(bledy_zapisu)}): ' +
@@ -397,7 +499,9 @@ class DopiszOpisyTaksDialog(QDialog):
         layout.addWidget(QLabel(
             'Na podstawie warstwy punktowej (pole GRUPA) i warstwy WYDZ '
             '(pole ADR_LES) dopisuje do bazy F_SUBAREA.AREA_TYPE_CD (dla '
-            'LZ-Ł i INNE WYL dodatkowo SUBAREA_INFO).\n'
+            'LZ-Ł i INNE WYL dodatkowo SUBAREA_INFO), a poza L ENERG i '
+            'LZ-Ł także SITE_TYPE_CD (pole STL) i VEG_COVER_CD (pole '
+            'POKRYWA).\n'
             'Każdy punkt musi leżeć na dokładnie jednym WYDZ, bez dubletów '
             'w jednym wydzieleniu; LZ-Ł musi leżeć na wydzieleniu z '
             "WYDZ='Lz'."
@@ -515,13 +619,91 @@ class DopiszOpisyTaksDialog(QDialog):
                 'przetworzenia.')
             return
 
-        wynik_bazy = zapisz_do_bazy(baza_sc, wynik['pary'])
+        pary, uwaga_stl = self._uzupelnij_stl(pkt, wynik['pary'])
+        if pary is None:
+            return
+
+        wynik_bazy = zapisz_do_bazy(
+            baza_sc, pary, self._pytaj_nadpisanie)
         if not wynik_bazy['ok']:
             QMessageBox.warning(self, 'Popraw dane', wynik_bazy['komunikat'])
             return
 
-        QMessageBox.information(self, 'OK', wynik_bazy['komunikat'])
+        QMessageBox.information(
+            self, 'OK', wynik_bazy['komunikat'] + uwaga_stl)
         self.accept()
+
+    def _uzupelnij_stl(self, pkt, pary):
+        """Punkty bez STL (grupy wymagające STL) - STL z WYDZ_POL_stare
+        metodą z Edytora. Zwraca (pary, dopisek do raportu) albo (None, '')
+        po anulowaniu wyboru warstwy."""
+        brak = [
+            i for i, p in enumerate(pary)
+            if opis_stl.grupa_wymaga_stl(p[1]) and not p[4]
+        ]
+        if not brak:
+            return pary, ''
+
+        kandydaci = [
+            lyr for lyr in opis_stl.warstwy_zrodla_stl()
+            if opis_stl.nazwa_pola_stl(lyr) is not None
+        ]
+        if not kandydaci:
+            return pary, (
+                f'\n\n{len(brak)} punkt(ów) bez STL - w projekcie nie ma '
+                f'warstwy {opis_stl.NAZWA_ZRODLA_STL} z polem STL, STL dla '
+                'nich nie został zapisany.')
+        lyr = kandydaci[0]
+        if len(kandydaci) > 1:
+            opisy = [
+                f"{k.name()}   ({k.dataProvider().dataSourceUri().split('|')[0]})"
+                for k in kandydaci]
+            wybor, ok = QInputDialog.getItem(
+                self, 'Wybierz warstwę',
+                f'Punkty bez STL - wskaż warstwę '
+                f'{opis_stl.NAZWA_ZRODLA_STL}:', opisy, 0, False)
+            if not ok:
+                return None, ''
+            lyr = kandydaci[opisy.index(wybor)]
+
+        odczyt, komunikat_kod = opis_stl.warstwa_do_odczytu(lyr)
+        zrodlo = opis_stl.ZrodloSTL(lyr, odczyt)
+        pary = list(pary)
+        uzupelniono = 0
+        for i in brak:
+            p = pary[i]
+            f = pkt.getFeature(p[3])
+            stl = zrodlo.stl_dla_punktu(
+                f.geometry().centroid().asPoint(), pkt.crs())
+            if stl:
+                pary[i] = p[:4] + (stl,) + p[5:]
+                uzupelniono += 1
+
+        uwaga = f'\n\nUzupełniono STL z {lyr.name()} dla {uzupelniono} ' \
+            f'z {len(brak)} punktów bez STL.'
+        if komunikat_kod:
+            uwaga += ' ' + komunikat_kod
+        if uzupelniono < len(brak):
+            uwaga += (
+                f' Dla {len(brak) - uzupelniono} nie znaleziono poligonu z '
+                f'STL w promieniu {opis_stl.MAX_ODLEGLOSC:.0f} m - STL nie '
+                'zapisany.')
+        return pary, uwaga
+
+    def _pytaj_nadpisanie(self, rozne):
+        pokazane = rozne[:20]
+        opisy = [
+            f'{a} {pole}: jest {j!r}, z punktu {m!r}'
+            for a, pole, j, m in pokazane]
+        odp = QMessageBox.question(
+            self, 'STL / pokrywa różne od bazy',
+            f'{len(rozne)} wartości STL/pokrywy w bazie różni się od '
+            'wartości z punktów:\n- ' + '\n- '.join(opisy) +
+            ('\n- ...' if len(rozne) > len(pokazane) else '') +
+            '\n\nNadpisać je w bazie wartościami z punktów?\n'
+            '(Nie = zostaw wartości z bazy, reszta zapisu bez zmian)',
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        return odp == QMessageBox.Yes
 
 
 def uruchom(iface=None):

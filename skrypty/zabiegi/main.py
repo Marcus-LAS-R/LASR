@@ -31,6 +31,7 @@ class Zabiegi():
         self.wydz_id = {}  # {arodes_int_num: adr_les}
         self.wr = {}  # {species_cd: wiek_reb}
         self.janczulewicz_flag = False
+        self.czysc_cue = False  # wyczysc F_AROD_CUE przed dopisaniem
 
     def pobierz_dane(self):
         self.dd = PobierzDane()
@@ -55,6 +56,12 @@ class Zabiegi():
             if self.dd.ui.checkBox_janczulewicz.isChecked():
                 self.janczulewicz_flag = True
 
+            if self.wybor == 'Dop' and \
+                    self.dd.ui.checkBox_czysc_cue.isChecked():
+                if not self.potwierdz_czyszczenie():
+                    return False
+                self.czysc_cue = True
+
             self.kopiuj_baze()
             self.mod_trzeb = self.dd.ui.spinBox_trz.value()
 
@@ -71,8 +78,34 @@ class Zabiegi():
         if self.wybor == 'Uzu':
             self.baza.utworz_kopie('modyfikacja_zabiegow')
         if self.wybor == 'Dop':
-            self.baza.utworz_kopie('dopisanie_zabiegow')
+            self.baza.utworz_kopie(
+                'czyszczenie_i_dopisanie_zabiegow' if self.czysc_cue
+                else 'dopisanie_zabiegow')
         return self.baza.polacz()
+
+    def potwierdz_czyszczenie(self) -> bool:
+        """Ostrzega przed skasowaniem calej zawartosci F_AROD_CUE, podajac
+        liczbe rekordow. Zwraca True, gdy uzytkownik potwierdzi."""
+        ile = self.baza.policz_zabiegi()
+        if ile is False:
+            self.iface.messageBar().pushMessage(
+                'Błąd', 'Nie udało się odczytać tabeli F_AROD_CUE.',
+                Qgis.Critical, 10
+            )
+            return False
+
+        odp = QMessageBox.warning(
+            None,
+            'Czyszczenie tabeli zabiegów',
+            'Z tabeli F_AROD_CUE zostaną usunięte WSZYSTKIE rekordy '
+            f'({ile}, czyli 100% zabiegów w bazie), a następnie zabiegi '
+            'zostaną wygenerowane od zera.\n\n'
+            'Przed usunięciem zostanie utworzona kopia bazy w folderze '
+            'Kopie_manipulacyjne.\n\nCzy kontynuować?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        return odp == QMessageBox.Yes
 
     def przetworz(self):
         """Metoda zbiorcza dla całego procesu"""
@@ -86,6 +119,14 @@ class Zabiegi():
             return
         self.wydz_id = {v: k for k, v in self.wydz.items()}
         self.wr = self.baza.pobierz_wiek_reb()
+
+        if self.czysc_cue:
+            if not self.baza.usun_zabiegi():
+                self.iface.messageBar().pushMessage(
+                    'Błąd', 'Nie udało się wyczyścić tabeli F_AROD_CUE.',
+                    Qgis.Critical, 10
+                )
+                return
 
         if self.wybor in ['Dop', 'Uzu']:
             self.baza.usun_zadrzew_w_przes()
@@ -264,6 +305,13 @@ class PobierzDane(QDialog):
         self.ui.pushButton_ok.clicked.connect(self.zatwierdz)
         self.ui.pushButton_porzuc.clicked.connect(self.porzucone)
         self.ui.pushButton_baza.clicked.connect(self.znajdz_baze)
+        self.ui.radioButton_dopisz.toggled.connect(self.przelacz_czysc_cue)
+
+    def przelacz_czysc_cue(self, zaznaczony):
+        """Czyszczenie F_AROD_CUE dostepne tylko w trybie Dopisz"""
+        self.ui.checkBox_czysc_cue.setEnabled(zaznaczony)
+        if not zaznaczony:
+            self.ui.checkBox_czysc_cue.setChecked(False)
 
     def porzucone(self):
         self.hide()

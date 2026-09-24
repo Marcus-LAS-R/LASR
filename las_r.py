@@ -80,6 +80,7 @@ from .skrypty import (
     baza_usun_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
+    shp_usun_nadmiarowe_adr_upul,
     shp_sprawdz_polozenie_opisow,
     shp_atlasuj_auto,
     baza_napraw_stor_spec,
@@ -460,6 +461,15 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.przyg_ciec)
         self.przyg_ciec.triggered.connect(self.przygotuj_do_ciecia)
 
+        self.a_usun_nadm_adr = QAction(
+            QIcon(None), "Usuń nadmiarowe adr_upul", self.iface.mainWindow()
+        )
+        self.a_usun_nadm_adr.setToolTip(
+            "Usuwa z warstwy adr_upul punkty leżące poza warstwą OBR "
+            "(porównanie w PUWG 1992, kopia warstwy przed usunięciem).")
+        self.m_rozlicz_pow.addAction(self.a_usun_nadm_adr)
+        self.a_usun_nadm_adr.triggered.connect(self.usun_nadmiarowe_adr_upul)
+
         self.przyg_klep = QAction(
             QIcon(None), "Sprawdź cięcie", self.iface.mainWindow()
         )
@@ -729,8 +739,8 @@ class LasR:
         self.a_warstwa_opisow.setToolTip(
             "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
             "szybkiego oznaczania grup (INNE WYL, L ENERG, SUKCESJA, "
-            "DROGI L, LZ-Ł, ZRĄB) i warstwę notatek pod generyczne opisy "
-            "taksacyjne.")
+            "DROGI L, LZ-Ł, ZRĄB, TURYST, RETENCJA) i warstwę notatek pod "
+            "generyczne opisy taksacyjne.")
         self.m_aktualizacja_upul.addAction(self.a_warstwa_opisow)
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
 
@@ -1934,6 +1944,9 @@ class LasR:
         s.podociagaj()
         s.stworz_poligony()
         s.pokaz_warstwy()
+
+    def usun_nadmiarowe_adr_upul(self):
+        shp_usun_nadmiarowe_adr_upul.usun_nadmiarowe_adr_upul(self.iface)
 
     def sprawdzenie_ciecia(self):
         sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)

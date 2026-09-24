@@ -16,11 +16,20 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
     `warstwy` moze zawierac None (np. brakujaca/nieuzywana warstwa PNSW) -
     takie wpisy sa pomijane.
 
+    `baza_sc` moze byc None (operacja tylko na warstwach) - wtedy kopiowane
+    sa same warstwy, a Kopie_manipulacyjne powstaje w katalogu pierwszej
+    podanej warstwy.
+
     Zwraca sciezke do utworzonego folderu kopii, albo None przy bledzie
     (callerzy powinni w takim przypadku przerwac operacje - bez kopii nie
     usuwamy nic). """
     try:
-        kat_projektu = os.path.dirname(baza_sc)
+        if baza_sc:
+            kat_projektu = os.path.dirname(baza_sc)
+        else:
+            pierwsza = [x for x in warstwy if x is not None][0]
+            kat_projektu = os.path.dirname(
+                pierwsza.dataProvider().dataSourceUri().split("|")[0])
         kat_kopii = os.path.join(kat_projektu, 'Kopie_manipulacyjne')
         if not os.path.isdir(kat_kopii):
             os.mkdir(kat_kopii)
@@ -29,8 +38,9 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
         podkat = os.path.join(kat_kopii, nazwa_czynnosci + '_' + czas)
         os.mkdir(podkat)
 
-        shutil.copyfile(
-            baza_sc, os.path.join(podkat, os.path.basename(baza_sc)))
+        if baza_sc:
+            shutil.copyfile(
+                baza_sc, os.path.join(podkat, os.path.basename(baza_sc)))
 
         for lyr in warstwy:
             if lyr is None:

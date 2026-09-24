@@ -1290,6 +1290,18 @@ class Baza(object):
         """
         return self.wpisz(sql)
 
+    def policz_zabiegi(self):
+        """Zwraca liczbe rekordow w tabeli F_AROD_CUE (False przy bledzie)"""
+        wyn = self.pobierz("select count(*) from F_AROD_CUE;")
+        if not wyn:
+            return False
+        return wyn[0][0]
+
+    def usun_zabiegi(self):
+        """Usuwa wszystkie rekordy z tabeli F_AROD_CUE (zadna inna tabela
+        nie odwoluje sie do niej kluczem obcym)"""
+        return self.wpisz("delete from F_AROD_CUE;")
+
     def dopisz_ownership(self):
         """Dopisuje 7.1 w kolumniw ownership_cd w tabeli f_parcel o ile pole
         puste

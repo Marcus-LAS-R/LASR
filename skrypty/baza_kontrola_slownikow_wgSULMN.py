@@ -88,7 +88,7 @@ _WHITELIST_CWD = ('WD', 'WL')
 
 _WHITELIST_AREA_TYPE_CD = (
     'D-STAN', 'INNE WYL', 'PŁAZ', 'SUKCESJA', 'HAL',
-    'L ENERG', 'ZRĄB', 'LZ-Ł', 'DROGI L', 'RETEN', 'ARBOR',
+    'L ENERG', 'ZRĄB', 'LZ-Ł', 'DROGI L', 'RETENCJA', 'ARBOR', 'TURYST',
 )
 
 

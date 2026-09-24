@@ -6,10 +6,11 @@ pomocniczych przy pracy nad opisami taksacyjnymi:
   (aktualizacja_upul/core/utworz_klon_txt.py) buduje potem plik dla
   "Klonuj opisy wydzieleń",
 - warstwa punktowa "opis_pkt" (pole GRUPA) - punkty w kategoriach (INNE
-  WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł, ZRĄB) jako podstawa do wgrania
-  krótkiego, generycznego opisu taksacyjnego (osobny skrypt, poza
-  zakresem tego widgetu). Dla grupy INNE WYL wymagane jest dodatkowo
-  pole INF_ROZNE,
+  WYL, L ENERG, SUKCESJA, DROGI L, LZ-Ł, ZRĄB, TURYST, RETENCJA) jako
+  podstawa do wgrania krótkiego, generycznego opisu taksacyjnego (osobny
+  skrypt, poza zakresem tego widgetu). Dla grupy INNE WYL wymagane jest
+  dodatkowo pole INF_ROZNE. Poza L ENERG i LZ-Ł punkt dostaje też STL
+  (z WYDZ_POL_stare) i POKRYWA - patrz opis_stl.py,
 - warstwa punktowa "opis_notatki" (pole NOTATKA) - każdy dodany punkt
   wymaga wypełnienia tekstu notatki.
 
@@ -38,7 +39,7 @@ from PyQt5.QtGui import (
     QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygon,
 )
 from PyQt5.QtWidgets import (
-    QDialog, QDialogButtonBox, QDockWidget, QGroupBox,
+    QComboBox, QDialog, QDialogButtonBox, QDockWidget, QGroupBox,
     QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
     QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
@@ -48,6 +49,9 @@ from qgis.core import (
     QgsWkbTypes,
 )
 from qgis.gui import QgsMapTool, QgsMapToolEmitPoint, QgsRubberBand
+
+from . import opis_stl
+from .funkcje import wybierz_warstwe_z_kandydatow
 
 CRS = QgsCoordinateReferenceSystem('EPSG:2180')
 
@@ -63,7 +67,13 @@ POLA_KLON = [
 POLA_PUNKTY = [
     QgsField('GRUPA', QVariant.String, '', 20),
     QgsField('INF_ROZNE', QVariant.String, '', 254),
+    QgsField('STL', QVariant.String, '', 20),
+    QgsField('POKRYWA', QVariant.String, '', 10),
 ]
+# pola, bez których warstwa opis_pkt jest odrzucana - STL/POKRYWA doszły
+# później i są do starszych warstw dopisywane automatycznie
+# (_dopisz_brakujace_pola), więc ich brak nie dyskwalifikuje warstwy
+POLA_PUNKTY_WYMAGANE = POLA_PUNKTY[:2]
 POLA_NOTATKI = [
     QgsField('NOTATKA', QVariant.String, '', 254),
 ]
@@ -76,7 +86,8 @@ WARSTWY_OPIS = [
     (NAZWA_NOTATKI, 'Point', POLA_NOTATKI),
 ]
 
-GRUPY = ['DROGI L', 'INNE WYL', 'ZRĄB', 'L ENERG', 'LZ-Ł', 'SUKCESJA']
+GRUPY = ['DROGI L', 'INNE WYL', 'ZRĄB', 'L ENERG', 'LZ-Ł', 'SUKCESJA',
+         'TURYST', 'RETENCJA']
 
 # klucz w projekcie (QgsProject.writeEntry/readBoolEntry) pod którym
 # zapisywana jest flaga "dockwidget ma się sam otwierać przy wczytaniu
@@ -149,6 +160,94 @@ class _InfoRozneDialog(QDialog):
         return self.pole.text().strip()
 
 
+class _PokrywaDialog(QDialog):
+    """Wybór pokrywy (VEG_COVER_CD) przyciskami - jedno kliknięcie
+    zatwierdza. Anuluj = punkt nie zostanie dodany."""
+
+    def __init__(self, grupa, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Pokrywa')
+        self.kod = None
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(f'Wybierz pokrywę dla punktu ({grupa}):'))
+        siatka = QGridLayout()
+        for i, (kod, opis) in enumerate(opis_stl.SLOWNIK_POKRYWY):
+            btn = QPushButton(f'{kod} - {opis}')
+            btn.clicked.connect(lambda _checked, k=kod: self._wybierz(k))
+            siatka.addWidget(btn, i // 2, i % 2)
+        lay.addLayout(siatka)
+        buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+
+    def _wybierz(self, kod):
+        self.kod = kod
+        self.accept()
+
+
+class _BrakZrodlaStlDialog(QDialog):
+    """Brak warstwy WYDZ_POL_stare w TOC - wskazanie warstwy zastępczej
+    (musi mieć pole STL), zgoda na punkty bez STL albo rezygnacja."""
+
+    ANULUJ, IGNORUJ, DALEJ = range(3)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Brak warstwy ze STL')
+        self.wynik = self.ANULUJ
+        self.warstwa = None
+        self._warstwy = [
+            lyr for lyr in QgsProject.instance().mapLayers().values()
+            if isinstance(lyr, QgsVectorLayer)
+            and lyr.geometryType() == QgsWkbTypes.PolygonGeometry
+        ]
+
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(
+            f'W projekcie nie ma warstwy {opis_stl.NAZWA_ZRODLA_STL} - nie '
+            'ma skąd pobrać STL dla punktu.\n\n'
+            'Wskaż warstwę zastępczą (poligonową z polem STL) i wybierz '
+            '"Przejdź dalej",\nalbo "Ignoruj", aby stawiać punkty bez STL, '
+            'albo "Anuluj".'))
+        self.combo = QComboBox()
+        for lyr in self._warstwy:
+            sciezka = lyr.dataProvider().dataSourceUri().split('|')[0]
+            self.combo.addItem(f'{lyr.name()}   ({sciezka})')
+        self.combo.setEnabled(bool(self._warstwy))
+        lay.addWidget(self.combo)
+
+        wiersz = QHBoxLayout()
+        for tekst, akcja in (
+                ('Anuluj', self.reject),
+                ('Ignoruj', self._ignoruj),
+                ('Przejdź dalej', self._dalej)):
+            btn = QPushButton(tekst)
+            btn.clicked.connect(akcja)
+            wiersz.addWidget(btn)
+        lay.addLayout(wiersz)
+
+    def _ignoruj(self):
+        self.wynik = self.IGNORUJ
+        self.accept()
+
+    def _dalej(self):
+        i = self.combo.currentIndex()
+        if not (0 <= i < len(self._warstwy)):
+            QMessageBox.warning(
+                self, 'Brak warstwy',
+                'W projekcie nie ma żadnej warstwy poligonowej do wskazania.')
+            return
+        lyr = self._warstwy[i]
+        if opis_stl.nazwa_pola_stl(lyr) is None:
+            QMessageBox.warning(
+                self, 'Brak pola STL',
+                f'Warstwa "{lyr.name()}" nie ma pola STL - wskaż inną.')
+            return
+        self.warstwa = lyr
+        self.wynik = self.DALEJ
+        self.accept()
+
+
 def _opcje_zapisu():
     opcje = QgsVectorFileWriter.SaveVectorOptions()
     opcje.driverName = 'ESRI Shapefile'
@@ -163,6 +262,27 @@ def _ma_pola(lyr, pola):
     a pierwszy zapis punktu/odcinka wywala KeyError na brakującym polu."""
     nazwy = {f.name() for f in lyr.fields()}
     return all(p.name() in nazwy for p in pola)
+
+
+def _dopisz_brakujace_pola(lyr, pola, iface):
+    """Dopisuje do warstwy (bezpośrednio w pliku, przez dataProvider) te
+    pola z listy `pola`, których jeszcze nie ma - dla warstw opis_pkt
+    utworzonych przed dodaniem STL/POKRYWA."""
+    nazwy = {f.name().upper() for f in lyr.fields()}
+    brak = [p for p in pola if p.name().upper() not in nazwy]
+    if not brak:
+        return
+    lista = ', '.join(p.name() for p in brak)
+    if lyr.dataProvider().addAttributes(brak):
+        lyr.updateFields()
+        iface.messageBar().pushInfo(
+            'Warstwy opisowe',
+            f'Do warstwy "{lyr.name()}" dopisano pola: {lista}')
+    else:
+        iface.messageBar().pushWarning(
+            'Warstwy opisowe',
+            f'Nie udało się dopisać pól {lista} do warstwy "{lyr.name()}" '
+            '- STL/pokrywa nie będą zapisywane.')
 
 
 def _zywa(lyr):
@@ -351,6 +471,10 @@ class WarstwaOpisowDock(QDockWidget):
         self._narzedzie_klon = None
         self._narzedzie_notatki = None
         self._rubber_klon = None
+        # źródło STL dla punktów (opis_stl.ZrodloSTL) i zgoda na punkty
+        # bez STL ("Ignoruj" w _BrakZrodlaStlDialog) - do końca projektu
+        self._zrodlo_stl = None
+        self._stl_ignoruj = False
 
         self._zbuduj_ui()
         self._odswiez()
@@ -480,6 +604,8 @@ class WarstwaOpisowDock(QDockWidget):
         self.pkt_lyr = None
         self.notatki_lyr = None
         self._grupa_aktywna = None
+        self._zrodlo_stl = None
+        self._stl_ignoruj = False
         for btn in self.btn_grupy.values():
             btn.setChecked(False)
         self._odswiez()
@@ -550,7 +676,7 @@ class WarstwaOpisowDock(QDockWidget):
             (NAZWA_KLON, 'klon_lyr', QgsWkbTypes.LineGeometry,
              'LineString', POLA_KLON),
             (NAZWA_PUNKTY, 'pkt_lyr', QgsWkbTypes.PointGeometry,
-             'Point', POLA_PUNKTY),
+             'Point', POLA_PUNKTY_WYMAGANE),
             (NAZWA_NOTATKI, 'notatki_lyr', QgsWkbTypes.PointGeometry,
              'Point', POLA_NOTATKI),
         ]
@@ -561,6 +687,8 @@ class WarstwaOpisowDock(QDockWidget):
                 continue
             setattr(self, atrybut, None)
             lyr = self._znajdz_automatycznie(nazwa, typ_geom, pola)
+            if lyr is not None and nazwa == NAZWA_PUNKTY:
+                _dopisz_brakujace_pola(lyr, POLA_PUNKTY, self.iface)
             if lyr is not None:
                 setattr(self, atrybut, lyr)
                 if nazwa == NAZWA_KLON:
@@ -587,6 +715,8 @@ class WarstwaOpisowDock(QDockWidget):
                         'projekcie) - nie można utworzyć warstw.')
                 else:
                     for nazwa, atrybut, typ_geom_txt, pola in brakujace:
+                        if nazwa == NAZWA_PUNKTY:
+                            pola = POLA_PUNKTY
                         sciezka = os.path.join(folder, nazwa + '.shp')
                         lyr = _utworz_warstwe(
                             sciezka, typ_geom_txt, pola, nazwa)
@@ -651,6 +781,13 @@ class WarstwaOpisowDock(QDockWidget):
         if not _zywa(self.pkt_lyr) or self._grupa_aktywna is None:
             return
 
+        grupa = self._grupa_aktywna
+        stl = pokrywa = None
+        if opis_stl.grupa_wymaga_stl(grupa):
+            ok, stl = self._ustal_stl(koord)
+            if not ok:
+                return
+
         inf_rozne = ''
         if self._grupa_aktywna == GRUPA_WYMAGA_INF_ROZNE:
             dlg = _InfoRozneDialog(self)
@@ -663,13 +800,97 @@ class WarstwaOpisowDock(QDockWidget):
                 return
             inf_rozne = tekst
 
+        if opis_stl.grupa_wymaga_stl(grupa):
+            pokrywa = opis_stl.pokrywa_domyslna(grupa, inf_rozne)
+            if pokrywa is None:
+                dlg = _PokrywaDialog(grupa, self)
+                if dlg.exec_() != QDialog.Accepted or not dlg.kod:
+                    return
+                pokrywa = dlg.kod
+
         f = QgsFeature(self.pkt_lyr.fields())
         f.setGeometry(QgsGeometry.fromPointXY(koord))
-        f['GRUPA'] = self._grupa_aktywna
-        if 'INF_ROZNE' in {pole.name() for pole in self.pkt_lyr.fields()}:
+        f['GRUPA'] = grupa
+        pola = {pole.name() for pole in self.pkt_lyr.fields()}
+        if 'INF_ROZNE' in pola:
             f['INF_ROZNE'] = inf_rozne
+        if stl and 'STL' in pola:
+            f['STL'] = stl
+        if pokrywa and 'POKRYWA' in pola:
+            f['POKRYWA'] = pokrywa
         self.pkt_lyr.dataProvider().addFeatures([f])
         self.pkt_lyr.triggerRepaint()
+
+    def _zrodlo_stl_gotowe(self):
+        """ZrodloSTL (budowane raz i trzymane do zmiany/edycji warstwy),
+        None po "Ignoruj" albo False, gdy punkt ma nie zostać dodany."""
+        if self._zrodlo_stl is not None and _zywa(self._zrodlo_stl.lyr):
+            return self._zrodlo_stl
+        self._zrodlo_stl = None
+        if self._stl_ignoruj:
+            return None
+
+        lyr = None
+        kandydaci = opis_stl.warstwy_zrodla_stl()
+        if kandydaci:
+            lyr = wybierz_warstwe_z_kandydatow(
+                self.iface, kandydaci, opis_stl.NAZWA_ZRODLA_STL)
+            if lyr is None:
+                return False
+            if opis_stl.nazwa_pola_stl(lyr) is None:
+                QMessageBox.warning(
+                    self, 'Brak pola STL',
+                    f'Warstwa "{lyr.name()}" nie ma pola STL.')
+                lyr = None
+
+        if lyr is None:
+            dlg = _BrakZrodlaStlDialog(self)
+            dlg.exec_()
+            if dlg.wynik == dlg.IGNORUJ:
+                self._stl_ignoruj = True
+                return None
+            if dlg.wynik != dlg.DALEJ:
+                return False
+            lyr = dlg.warstwa
+
+        odczyt, komunikat = opis_stl.warstwa_do_odczytu(lyr)
+        if komunikat:
+            self.iface.messageBar().pushWarning('STL', komunikat)
+        self._zrodlo_stl = opis_stl.ZrodloSTL(lyr, odczyt)
+        # edycja warstwy źródłowej unieważnia zbudowany indeks
+        lyr.dataChanged.connect(self._uniewaznij_zrodlo_stl)
+        return self._zrodlo_stl
+
+    def _uniewaznij_zrodlo_stl(self):
+        self._zrodlo_stl = None
+
+    def _ustal_stl(self, koord):
+        """(ok, stl) - ok=False: punkt ma nie zostać dodany. STL z
+        poligonu pod punktem albo najbliższego w promieniu 20 m; gdy brak -
+        wybór ręczny z listy wartości STL warstwy źródłowej (bez wpisywania
+        - kod spoza słownika i tak nie przejdzie przy zapisie do bazy)."""
+        zrodlo = self._zrodlo_stl_gotowe()
+        if zrodlo is False:
+            return False, None
+        if zrodlo is None:
+            return True, None
+
+        crs = self.iface.mapCanvas().mapSettings().destinationCrs()
+        stl = zrodlo.stl_dla_punktu(koord, crs)
+        if stl:
+            return True, stl
+
+        stl, ok = QInputDialog.getItem(
+            self, 'Brak STL',
+            'Ani pod punktem, ani w promieniu '
+            f'{opis_stl.MAX_ODLEGLOSC:.0f} m w warstwie '
+            f'"{zrodlo.lyr.name()}" nie ma poligonu z STL.\n'
+            'Wybierz STL:',
+            zrodlo.wartosci(), 0, False)
+        stl = (stl or '').strip()
+        if not ok or not stl:
+            return False, None
+        return True, stl
 
     # --------------------------------------------------- warstwa notatek
 
