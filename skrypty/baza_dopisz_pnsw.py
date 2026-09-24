@@ -171,7 +171,8 @@ class DopiszPnsw(SprawdzWydzielenia):
             if kont != 1:
                 return False
 
-            self.baza.polacz()
+            if not self.baza.polacz():
+                return False
 
         # spatial index dla wydzieleń
         self.si = QgsSpatialIndex()

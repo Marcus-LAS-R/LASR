@@ -109,7 +109,8 @@ class Zabiegi():
 
     def przetworz(self):
         """Metoda zbiorcza dla całego procesu"""
-        self.baza.polacz()
+        if not self.baza.polacz():
+            return
         self.wydz = self.baza.pobierz_wydzielenia()  # {adr_les: arodes_int}
         if not self.wydz:
             self.iface.messageBar().pushMessage(

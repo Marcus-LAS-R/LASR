@@ -19,6 +19,16 @@ Na Macu pyodbc nie jest instalowane — `tests/conftest.py` stubuje moduł.
 
 import pyodbc
 
+try:  # w testach poza QGIS-em (stub pyodbc, brak qgis) blokady nie ma
+    from ...baza_wrapper import (
+        BazaZajetaError, baza_zajeta, komunikat_bazy_zajetej,
+    )
+except ImportError:  # pragma: no cover
+    BazaZajetaError = None
+
+    def baza_zajeta(_sc):
+        return False
+
 
 def connect(mdb_path):
     """Otwiera połączenie do pliku MDB/ACCDB w trybie ręcznego commitu.
@@ -39,6 +49,10 @@ def connect(mdb_path):
         pyodbc.Error: Gdy sterownik nie jest zainstalowany, plik nie istnieje
             albo bitność sterownika nie pasuje do Pythona.
     """
+    if baza_zajeta(mdb_path):
+        # baza podłączona do Edytora opisu taksacyjnego - wywołujący
+        # (gui/main_dialog) pokazuje treść wyjątku w oknie błędu
+        raise BazaZajetaError(komunikat_bazy_zajetej(mdb_path))
     conn_str = (
         "DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};"
         f"DBQ={mdb_path};"

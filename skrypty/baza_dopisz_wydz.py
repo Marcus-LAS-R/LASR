@@ -66,8 +66,7 @@ class DopiszWydzielenia():
                 5
             )
             self.baza = Baza(baza_sc)
-            self.baza.polacz()
-            return True
+            return self.baza.polacz()
 
         return False
 

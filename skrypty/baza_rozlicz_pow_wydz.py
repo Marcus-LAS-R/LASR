@@ -578,7 +578,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         plik.close()
 
     def wyczysc_arod_land_use(self):
-        self.baza.polacz()
+        if not self.baza.polacz():
+            return False
         self.baza.wpisz("DELETE FROM F_AROD_LAND_USE")
         QgsMessageLog.logMessage(
             'Wyczyszczono tabelę F_AROD_LAND_USE', 'Las-R', Qgis.Info)
@@ -600,7 +601,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         self.baza.zamknij()
         self.baza.utworz_kopie('kopia_rozliczPow')
-        self.baza.polacz()
+        if not self.baza.polacz():
+            return False
 
         # sl tworzony w petli, sumuje pow uz dla wydzielen - wymagane do
         # wpisania wartosci do tabeli F_SUBAREA

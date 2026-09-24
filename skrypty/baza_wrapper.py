@@ -11,6 +11,67 @@ from shutil import copyfile
 from collections import Counter
 
 
+# ---------------------------------------------------------------------------
+# Blokada baz podłączonych do Edytora opisu taksacyjnego (opis_taksacyjny.
+# PanelOpisu). Dopóki panel trzyma połączenie, ŻADEN inny skrypt wtyczki nie
+# może otworzyć tej bazy (ani do zapisu, ani do odczytu) - równoległe
+# połączenia do jednego .mdb grożą uszkodzeniem bazy. Sprawdzane we
+# wszystkich wejściach: Baza.polacz, Baza.usun_kwerendy (DAO) i
+# aktualizacja_upul.core.db.connect.
+# ---------------------------------------------------------------------------
+_BAZY_ZAJETE = set()
+
+
+class BazaZajetaError(Exception):
+    pass
+
+
+def _klucz_bazy(sc):
+    return os.path.normcase(os.path.abspath(str(sc)))
+
+
+def zajmij_baze(sc):
+    _BAZY_ZAJETE.add(_klucz_bazy(sc))
+
+
+def zwolnij_baze(sc):
+    _BAZY_ZAJETE.discard(_klucz_bazy(sc))
+
+
+def baza_zajeta(sc):
+    """Czy baza (dowolny zapis ścieżki tego samego pliku) jest podłączona do
+    Edytora opisu taksacyjnego."""
+    if not sc or not _BAZY_ZAJETE:
+        return False
+    if _klucz_bazy(sc) in _BAZY_ZAJETE:
+        return True
+    for zajeta in _BAZY_ZAJETE:
+        try:
+            if os.path.samefile(zajeta, sc):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def komunikat_bazy_zajetej(sc):
+    return (
+        f'Baza:\n{sc}\n\njest podłączona do EDYTORA OPISU TAKSACYJNEGO.\n\n'
+        'Zamknij panel "Opis taksacyjny - baza" (albo kliknij w nim '
+        '"Rozłącz") i dopiero wtedy uruchom skrypt ponownie.\n\n'
+        'Skrypt został PRZERWANY - w bazie nic nie zostało zmienione.')
+
+
+def pokaz_blokade_bazy(sc):
+    from PyQt5.QtWidgets import QApplication, QMessageBox
+    QgsMessageLog.logMessage(
+        f'Zablokowano połączenie z bazą podłączoną do Edytora opisu: {sc}',
+        'Las-R', Qgis.Critical)
+    QMessageBox.critical(
+        QApplication.activeWindow(), 'Baza zajęta przez Edytor opisu',
+        komunikat_bazy_zajetej(sc))
+
+
 def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
     if wydzlyr is not False:
         wydz = wydzlyr
@@ -95,12 +156,16 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
 
 
 class Baza(object):
-    def __init__(self, b):
+    def __init__(self, b, pomin_blokade=False):
         # otworz podana baze danych
         self.con = False
         self.cur = False
         self.ok = False
         self.baza = b  # sciezka do bazy, bez normalizacji sciezki...
+        # tylko Edytor opisu taksacyjnego (właściciel blokady) - patrz
+        # baza_zajeta()
+        self.pomin_blokade = pomin_blokade
+        self._blokada_zgloszona = False
 
         self.czas = datetime.now().isoformat().replace(":", "")[:-7]
 
@@ -113,6 +178,9 @@ class Baza(object):
         # jezeli juz jestesmy polaczeni, nic ni rob
         if self.con and self.cur:
             return True
+
+        if self._zablokowana():
+            return False
 
         if self.baza[-3:] == "mdb":
             MDB = self.baza
@@ -131,6 +199,16 @@ class Baza(object):
             return True
 
         return False
+
+    def _zablokowana(self):
+        """Baza podłączona do Edytora opisu - komunikat (raz na obiekt) i
+        odmowa połączenia."""
+        if self.pomin_blokade or not baza_zajeta(self.baza):
+            return False
+        if not self._blokada_zgloszona:
+            self._blokada_zgloszona = True
+            pokaz_blokade_bazy(self.baza)
+        return True
 
     def zamknij(self):
         try:
@@ -952,6 +1030,9 @@ class Baza(object):
         }
 
         if not self.baza.endswith('.mdb'):
+            return []
+
+        if self._zablokowana():
             return []
 
         # Jet/ACE nie znosi rownoczesnego otwarcia tego samego pliku .mdb

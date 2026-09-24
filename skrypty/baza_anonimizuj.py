@@ -4,7 +4,7 @@ import shutil
 from PyQt5.QtWidgets import QFileDialog, QDialog
 
 from qgis.core import Qgis, QgsMessageLog
-from .baza_wrapper import Baza
+from .baza_wrapper import Baza, baza_zajeta, pokaz_blokade_bazy
 from .ui.ui_baza_anonimizuj import Ui_Dialog
 
 
@@ -55,6 +55,15 @@ def Anonimizuj(iface):
             10
         )
         return
+
+    # kopia X.mdb -> X_BDO.mdb nadpisałaby bazę podłączoną do Edytora opisu
+    for sc in bazy_sc:
+        sc_bdo = os.path.join(os.path.dirname(sc), os.path.splitext(
+            os.path.basename(sc))[0] + '_BDO.mdb')
+        for sciezka in (sc, sc_bdo):
+            if baza_zajeta(sciezka):
+                pokaz_blokade_bazy(sciezka)
+                return
 
     ile_ok = 0
     for sc in bazy_sc:

@@ -132,7 +132,8 @@ class KontrolaDzKat(object):
                 5
             )
             self.baza = Baza(baza_sc)
-            self.baza.polacz()
+            if not self.baza.polacz():
+                return False
             self.uzytki = self.baza.uzytki()
             self.wlasnosci = self.baza.wlasnosci()
             self.p = Przetworz()
