@@ -57,7 +57,7 @@ def baza_zajeta(sc):
 def komunikat_bazy_zajetej(sc):
     return (
         f'Baza:\n{sc}\n\njest podłączona do EDYTORA OPISU TAKSACYJNEGO.\n\n'
-        'Zamknij panel "Opis taksacyjny - baza" (albo kliknij w nim '
+        'Zamknij panel "Edytor opisu taksacyjnego" (albo kliknij w nim '
         '"Rozłącz") i dopiero wtedy uruchom skrypt ponownie.\n\n'
         'Skrypt został PRZERWANY - w bazie nic nie zostało zmienione.')
 

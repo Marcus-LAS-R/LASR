@@ -20,24 +20,43 @@ Panel otwarty = baza podłączona:
   (kolumny *_NR, dla gatunków BUL_SPECIES_NR; numery rodzaju powierzchni
   różnią się między bazami),
 - nic nie jest przeliczane (zasobność, przyrost - robi to Taksator PU),
-- zapis w jednej transakcji, kopia bazy raz na połączenie,
+- zapis pojedynczego wydzielenia w jednej transakcji; pakiet kopii (baza +
+  pliki warstwy wydzieleń, Kopie_manipulacyjne/edycja_opisu_<czas>/) raz
+  na połączenie i na żądanie ("Zapisz kopię bazy"), trzymane 5 ostatnich,
+- dziennik zmian <baza>_dziennik_edycji.csv (pole przed/po, a przy
+  usunięciu wydzielenia pełna zawartość jego rekordów jako JSON),
+- usuwanie wydzielenia z bazy (Baza.usun_rekordy; TD, cechy, PNSW,
+  rozliczenie znikają kaskadowo) - geometria warstw bez zmian, poligon
+  oznaczany na warstwie pamięci "Opis - usunięte z bazy",
 - okno karty tylko rośnie (maks. 90% ekranu, powyżej - przewijanie).
 """
 import copy
+import csv
+import json
 import os
+import shutil
 from collections import Counter
+from datetime import datetime
 
 from PyQt5 import sip
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QBrush, QColor, QDoubleValidator, QFont
+from PyQt5.QtGui import (
+    QBrush, QColor, QDoubleValidator, QFont, QFontDatabase,
+)
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QApplication, QComboBox, QCompleter, QDockWidget, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
+    QAbstractItemView, QApplication, QComboBox, QCompleter, QDialog,
+    QDialogButtonBox, QDockWidget, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QStyledItemDelegate, QTableWidget, QTableWidgetItem, QToolButton,
     QVBoxLayout, QWidget,
 )
-from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
+from qgis.core import (
+    QgsExpression, QgsFeature, QgsFeatureRequest, QgsField, QgsFillSymbol,
+    QgsGeometry, QgsProject, QgsVectorLayer, QgsWkbTypes,
+)
+from PyQt5.QtCore import QVariant
 
+from . import kopie_manipulacyjne
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 
 SZARY = QColor(225, 225, 225)
@@ -110,6 +129,20 @@ KOLUMNY_ZABIEGI = [
 ]
 
 
+NAZWA_KOPII = 'edycja_opisu'
+ILE_KOPII = 5  # tyle ostatnich pakietów kopii Edytora zostaje na dysku
+NAZWA_USUNIETYCH = 'Opis - usunięte z bazy'
+# tabele z rekordami wydzielenia (V_TABLE_FIELD_KEY_RELATION) - do migawki
+# w dzienniku przed usunięciem
+TABELE_WYDZIELENIA = [
+    'F_ARODES', 'F_SUBAREA', 'F_AROD_STOREY', 'F_STOREY_SPECIES',
+    'F_AROD_CUE', 'F_AROD_GOAL', 'F_AROD_STAND_PEC', 'F_AROD_SPEC_AREA',
+    'F_SPECIES_SPAREA', 'F_AROD_LAND_USE', 'F_AROD_CATEGORY',
+    'F_AROD_DAMAGE', 'F_AROD_PHENOMENA', 'F_AROD_SOIL_SPEC', 'F_SET',
+    'F_ERROR_HEAD',
+]
+
+
 # ---------------------------------------------------------------- pomocnicze
 
 def _pusty(v):
@@ -141,6 +174,39 @@ def _nr_txt(nr):
         return str(int(f)) if f.is_integer() else str(f)
     except (TypeError, ValueError):
         return str(nr).strip()
+
+
+def sciezka_dziennika(baza_sc):
+    return os.path.splitext(baza_sc)[0] + '_dziennik_edycji.csv'
+
+
+def _dziennik_txt(v):
+    if isinstance(v, list):
+        return ', '.join(v)
+    return '' if v is None else str(v)
+
+
+def dopisz_do_dziennika(baza_sc, wiersze):
+    """wiersze: (adr_les, operacja, pole, przed, po). CSV ';' z BOM (Excel)
+    obok bazy. Zwraca False przy błędzie zapisu (zapis do bazy już się
+    odbył - to tylko ostrzeżenie)."""
+    sc = sciezka_dziennika(baza_sc)
+    nowy = not os.path.isfile(sc)
+    czas = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    uzytkownik = os.environ.get('USERNAME', '')
+    try:
+        with open(sc, 'a', newline='',
+                  encoding='utf-8-sig' if nowy else 'utf-8') as f:
+            w = csv.writer(f, delimiter=';')
+            if nowy:
+                w.writerow(['czas', 'uzytkownik', 'adr_les', 'operacja',
+                            'pole', 'przed', 'po'])
+            for adr, operacja, pole, przed, po in wiersze:
+                w.writerow([czas, uzytkownik, adr, operacja, pole,
+                            _dziennik_txt(przed), _dziennik_txt(po)])
+        return True
+    except OSError:
+        return False
 
 
 def _plik_blokady(baza_sc):
@@ -268,6 +334,38 @@ def sprawdz_zgodnosc(lyr, wydz_baza):
               + ('Warstwa i baza są zgodne.' if ok else
                  'Niezgodności:\n- ' + '\n- '.join(czesci)))
     return ok, podsum, '\n\n'.join(szczegoly)
+
+
+def okno_zgodnosci(parent, podsum, szczegoly, z_wyborem):
+    """Raport zgodności warstwa-baza: podsumowanie + przewijana lista
+    szczegółów (ok. 25 wierszy, okno rozciągalne). z_wyborem=True ->
+    przyciski Kontynuuj/Anuluj, zwraca True dla Kontynuuj."""
+    dlg = QDialog(parent)
+    dlg.setWindowTitle('Zgodność warstwy z bazą')
+    lay = QVBoxLayout(dlg)
+    lbl = QLabel(podsum + ('\n\nMożna pracować dalej - wydzielenia bez '
+                           'opisu w bazie pokażą pustą kartę.'
+                           if z_wyborem else ''))
+    lbl.setWordWrap(True)
+    lay.addWidget(lbl)
+    pole = QPlainTextEdit(szczegoly)
+    pole.setReadOnly(True)
+    pole.setLineWrapMode(QPlainTextEdit.NoWrap)
+    # stała szerokość znaków - adresy leśne układają się w kolumny
+    pole.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+    fm = pole.fontMetrics()
+    pole.setMinimumSize(fm.width('W' * 30) + 40, fm.lineSpacing() * 25 + 12)
+    lay.addWidget(pole, 1)
+    if z_wyborem:
+        przyciski = QDialogButtonBox()
+        przyciski.addButton('Kontynuuj', QDialogButtonBox.AcceptRole)
+        przyciski.addButton('Anuluj', QDialogButtonBox.RejectRole)
+    else:
+        przyciski = QDialogButtonBox(QDialogButtonBox.Close)
+    przyciski.accepted.connect(dlg.accept)
+    przyciski.rejected.connect(dlg.reject)
+    lay.addWidget(przyciski)
+    return dlg.exec_() == QDialog.Accepted
 
 
 # ------------------------------------------------------------ delegat edycji
@@ -593,8 +691,18 @@ class OknoOpisu(QWidget):
         self.lay_tresc.addLayout(dol)
         self.lay_tresc.addStretch(1)
 
-        # --- przyciski na dole okna (z dala od zamykania okna)
+        # --- przyciski na dole okna (z dala od zamykania okna); usuwanie
+        # po przeciwnej stronie niż Zapisz
         self.pasek = QHBoxLayout()
+        self.btn_usun = QPushButton('Usuń wydzielenie')
+        self.btn_usun.setToolTip(
+            'Usuwa z bazy wydzielenie z całym opisem (geometria zostaje)')
+        self.btn_usun.setStyleSheet(
+            'QPushButton { color: white; background: #c62828; '
+            'padding: 3px 10px; } '
+            'QPushButton:disabled { background: #e8b4b4; }')
+        self.btn_usun.clicked.connect(self.usun_wydzielenie)
+        self.pasek.addWidget(self.btn_usun)
         self.pasek.addStretch(1)
         self.btn_cofnij = QPushButton('Cofnij zmiany')
         self.btn_cofnij.clicked.connect(self._cofnij)
@@ -829,6 +937,8 @@ class OknoOpisu(QWidget):
         self.btn_cofnij.setEnabled(zm)
         self.btn_zapisz.setVisible(not self.tylko_odczyt)
         self.btn_cofnij.setVisible(not self.tylko_odczyt)
+        self.btn_usun.setVisible(not self.tylko_odczyt)
+        self.btn_usun.setEnabled(self.dane is not None and self.aint is not None)
         if zm:
             self.lbl_status.setText('  zmiany niezapisane')
             self.lbl_status.setStyleSheet('color: #b36b00;')
@@ -865,9 +975,8 @@ class OknoOpisu(QWidget):
         if not os.path.isfile(self.baza_sc):
             return self._blad('Plik bazy zniknął - nie zapisano')
 
-        if not self.panel.kopia_zrobiona:
-            self.baza.utworz_kopie('edycja_opisu_taks')
-            self.panel.kopia_zrobiona = True
+        if not self.panel.kopia_sesji():
+            return self._blad('Nie udało się zrobić kopii bazy - nie zapisano')
 
         d, o, aint = self.dane, self.oryginal, self.aint
         cur = self.baza.cur
@@ -906,6 +1015,10 @@ class OknoOpisu(QWidget):
                 f'Zapis nie powiódł się, nic nie zostało zmienione:\n{e}')
             return False
 
+        pola = POLA_SUBAREA + ['FOREST_PEC_CD', 'TD']
+        self._do_dziennika([
+            (self.adr, 'ZMIANA', p, o[p], d[p]) for p in pola if d[p] != o[p]])
+
         wynik = self._wczytaj(aint)
         if wynik:
             self._wypelnij(*wynik)
@@ -913,6 +1026,61 @@ class OknoOpisu(QWidget):
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Zapisano zmiany: {self.adr}')
         return True
+
+    def _do_dziennika(self, wiersze):
+        if wiersze and not dopisz_do_dziennika(self.baza_sc, wiersze):
+            self.iface.messageBar().pushWarning(
+                'Opis taksacyjny', 'Nie udało się dopisać do dziennika '
+                f'{sciezka_dziennika(self.baza_sc)} (zmiana w bazie zapisana)')
+
+    def _migawka(self, aint):
+        """Pełna zawartość rekordów wydzielenia - do dziennika przed
+        usunięciem (odtworzenie ręczne bez sięgania do kopii bazy)."""
+        wyn = []
+        for tabela in TABELE_WYDZIELENIA:
+            try:
+                wiersze = self._wiersze(
+                    f'select * from {tabela} where ARODES_INT_NUM = ?', (aint,))
+            except Exception:
+                continue
+            if wiersze:
+                wyn.append((tabela, json.dumps(
+                    wiersze, ensure_ascii=False, default=str)))
+        return wyn
+
+    def usun_wydzielenie(self):
+        if self.tylko_odczyt or self.aint is None or self.dane is None:
+            return
+        adr, aint = self.adr, self.aint
+        odp = QMessageBox.question(
+            self, 'Usuń wydzielenie',
+            f'Usunąć z bazy wydzielenie\n{adr}\nz całym opisem (warstwy, '
+            'gatunki, zabiegi, TD, cechy, PNSW)?\n\nGeometria na warstwie '
+            'zostaje bez zmian.',
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if odp != QMessageBox.Yes:
+            return
+        if not self.panel.kopia_sesji():
+            self._blad('Nie udało się zrobić kopii bazy - nic nie usunięto')
+            return
+
+        migawka = self._migawka(aint)
+        if not self.baza.usun_rekordy([aint]):
+            QMessageBox.critical(
+                self, 'Błąd usuwania',
+                'Usuwanie nie powiodło się - wycofano, w bazie nic się nie '
+                'zmieniło (szczegóły w logu Las-R).')
+            return
+
+        self._do_dziennika(
+            [(adr, 'USUNIECIE', tabela, dane, '') for tabela, dane in migawka])
+        self.wydz.pop(adr, None)
+        self.panel.oznacz_usuniete(adr)
+        self.panel.przelicz_zgodnosc()
+        self.dane = self.oryginal = None
+        self._pokaz('wydzielenie usunięte z bazy (geometria bez zmian)')
+        self.iface.messageBar().pushSuccess(
+            'Opis taksacyjny', f'Usunięto z bazy: {adr}')
 
     def _zapytaj_o_zmiany(self):
         """True - można przejść dalej (zapisane albo porzucone)."""
@@ -983,11 +1151,14 @@ class PanelOpisu(QDockWidget):
     Panel otwarty = baza podłączona (zamknięcie panelu rozłącza). Poniżej
     statusu wolne miejsce na kolejne funkcje."""
 
-    TYTUL = 'Opis taksacyjny - baza'
+    TYTUL = 'Edytor opisu taksacyjnego'
 
     def __init__(self, iface):
         super().__init__(self.TYTUL, iface.mainWindow())
-        self.setObjectName('LasR_PanelOpisuTaks')
+        # nowa nazwa - stara ('LasR_PanelOpisuTaks') mogła zostać w
+        # zapamiętanym przez QGIS układzie w rozbitym miejscu (splitDockWidget
+        # z Layers w pierwszej wersji)
+        self.setObjectName('LasR_EdytorOpisuTaks')
         self.iface = iface
         self.lyr = None
         self.baza = None
@@ -1000,6 +1171,12 @@ class PanelOpisu(QDockWidget):
         self.kopia_zrobiona = False
         self._szczegoly = ''
         self._warstwy = []
+        # przeliczenie zgodności po zmianach na warstwie - z opóźnieniem,
+        # żeby seryjne kasowanie poligonów nie liczyło jej przy każdym
+        self._timer_zgodnosci = QTimer(self)
+        self._timer_zgodnosci.setSingleShot(True)
+        self._timer_zgodnosci.setInterval(500)
+        self._timer_zgodnosci.timeout.connect(self.przelicz_zgodnosc)
         self._zbuduj()
         self._odswiez()
         QgsProject.instance().layerWillBeRemoved.connect(self._usuwana_warstwa)
@@ -1052,11 +1229,17 @@ class PanelOpisu(QDockWidget):
         wiersz.addWidget(self.btn_karta)
         lay.addLayout(wiersz)
 
+        self.btn_kopia = QPushButton('Zapisz kopię bazy')
+        self.btn_kopia.setToolTip(
+            'Kopia bazy i plików warstwy wydzieleń do Kopie_manipulacyjne '
+            f'(zostaje {ILE_KOPII} ostatnich kopii Edytora)')
+        self.btn_kopia.clicked.connect(self.zrob_kopie)
+        lay.addWidget(self.btn_kopia)
+
         # miejsce na kolejne funkcje panelu
         self.lay_dodatki = QVBoxLayout()
         lay.addLayout(self.lay_dodatki)
         lay.addStretch(1)
-        w.setMinimumWidth(10)
         self.setWidget(w)
         self._wczytaj_warstwy()
 
@@ -1088,6 +1271,7 @@ class PanelOpisu(QDockWidget):
         self.btn_polacz.setEnabled(not pol)
         self.btn_rozlacz.setEnabled(pol)
         self.btn_karta.setEnabled(pol)
+        self.btn_kopia.setEnabled(pol)
         self.btn_szczegoly.setEnabled(pol and bool(self._szczegoly))
         if not pol:
             self.lbl_status.setText('<i>Baza niepodłączona</i>')
@@ -1152,19 +1336,9 @@ class PanelOpisu(QDockWidget):
             return
 
         ok, podsum, szczegoly = sprawdz_zgodnosc(lyr, wydz)
-        if not ok:
-            box = QMessageBox(self)
-            box.setIcon(QMessageBox.Warning)
-            box.setWindowTitle('Zgodność warstwy z bazą')
-            box.setText(podsum + '\n\nMożna pracować dalej - wydzielenia '
-                        'bez opisu w bazie pokażą pustą kartę.')
-            box.setDetailedText(szczegoly)
-            box.addButton('Kontynuuj', QMessageBox.AcceptRole)
-            anuluj = box.addButton('Anuluj', QMessageBox.RejectRole)
-            box.exec_()
-            if box.clickedButton() is anuluj:
-                baza.zamknij()
-                return
+        if not ok and not okno_zgodnosci(self, podsum, szczegoly, True):
+            baza.zamknij()
+            return
 
         self.lyr = lyr
         self.baza = baza
@@ -1178,10 +1352,99 @@ class PanelOpisu(QDockWidget):
         self.max_h = 0
         self.kopia_zrobiona = False
         self.lyr.selectionChanged.connect(self._zaznaczenie)
+        for sygnal in self._sygnaly_warstwy():
+            sygnal.connect(self._zmiana_warstwy)
         self._odswiez()
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Podłączono bazę {os.path.basename(baza_sc)}')
         self._zaznaczenie()
+
+    def _sygnaly_warstwy(self):
+        """Zmiany warstwy wydzieleń wpływające na zgodność z bazą (także
+        w buforze edycji, przed zapisem warstwy)."""
+        return (self.lyr.featureAdded, self.lyr.featureDeleted,
+                self.lyr.attributeValueChanged, self.lyr.afterCommitChanges,
+                self.lyr.afterRollBack)
+
+    def _zmiana_warstwy(self, *_args):
+        self._timer_zgodnosci.start()
+
+    def przelicz_zgodnosc(self):
+        """Zgodność warstwa-baza na bieżącym stanie warstwy i liście
+        wydzieleń bazy (aktualizowanej przy usuwaniu w Edytorze)."""
+        if not self.polaczona() or sip.isdeleted(self.lyr):
+            return
+        ok, podsum, szczegoly = sprawdz_zgodnosc(self.lyr, self.wydz)
+        self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
+        self._odswiez()
+
+    def zrob_kopie(self):
+        """Pakiet: baza + pliki warstwy wydzieleń. Zwraca ścieżkę folderu
+        albo None. Liczy się też jako kopia sesji."""
+        if not self.polaczona():
+            return None
+        folder = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
+            self.baza_sc, [self.lyr], NAZWA_KOPII)
+        if folder is None:
+            QMessageBox.critical(
+                self, 'Kopia bazy',
+                'Nie udało się zrobić kopii bazy (szczegóły w logu Las-R).')
+            return None
+        self.kopia_zrobiona = True
+        self._rotuj_kopie(os.path.dirname(folder))
+        self.iface.messageBar().pushSuccess(
+            'Opis taksacyjny', f'Kopia bazy: {folder}')
+        return folder
+
+    def kopia_sesji(self):
+        """Automatyczny pakiet kopii raz na połączenie (przed pierwszą
+        zmianą). False - kopia się nie udała, nie wolno zapisywać."""
+        return self.kopia_zrobiona or self.zrob_kopie() is not None
+
+    @staticmethod
+    def _rotuj_kopie(kat_kopii):
+        """Zostawia ILE_KOPII najnowszych pakietów Edytora (nazwy z czasem
+        RRRR-MM-DD_GG-MM-SS sortują się chronologicznie); kopie innych
+        skryptów nietknięte."""
+        try:
+            foldery = sorted(
+                d for d in os.listdir(kat_kopii)
+                if d.startswith(NAZWA_KOPII + '_')
+                and os.path.isdir(os.path.join(kat_kopii, d)))
+        except OSError:
+            return
+        for d in foldery[:-ILE_KOPII]:
+            shutil.rmtree(os.path.join(kat_kopii, d), ignore_errors=True)
+
+    def oznacz_usuniete(self, adr):
+        """Poligon(y) wydzielenia usuniętego z bazy -> warstwa pamięci
+        (czerwone kreskowanie). Warstwa wydzieleń bez zmian."""
+        prj = QgsProject.instance()
+        lyr = getattr(self, '_lyr_usuniete', None)
+        if lyr is None or sip.isdeleted(lyr) or prj.mapLayer(lyr.id()) is None:
+            lyr = QgsVectorLayer(
+                f'MultiPolygon?crs={self.lyr.crs().authid()}',
+                NAZWA_USUNIETYCH, 'memory')
+            lyr.dataProvider().addAttributes(
+                [QgsField('ADR_LES', QVariant.String, '', 25)])
+            lyr.updateFields()
+            lyr.renderer().setSymbol(QgsFillSymbol.createSimple({
+                'color': '230,0,0,60', 'style': 'b_diagonal',
+                'outline_color': '230,0,0,255', 'outline_width': '0.8'}))
+            prj.addMapLayer(lyr)
+            self._lyr_usuniete = lyr
+        zapytanie = QgsFeatureRequest().setFilterExpression(
+            f'"ADR_LES" = {QgsExpression.quotedValue(adr)}')
+        nowe = []
+        for f in self.lyr.getFeatures(zapytanie):
+            g = QgsGeometry(f.geometry())
+            g.convertToMultiType()
+            nf = QgsFeature(lyr.fields())
+            nf.setGeometry(g)
+            nf['ADR_LES'] = adr
+            nowe.append(nf)
+        lyr.dataProvider().addFeatures(nowe)
+        lyr.triggerRepaint()
 
     def _karta_otwarta(self):
         return (self.karta is not None and not sip.isdeleted(self.karta)
@@ -1196,11 +1459,17 @@ class PanelOpisu(QDockWidget):
             if not self.karta.close():
                 return False
         self.karta = None
+        self._timer_zgodnosci.stop()
         if self.lyr is not None and not sip.isdeleted(self.lyr):
             try:
                 self.lyr.selectionChanged.disconnect(self._zaznaczenie)
             except (TypeError, RuntimeError):
                 pass
+            for sygnal in self._sygnaly_warstwy():
+                try:
+                    sygnal.disconnect(self._zmiana_warstwy)
+                except (TypeError, RuntimeError):
+                    pass
         if self.baza is not None:
             self.baza.zamknij()
         if self.baza_sc:
@@ -1245,11 +1514,8 @@ class PanelOpisu(QDockWidget):
         self.karta.show()
 
     def _pokaz_szczegoly(self):
-        box = QMessageBox(self)
-        box.setWindowTitle('Zgodność warstwy z bazą')
-        box.setText(self._szczegoly.split('\n\n')[0])
-        box.setDetailedText(self._szczegoly)
-        box.exec_()
+        podsum, _, szczegoly = self._szczegoly.partition('\n\n')
+        okno_zgodnosci(self, podsum, szczegoly, False)
 
     # ------------------------------------------------------- zamknięcie
 
@@ -1261,13 +1527,31 @@ class PanelOpisu(QDockWidget):
         event.accept()
 
     def zadokuj(self):
-        """Lewa strona, pod panelem Warstw (Layers) - ta sama szerokość co
-        Warstwy. Bez panelu Warstw - zwykle po lewej."""
+        """Dołożenie na dół lewej kolumny paneli - bez dzielenia/wyciągania
+        innych paneli (Layers, Browser, ich zakładek). Wołane raz, przy
+        starcie wtyczki (panel ukryty) - dzięki temu QGIS odtwarza panel w
+        zapamiętanym miejscu i nie zostawia pustego miejsca w układzie."""
+        self.iface.mainWindow().addDockWidget(Qt.LeftDockWidgetArea, self)
+        self.hide()
+
+    def pokaz(self):
+        """Pokazanie panelu z menu: zadokowany panel jest za każdym razem
+        wkładany na nowo na dół lewej kolumny (nie trafi w martwe miejsce
+        odtworzonego układu), pływający zostaje tam, gdzie jest. Wysokość
+        tylko taka, jakiej potrzebuje zawartość."""
         okno = self.iface.mainWindow()
-        okno.addDockWidget(Qt.LeftDockWidgetArea, self)
-        warstwy = okno.findChild(QDockWidget, 'Layers')
-        if warstwy is not None and warstwy.isVisible()                 and not warstwy.isFloating():
-            okno.splitDockWidget(warstwy, self, Qt.Vertical)
+        if not self.isFloating():
+            okno.removeDockWidget(self)
+            okno.addDockWidget(Qt.LeftDockWidgetArea, self)
+        self.show()
+        self.raise_()
+        QTimer.singleShot(0, self._dopasuj_wysokosc)
+
+    def _dopasuj_wysokosc(self):
+        if sip.isdeleted(self) or self.isFloating() or not self.isVisible():
+            return
+        h = self.widget().sizeHint().height() + 30
+        self.iface.mainWindow().resizeDocks([self], [h], Qt.Vertical)
 
     def sprzataj(self):
         """Przy wyładowaniu wtyczki."""

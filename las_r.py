@@ -1379,6 +1379,11 @@ class LasR:
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockNawigator)
         self.dockNawigator.hide()
 
+        # panel Edytora opisu taksacyjnego - tworzony od razu (ukryty), żeby
+        # QGIS odtwarzał go w zapamiętanym miejscu układu paneli
+        self.dockOpisTaks = opis_taksacyjny.PanelOpisu(self.iface)
+        self.dockOpisTaks.zadokuj()
+
         self.dockWarstwaOpisow = warstwa_opisow_dock.WarstwaOpisowDock(self.iface)
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockWarstwaOpisow)
         self.dockWarstwaOpisow.hide()
@@ -1964,11 +1969,7 @@ class LasR:
         s.pokaz_warstwy()
 
     def opis_taksacyjny(self):
-        if getattr(self, 'dockOpisTaks', None) is None:
-            self.dockOpisTaks = opis_taksacyjny.PanelOpisu(self.iface)
-            self.dockOpisTaks.zadokuj()
-        self.dockOpisTaks.show()
-        self.dockOpisTaks.raise_()
+        self.dockOpisTaks.pokaz()
 
     def usun_nadmiarowe_adr_upul(self):
         shp_usun_nadmiarowe_adr_upul.usun_nadmiarowe_adr_upul(self.iface)
