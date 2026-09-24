@@ -218,18 +218,22 @@ class Generuj:
             if len(self.zabiegi) == 0 or self.zabiegi == ['PRZEST']:
                 self.zab_dstan_odn_reb()
 
-        # jezeli mamy rebnie zupelna to i pow wydz powyzej 1ha dodaj uwage o
-        # traktowaniu dzialek ewid jako zrebowe
-        if self.gen_reb in ['IA', 'IB', 'IC', ]:
-            if self.ile_dzkat > 1 and self.pow_wydz > 1:
-                # dodaj informacje o zmianie standardowego drylu
-                self.wygeneruj_uwagi_do_dopisania('reb_zup')
+        if self.janczulewicz:
+            # jezeli mamy rebnie zupelna to i pow wydz powyzej 1ha dodaj uwage
+            # o traktowaniu dzialek ewid jako zrebowe
+            if self.gen_reb in ['IA', 'IB', 'IC', ]:
+                if self.ile_dzkat > 1 and self.pow_wydz > 1:
+                    # dodaj informacje o zmianie standardowego drylu
+                    self.wygeneruj_uwagi_do_dopisania('reb_zup')
+        elif self.gen_reb in ['IA', 'IB', 'IC', 'IIA', 'IIB', 'IIC', 'IID']:
+            # dzialki zrebowe + nastepstwo ciec
+            self.wygeneruj_uwagi_do_dopisania('nastepstwo')
 
     def wygeneruj_uwagi_do_dopisania(self, typ: str) -> None:
         """ Sprawdza czy uwagi do dopisania do bazy, które chce wygeneować
         użytkownik już się tam nie znajdują. Jeżeli nie, to dodaje odpowiedni
         string ze slownika do tablicy uwag
-        typ in ['reb_zup', 'uszk', 'przebud', ]
+        typ in ['reb_zup', 'nastepstwo', 'uszk', 'przebud', 'zle_prod', ]
         """
 
         if typ not in self.uw_sl:

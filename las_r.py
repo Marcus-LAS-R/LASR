@@ -1128,7 +1128,8 @@ class LasR:
         self.a_uzup_uszkodzen.setToolTip(
             "Dla wydzieleń D-STAN uzupełnia w bazie puste pola przyczyny "
             "(CAUSE_CD) i stopnia uszkodzenia (DAMAGE_DEGREE_CD) - domyślnie "
-            "KLIMAT/0, a na siedliskach wilgotnych WODA.")
+            "KLIMAT/0, dla gat. panującego poniżej 20 lat ZWIERZ, a na "
+            "siedliskach wilgotnych WODNE.")
         self.m_narzedzia.addAction(self.a_uzup_uszkodzen)
         self.a_uzup_uszkodzen.triggered.connect(self.uzupelnij_uszkodzenia)
 
@@ -1967,6 +1968,7 @@ class LasR:
             self.iface.messageBar().pushCritical(
                 "BAZA", "Nie udało się połączyć z bazą"
             )
+            return
         np.zbuduj_strukture()
         np.popraw()
         np.dopisz_poprawki()

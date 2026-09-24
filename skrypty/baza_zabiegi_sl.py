@@ -316,6 +316,14 @@ class ZabiegiSlownik():
                 'r': ' Brak możliwości wpisania uwagi o działkach w rębni'
                 'zupełnej,'
             },
+            # rebnie IA-IC, IIA-IID (poza trybem "Wszystkie rębnie jako IB")
+            'nastepstwo': {
+                'c': ' Dz. ewid. traktować jako dz. zrębowe. Stosować '
+                'następstwa cięć, pojedynczy zrąb na pow. mniejszej niż 4 ha.',
+                's': ' Dz. ewid. traktować jako dz. zrębowe. Stosować '
+                'następstwa cięć, pojedynczy zrąb na pow. mniejszej niż 4 ha.',
+                'r': ' Brak możliwości wpisania uwagi o następstwie cięć'
+            },
             'przebud': {
                 'c': ' D-stan przeznaczony do przebudowy,',
                 's': ' D-stan do przebud.,',

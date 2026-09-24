@@ -2,7 +2,6 @@ import os
 
 from qgis.core import QgsProject
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
-from .funkcje import wybierz_warstwe_z_kandydatow
 
 
 class NaprawFStorSpec:
@@ -200,17 +199,23 @@ class WrapNaprawFStorSpec(NaprawFStorSpec):
             )
 
     def pobierz_sciezke(self):
-        '''Pobiera od użytkownika sciezke do bazy, w ktorej ma byc
-        przeprowadzone sprawdanie tabeli f_storey_species. Jeżeli w TOC
-        znajduje się warstwa WYDZ, okno wyboru startuje w katalogu bazy
-        taksatora wyliczonym z jej ścieżki (tak jak w innych narzędziach
-        operujących na bazie).
+        '''Ustala sciezke do bazy, w ktorej ma byc przeprowadzone sprawdzanie
+        tabeli f_storey_species. Jeżeli w TOC jest dokładnie jedna warstwa
+        WYDZ, baza jest szukana automatycznie katalog wyżej (okno wyboru
+        tylko gdy nie ma tam dokładnie jednej bazy). W przeciwnym razie
+        użytkownik wskazuje bazę - o warstwę nie pytamy, bo służy ona tylko
+        do odnalezienia bazy.
         '''
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
-        wydz = wybierz_warstwe_z_kandydatow(self.iface, wydz_kandydaci, 'WYDZ')
+        wydz_kandydaci = [x for x in lyrs if x.name().upper() == 'WYDZ']
 
-        baza_sc = znajdz_baze_do_wydz(self.iface, wydz, poz=1, wskaz=True)
+        if len(wydz_kandydaci) == 1:
+            baza_sc = znajdz_baze_do_wydz(
+                self.iface, wydz_kandydaci[0], poz=1)
+        else:
+            # przy kilku warstwach WYDZ okno startuje w katalogu pierwszej
+            wydz = wydz_kandydaci[0] if wydz_kandydaci else None
+            baza_sc = znajdz_baze_do_wydz(self.iface, wydz, poz=1, wskaz=True)
         if baza_sc is False:
             return False
 

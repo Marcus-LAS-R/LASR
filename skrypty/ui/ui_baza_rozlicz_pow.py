@@ -91,7 +91,7 @@ class Ui_Ui_Dialog(object):
         font_cb = QtGui.QFont()
         font_cb.setFamily("Arial")
         self.checkBox_wyczysc.setFont(font_cb)
-        self.checkBox_wyczysc.setChecked(False)
+        self.checkBox_wyczysc.setChecked(True)
         self.checkBox_wyczysc.setObjectName("checkBox_wyczysc")
 
         self.retranslateUi(Ui_Dialog)
