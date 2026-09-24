@@ -81,6 +81,7 @@ from .skrypty import (
     baza_polacz,
     shp_sprawdz_ciecie,
     shp_usun_nadmiarowe_adr_upul,
+    opis_taksacyjny,
     shp_sprawdz_polozenie_opisow,
     shp_atlasuj_auto,
     baza_napraw_stor_spec,
@@ -312,6 +313,17 @@ class LasR:
         self.menu.addMenu(self.m_kontrola_sulmn)
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
+
+        self.a_opis_taks = QAction(
+            QIcon(None), "Podgląd/Edycja opisu taksacyjnego",
+            self.iface.mainWindow()
+        )
+        self.a_opis_taks.setToolTip(
+            "Karta opisu taksacyjnego zaznaczonego wydzielenia (układ jak w "
+            "Taksatorze) - podgląd i edycja opisu wydzielenia oraz "
+            "informacji różnych, wpisywanie kodami albo numerami.")
+        self.menu.addAction(self.a_opis_taks)
+        self.a_opis_taks.triggered.connect(self.opis_taksacyjny)
 
         for m in (
             self.menu, self.m_przyg_danych, self.m_rozlicz_pow,
@@ -1450,6 +1462,12 @@ class LasR:
         self.dockWarstwaOpisow.close()
         self.iface.removeDockWidget(self.dockWarstwaOpisow)
 
+        if getattr(self, 'dockOpisTaks', None) is not None:
+            self.dockOpisTaks.sprzataj()
+            self.iface.removeDockWidget(self.dockOpisTaks)
+            self.dockOpisTaks.deleteLater()
+            self.dockOpisTaks = None
+
     def run(self):
         """Run method that performs all the real work"""
         # show the dialog
@@ -1944,6 +1962,13 @@ class LasR:
         s.podociagaj()
         s.stworz_poligony()
         s.pokaz_warstwy()
+
+    def opis_taksacyjny(self):
+        if getattr(self, 'dockOpisTaks', None) is None:
+            self.dockOpisTaks = opis_taksacyjny.PanelOpisu(self.iface)
+            self.dockOpisTaks.zadokuj()
+        self.dockOpisTaks.show()
+        self.dockOpisTaks.raise_()
 
     def usun_nadmiarowe_adr_upul(self):
         shp_usun_nadmiarowe_adr_upul.usun_nadmiarowe_adr_upul(self.iface)
