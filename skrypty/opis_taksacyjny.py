@@ -14,7 +14,8 @@ Panel otwarty = baza podłączona:
 - zaznaczenie jednego wydzielenia na warstwie otwiera/przełącza kartę,
 - edytowalne: "Opis wydzielenia" (F_SUBAREA, cechy F_AROD_STAND_PEC i TD =
   F_AROD_GOAL typ 'D' - jako osobne wiersze, jak w Taksatorze) i
-  "Informacje różne" (SUBAREA_INFO); warstwy, gatunki i zabiegi podgląd,
+  "Informacje różne" (SUBAREA_INFO); warstwy i gatunki (krok 3a: reguły,
+  sortowanie i plan zapisu w opis_warstwy.py); zabiegi tylko podgląd,
 - pola kodów: rozwijana lista albo wpisanie kodu lub numeru jak w
   Taksatorze (SO albo 1, D-STAN albo 92) - numery ze słowników TEJ bazy
   (kolumny *_NR, dla gatunków BUL_SPECIES_NR; numery rodzaju powierzchni
@@ -39,28 +40,34 @@ from collections import Counter
 from datetime import datetime
 
 from PyQt5 import sip
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
 from PyQt5.QtGui import (
-    QBrush, QColor, QDoubleValidator, QFont, QFontDatabase,
+    QBrush, QColor, QCursor, QDoubleValidator, QFont, QFontDatabase,
+    QIntValidator,
 )
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QApplication, QComboBox, QCompleter, QDialog,
-    QDialogButtonBox, QDockWidget, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
+    QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox,
+    QCompleter, QDialog,
+    QDialogButtonBox, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QStyledItemDelegate, QTableWidget, QTableWidgetItem, QToolButton,
     QVBoxLayout, QWidget,
 )
 from qgis.core import (
-    QgsExpression, QgsFeature, QgsFeatureRequest, QgsField, QgsFillSymbol,
-    QgsGeometry, QgsProject, QgsVectorLayer, QgsWkbTypes,
+    QgsCoordinateTransform, QgsExpression, QgsFeature, QgsFeatureRequest,
+    QgsField, QgsFillSymbol, QgsGeometry, QgsProject, QgsRectangle,
+    QgsVectorLayer, QgsWkbTypes,
 )
 from PyQt5.QtCore import QVariant
 
 from . import kopie_manipulacyjne
+from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 
 SZARY = QColor(225, 225, 225)
-ZMIENIONE = QColor(255, 243, 190)
+ZMIENIONE = QColor(214, 234, 255)   # zmienione, niezapisane
+BLEDNE = QColor(255, 196, 196)      # reguła twarda - blokuje zapis
+OSTRZEGAWCZE = QColor(255, 240, 170)  # ostrzeżenie - zapis możliwy
 MAX_INFO = 255  # F_SUBAREA.SUBAREA_INFO VARCHAR(255)
 
 # pole -> (tabela słownika, kolumna kodu, kolumna nazwy, kolumna numeru)
@@ -80,6 +87,14 @@ SLOWNIKI = {
                      'VEG_COVER_NR'),
     'SPECIES_CD': ('F_TREE_SPECIES', 'SPECIES_CD', 'SPECIES_NAME',
                    'BUL_SPECIES_NR'),
+    'PART_CD': ('F_PART_DIC', 'PART_CD', 'PART_NAME', 'PART_NR'),
+    'SITE_CLASS_CD': ('F_SITE_CLASS_DIC', 'SITE_CLASS_CD', 'SITE_CLASS_NAME',
+                      'SITE_CLASS_NR'),
+    'MIXTURE_CD': ('F_MIXTURE_DIC', 'MIXTURE_CD', 'MIXTURE_NAME',
+                   'MIXTURE_NR'),
+    'DENSITY_CD': ('F_DENSITY_DIC', 'DENSITY_CD', 'DENSITY_NAME',
+                   'DENSITY_NR'),
+    'STOREY_CD': ('F_STOREY_DIC', 'STOREY_CD', 'STOREY_NAME', 'STOREY_NR'),
 }
 
 # górny wiersz: (nagłówek, pole, typ, słownik)
@@ -101,23 +116,23 @@ POLA_SUBAREA = [
     'SITE_TYPE_CD', 'VEG_COVER_CD', 'DEAD_WOOD', 'SUBAREA_INFO',
 ]
 
-# warstwa: (nagłówek, kolumna, miejsca po przecinku albo None = tekst, szer.)
+# warstwa i gatunki: (nagłówek, pole, typ edytora, słownik, miejsca po
+# przecinku przy wyświetlaniu, szerokość); typ: 'kod', 'calk', 'liczba'.
+# Zagęszczenie, lokalizacja, jakość techniczna i hodowlana pominięte - w
+# danych Taksatora nieużywane (0%, krok 2).
 KOLUMNY_WARSTWY = [
-    ('Zmiesz.', 'MIXTURE_CD', None, 55),
-    ('Zwarcie', 'DENSITY_CD', None, 55),
-    ('Zd.', 'STANDDENSITY_INDEX', 2, 42),
-    ('Zagęszcz.', 'TREE_STOCK_CD', None, 65),
-    ('Lokal.', 'LOCATION_CD', None, 50),
+    ('Zmiesz.', 'MIXTURE_CD', 'kod', 'MIXTURE_CD', None, 62),
+    ('Zwarcie', 'DENSITY_CD', 'kod', 'DENSITY_CD', None, 62),
+    ('Zd.', 'STANDDENSITY_INDEX', 'liczba', None, 2, 46),
 ]
-# gatunki: (nagłówek, kolumna, miejsca, szerokość, szara = liczona)
 KOLUMNY_GATUNKI = [
-    ('Kod', 'SPECIES_CD', None, 48, False),
-    ('Udział', 'PART_CD', None, 48, False),
-    ('Wiek', 'SPECIES_AGE', 0, 40, False),
-    ('D 13', 'BHD', 0, 40, False),
-    ('Wys.', 'HEIGHT', 0, 40, False),
-    ('Bonit.', 'SITE_CLASS_CD', None, 45, False),
-    ('Zasob.', 'VOLUME', 0, 50, False),
+    ('Kod', 'SPECIES_CD', 'kod', 'SPECIES_CD', None, 72),
+    ('Udział', 'PART_CD', 'kod', 'PART_CD', None, 58),
+    ('Wiek', 'SPECIES_AGE', 'calk', None, 0, 42),
+    ('D 13', 'BHD', 'calk', None, 0, 42),
+    ('Wys.', 'HEIGHT', 'calk', None, 0, 42),
+    ('Bonit.', 'SITE_CLASS_CD', 'kod', 'SITE_CLASS_CD', None, 54),
+    ('Zasob.', 'VOLUME', 'liczba', None, 0, 55),
 ]
 KOLUMNY_ZABIEGI = [
     ('Grupa\nczynności', 'MEASURE_CD', None, 80, False),
@@ -131,7 +146,7 @@ KOLUMNY_ZABIEGI = [
 
 NAZWA_KOPII = 'edycja_opisu'
 ILE_KOPII = 5  # tyle ostatnich pakietów kopii Edytora zostaje na dysku
-NAZWA_USUNIETYCH = 'Opis - usunięte z bazy'
+NAZWA_BEZ_OPISU = 'WYDZ bez opisu w bazie'
 # tabele z rekordami wydzielenia (V_TABLE_FIELD_KEY_RELATION) - do migawki
 # w dzienniku przed usunięciem
 TABELE_WYDZIELENIA = [
@@ -161,7 +176,8 @@ def _fmt(v, miejsca):
     if miejsca is None:
         return str(v).strip()
     if miejsca == 'bool':
-        return '☑' if v not in (0, '0', False) else '☐'
+        # URGENCY w bazie: 'T' = pilny, 'N' = zwykły
+        return '☑' if str(v).strip().upper() in ('T', '1', 'TRUE') else '☐'
     try:
         return f'{float(v):.{miejsca}f}'.replace('.', ',')
     except (TypeError, ValueError):
@@ -273,6 +289,43 @@ class Slownik:
         return f'{kod} - {self.nazwy.get(kod, "?")}{dop}'
 
 
+def _int(v):
+    return None if _pusty(v) else int(round(float(v)))
+
+
+def _float(v, miejsca=None):
+    if _pusty(v):
+        return None
+    f = float(v)
+    return round(f, miejsca) if miejsca is not None else f
+
+
+def _model_warstw(warstwy, gatunki):
+    """Model warstw dla opis_warstwy (kody jako tekst, liczby int/float)."""
+    wyn = []
+    for w in warstwy:
+        k = _txt(w.get('STOREY_CD'))
+        gat = [{
+            'SPEC_STOR_INT_NUM': g['SPEC_STOR_INT_NUM'],
+            'SPECIES_CD': _txt(g.get('SPECIES_CD')),
+            'PART_CD': _txt(g.get('PART_CD')),
+            'SPECIES_AGE': _int(g.get('SPECIES_AGE')),
+            'BHD': _int(g.get('BHD')),
+            'HEIGHT': _int(g.get('HEIGHT')),
+            'SITE_CLASS_CD': _txt(g.get('SITE_CLASS_CD')),
+            'VOLUME': _float(g.get('VOLUME')),
+        } for g in gatunki if _txt(g.get('STOREY_CD')) == k]
+        wyn.append({
+            'STOREY_CD': k,
+            'MIXTURE_CD': _txt(w.get('MIXTURE_CD')),
+            'DENSITY_CD': _txt(w.get('DENSITY_CD')),
+            # REAL w Accessie (0.100000001) - zaokrąglenie do 2 miejsc
+            'STANDDENSITY_INDEX': _float(w.get('STANDDENSITY_INDEX'), 2),
+            'gatunki': gat,
+        })
+    return wyn
+
+
 def rozbij_adres(adr):
     """Czytelne części adresu leśnego UPUL
     (COUNTY_L[0] DISTRICT[1:3] MUNICIP[3:6] COMMUNITY[6:10] - GRP[11:13]
@@ -354,7 +407,10 @@ def okno_zgodnosci(parent, podsum, szczegoly, z_wyborem):
     # stała szerokość znaków - adresy leśne układają się w kolumny
     pole.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
     fm = pole.fontMetrics()
-    pole.setMinimumSize(fm.width('W' * 30) + 40, fm.lineSpacing() * 25 + 12)
+    # szerokość wg najdłuższej linii (nagłówki sekcji, adresy), max 900 px
+    najdl = max([fm.width(x) for x in szczegoly.split('\n')[:1000]] + [0])
+    pole.setMinimumSize(min(max(najdl + 50, fm.width('W' * 30) + 40), 900),
+                        fm.lineSpacing() * 25 + 12)
     lay.addWidget(pole, 1)
     if z_wyborem:
         przyciski = QDialogButtonBox()
@@ -370,22 +426,55 @@ def okno_zgodnosci(parent, podsum, szczegoly, z_wyborem):
 
 # ------------------------------------------------------------ delegat edycji
 
-class _DelegatOpisu(QStyledItemDelegate):
-    """Pole kodu = rozwijana lista "KOD | nr" z możliwością wpisania kodu
-    albo numeru (z podpowiedziami); pole liczbowe = zwykła linia."""
+class _DelegatTabeli(QStyledItemDelegate):
+    """Edytor komórki: 'kod' - rozwijana lista "KOD | nr" z możliwością
+    wpisania kodu albo numeru (podpowiedzi); 'calk'/'liczba' - zwykła
+    linia (kontrola wartości przy zatwierdzeniu). Zmiana trafia do
+    callback(wiersz, kolumna, tekst) - odroczona, bo może przebudować
+    tabelę (liczba wierszy)."""
 
-    def __init__(self, okno):
+    def __init__(self, okno, specyfikacja, callback, po_enter=None,
+                 podpowiedz=None):
         super().__init__(okno)
         self.okno = okno
+        self.spec = specyfikacja  # [(typ, słownik), ...] per kolumna
+        self.callback = callback
+        # podpowiedz(wiersz, kolumna) -> tekst wstawiany do PUSTEJ komórki,
+        # zatwierdzany wyłącznie Enterem (np. bonitacja z tablic)
+        self.podpowiedz = podpowiedz
+        # po_enter(wiersz, kolumna, w_edycji) - nawigacja Enterem; None =
+        # domyślne zachowanie Qt
+        self.po_enter = po_enter
+
+    def eventFilter(self, editor, event):
+        """Enter w edytorze: zatwierdź i przejdź dalej (po_enter); Esc -
+        domyślnie: porzuć edycję komórki."""
+        if self.po_enter is not None and event.type() == QEvent.KeyPress \
+                and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if isinstance(editor, QComboBox) and editor.view().isVisible():
+                return super().eventFilter(editor, event)
+            wiersz = editor.property('wiersz')
+            kolumna = editor.property('kolumna')
+            editor.setProperty('enter', True)
+            self.commitData.emit(editor)
+            self.closeEditor.emit(editor, QAbstractItemDelegate.NoHint)
+            # po odroczonym callback (ustaw_*) - kolejność kolejki zdarzeń
+            QTimer.singleShot(0, lambda: self.po_enter(wiersz, kolumna, True))
+            return True
+        return super().eventFilter(editor, event)
 
     def createEditor(self, parent, option, index):
-        _nag, pole, typ, slow = KOLUMNY_OPIS[index.column()]
-        if typ == 'liczba':
-            ed = QLineEdit(parent)
-            v = QDoubleValidator(0, 1e9, 2, ed)
-            v.setNotation(QDoubleValidator.StandardNotation)
-            ed.setValidator(v)
-            return ed
+        typ, slow = self.spec[index.column()]
+        if typ == 'usun':
+            return None
+        ed = self._edytor(parent, typ, slow)
+        ed.setProperty('wiersz', index.row())
+        ed.setProperty('kolumna', index.column())
+        return ed
+
+    def _edytor(self, parent, typ, slow):
+        if typ != 'kod':
+            return QLineEdit(parent)
         ed = QComboBox(parent)
         ed.setEditable(True)
         ed.setInsertPolicy(QComboBox.NoInsert)
@@ -409,69 +498,264 @@ class _DelegatOpisu(QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         tekst = index.data() or ''
+        if not tekst and self.podpowiedz is not None:
+            sugestia = self.podpowiedz(index.row(), index.column())
+            if sugestia:
+                tekst = sugestia
+                editor.setProperty('podpowiedz', sugestia)
         if isinstance(editor, QComboBox):
             editor.setEditText(tekst)
             editor.lineEdit().selectAll()
         else:
             editor.setText(tekst)
+            editor.selectAll()
 
     def setModelData(self, editor, model, index):
         tekst = editor.currentText() if isinstance(editor, QComboBox) \
             else editor.text()
-        pole = KOLUMNY_OPIS[index.column()][1]
-        wiersz = index.row()
-        # zatwierdzenie może wywołać przebudowę tabeli (liczba wierszy
-        # cech/TD) - dlatego odroczone, poza obsługą edytora
-        QTimer.singleShot(0, lambda: self.okno.ustaw_pole(
-            pole, tekst, wiersz))
+        if tekst == (index.data() or ''):
+            return  # bez zmian - nie przebudowuj tabeli
+        if tekst == editor.property('podpowiedz') and \
+                not editor.property('enter'):
+            return  # podpowiedź przyjmowana tylko Enterem
+        wiersz, kolumna = index.row(), index.column()
+        QTimer.singleShot(0, lambda: self.callback(wiersz, kolumna, tekst))
+
+
+def idz_do_komorki(tabela, r, c):
+    """Przejście do komórki z otwarciem edytora (CurrentChanged). Enter,
+    który zatwierdził podpowiedź listy, potrafi zamknąć świeżo otwarty
+    edytor - dlatego po chwili sprawdzenie i ewentualnie ponowne otwarcie."""
+    if sip.isdeleted(tabela):
+        return
+    tabela.setFocus()
+    tabela.setCurrentCell(r, c)
+    QTimer.singleShot(60, lambda: _otworz_edytor(tabela, r, c))
+
+
+def _otworz_edytor(tabela, r, c):
+    if sip.isdeleted(tabela) or \
+            tabela.state() == QAbstractItemView.EditingState:
+        return
+    if (tabela.currentRow(), tabela.currentColumn()) != (r, c):
+        return
+    it = tabela.item(r, c)
+    if it is not None and it.flags() & Qt.ItemIsEditable:
+        tabela.setFocus()
+        tabela.edit(tabela.model().index(r, c))
+
+
+class _NowaWarstwaDialog(QDialog):
+    """Szybkie dodanie warstwy z klawiatury: kod albo numer (NAL albo 6),
+    Enter - dodaj, Esc - bez dodawania."""
+
+    def __init__(self, okno, wolne):
+        super().__init__(okno)
+        self.setWindowTitle('Nowa warstwa')
+        self.okno = okno
+        self.wolne = wolne
+        self.kod = None
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel('Kod albo numer nowej warstwy\n'
+                             '(Enter - dodaj, Esc - bez dodawania):'))
+        self.combo = QComboBox()
+        self.combo.setEditable(True)
+        self.combo.setInsertPolicy(QComboBox.NoInsert)
+        s = okno.slowniki.get('STOREY_CD')
+        self.combo.addItems([s.pozycja(k) if s else k for k in wolne])
+        comp = QCompleter(self.combo.model(), self.combo)
+        comp.setCaseSensitivity(Qt.CaseInsensitive)
+        comp.setFilterMode(Qt.MatchStartsWith)
+        self.combo.setCompleter(comp)
+        self.combo.setCurrentIndex(-1)
+        self.combo.lineEdit().clear()
+        self.combo.lineEdit().returnPressed.connect(self._ok)
+        lay.addWidget(self.combo)
+        self.lbl = QLabel()
+        self.lbl.setStyleSheet('color: #c00000;')
+        lay.addWidget(self.lbl)
+
+    def _ok(self):
+        s = self.okno.slowniki.get('STOREY_CD')
+        tekst = self.combo.currentText()
+        kod = s.rozwiaz(tekst) if s else tekst.split(' | ')[0].strip()
+        if kod not in self.wolne:
+            self.lbl.setText(f'"{tekst}" - wybierz jedną z: '
+                             + ', '.join(self.wolne))
+            return
+        self.kod = kod
+        self.accept()
+
+    def keyPressEvent(self, event):
+        # Enter obsługuje pole (returnPressed), nie domyślny przycisk
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            return
+        super().keyPressEvent(event)
+
+
+def _tabela_edytowalna(kolumny, okno, callback, po_enter=None,
+                       podpowiedz=None):
+    """Tabela warstwy/gatunków; kolumny: (nagłówek, pole, typ, słownik,
+    miejsca, szerokość)."""
+    t = _tabela([k[0] for k in kolumny], [k[5] for k in kolumny])
+    if not okno.tylko_odczyt:
+        t.setItemDelegate(_DelegatTabeli(
+            okno, [(k[2], k[3]) for k in kolumny], callback, po_enter,
+            podpowiedz))
+        t.setSelectionMode(QAbstractItemView.SingleSelection)
+        t.setEditTriggers(
+            QAbstractItemView.CurrentChanged | QAbstractItemView.DoubleClicked
+            | QAbstractItemView.SelectedClicked
+            | QAbstractItemView.EditKeyPressed
+            | QAbstractItemView.AnyKeyPressed)
+    return t
 
 
 # ----------------------------------------------------------- grupa warstwy
 
 class _GrupaWarstwy(QWidget):
-    """Zwijana grupa: nagłówek z kodem warstwy, pod nim tabela parametrów
-    warstwy (lewa) i gatunków (prawa) - jak w Taksatorze."""
+    """Zwijana grupa jednej warstwy: nagłówek (kod, liczba gatunków,
+    uwagi reguł, "Usuń warstwę"), pod nim tabela parametrów warstwy (lewa)
+    i gatunków (prawa) - jak w Taksatorze. Dane: okno.dane['WARSTWY'][wi]."""
 
-    def __init__(self, warstwa, gatunki, parent=None):
+    def __init__(self, okno, wi, parent=None):
         super().__init__(parent)
-        self.kod = _txt(warstwa.get('STOREY_CD'))
+        self.okno = okno
+        self.wi = wi
+        self.kod = okno.dane['WARSTWY'][wi]['STOREY_CD']
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(1)
 
+        naglowek = QHBoxLayout()
+        naglowek.setContentsMargins(0, 0, 0, 0)
         self.btn = QToolButton()
         self.btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.btn.setCheckable(True)
         self.btn.setStyleSheet(
             'QToolButton { border: none; font-weight: bold; }')
-        self.btn.setText(f'{self.kod}   ({len(gatunki)} gat.)')
         self.btn.toggled.connect(self._przelacz)
-        lay.addWidget(self.btn)
+        naglowek.addWidget(self.btn)
+        self.lbl_uwagi = QLabel()
+        naglowek.addWidget(self.lbl_uwagi)
+        naglowek.addStretch(1)
+        if not okno.tylko_odczyt:
+            usun = QToolButton()
+            usun.setText('Usuń warstwę')
+            usun.setStyleSheet('QToolButton { color: #c62828; border: none; }')
+            usun.clicked.connect(lambda: okno.usun_warstwe(self.wi))
+            naglowek.addWidget(usun)
+        lay.addLayout(naglowek)
 
         self.cialo = QWidget()
         hl = QHBoxLayout(self.cialo)
         hl.setContentsMargins(14, 0, 0, 0)
         hl.setSpacing(4)
-
-        tw = _tabela([k[0] for k in KOLUMNY_WARSTWY],
-                     [k[3] for k in KOLUMNY_WARSTWY])
-        tw.setRowCount(1)
-        for c, (_n, kol, m, _s) in enumerate(KOLUMNY_WARSTWY):
-            tw.setItem(0, c, _item(_fmt(warstwa.get(kol), m)))
-        _dopasuj(tw)
-        hl.addWidget(tw, 0, Qt.AlignTop)
-
-        tg = _tabela([k[0] for k in KOLUMNY_GATUNKI],
-                     [k[3] for k in KOLUMNY_GATUNKI])
-        tg.setRowCount(len(gatunki))
-        for r, g in enumerate(gatunki):
-            for c, (_n, kol, m, _s, szara) in enumerate(KOLUMNY_GATUNKI):
-                tg.setItem(r, c, _item(_fmt(g.get(kol), m), szara))
-        _dopasuj(tg)
-        hl.addWidget(tg, 0, Qt.AlignTop)
+        self.tw = _tabela_edytowalna(
+            KOLUMNY_WARSTWY, okno,
+            lambda r, c, t: okno.ustaw_warstwe(self.wi, KOLUMNY_WARSTWY[c][1], t),
+            lambda r, c, e: self._enter('w', r, c, e))
+        # zmieszania i zwarcia nie podaje się poza DRZEW (IP/IIP) - kolumny
+        # ukryte, ale miejsce tabeli zostaje (tabele gatunków w jednej linii)
+        pelna = self.tw.width()
+        if self.kod not in ow.JAK_DRZEW:
+            for c, k in enumerate(KOLUMNY_WARSTWY):
+                if k[1] in ('MIXTURE_CD', 'DENSITY_CD'):
+                    self.tw.setColumnHidden(c, True)
+            self.tw.setFixedWidth(
+                sum(k[5] for k in KOLUMNY_WARSTWY
+                    if k[1] not in ('MIXTURE_CD', 'DENSITY_CD'))
+                + 2 * self.tw.frameWidth())
+        miejsce = QWidget()
+        miejsce.setFixedWidth(pelna)
+        ml = QVBoxLayout(miejsce)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.addWidget(self.tw, 0, Qt.AlignLeft | Qt.AlignTop)
+        ml.addStretch(1)
+        hl.addWidget(miejsce, 0, Qt.AlignTop)
+        self.tg = _tabela_edytowalna(
+            KOLUMNY_GATUNKI + [KOLUMNA_USUN], okno,
+            lambda r, c, t: okno.ustaw_gatunek(
+                self.wi, r, KOLUMNY_GATUNKI[c][1], t),
+            lambda r, c, e: self._enter('g', r, c, e),
+            lambda r, c: okno.podpowiedz_bonitacji(self.wi, r)
+            if c < len(KOLUMNY_GATUNKI) and
+            KOLUMNY_GATUNKI[c][1] == 'SITE_CLASS_CD' else None)
+        self.tg.cellClicked.connect(self._klik_gatunku)
+        hl.addWidget(self.tg, 0, Qt.AlignTop)
+        if not okno.tylko_odczyt:
+            # Enter bez otwartego edytora (drugi Enter na końcu wiersza)
+            self.tw.installEventFilter(self)
+            self.tg.installEventFilter(self)
         hl.addStretch(1)
         lay.addWidget(self.cialo)
+        self.odswiez()
         self.ustaw(True)
+
+    def odswiez(self):
+        okno = self.okno
+        w = okno.dane['WARSTWY'][self.wi]
+        org = okno.oryginalna_warstwa(self.kod)
+        wal = okno.walidacja
+
+        self.tw.setRowCount(1)
+        for c, (_n, pole, _t, slow, m, _s) in enumerate(KOLUMNY_WARSTWY):
+            zm = org is None or org[pole] != w[pole]
+            self.tw.setItem(0, c, okno.komorka(
+                _fmt(w[pole], m), wal.get((self.wi, None, pole)), zm,
+                slow, w[pole]))
+        _dopasuj(self.tw)
+
+        gat = w['gatunki']
+        org_g = {g['SPEC_STOR_INT_NUM']: g for g in org['gatunki']} \
+            if org else {}
+        # dubel gatunek+wiek (GAT13) - cały wiersz na czerwono
+        duble = {gi for (wi, gi, pole), lst in wal.items()
+                 if wi == self.wi and pole == 'SPECIES_CD'
+                 and any(k == 'GAT13' for _p, k, _t in lst)}
+        n = len(gat) + (0 if okno.tylko_odczyt else 1)
+        self.tg.setRowCount(n)
+        kol_usun = len(KOLUMNY_GATUNKI)
+        for r in range(n):
+            g = gat[r] if r < len(gat) else None
+            stary = org_g.get(g['SPEC_STOR_INT_NUM']) if g else None
+            for c, (_n, pole, _t, slow, m, _s) in enumerate(KOLUMNY_GATUNKI):
+                if g is None:
+                    it = QTableWidgetItem('')
+                    if c:  # nowy gatunek zaczyna się od kodu
+                        it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                    else:
+                        it.setToolTip('Wpisz kod albo numer gatunku, żeby '
+                                      'dodać gatunek')
+                else:
+                    zm = stary is None or stary[pole] != g[pole]
+                    kom = list(wal.get((self.wi, r, pole), []))
+                    if r in duble and not any(p == ow.BLAD for p, *_ in kom):
+                        kom.append((ow.BLAD, 'GAT13', 'Ten sam gatunek w tym '
+                                    'samym wieku w warstwie'))
+                    it = okno.komorka(_fmt(g[pole], m), kom, zm, slow, g[pole])
+                self.tg.setItem(r, c, it)
+            it = QTableWidgetItem('✕' if g is not None and
+                                  not okno.tylko_odczyt else '')
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            it.setTextAlignment(Qt.AlignCenter)
+            it.setForeground(QBrush(QColor(198, 40, 40)))
+            if g is not None:
+                it.setToolTip('Usuń gatunek (zmiana trafi do bazy po Zapisz)')
+            self.tg.setItem(r, kol_usun, it)
+        _dopasuj(self.tg)
+
+        self.btn.setText(f'{self.kod}   ({len(gat)} gat.)')
+        uwagi = wal.get((self.wi, None, None), [])
+        bledy = len(ow.lista_bledow(
+            {k: v for k, v in wal.items() if k[0] == self.wi},
+            okno.dane['WARSTWY']))
+        if bledy:
+            self.lbl_uwagi.setText(f'błędy: {bledy}')
+            self.lbl_uwagi.setStyleSheet('color: #c00000;')
+        else:
+            self.lbl_uwagi.setText('')
+        self.lbl_uwagi.setToolTip('\n'.join(tx for _p, _k, tx in uwagi))
 
     def _przelacz(self, rozwiniety):
         self.btn.setArrowType(Qt.DownArrow if rozwiniety else Qt.RightArrow)
@@ -481,9 +765,67 @@ class _GrupaWarstwy(QWidget):
         self.btn.setChecked(rozwiniety)
         self._przelacz(rozwiniety)
 
+    # ---------------------------------------------------- usuwanie wiersza
 
-SZEROKOSC_GRUPY = (14 + sum(k[3] for k in KOLUMNY_WARSTWY)
-                   + sum(k[3] for k in KOLUMNY_GATUNKI) + 4 + 4 * 2)
+    def _klik_gatunku(self, r, c):
+        if c == len(KOLUMNY_GATUNKI) and not self.okno.tylko_odczyt and \
+                r < len(self.okno.dane['WARSTWY'][self.wi]['gatunki']):
+            QTimer.singleShot(0, lambda: self.okno.usun_gatunek(self.wi, r))
+
+    # ------------------------------------------------------ nawigacja Enter
+
+    def eventFilter(self, obiekt, event):
+        if event.type() == QEvent.KeyPress and \
+                event.key() in (Qt.Key_Return, Qt.Key_Enter) and \
+                obiekt in (self.tw, self.tg) and \
+                obiekt.state() != QAbstractItemView.EditingState:
+            r, c = obiekt.currentRow(), obiekt.currentColumn()
+            if r >= 0 and c >= 0:
+                self._enter('w' if obiekt is self.tw else 'g', r, c, False)
+                return True
+        return super().eventFilter(obiekt, event)
+
+    def _idz(self, tabela, r, c):
+        idz_do_komorki(tabela, r, c)
+
+    def _enter(self, tab, r, c, w_edycji):
+        """Enter: następna wymagana komórka wiersza (reguły warstwy); na
+        ostatniej - pierwszy Enter zatwierdza, drugi przechodzi do nowego
+        wiersza gatunku. Parametry warstwy -> dalej gatunki."""
+        okno = self.okno
+        if okno.dane is None or sip.isdeleted(self) or \
+                self.wi >= len(okno.dane['WARSTWY']):
+            return
+        w = okno.dane['WARSTWY'][self.wi]
+        gat = w['gatunki']
+        if tab == 'w':
+            pola = ow.pola_wymagane_warstwy(w['STOREY_CD'])
+            kolumny = [k[1] for k in KOLUMNY_WARSTWY]
+            dalej = [x for x in pola if kolumny.index(x) > c]
+            if dalej:
+                self._idz(self.tw, 0, kolumny.index(dalej[0]))
+            else:
+                self._idz(self.tg, 0, 0)
+            return
+        if r >= len(gat):
+            # Enter na pustym wierszu (trzeci na końcu warstwy): następna
+            # warstwa, a za ostatnią - okienko nowej warstwy
+            okno.po_ostatnim_wierszu(self.wi)
+            return
+        pola = ow.pola_wymagane_gatunku(w['STOREY_CD'], gat[r])
+        kolumny = [k[1] for k in KOLUMNY_GATUNKI]
+        dalej = [x for x in pola if kolumny.index(x) > c]
+        if dalej:
+            self._idz(self.tg, r, kolumny.index(dalej[0]))
+        elif not w_edycji:
+            self._idz(self.tg, len(gat), 0)  # drugi Enter - nowy wiersz
+
+
+# kolumna z przyciskiem usunięcia wiersza gatunku (✕)
+KOLUMNA_USUN = ('', '_USUN', 'usun', None, None, 22)
+SZEROKOSC_GRUPY = (14 + sum(k[5] for k in KOLUMNY_WARSTWY)
+                   + sum(k[5] for k in KOLUMNY_GATUNKI) + KOLUMNA_USUN[5]
+                   + 4 + 4 * 2)
 
 
 def _tabela(naglowki, szerokosci):
@@ -546,6 +888,7 @@ class OknoOpisu(QWidget):
         self.dane = None
         self.oryginal = None
         self.grupy = []
+        self.walidacja = {}
 
         self._ustaw_tytul()
         self._zbuduj()
@@ -587,6 +930,7 @@ class OknoOpisu(QWidget):
         gatunki = self._wiersze(
             'select * from F_STOREY_SPECIES where ARODES_INT_NUM = ? '
             'order by SPECIES_RANK_ORDER', (aint,))
+        dane['WARSTWY'] = _model_warstw(warstwy, gatunki)
         zabiegi = self._wiersze(
             'select * from F_AROD_CUE where ARODES_INT_NUM = ? '
             'order by CUE_RANK_ORDER', (aint,))
@@ -622,6 +966,8 @@ class OknoOpisu(QWidget):
         gora.addWidget(self.lbl_adr)
         self.lbl_status = QLabel()
         gora.addWidget(self.lbl_status, 1)
+        self.lbl_walidacja = QLabel()
+        gora.addWidget(self.lbl_walidacja)
         glowny.addLayout(gora)
 
         self.przewijanie = QScrollArea()
@@ -646,7 +992,13 @@ class OknoOpisu(QWidget):
         for i, w in enumerate(szer):
             self.t_opis.setColumnWidth(i, w)
         self.t_opis.setFixedWidth(sum(szer) + 2 * self.t_opis.frameWidth())
-        self.t_opis.setItemDelegate(_DelegatOpisu(self))
+        self.t_opis.setItemDelegate(_DelegatTabeli(
+            self, [('kod' if k[2] in ('kod', 'lista') else 'liczba', k[3])
+                   for k in KOLUMNY_OPIS],
+            lambda r, c, t: self.ustaw_pole(KOLUMNY_OPIS[c][1], t, r),
+            lambda r, c, e: self._enter_opis(r, c, e)))
+        if not self.tylko_odczyt:
+            self.t_opis.installEventFilter(self)
         self.t_opis.setSelectionMode(QAbstractItemView.SingleSelection)
         self.t_opis.setEditTriggers(
             QAbstractItemView.NoEditTriggers if self.tylko_odczyt else
@@ -722,6 +1074,8 @@ class OknoOpisu(QWidget):
         """Czyści kartę (brak/nieznane wydzielenie)."""
         self.dane = self.oryginal = None
         self.aint = None
+        self.walidacja = {}
+        self.lbl_walidacja.setText('')
         self.t_opis.clearContents()
         self.t_opis.setRowCount(1)
         _dopasuj(self.t_opis)
@@ -736,6 +1090,88 @@ class OknoOpisu(QWidget):
         self._odswiez_przyciski()
         self._dopasuj_okno()
 
+    def oryginalna_warstwa(self, kod):
+        if self.oryginal is None:
+            return None
+        return next((w for w in self.oryginal['WARSTWY']
+                     if w['STOREY_CD'] == kod), None)
+
+    def komorka(self, tekst, komunikaty, zmienione, slow=None, wartosc=None):
+        """Komórka z kolorem: błąd > ostrzeżenie > zmienione; podpowiedź -
+        komunikaty reguł i opis kodu ze słownika."""
+        it = QTableWidgetItem(tekst)
+        komunikaty = komunikaty or []
+        poziomy = {p for p, *_ in komunikaty}
+        tlo = BLEDNE if ow.BLAD in poziomy else \
+            OSTRZEGAWCZE if ow.OSTRZ in poziomy else \
+            ZMIENIONE if zmienione else None
+        if tlo is not None:
+            it.setBackground(QBrush(tlo))
+            # jasne tło - ciemny tekst (czytelne także w ciemnym motywie)
+            it.setForeground(QBrush(QColor(20, 20, 20)))
+        tip = [('BŁĄD' if p == ow.BLAD else 'Uwaga') +
+               (f' {k}' if k else '') + f': {tx}' for p, k, tx in komunikaty]
+        s = self.slowniki.get(slow) if slow else None
+        if s is not None and wartosc:
+            tip.append(s.opis(str(wartosc)))
+        if tip:
+            it.setToolTip('\n'.join(tip))
+        if self.tylko_odczyt:
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+        return it
+
+    def _przelicz(self):
+        self.walidacja = ow.waliduj(self.dane['WARSTWY'],
+                                    self.dane['AREA_TYPE_CD'])
+        _b, ostrz = ow.policz(self.walidacja)
+        bledy = len(ow.lista_bledow(self.walidacja, self.dane['WARSTWY']))
+        tekst = []
+        if bledy:
+            tekst.append(f'<span style="color:#c00000">błędy: {bledy}</span>')
+        if ostrz:
+            tekst.append(f'<span style="color:#9a7000">ostrzeżenia: {ostrz}'
+                         '</span>')
+        self.lbl_walidacja.setText('  '.join(tekst))
+        wydz = self.walidacja.get(('wydz', None, None), [])
+        self.lbl_walidacja.setToolTip('\n'.join(tx for _p, _k, tx in wydz))
+
+    def _odbuduj_grupy(self, rozwiniete=None):
+        """Grupy warstw od nowa (po dodaniu/usunięciu warstwy albo
+        wczytaniu). rozwiniete: {kod: bool} - stan do zachowania."""
+        self._wyczysc_warstwy()
+        for wi in range(len(self.dane['WARSTWY'])):
+            grupa = _GrupaWarstwy(self, wi)
+            if rozwiniete is not None:
+                grupa.ustaw(rozwiniete.get(grupa.kod, True))
+            grupa.btn.toggled.connect(
+                lambda _r: QTimer.singleShot(0, self._dopasuj_okno))
+            self.lay_warstw.addWidget(grupa)
+            self.grupy.append(grupa)
+        if not self.dane['WARSTWY']:
+            self.lay_warstw.addWidget(QLabel('  (brak warstw)'))
+        if not self.tylko_odczyt:
+            obecne = {w['STOREY_CD'] for w in self.dane['WARSTWY']}
+            wolne = [k for k in ow.PRAKTYCZNE if k not in obecne]
+            if wolne:
+                btn = QToolButton()
+                btn.setText('+ Warstwa')
+                btn.setPopupMode(QToolButton.InstantPopup)
+                menu = QMenu(btn)
+                for k in wolne:
+                    menu.addAction(k, lambda k=k: self.dodaj_warstwe(k))
+                btn.setMenu(menu)
+                wiersz = QHBoxLayout()
+                wiersz.setContentsMargins(0, 0, 0, 0)
+                wiersz.addWidget(btn)
+                wiersz.addStretch(1)
+                kontener = QWidget()
+                kontener.setLayout(wiersz)
+                self.lay_warstw.addWidget(kontener)
+
+    def _stan_grup(self):
+        return {g.kod: g.btn.isChecked() for g in self.grupy
+                if not sip.isdeleted(g)}
+
     def _wyczysc_warstwy(self):
         self.grupy = []
         while self.lay_warstw.count():
@@ -748,17 +1184,8 @@ class OknoOpisu(QWidget):
         self.oryginal = copy.deepcopy(dane)
         self._wypelnij_opis()
 
-        self._wyczysc_warstwy()
-        for w in warstwy:
-            gat = [g for g in gatunki
-                   if _txt(g.get('STOREY_CD')) == _txt(w.get('STOREY_CD'))]
-            grupa = _GrupaWarstwy(w, gat)
-            grupa.btn.toggled.connect(
-                lambda _r: QTimer.singleShot(0, self._dopasuj_okno))
-            self.lay_warstw.addWidget(grupa)
-            self.grupy.append(grupa)
-        if not warstwy:
-            self.lay_warstw.addWidget(QLabel('  (brak warstw)'))
+        self._przelicz()
+        self._odbuduj_grupy()
 
         self.t_zab.setRowCount(len(zabiegi))
         for r, z in enumerate(zabiegi):
@@ -812,6 +1239,7 @@ class OknoOpisu(QWidget):
                     it.setFlags(it.flags() & ~Qt.ItemIsEditable)
                 if zmienione:
                     it.setBackground(QBrush(ZMIENIONE))
+                    it.setForeground(QBrush(QColor(20, 20, 20)))
                 self.t_opis.setItem(r, c, it)
         _dopasuj(self.t_opis)
 
@@ -903,9 +1331,211 @@ class OknoOpisu(QWidget):
                     return self._blad(f'Nieznany kod/numer: "{tekst}"')
             self.dane[pole] = nowa
         self._wypelnij_opis()
+        if pole == 'AREA_TYPE_CD':  # WAR33 zależy od rodzaju powierzchni
+            self._przelicz()
         self._status('')
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
+
+    def _wartosc(self, typ, slow, tekst):
+        """(ok, wartość) z tekstu komórki; przy błędzie komunikat w statusie."""
+        tekst = (tekst or '').strip()
+        if not tekst:
+            return True, ('' if typ == 'kod' else None)
+        if typ == 'kod':
+            s = self.slowniki.get(slow)
+            kod = s.rozwiaz(tekst) if s else None
+            if kod is None:
+                self._blad(f'Nieznany kod/numer: "{tekst}"')
+                return False, None
+            return True, kod
+        try:
+            v = float(tekst.replace(',', '.'))
+        except ValueError:
+            self._blad(f'"{tekst}" to nie liczba')
+            return False, None
+        if v < 0:
+            self._blad('Wartość nie może być ujemna')
+            return False, None
+        if typ == 'calk':
+            if not v.is_integer():
+                self._blad(f'"{tekst}" - wymagana liczba całkowita')
+                return False, None
+            return True, int(v)
+        return True, v
+
+    def _po_zmianie_warstwy(self, wi):
+        self._przelicz()
+        if 0 <= wi < len(self.grupy):
+            self.grupy[wi].odswiez()
+        self._status('')
+        self._odswiez_przyciski()
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def ustaw_warstwe(self, wi, pole, tekst):
+        if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
+            return
+        _n, _p, typ, slow, _m, _s = next(
+            k for k in KOLUMNY_WARSTWY if k[1] == pole)
+        ok, v = self._wartosc(typ, slow, tekst)
+        if not ok:
+            return
+        self.dane['WARSTWY'][wi][pole] = v
+        self._po_zmianie_warstwy(wi)
+
+    def ustaw_gatunek(self, wi, gi, pole, tekst):
+        if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
+            return
+        gat = self.dane['WARSTWY'][wi]['gatunki']
+        _n, _p, typ, slow, _m, _s = next(
+            k for k in KOLUMNY_GATUNKI if k[1] == pole)
+        ok, v = self._wartosc(typ, slow, tekst)
+        if not ok:
+            return
+        if gi >= len(gat):
+            if pole != 'SPECIES_CD' or not v:
+                return
+            gat.append({'SPEC_STOR_INT_NUM': None, 'SPECIES_CD': v,
+                        'PART_CD': '', 'SPECIES_AGE': None, 'BHD': None,
+                        'HEIGHT': None, 'SITE_CLASS_CD': '', 'VOLUME': None})
+        else:
+            gat[gi][pole] = v
+            # wiersz znika dopiero, gdy wyczyszczono wszystkie jego komórki
+            if all(ow.pusty(gat[gi][p]) for p in ow.POLA_GATUNKU):
+                del gat[gi]
+        self._po_zmianie_warstwy(wi)
+
+    def podpowiedz_bonitacji(self, wi, gi):
+        """Bonitacja z tablic (gatunek, wiek, wysokość) do pustej komórki."""
+        if self.dane is None or wi >= len(self.dane['WARSTWY']):
+            return None
+        gat = self.dane['WARSTWY'][wi]['gatunki']
+        if gi >= len(gat):
+            return None
+        g = gat[gi]
+        return ow.sugeruj_bonitacje(
+            self.panel.tablica_bonit, self.panel.grupy_bonit,
+            g['SPECIES_CD'], g['SPECIES_AGE'], g['HEIGHT'])
+
+    def usun_gatunek(self, wi, gi):
+        """Przycisk ✕ w wierszu gatunku."""
+        if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
+            return
+        gat = self.dane['WARSTWY'][wi]['gatunki']
+        if 0 <= gi < len(gat):
+            del gat[gi]
+            self._po_zmianie_warstwy(wi)
+
+    def idz_do_warstwy(self, wi):
+        """Pierwsze wymagane pole warstwy: parametr (Zmiesz./Zd.) albo, gdy
+        warstwa nie ma parametrów (PRZES), kod pierwszego gatunku."""
+        if wi >= len(self.grupy):
+            return
+        g = self.grupy[wi]
+        g.ustaw(True)
+        self.przewijanie.ensureWidgetVisible(g)
+        pola = ow.pola_wymagane_warstwy(g.kod)
+        if pola:
+            kolumny = [k[1] for k in KOLUMNY_WARSTWY]
+            idz_do_komorki(g.tw, 0, kolumny.index(pola[0]))
+        else:
+            idz_do_komorki(g.tg, 0, 0)
+
+    def po_ostatnim_wierszu(self, wi):
+        if wi + 1 < len(self.dane['WARSTWY']):
+            self.idz_do_warstwy(wi + 1)
+        else:
+            self.nowa_warstwa_z_klawiatury(wi)
+
+    def nowa_warstwa_z_klawiatury(self, wi=-1):
+        obecne = {w['STOREY_CD'] for w in self.dane['WARSTWY']}
+        wolne = [k for k in ow.PRAKTYCZNE if k not in obecne]
+        if not wolne or self.tylko_odczyt:
+            return
+        dlg = _NowaWarstwaDialog(self, wolne)
+        if 0 <= wi < len(self.grupy):
+            tg = self.grupy[wi].tg
+            dlg.move(tg.mapToGlobal(QPoint(0, tg.height())))
+        if dlg.exec_() != QDialog.Accepted or not dlg.kod:
+            return
+        self.dodaj_warstwe(dlg.kod)
+        nowy = next(i for i, w in enumerate(self.dane['WARSTWY'])
+                    if w['STOREY_CD'] == dlg.kod)
+        QTimer.singleShot(0, lambda: self.idz_do_warstwy(nowy))
+
+    # -------------------------------------------- Enter w opisie wydzielenia
+
+    def _enter_opis(self, r, c, _w_edycji):
+        """Opis wydzielenia: Enter - następna kolumna; w cechach/TD po
+        wpisanym kodzie niżej (kolejny kod), na pustym - następna kolumna;
+        po ostatniej kolumnie - pierwsza warstwa (albo nowa warstwa)."""
+        if self.dane is None or self.tylko_odczyt:
+            return
+        _n, pole, typ, _s = KOLUMNY_OPIS[c]
+        if typ == 'lista' and r < len(self.dane[pole]):
+            idz_do_komorki(self.t_opis, r + 1, c)
+        elif c + 1 < len(KOLUMNY_OPIS):
+            idz_do_komorki(self.t_opis, 0, c + 1)
+        elif self.dane['WARSTWY']:
+            self.idz_do_warstwy(0)
+        else:
+            self.nowa_warstwa_z_klawiatury(-1)
+
+    def eventFilter(self, obiekt, event):
+        if obiekt is self.t_opis and event.type() == QEvent.KeyPress and \
+                event.key() in (Qt.Key_Return, Qt.Key_Enter) and \
+                self.t_opis.state() != QAbstractItemView.EditingState:
+            r, c = self.t_opis.currentRow(), self.t_opis.currentColumn()
+            if r >= 0 and c >= 0:
+                self._enter_opis(r, c, False)
+                return True
+        return super().eventFilter(obiekt, event)
+
+    def _nr_warstw(self):
+        s = self.slowniki.get('STOREY_CD')
+        return {k: float(n) for k, n in (s.kod_nr.items() if s else [])}
+
+    def dodaj_warstwe(self, kod):
+        if self.dane is None or self.tylko_odczyt:
+            return
+        if any(w['STOREY_CD'] == kod for w in self.dane['WARSTWY']):
+            self._blad(f'Warstwa {kod} już jest w tym wydzieleniu')
+            return
+        stan = self._stan_grup()
+        self.dane['WARSTWY'].append({
+            'STOREY_CD': kod, 'MIXTURE_CD': '', 'DENSITY_CD': '',
+            'STANDDENSITY_INDEX': None, 'gatunki': []})
+        nr = self._nr_warstw()
+        self.dane['WARSTWY'].sort(key=lambda w: ow.KOLEJNOSC_SPECJALNA.get(
+            w['STOREY_CD'], nr.get(w['STOREY_CD'], 99.0)))
+        stan[kod] = True
+        self._przelicz()
+        self._odbuduj_grupy(stan)
+        self._status(f'dodano warstwę {kod} - wpisz gatunki')
+        self._odswiez_przyciski()
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def usun_warstwe(self, wi):
+        if self.dane is None or self.tylko_odczyt:
+            return
+        w = self.dane['WARSTWY'][wi]
+        odp = QMessageBox.question(
+            self, 'Usuń warstwę',
+            f"Usunąć warstwę {w['STOREY_CD']} ({len(w['gatunki'])} gat.)?\n"
+            'Zmiana trafi do bazy dopiero po "Zapisz".',
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if odp != QMessageBox.Yes:
+            return
+        stan = self._stan_grup()
+        del self.dane['WARSTWY'][wi]
+        self._przelicz()
+        self._odbuduj_grupy(stan)
+        self._odswiez_przyciski()
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def _lista_bledow(self):
+        """Błędy twarde bez powtórzeń (do okna przy zapisie)."""
+        return ow.lista_bledow(self.walidacja, self.dane['WARSTWY'])
 
     def _zmiana_info(self):
         if self.dane is None:
@@ -955,8 +1585,11 @@ class OknoOpisu(QWidget):
     def _cofnij(self):
         if self.oryginal is None:
             return
+        stan = self._stan_grup()
         self.dane = copy.deepcopy(self.oryginal)
         self._wypelnij_opis()
+        self._przelicz()
+        self._odbuduj_grupy(stan)
         self.info.blockSignals(True)
         self.info.setPlainText(self.dane['SUBAREA_INFO'])
         self.info.blockSignals(False)
@@ -975,10 +1608,24 @@ class OknoOpisu(QWidget):
         if not os.path.isfile(self.baza_sc):
             return self._blad('Plik bazy zniknął - nie zapisano')
 
+        self._przelicz()
+        bledy = self._lista_bledow()
+        if bledy:
+            QMessageBox.warning(
+                self, 'Nie zapisano - błędy w opisie',
+                'Popraw błędy (czerwone komórki) i zapisz ponownie:\n\n- ' +
+                '\n- '.join(bledy[:20]) + ('\n- ...' if len(bledy) > 20 else ''))
+            return False
+
         if not self.panel.kopia_sesji():
             return self._blad('Nie udało się zrobić kopii bazy - nie zapisano')
 
         d, o, aint = self.dane, self.oryginal, self.aint
+        plan_warstw, dziennik_warstw = [], []
+        if d['WARSTWY'] != o['WARSTWY']:
+            nowe = ow.posortuj(copy.deepcopy(d['WARSTWY']), self._nr_warstw())
+            plan_warstw, dziennik_warstw = ow.plan_zapisu(
+                aint, o['WARSTWY'], nowe)
         cur = self.baza.cur
         try:
             zmiany = [p for p in POLA_SUBAREA if d[p] != o[p]]
@@ -1004,6 +1651,8 @@ class OknoOpisu(QWidget):
                         'insert into F_AROD_GOAL (GOAL_TYPE_FL, ARODES_INT_NUM, '
                         'SPECIES_CD, GOAL_RANK_ORDER) values (?, ?, ?, ?)',
                         ('D', aint, kod, i))
+            for sql, parametry in plan_warstw:
+                cur.execute(sql, parametry)
             self.baza.con.commit()
         except Exception as e:
             try:
@@ -1016,8 +1665,9 @@ class OknoOpisu(QWidget):
             return False
 
         pola = POLA_SUBAREA + ['FOREST_PEC_CD', 'TD']
-        self._do_dziennika([
-            (self.adr, 'ZMIANA', p, o[p], d[p]) for p in pola if d[p] != o[p]])
+        self._do_dziennika(
+            [(self.adr, 'ZMIANA', p, o[p], d[p]) for p in pola if d[p] != o[p]]
+            + [(self.adr, *w) for w in dziennik_warstw])
 
         wynik = self._wczytaj(aint)
         if wynik:
@@ -1075,8 +1725,7 @@ class OknoOpisu(QWidget):
         self._do_dziennika(
             [(adr, 'USUNIECIE', tabela, dane, '') for tabela, dane in migawka])
         self.wydz.pop(adr, None)
-        self.panel.oznacz_usuniete(adr)
-        self.panel.przelicz_zgodnosc()
+        self.panel.przelicz_zgodnosc()  # też warstwa "WYDZ bez opisu"
         self.dane = self.oryginal = None
         self._pokaz('wydzielenie usunięte z bazy (geometria bez zmian)')
         self.iface.messageBar().pushSuccess(
@@ -1167,6 +1816,8 @@ class PanelOpisu(QDockWidget):
         self.slowniki = {}
         self.wydz = {}
         self.karta = None
+        self.tablica_bonit, self.grupy_bonit = {}, {}
+        self._podglad = None
         self.max_h = 0
         self.kopia_zrobiona = False
         self._szczegoly = ''
@@ -1236,6 +1887,14 @@ class PanelOpisu(QDockWidget):
         self.btn_kopia.clicked.connect(self.zrob_kopie)
         lay.addWidget(self.btn_kopia)
 
+        self.btn_podglad = QPushButton('Podglądnij opis (PPM)')
+        self.btn_podglad.setCheckable(True)
+        self.btn_podglad.setToolTip(
+            'Po włączeniu przytrzymanie prawego przycisku myszy na '
+            'wydzieleniu pokazuje przy kursorze skrót opisu z bazy')
+        self.btn_podglad.toggled.connect(self._przelacz_podglad)
+        lay.addWidget(self.btn_podglad)
+
         # miejsce na kolejne funkcje panelu
         self.lay_dodatki = QVBoxLayout()
         lay.addLayout(self.lay_dodatki)
@@ -1272,7 +1931,10 @@ class PanelOpisu(QDockWidget):
         self.btn_rozlacz.setEnabled(pol)
         self.btn_karta.setEnabled(pol)
         self.btn_kopia.setEnabled(pol)
-        self.btn_szczegoly.setEnabled(pol and bool(self._szczegoly))
+        self.btn_szczegoly.setEnabled(pol)
+        self.btn_podglad.setEnabled(pol)
+        if not pol and self.btn_podglad.isChecked():
+            self.btn_podglad.setChecked(False)
         if not pol:
             self.lbl_status.setText('<i>Baza niepodłączona</i>')
             self.lbl_status.setToolTip('')
@@ -1347,6 +2009,8 @@ class PanelOpisu(QDockWidget):
         zajmij_baze(baza_sc)
         self.tylko_odczyt = bool(blokada)
         self.slowniki = slowniki
+        self.tablica_bonit, self.grupy_bonit = \
+            ow.wczytaj_tablice_bonitacji(baza.cur)
         self.wydz = wydz
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
         self.max_h = 0
@@ -1355,6 +2019,7 @@ class PanelOpisu(QDockWidget):
         for sygnal in self._sygnaly_warstwy():
             sygnal.connect(self._zmiana_warstwy)
         self._odswiez()
+        self.odswiez_bez_opisu()
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Podłączono bazę {os.path.basename(baza_sc)}')
         self._zaznaczenie()
@@ -1377,6 +2042,7 @@ class PanelOpisu(QDockWidget):
         ok, podsum, szczegoly = sprawdz_zgodnosc(self.lyr, self.wydz)
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
         self._odswiez()
+        self.odswiez_bez_opisu()
 
     def zrob_kopie(self):
         """Pakiet: baza + pliki warstwy wydzieleń. Zwraca ścieżkę folderu
@@ -1416,15 +2082,29 @@ class PanelOpisu(QDockWidget):
         for d in foldery[:-ILE_KOPII]:
             shutil.rmtree(os.path.join(kat_kopii, d), ignore_errors=True)
 
-    def oznacz_usuniete(self, adr):
-        """Poligon(y) wydzielenia usuniętego z bazy -> warstwa pamięci
-        (czerwone kreskowanie). Warstwa wydzieleń bez zmian."""
+    def odswiez_bez_opisu(self):
+        """Warstwa pamięci z poligonami wydzieleń, których ADR_LES nie ma w
+        bazie (w tym usuniętych w Edytorze) - czerwone kreskowanie,
+        odświeżana razem ze zgodnością. Warstwa wydzieleń bez zmian."""
+        if not self.polaczona() or sip.isdeleted(self.lyr):
+            return
         prj = QgsProject.instance()
-        lyr = getattr(self, '_lyr_usuniete', None)
-        if lyr is None or sip.isdeleted(lyr) or prj.mapLayer(lyr.id()) is None:
+        nowe = []
+        for f in self.lyr.getFeatures():
+            adr = _txt(f['ADR_LES'])
+            if adr and adr not in self.wydz and f.hasGeometry():
+                g = QgsGeometry(f.geometry())
+                g.convertToMultiType()
+                nowe.append((adr, g))
+        lyr = getattr(self, '_lyr_bez_opisu', None)
+        zywa = lyr is not None and not sip.isdeleted(lyr) and \
+            prj.mapLayer(lyr.id()) is not None
+        if not nowe and not zywa:
+            return
+        if not zywa:
             lyr = QgsVectorLayer(
                 f'MultiPolygon?crs={self.lyr.crs().authid()}',
-                NAZWA_USUNIETYCH, 'memory')
+                NAZWA_BEZ_OPISU, 'memory')
             lyr.dataProvider().addAttributes(
                 [QgsField('ADR_LES', QVariant.String, '', 25)])
             lyr.updateFields()
@@ -1432,19 +2112,189 @@ class PanelOpisu(QDockWidget):
                 'color': '230,0,0,60', 'style': 'b_diagonal',
                 'outline_color': '230,0,0,255', 'outline_width': '0.8'}))
             prj.addMapLayer(lyr)
-            self._lyr_usuniete = lyr
-        zapytanie = QgsFeatureRequest().setFilterExpression(
-            f'"ADR_LES" = {QgsExpression.quotedValue(adr)}')
-        nowe = []
-        for f in self.lyr.getFeatures(zapytanie):
-            g = QgsGeometry(f.geometry())
-            g.convertToMultiType()
+            self._lyr_bez_opisu = lyr
+        lyr.dataProvider().truncate()
+        obiekty = []
+        for adr, g in nowe:
             nf = QgsFeature(lyr.fields())
             nf.setGeometry(g)
             nf['ADR_LES'] = adr
-            nowe.append(nf)
-        lyr.dataProvider().addFeatures(nowe)
+            obiekty.append(nf)
+        lyr.dataProvider().addFeatures(obiekty)
+        lyr.updateExtents()
         lyr.triggerRepaint()
+
+    def _usun_warstwe_bez_opisu(self):
+        lyr = getattr(self, '_lyr_bez_opisu', None)
+        if lyr is not None and not sip.isdeleted(lyr) and \
+                QgsProject.instance().mapLayer(lyr.id()) is not None:
+            QgsProject.instance().removeMapLayer(lyr.id())
+        self._lyr_bez_opisu = None
+
+    # --------------------------------------------------- podgląd pod PPM
+
+    def _kanwa(self):
+        try:
+            return self.iface.mapCanvas()
+        except AttributeError:
+            return None
+
+    def _przelacz_podglad(self, wlaczony):
+        kanwa = self._kanwa()
+        if kanwa is None:
+            return
+        if wlaczony:
+            kanwa.viewport().installEventFilter(self)
+        else:
+            kanwa.viewport().removeEventFilter(self)
+            self._schowaj_podglad()
+
+    def eventFilter(self, obiekt, event):
+        """Przy włączonym podglądzie prawy przycisk mapy należy do podglądu
+        (menu kontekstowe mapy wyłączone); lewy - bez zmian."""
+        if not self.btn_podglad.isChecked():
+            return super().eventFilter(obiekt, event)
+        typ = event.type()
+        if typ == QEvent.MouseButtonPress and event.button() == Qt.RightButton:
+            self._pokaz_podglad(event.pos())
+            return True
+        if typ == QEvent.MouseButtonRelease and \
+                event.button() == Qt.RightButton:
+            self._schowaj_podglad()
+            return True
+        if typ == QEvent.ContextMenu:
+            return True
+        return super().eventFilter(obiekt, event)
+
+    def _wydzielenie_pod(self, pos):
+        """ADR_LES poligonu warstwy wydzieleń pod punktem ekranu."""
+        kanwa = self._kanwa()
+        if kanwa is None or not self.polaczona() or sip.isdeleted(self.lyr):
+            return None
+        pt = kanwa.getCoordinateTransform().toMapCoordinates(pos)
+        tr = QgsCoordinateTransform(kanwa.mapSettings().destinationCrs(),
+                                    self.lyr.crs(), QgsProject.instance())
+        try:
+            pt = tr.transform(pt)
+        except Exception:
+            return None
+        g = QgsGeometry.fromPointXY(pt)
+        zapytanie = QgsFeatureRequest().setFilterRect(
+            QgsRectangle(pt.x(), pt.y(), pt.x(), pt.y()))
+        for f in self.lyr.getFeatures(zapytanie):
+            if f.hasGeometry() and f.geometry().contains(g):
+                return _txt(f['ADR_LES'])
+        return None
+
+    def _tresc_podgladu(self, adr):
+        """HTML okienka podglądu: adres, rodzaj pow., TSL, warstwa główna
+        (DRZEW albo ZADRZEW) z gatunkami na udziale + domieszki MJS/PJD
+        (PJD na czerwono), pod spodem jeden wiersz na każdą inną warstwę."""
+        naglowek = f'<b>{rozbij_adres(adr) or adr}</b>'
+        if adr not in self.wydz:
+            return naglowek + '<br><i>brak opisu w bazie</i>'
+        aint = self.wydz[adr]
+        cur = self.baza.cur
+        sub = cur.execute('select AREA_TYPE_CD, SITE_TYPE_CD from F_SUBAREA '
+                          'where ARODES_INT_NUM = ?', (aint,)).fetchone()
+        warstwy = [(_txt(r[0]), r[1], r[2]) for r in cur.execute(
+            'select STOREY_CD, DENSITY_CD, STANDDENSITY_INDEX from '
+            'F_AROD_STOREY where ARODES_INT_NUM = ? order by '
+            'STOREY_RANK_ORDER', (aint,)).fetchall()]
+        gatunki = {}
+        for g in cur.execute(
+                'select STOREY_CD, SPECIES_CD, PART_CD, SPECIES_AGE from '
+                'F_STOREY_SPECIES where ARODES_INT_NUM = ? order by '
+                'SPECIES_RANK_ORDER', (aint,)).fetchall():
+            gatunki.setdefault(_txt(g[0]), []).append(
+                (_txt(g[1]), _txt(g[2]), g[3]))
+        kody = [w[0] for w in warstwy]
+        glowna = 'DRZEW' if 'DRZEW' in kody else \
+            'ZADRZEW' if 'ZADRZEW' in kody else None
+
+        linie = [naglowek]
+        if sub:
+            linie.append(f'Rodz. pow.: <b>{_txt(sub[0])}</b> &nbsp; '
+                         f'TSL: <b>{_txt(sub[1])}</b>')
+        tabela = ''
+        if glowna is None:
+            linie.append('<i>brak warstwy DRZEW / ZADRZEW</i>')
+        else:
+            w = next(x for x in warstwy if x[0] == glowna)
+            linie.append(f'{glowna}: zwarcie <b>{_txt(w[1]) or "-"}</b> '
+                         f'&nbsp; zadrz. <b>{_fmt(w[2], 2) or "-"}</b>')
+            gat = gatunki.get(glowna, [])
+            na_udziale = [g for g in gat if g[1].isdigit()] if \
+                glowna == 'DRZEW' else gat
+            wiersze = ''.join(
+                f'<tr><td>{g[0]}</td><td>{g[1]}</td>'
+                f'<td align="right">{_fmt(g[2], 0)}</td></tr>'
+                for g in na_udziale[:15])
+            if len(na_udziale) > 15:
+                wiersze += (f'<tr><td colspan="3">+{len(na_udziale) - 15} '
+                            'dalszych</td></tr>')
+            domieszki = []
+            mjs = sum(1 for g in gat if g[1] == 'MJS')
+            pjd = sum(1 for g in gat if g[1] == 'PJD')
+            if mjs:
+                domieszki.append(f'+{mjs} inne MJS')
+            if pjd:
+                domieszki.append(f'+{pjd} inne PJD')
+            if domieszki:
+                wiersze += (f'<tr><td colspan="3"><i>{", ".join(domieszki)}'
+                            '</i></td></tr>')
+            tabela = (
+                '<table cellspacing="0" cellpadding="1" style="margin-top:3px">'
+                '<tr><th align="left">Kod&nbsp;</th><th align="left">Udział'
+                '&nbsp;</th><th align="right">Wiek</th></tr>' + wiersze +
+                '</table>')
+
+        inne = ''
+        for kod, _zw, zd in warstwy:
+            if kod == glowna:
+                continue
+            gat = gatunki.get(kod, [])
+            na_udziale = [g for g in gat if g[1].isdigit()] or \
+                [g for g in gat if not g[1]]
+            pokazane = na_udziale[:4]
+            reszta = len(gat) - len(pokazane)
+            tekst = ', '.join(g[0] for g in pokazane)
+            if reszta > 0:
+                tekst += f' + {reszta} inne'
+            inne += (f'<tr><td><b>{kod}</b>&nbsp;</td>'
+                     f'<td>{_fmt(zd, 2)}&nbsp;</td><td>{tekst}</td></tr>')
+        if inne:
+            inne = ('<table cellspacing="0" cellpadding="1" '
+                    'style="margin-top:4px">' + inne + '</table>')
+        return '<br>'.join(linie) + tabela + inne
+
+    def _pokaz_podglad(self, pos):
+        adr = self._wydzielenie_pod(pos)
+        if adr is None:
+            return
+        try:
+            tresc = self._tresc_podgladu(adr)
+        except Exception as e:
+            tresc = f'<b>{adr}</b><br><i>błąd odczytu: {e}</i>'
+        if self._podglad is None or sip.isdeleted(self._podglad):
+            self._podglad = QLabel(None, Qt.ToolTip)
+            self._podglad.setTextFormat(Qt.RichText)
+            self._podglad.setMargin(6)
+            self._podglad.setStyleSheet(
+                'QLabel { background: #fffdf0; color: #1a1a1a; '
+                'border: 1px solid #8a8a8a; }')
+        self._podglad.setText(tresc)
+        self._podglad.adjustSize()
+        punkt = QCursor.pos() + QPoint(18, 12)
+        ekran = QApplication.desktop().availableGeometry(punkt)
+        punkt.setX(min(punkt.x(), ekran.right() - self._podglad.width()))
+        punkt.setY(min(punkt.y(), ekran.bottom() - self._podglad.height()))
+        self._podglad.move(punkt)
+        self._podglad.show()
+
+    def _schowaj_podglad(self):
+        if self._podglad is not None and not sip.isdeleted(self._podglad):
+            self._podglad.hide()
 
     def _karta_otwarta(self):
         return (self.karta is not None and not sip.isdeleted(self.karta)
@@ -1470,6 +2320,9 @@ class PanelOpisu(QDockWidget):
                     sygnal.disconnect(self._zmiana_warstwy)
                 except (TypeError, RuntimeError):
                     pass
+        self._usun_warstwe_bez_opisu()
+        if self.btn_podglad.isChecked():
+            self.btn_podglad.setChecked(False)
         if self.baza is not None:
             self.baza.zamknij()
         if self.baza_sc:
@@ -1514,6 +2367,12 @@ class PanelOpisu(QDockWidget):
         self.karta.show()
 
     def _pokaz_szczegoly(self):
+        """Przeliczenie zgodności (i warstwy "WYDZ bez opisu") na żądanie."""
+        self.przelicz_zgodnosc()
+        if not self._szczegoly:
+            QMessageBox.information(self, 'Zgodność warstwy z bazą',
+                                    'Warstwa i baza są zgodne.')
+            return
         podsum, _, szczegoly = self._szczegoly.partition('\n\n')
         okno_zgodnosci(self, podsum, szczegoly, False)
 
