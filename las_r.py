@@ -1383,6 +1383,9 @@ class LasR:
         # QGIS odtwarzał go w zapamiętanym miejscu układu paneli
         self.dockOpisTaks = opis_taksacyjny.PanelOpisu(self.iface)
         self.dockOpisTaks.zadokuj()
+        # QGIS po starcie odtwarza zapamiętaną widoczność paneli (także
+        # naszego) - Edytor ma zawsze startować ukryty, otwierany z menu
+        self.iface.initializationCompleted.connect(self._schowaj_panel_opisu)
 
         self.dockWarstwaOpisow = warstwa_opisow_dock.WarstwaOpisowDock(self.iface)
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockWarstwaOpisow)
@@ -1468,6 +1471,11 @@ class LasR:
         self.iface.removeDockWidget(self.dockWarstwaOpisow)
 
         if getattr(self, 'dockOpisTaks', None) is not None:
+            try:
+                self.iface.initializationCompleted.disconnect(
+                    self._schowaj_panel_opisu)
+            except (TypeError, RuntimeError):
+                pass
             self.dockOpisTaks.sprzataj()
             self.iface.removeDockWidget(self.dockOpisTaks)
             self.dockOpisTaks.deleteLater()
@@ -1967,6 +1975,11 @@ class LasR:
         s.podociagaj()
         s.stworz_poligony()
         s.pokaz_warstwy()
+
+    def _schowaj_panel_opisu(self):
+        dock = getattr(self, 'dockOpisTaks', None)
+        if dock is not None and not dock.polaczona():
+            dock.hide()
 
     def opis_taksacyjny(self):
         self.dockOpisTaks.pokaz()

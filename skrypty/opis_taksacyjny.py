@@ -2010,6 +2010,22 @@ class PanelOpisu(QDockWidget):
         self.lbl_status.setTextFormat(Qt.RichText)
         lay.addWidget(self.lbl_status)
 
+        self.btn_podglad = QPushButton('Podglądnij opis: wył.')
+        self.btn_podglad.setCheckable(True)
+        self.btn_podglad.setToolTip(
+            'Podgląd pod prawym przyciskiem myszy (PPM): po włączeniu '
+            'przytrzymanie PPM na wydzieleniu pokazuje przy kursorze skrót '
+            'opisu z bazy')
+        # stan przełącznika wyraźnie widoczny (także w ciemnym motywie)
+        self.btn_podglad.setStyleSheet(
+            'QPushButton:checked { background: #2e7d32; color: white; '
+            'font-weight: bold; border: 1px solid #1b5e20; }')
+        self.btn_podglad.toggled.connect(self._przelacz_podglad)
+        self.btn_podglad.toggled.connect(
+            lambda wl: self.btn_podglad.setText(
+                'Podglądnij opis: ' + ('WŁ.' if wl else 'wył.')))
+        lay.addWidget(self.btn_podglad)
+
         wiersz = QHBoxLayout()
         self.btn_szczegoly = QPushButton('Zgodność')
         self.btn_szczegoly.setToolTip('Szczegóły zgodności warstwy z bazą')
@@ -2027,14 +2043,6 @@ class PanelOpisu(QDockWidget):
             f'(zostaje {ILE_KOPII} ostatnich kopii Edytora)')
         self.btn_kopia.clicked.connect(self.zrob_kopie)
         lay.addWidget(self.btn_kopia)
-
-        self.btn_podglad = QPushButton('Podglądnij opis (PPM)')
-        self.btn_podglad.setCheckable(True)
-        self.btn_podglad.setToolTip(
-            'Po włączeniu przytrzymanie prawego przycisku myszy na '
-            'wydzieleniu pokazuje przy kursorze skrót opisu z bazy')
-        self.btn_podglad.toggled.connect(self._przelacz_podglad)
-        lay.addWidget(self.btn_podglad)
 
         # miejsce na kolejne funkcje panelu
         self.lay_dodatki = QVBoxLayout()
@@ -2388,16 +2396,16 @@ class PanelOpisu(QDockWidget):
                                   else x for x in kolejnosc[:5])
                 if len(kolejnosc) > 5:
                     lista += ', ...'
-                domieszki.append(f'+{mjs} inne MJS ({lista})')
+                domieszki.append(f'<i>+{mjs} inne MJS</i> ({lista})')
             if pjd:
-                domieszki.append(f'+{pjd} inne PJD')
+                domieszki.append(f'<i>+{pjd} inne PJD</i>')
             tabela = (
                 '<table cellspacing="0" cellpadding="1" style="margin-top:3px">'
                 '<tr><th align="left">Kod&nbsp;</th><th align="left">Udział'
                 '&nbsp;</th><th align="right">Wiek</th></tr>' + wiersze +
                 '</table>')
             if domieszki:  # pod tabelką - długi tekst nie rozciąga kolumn
-                tabela += f'<i>{", ".join(domieszki)}</i>'
+                tabela += ', '.join(domieszki)
 
         inne = ''
         for kod, _zw, zd in warstwy:
