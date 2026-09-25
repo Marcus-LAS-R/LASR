@@ -435,7 +435,7 @@ class _DelegatTabeli(QStyledItemDelegate):
     tabelę (liczba wierszy)."""
 
     def __init__(self, okno, specyfikacja, callback, po_enter=None,
-                 podpowiedz=None):
+                 podpowiedz=None, po_strzalce=None):
         super().__init__(okno)
         self.okno = okno
         self.spec = specyfikacja  # [(typ, słownik), ...] per kolumna
@@ -443,13 +443,41 @@ class _DelegatTabeli(QStyledItemDelegate):
         # podpowiedz(wiersz, kolumna) -> tekst wstawiany do PUSTEJ komórki,
         # zatwierdzany wyłącznie Enterem (np. bonitacja z tablic)
         self.podpowiedz = podpowiedz
+        # po_strzalce(wiersz, kolumna, klawisz) - strzałki przechodzą między
+        # komórkami (jak w Excelu), zamiast przewijać podpowiedzi/tekst
+        self.po_strzalce = po_strzalce
         # po_enter(wiersz, kolumna, w_edycji) - nawigacja Enterem; None =
         # domyślne zachowanie Qt
         self.po_enter = po_enter
 
+    def _strzalka(self, editor, klawisz):
+        """Zatwierdź komórkę i przejdź do sąsiedniej (po_strzalce)."""
+        wiersz = editor.property('wiersz')
+        kolumna = editor.property('kolumna')
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QAbstractItemDelegate.NoHint)
+        QTimer.singleShot(
+            0, lambda: self.po_strzalce(wiersz, kolumna, klawisz))
+
     def eventFilter(self, editor, event):
-        """Enter w edytorze: zatwierdź i przejdź dalej (po_enter); Esc -
-        domyślnie: porzuć edycję komórki."""
+        """Enter w edytorze: zatwierdź i przejdź dalej (po_enter); strzałki -
+        sąsiednia komórka (lista podpowiedzi tylko myszką; rozwinięta pełna
+        lista ▼/Alt+↓ - strzałki działają w liście); Esc - domyślnie:
+        porzuć edycję komórki."""
+        if self.po_strzalce is not None and event.type() == QEvent.KeyPress \
+                and event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right) \
+                and not event.modifiers() & Qt.AltModifier:
+            ed = editor.property('edytor_komorki') or editor
+            if isinstance(ed, QComboBox) and ed.view().isVisible():
+                return super().eventFilter(editor, event)
+            if ed is not editor and not isinstance(editor, QLineEdit):
+                editor.hide()  # zdarzenie z listy podpowiedzi
+            self._strzalka(ed, event.key())
+            return True
+        if editor.property('edytor_komorki') is not None:
+            # pole tekstowe / lista podpowiedzi to NIE edytor komórki - inne
+            # klawisze (Esc, Enter, Tab) obsługuje sam edytor (lista)
+            return False
         if self.po_enter is not None and event.type() == QEvent.KeyPress \
                 and event.key() in (Qt.Key_Return, Qt.Key_Enter):
             if isinstance(editor, QComboBox) and editor.view().isVisible():
@@ -489,6 +517,16 @@ class _DelegatTabeli(QStyledItemDelegate):
             comp.setFilterMode(Qt.MatchStartsWith)
             comp.setCompletionMode(QCompleter.PopupCompletion)
             ed.setCompleter(comp)
+            if self.po_strzalce is not None:
+                # lista podpowiedzi przechwytuje klawisze przed polem - strzałki
+                # z niej też mają przechodzić między komórkami
+                comp.popup().setProperty('edytor_komorki', ed)
+                comp.popup().installEventFilter(self)
+        if self.po_strzalce is not None:
+            # pole tekstowe listy samo obsługuje ←/→ (kursor w tekście) i nie
+            # przekazuje ich dalej - filtr musi siedzieć też na nim
+            ed.lineEdit().setProperty('edytor_komorki', ed)
+            ed.lineEdit().installEventFilter(self)
         # wybór z listy myszką od razu zatwierdza
         ed.activated.connect(lambda _i, e=ed: self._zatwierdz(e))
         return ed
@@ -595,14 +633,14 @@ class _NowaWarstwaDialog(QDialog):
 
 
 def _tabela_edytowalna(kolumny, okno, callback, po_enter=None,
-                       podpowiedz=None):
+                       podpowiedz=None, po_strzalce=None):
     """Tabela warstwy/gatunków; kolumny: (nagłówek, pole, typ, słownik,
     miejsca, szerokość)."""
     t = _tabela([k[0] for k in kolumny], [k[5] for k in kolumny])
     if not okno.tylko_odczyt:
         t.setItemDelegate(_DelegatTabeli(
             okno, [(k[2], k[3]) for k in kolumny], callback, po_enter,
-            podpowiedz))
+            podpowiedz, po_strzalce))
         t.setSelectionMode(QAbstractItemView.SingleSelection)
         t.setEditTriggers(
             QAbstractItemView.CurrentChanged | QAbstractItemView.DoubleClicked
@@ -657,7 +695,8 @@ class _GrupaWarstwy(QWidget):
         self.tw = _tabela_edytowalna(
             KOLUMNY_WARSTWY, okno,
             lambda r, c, t: okno.ustaw_warstwe(self.wi, KOLUMNY_WARSTWY[c][1], t),
-            lambda r, c, e: self._enter('w', r, c, e))
+            lambda r, c, e: self._enter('w', r, c, e),
+            None, lambda r, c, k: self.strzalka('w', r, c, k))
         # zmieszania i zwarcia nie podaje się poza DRZEW (IP/IIP) - kolumny
         # ukryte, ale miejsce tabeli zostaje (tabele gatunków w jednej linii)
         pelna = self.tw.width()
@@ -684,7 +723,8 @@ class _GrupaWarstwy(QWidget):
             lambda r, c, e: self._enter('g', r, c, e),
             lambda r, c: okno.podpowiedz_bonitacji(self.wi, r)
             if c < len(KOLUMNY_GATUNKI) and
-            KOLUMNY_GATUNKI[c][1] == 'SITE_CLASS_CD' else None)
+            KOLUMNY_GATUNKI[c][1] == 'SITE_CLASS_CD' else None,
+            lambda r, c, k: self.strzalka('g', r, c, k))
         self.tg.cellClicked.connect(self._klik_gatunku)
         hl.addWidget(self.tg, 0, Qt.AlignTop)
         if not okno.tylko_odczyt:
@@ -783,6 +823,14 @@ class _GrupaWarstwy(QWidget):
 
     def eventFilter(self, obiekt, event):
         if event.type() == QEvent.KeyPress and \
+                event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right) and \
+                obiekt in (self.tw, self.tg) and \
+                obiekt.state() != QAbstractItemView.EditingState:
+            r, c = obiekt.currentRow(), obiekt.currentColumn()
+            self.strzalka('w' if obiekt is self.tw else 'g',
+                          max(r, 0), max(c, 0), event.key())
+            return True
+        if event.type() == QEvent.KeyPress and \
                 event.key() == Qt.Key_Escape and \
                 obiekt in (self.tw, self.tg) and \
                 obiekt.state() != QAbstractItemView.EditingState:
@@ -800,6 +848,55 @@ class _GrupaWarstwy(QWidget):
 
     def _idz(self, tabela, r, c):
         idz_do_komorki(tabela, r, c)
+
+    def widoczne_parametry(self):
+        return [i for i in range(self.tw.columnCount())
+                if not self.tw.isColumnHidden(i)]
+
+    def strzalka(self, tab, r, c, klawisz):
+        """Strzałki po karcie: w obrębie tabeli; z parametrów warstwy w dół
+        do gatunków, z ostatniego wiersza gatunków do następnej warstwy (w
+        górę - do poprzedniej / opisu wydzielenia)."""
+        okno = self.okno
+        if sip.isdeleted(self):
+            return
+        widoczne = self.widoczne_parametry()
+        ost_gat = len(KOLUMNY_GATUNKI) - 1  # bez kolumny ✕
+        if tab == 'w':
+            if klawisz == Qt.Key_Left:
+                wczesniej = [i for i in widoczne if i < c]
+                if wczesniej:
+                    self._idz(self.tw, 0, wczesniej[-1])
+            elif klawisz == Qt.Key_Right:
+                dalej = [i for i in widoczne if i > c]
+                if dalej:
+                    self._idz(self.tw, 0, dalej[0])
+                else:
+                    self._idz(self.tg, 0, 0)
+            elif klawisz == Qt.Key_Down:
+                self._idz(self.tg, 0, 0)
+            elif klawisz == Qt.Key_Up:
+                okno.strzalka_przed_warstwa(self.wi)
+            return
+        n = self.tg.rowCount()
+        if klawisz == Qt.Key_Left:
+            if c > 0:
+                self._idz(self.tg, r, c - 1)
+            else:
+                self._idz(self.tw, 0, widoczne[-1])
+        elif klawisz == Qt.Key_Right:
+            if c < ost_gat:
+                self._idz(self.tg, r, c + 1)
+        elif klawisz == Qt.Key_Up:
+            if r > 0:
+                self._idz(self.tg, r - 1, min(c, ost_gat))
+            else:
+                self._idz(self.tw, 0, widoczne[-1])
+        elif klawisz == Qt.Key_Down:
+            if r < n - 1:
+                self._idz(self.tg, r + 1, min(c, ost_gat))
+            else:
+                okno.strzalka_za_warstwa(self.wi)
 
     def _enter(self, tab, r, c, w_edycji):
         """Enter: następna wymagana komórka wiersza (reguły warstwy); na
@@ -1037,7 +1134,8 @@ class OknoOpisu(QWidget):
             self, [('kod' if k[2] in ('kod', 'lista') else 'liczba', k[3])
                    for k in KOLUMNY_OPIS],
             lambda r, c, t: self.ustaw_pole(KOLUMNY_OPIS[c][1], t, r),
-            lambda r, c, e: self._enter_opis(r, c, e)))
+            lambda r, c, e: self._enter_opis(r, c, e),
+            None, lambda r, c, k: self._strzalka_opis(r, c, k)))
         if not self.tylko_odczyt:
             self.t_opis.installEventFilter(self)
         self.t_opis.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -1523,6 +1621,52 @@ class OknoOpisu(QWidget):
         else:
             idz_do_komorki(g.tg, 0, 0)
 
+    def strzalka_za_warstwa(self, wi):
+        """↓ z ostatniego wiersza gatunków: parametry następnej warstwy."""
+        if wi + 1 >= len(self.grupy):
+            return
+        g = self.grupy[wi + 1]
+        g.ustaw(True)
+        self.przewijanie.ensureWidgetVisible(g)
+        idz_do_komorki(g.tw, 0, g.widoczne_parametry()[0])
+
+    def strzalka_przed_warstwa(self, wi):
+        """↑ z parametrów warstwy: ostatni wiersz gatunków poprzedniej
+        warstwy, a z pierwszej warstwy - opis wydzielenia."""
+        if wi > 0:
+            g = self.grupy[wi - 1]
+            g.ustaw(True)
+            self.przewijanie.ensureWidgetVisible(g)
+            idz_do_komorki(g.tg, g.tg.rowCount() - 1, 0)
+        else:
+            self.przewijanie.ensureWidgetVisible(self.t_opis)
+            idz_do_komorki(self.t_opis, 0, 0)
+
+    def _strzalka_opis(self, r, c, klawisz):
+        """Strzałki w opisie wydzielenia (komórki nieedytowalne - pod
+        pojedynczymi polami - pomijane); ↓ na końcu - pierwsza warstwa."""
+        t = self.t_opis
+
+        def edytowalna(rr, cc):
+            it = t.item(rr, cc)
+            return it is not None and bool(it.flags() & Qt.ItemIsEditable)
+
+        if klawisz in (Qt.Key_Left, Qt.Key_Right):
+            cc = c - 1 if klawisz == Qt.Key_Left else c + 1
+            if 0 <= cc < len(KOLUMNY_OPIS):
+                idz_do_komorki(t, r if edytowalna(r, cc) else 0, cc)
+        elif klawisz == Qt.Key_Up:
+            if r > 0:
+                idz_do_komorki(t, r - 1, c)
+        elif klawisz == Qt.Key_Down:
+            if r + 1 < t.rowCount() and edytowalna(r + 1, c):
+                idz_do_komorki(t, r + 1, c)
+            elif self.grupy:
+                g = self.grupy[0]
+                g.ustaw(True)
+                self.przewijanie.ensureWidgetVisible(g)
+                idz_do_komorki(g.tw, 0, g.widoczne_parametry()[0])
+
     def po_ostatnim_wierszu(self, wi):
         if wi + 1 < len(self.dane['WARSTWY']):
             self.idz_do_warstwy(wi + 1)
@@ -1579,6 +1723,13 @@ class OknoOpisu(QWidget):
                 self.close()
                 return True
             return super().eventFilter(obiekt, event)
+        if obiekt is self.t_opis and event.type() == QEvent.KeyPress and \
+                event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right) and \
+                self.t_opis.state() != QAbstractItemView.EditingState:
+            self._strzalka_opis(max(self.t_opis.currentRow(), 0),
+                                max(self.t_opis.currentColumn(), 0),
+                                event.key())
+            return True
         if obiekt is self.t_opis and event.type() == QEvent.KeyPress and \
                 event.key() == Qt.Key_Escape and \
                 self.t_opis.state() != QAbstractItemView.EditingState:

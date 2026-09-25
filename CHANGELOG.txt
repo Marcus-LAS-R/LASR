@@ -19,6 +19,8 @@ Wersja 2.0o — 2026-09-25
    - Szybkie pisanie Enterem: kursor przeskakuje tylko po polach
      wymaganych dla danej warstwy; na końcu wiersza - nowy gatunek,
      następna warstwa albo okienko nowej warstwy (wpisz numer).
+   - Strzałki przesuwają po całej karcie jak w arkuszu (także między
+     warstwami); pełną listę kodów rozwiniesz Alt+↓.
    - Kontrola poprawności na bieżąco wg reguł Taksatora: czerwone pola
      blokują zapis, żółte to tylko ostrzeżenia (np. brak pomiarów).
    - Gatunki i warstwy układają się same w poprawnej kolejności;
