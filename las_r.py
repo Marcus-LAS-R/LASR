@@ -108,6 +108,7 @@ from .skrypty import (
     kontrola_topologii_hierarchii,
     baza_aktualizuj_strukture,
     baza_uzupelnij_uszkodzenia,
+    shp_pokaz_puste_wydz,
 )
 
 from .skrypty import aktualizacja_upul
@@ -1184,6 +1185,17 @@ class LasR:
         self.m_narzedzia.addAction(self.a_czy_kol)
         self.a_czy_kol.triggered.connect(self.przeczysc_kolumny)
 
+        self.a_puste_wydz = QAction(
+            QIcon(None), "Pokaż puste wydzielenia", self.iface.mainWindow()
+        )
+        self.a_puste_wydz.setToolTip(
+            "Porównuje warstwę wydzieleń z bazą i pokazuje na warstwach "
+            "pamięci wydzielenia bez opisu w bazie (brak F_ARODES) oraz "
+            "z pustym opisem (brak rodzaju powierzchni). Raport TXT "
+            "i waypointy zapisuje obok bazy.")
+        self.m_narzedzia.addAction(self.a_puste_wydz)
+        self.a_puste_wydz.triggered.connect(self.pokaz_puste_wydzielenia)
+
         self.a_nawigator = QAction(
             QIcon(None), "Nawigator błędów", self.iface.mainWindow()
         )
@@ -1872,6 +1884,10 @@ class LasR:
 
     def pokaz_nawigator(self):
         self.dockNawigator.show()
+
+    def pokaz_puste_wydzielenia(self):
+        # zwraca plik waypointów - do wczytania w Nawigatorze (kolejny krok)
+        shp_pokaz_puste_wydz.pokaz_puste_wydzielenia(self.iface)
 
     def pokaz_warstwa_opisow(self):
         self.dockWarstwaOpisow.show()

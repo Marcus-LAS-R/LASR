@@ -2239,11 +2239,68 @@ class PanelOpisu(QDockWidget):
 
     # ----------------------------------------------------------------- UI
 
+    @staticmethod
+    def _separator():
+        linia = QFrame()
+        linia.setFrameShape(QFrame.HLine)
+        linia.setFrameShadow(QFrame.Sunken)
+        return linia
+
     def _zbuduj(self):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(6, 6, 6, 6)
 
+        # --- funkcje (aktywne po podłączeniu bazy)
+        self.btn_podglad = QPushButton('Podglądnij opis: wył.')
+        self.btn_podglad.setCheckable(True)
+        self.btn_podglad.setToolTip(
+            'Podgląd pod prawym przyciskiem myszy (PPM): po włączeniu '
+            'przytrzymanie PPM na wydzieleniu pokazuje przy kursorze skrót '
+            'opisu z bazy')
+        # stan przełącznika wyraźnie widoczny (także w ciemnym motywie)
+        self.btn_podglad.setStyleSheet(
+            'QPushButton:checked { background: #2e7d32; color: white; '
+            'font-weight: bold; border: 1px solid #1b5e20; }')
+        self.btn_podglad.toggled.connect(self._przelacz_podglad)
+        self.btn_podglad.toggled.connect(
+            lambda wl: self.btn_podglad.setText(
+                'Podglądnij opis: ' + ('WŁ.' if wl else 'wył.')))
+        lay.addWidget(self.btn_podglad)
+
+        lay.addWidget(self._separator())
+
+        # dwa przyciski po pół szerokości, tekst w dwóch liniach - wąski
+        # panel nie obetnie napisu
+        wiersz = QHBoxLayout()
+        self.btn_puste = QPushButton('Pokaż\npuste opisy')
+        self.btn_puste.setToolTip(
+            'Wydzielenia warstwy bez rodzaju powierzchni w podłączonej bazie '
+            '(brak F_SUBAREA albo pusty AREA_TYPE_CD) - warstwa "WYDZ z pustym '
+            'opisem", raport TXT i waypointy obok bazy')
+        self.btn_puste.clicked.connect(self.pokaz_puste)
+        self.btn_szczegoly = QPushButton('Sprawdź\nzgodność')
+        self.btn_szczegoly.setToolTip('Szczegóły zgodności warstwy z bazą')
+        self.btn_szczegoly.clicked.connect(self._pokaz_szczegoly)
+        for btn in (self.btn_puste, self.btn_szczegoly):
+            btn.setMinimumHeight(44)
+            wiersz.addWidget(btn, 1)
+        lay.addLayout(wiersz)
+
+        self.btn_kopia = QPushButton('Zapisz kopię bazy')
+        self.btn_kopia.setToolTip(
+            'Kopia bazy i plików warstwy wydzieleń do Kopie_manipulacyjne '
+            f'(zostaje {ILE_KOPII} ostatnich kopii Edytora)')
+        self.btn_kopia.clicked.connect(self.zrob_kopie)
+        lay.addWidget(self.btn_kopia)
+
+        # miejsce na kolejne funkcje panelu
+        self.lay_dodatki = QVBoxLayout()
+        lay.addLayout(self.lay_dodatki)
+
+        lay.addWidget(self._separator())
+
+        # --- warstwa, baza i status
         lay.addWidget(QLabel('Warstwa wydzieleń:'))
         wiersz = QHBoxLayout()
         self.combo = QComboBox()
@@ -2274,43 +2331,6 @@ class PanelOpisu(QDockWidget):
         self.lbl_status.setTextFormat(Qt.RichText)
         lay.addWidget(self.lbl_status)
 
-        self.btn_podglad = QPushButton('Podglądnij opis: wył.')
-        self.btn_podglad.setCheckable(True)
-        self.btn_podglad.setToolTip(
-            'Podgląd pod prawym przyciskiem myszy (PPM): po włączeniu '
-            'przytrzymanie PPM na wydzieleniu pokazuje przy kursorze skrót '
-            'opisu z bazy')
-        # stan przełącznika wyraźnie widoczny (także w ciemnym motywie)
-        self.btn_podglad.setStyleSheet(
-            'QPushButton:checked { background: #2e7d32; color: white; '
-            'font-weight: bold; border: 1px solid #1b5e20; }')
-        self.btn_podglad.toggled.connect(self._przelacz_podglad)
-        self.btn_podglad.toggled.connect(
-            lambda wl: self.btn_podglad.setText(
-                'Podglądnij opis: ' + ('WŁ.' if wl else 'wył.')))
-        lay.addWidget(self.btn_podglad)
-
-        wiersz = QHBoxLayout()
-        self.btn_szczegoly = QPushButton('Zgodność')
-        self.btn_szczegoly.setToolTip('Szczegóły zgodności warstwy z bazą')
-        self.btn_szczegoly.clicked.connect(self._pokaz_szczegoly)
-        self.btn_karta = QPushButton('Karta')
-        self.btn_karta.setToolTip('Pokaż kartę opisu zaznaczonego wydzielenia')
-        self.btn_karta.clicked.connect(self.pokaz_karte)
-        wiersz.addWidget(self.btn_szczegoly)
-        wiersz.addWidget(self.btn_karta)
-        lay.addLayout(wiersz)
-
-        self.btn_kopia = QPushButton('Zapisz kopię bazy')
-        self.btn_kopia.setToolTip(
-            'Kopia bazy i plików warstwy wydzieleń do Kopie_manipulacyjne '
-            f'(zostaje {ILE_KOPII} ostatnich kopii Edytora)')
-        self.btn_kopia.clicked.connect(self.zrob_kopie)
-        lay.addWidget(self.btn_kopia)
-
-        # miejsce na kolejne funkcje panelu
-        self.lay_dodatki = QVBoxLayout()
-        lay.addLayout(self.lay_dodatki)
         lay.addStretch(1)
         self.setWidget(w)
         self._wczytaj_warstwy()
@@ -2342,8 +2362,8 @@ class PanelOpisu(QDockWidget):
         self.btn_warstwy.setEnabled(not pol)
         self.btn_polacz.setEnabled(not pol)
         self.btn_rozlacz.setEnabled(pol)
-        self.btn_karta.setEnabled(pol)
         self.btn_kopia.setEnabled(pol)
+        self.btn_puste.setEnabled(pol)
         self.btn_szczegoly.setEnabled(pol)
         self.btn_podglad.setEnabled(pol)
         if not pol and self.btn_podglad.isChecked():
@@ -2494,6 +2514,12 @@ class PanelOpisu(QDockWidget):
             return
         for d in foldery[:-ILE_KOPII]:
             shutil.rmtree(os.path.join(kat_kopii, d), ignore_errors=True)
+
+    def pokaz_puste(self):
+        """Pokaż puste wydzielenia na podłączonej bazie i wybranej warstwie
+        (import w funkcji - moduł kontroli nie zależy od Edytora)."""
+        from . import shp_pokaz_puste_wydz
+        return shp_pokaz_puste_wydz.uruchom_z_panelu(self)
 
     def odswiez_bez_opisu(self):
         """Warstwa pamięci z poligonami wydzieleń, których ADR_LES nie ma w
