@@ -43,13 +43,14 @@ from PyQt5 import sip
 from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
 from PyQt5.QtGui import (
     QBrush, QColor, QCursor, QDoubleValidator, QFont, QFontDatabase,
-    QIntValidator,
+    QIntValidator, QKeySequence,
 )
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox,
     QCompleter, QDialog,
     QDialogButtonBox, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QShortcut,
     QStyledItemDelegate, QTableWidget, QTableWidgetItem, QToolButton,
     QVBoxLayout, QWidget,
 )
@@ -123,7 +124,7 @@ POLA_SUBAREA = [
 KOLUMNY_WARSTWY = [
     ('Zmiesz.', 'MIXTURE_CD', 'kod', 'MIXTURE_CD', None, 62),
     ('Zwarcie', 'DENSITY_CD', 'kod', 'DENSITY_CD', None, 62),
-    ('Zd.', 'STANDDENSITY_INDEX', 'liczba', None, 2, 46),
+    ('Zd.', 'STANDDENSITY_INDEX', 'liczba', None, 1, 46),
 ]
 KOLUMNY_GATUNKI = [
     ('Kod', 'SPECIES_CD', 'kod', 'SPECIES_CD', None, 72),
@@ -642,9 +643,11 @@ class _GrupaWarstwy(QWidget):
         if not okno.tylko_odczyt:
             usun = QToolButton()
             usun.setText('Usuń warstwę')
+            usun.setToolTip('Usuwa warstwę z gatunkami (do bazy po "Zapisz"; '
+                            'Ctrl+Z - cofnij)')
             usun.setStyleSheet('QToolButton { color: #c62828; border: none; }')
             usun.clicked.connect(lambda: okno.usun_warstwe(self.wi))
-            naglowek.addWidget(usun)
+            self._btn_usun = usun  # wstawiany niżej, na wysokość nagłówków tabel
         lay.addLayout(naglowek)
 
         self.cialo = QWidget()
@@ -670,7 +673,8 @@ class _GrupaWarstwy(QWidget):
         miejsce.setFixedWidth(pelna)
         ml = QVBoxLayout(miejsce)
         ml.setContentsMargins(0, 0, 0, 0)
-        ml.addWidget(self.tw, 0, Qt.AlignLeft | Qt.AlignTop)
+        # prawa krawędź - Zd. pod Zd. warstwy DRZEW
+        ml.addWidget(self.tw, 0, Qt.AlignRight | Qt.AlignTop)
         ml.addStretch(1)
         hl.addWidget(miejsce, 0, Qt.AlignTop)
         self.tg = _tabela_edytowalna(
@@ -688,6 +692,8 @@ class _GrupaWarstwy(QWidget):
             self.tw.installEventFilter(self)
             self.tg.installEventFilter(self)
         hl.addStretch(1)
+        if getattr(self, '_btn_usun', None) is not None:
+            hl.addWidget(self._btn_usun, 0, Qt.AlignTop)
         lay.addWidget(self.cialo)
         self.odswiez()
         self.ustaw(True)
@@ -741,7 +747,8 @@ class _GrupaWarstwy(QWidget):
             it.setTextAlignment(Qt.AlignCenter)
             it.setForeground(QBrush(QColor(198, 40, 40)))
             if g is not None:
-                it.setToolTip('Usuń gatunek (zmiana trafi do bazy po Zapisz)')
+                it.setToolTip('Usuń gatunek (do bazy po "Zapisz"; '
+                              'Ctrl+Z - cofnij)')
             self.tg.setItem(r, kol_usun, it)
         _dopasuj(self.tg)
 
@@ -775,6 +782,12 @@ class _GrupaWarstwy(QWidget):
     # ------------------------------------------------------ nawigacja Enter
 
     def eventFilter(self, obiekt, event):
+        if event.type() == QEvent.KeyPress and \
+                event.key() == Qt.Key_Escape and \
+                obiekt in (self.tw, self.tg) and \
+                obiekt.state() != QAbstractItemView.EditingState:
+            self.okno.close()  # pierwszy Esc porzucił edycję, drugi zamyka
+            return True
         if event.type() == QEvent.KeyPress and \
                 event.key() in (Qt.Key_Return, Qt.Key_Enter) and \
                 obiekt in (self.tw, self.tg) and \
@@ -889,6 +902,15 @@ class OknoOpisu(QWidget):
         self.oryginal = None
         self.grupy = []
         self.walidacja = {}
+        # historia zmian karty (Cofnij / Ctrl+Z, Ponów / Ctrl+Y):
+        # [(opis kroku, stan danych sprzed kroku)]
+        self._historia = []
+        self._ponow = []
+        self._info_krok = False  # ciągłe pisanie w "Informacjach" = 1 krok
+        self._timer_info = QTimer(self)
+        self._timer_info.setSingleShot(True)
+        self._timer_info.setInterval(1000)
+        self._timer_info.timeout.connect(self._zamknij_krok_info)
 
         self._ustaw_tytul()
         self._zbuduj()
@@ -1048,7 +1070,9 @@ class OknoOpisu(QWidget):
         self.pasek = QHBoxLayout()
         self.btn_usun = QPushButton('Usuń wydzielenie')
         self.btn_usun.setToolTip(
-            'Usuwa z bazy wydzielenie z całym opisem (geometria zostaje)')
+            'Usuwa z bazy wydzielenie z całym opisem - warstwy, gatunki, '
+            'zabiegi, TD, cechy, PNSW (geometria na mapie zostaje). Przed '
+            'usunięciem kopia bazy i zapis do dziennika.')
         self.btn_usun.setStyleSheet(
             'QPushButton { color: white; background: #c62828; '
             'padding: 3px 10px; } '
@@ -1056,13 +1080,30 @@ class OknoOpisu(QWidget):
         self.btn_usun.clicked.connect(self.usun_wydzielenie)
         self.pasek.addWidget(self.btn_usun)
         self.pasek.addStretch(1)
-        self.btn_cofnij = QPushButton('Cofnij zmiany')
+        self.btn_cofnij_krok = QPushButton('Cofnij')
+        self.btn_cofnij_krok.clicked.connect(self.cofnij_krok)
+        self.pasek.addWidget(self.btn_cofnij_krok)
+        self.pasek.addStretch(1)
+        self.btn_cofnij = QPushButton('Cofnij wszystko')
+        self.btn_cofnij.setToolTip(
+            'Przywraca stan wydzielenia z bazy (odrzuca wszystkie niezapisane '
+            'zmiany). Można to odwrócić przyciskiem "Cofnij" / Ctrl+Z.')
         self.btn_cofnij.clicked.connect(self._cofnij)
         self.btn_zapisz = QPushButton('Zapisz')
+        self.btn_zapisz.setToolTip(
+            'Zapisuje zmiany wydzielenia w bazie (jedna transakcja; przed '
+            'pierwszą zmianą w sesji - kopia bazy). Błędy (czerwone) '
+            'blokują zapis.')
         self.btn_zapisz.clicked.connect(self.zapisz)
         self.pasek.addWidget(self.btn_cofnij)
         self.pasek.addWidget(self.btn_zapisz)
         glowny.addLayout(self.pasek)
+
+        QShortcut(QKeySequence('Ctrl+Z'), self, self.cofnij_krok,
+                  context=Qt.WidgetWithChildrenShortcut)
+        QShortcut(QKeySequence('Ctrl+Y'), self, self.ponow_krok,
+                  context=Qt.WidgetWithChildrenShortcut)
+        self.info.installEventFilter(self)
 
         szer_okna = max(
             self.t_opis.width(), SZEROKOSC_GRUPY,
@@ -1075,6 +1116,7 @@ class OknoOpisu(QWidget):
         self.dane = self.oryginal = None
         self.aint = None
         self.walidacja = {}
+        self._historia, self._ponow = [], []
         self.lbl_walidacja.setText('')
         self.t_opis.clearContents()
         self.t_opis.setRowCount(1)
@@ -1155,6 +1197,8 @@ class OknoOpisu(QWidget):
             if wolne:
                 btn = QToolButton()
                 btn.setText('+ Warstwa')
+                btn.setToolTip('Dodaje warstwę (z klawiatury: trzeci Enter '
+                               'na końcu ostatniej warstwy)')
                 btn.setPopupMode(QToolButton.InstantPopup)
                 menu = QMenu(btn)
                 for k in wolne:
@@ -1182,6 +1226,8 @@ class OknoOpisu(QWidget):
     def _wypelnij(self, dane, warstwy, gatunki, zabiegi):
         self.dane = dane
         self.oryginal = copy.deepcopy(dane)
+        self._historia, self._ponow = [], []
+        self._info_krok = False
         self._wypelnij_opis()
 
         self._przelicz()
@@ -1291,6 +1337,12 @@ class OknoOpisu(QWidget):
     def ustaw_pole(self, pole, tekst, wiersz=0):
         if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
             return
+        przed = copy.deepcopy(self.dane)
+        nag = next(k[0] for k in KOLUMNY_OPIS if k[1] == pole)
+        self._ustaw_pole(pole, tekst, wiersz)
+        self._do_historii(nag.replace('\n', ' '), przed)
+
+    def _ustaw_pole(self, pole, tekst, wiersz=0):
         _n, _p, typ, slow = next(k for k in KOLUMNY_OPIS if k[1] == pole)
         tekst = (tekst or '').strip()
         s = self.slowniki.get(slow)
@@ -1380,7 +1432,10 @@ class OknoOpisu(QWidget):
         ok, v = self._wartosc(typ, slow, tekst)
         if not ok:
             return
+        przed = copy.deepcopy(self.dane)
         self.dane['WARSTWY'][wi][pole] = v
+        self._do_historii(
+            f"{self.dane['WARSTWY'][wi]['STOREY_CD']} - {_n}", przed)
         self._po_zmianie_warstwy(wi)
 
     def ustaw_gatunek(self, wi, gi, pole, tekst):
@@ -1392,6 +1447,9 @@ class OknoOpisu(QWidget):
         ok, v = self._wartosc(typ, slow, tekst)
         if not ok:
             return
+        przed = copy.deepcopy(self.dane)
+        kod_w = self.dane['WARSTWY'][wi]['STOREY_CD']
+        kod_g = gat[gi]['SPECIES_CD'] if gi < len(gat) else v
         if gi >= len(gat):
             if pole != 'SPECIES_CD' or not v:
                 return
@@ -1403,6 +1461,7 @@ class OknoOpisu(QWidget):
             # wiersz znika dopiero, gdy wyczyszczono wszystkie jego komórki
             if all(ow.pusty(gat[gi][p]) for p in ow.POLA_GATUNKU):
                 del gat[gi]
+        self._do_historii(f'{kod_w} / {kod_g or "?"} - {_n}', przed)
         self._po_zmianie_warstwy(wi)
 
     def podpowiedz_bonitacji(self, wi, gi):
@@ -1423,7 +1482,11 @@ class OknoOpisu(QWidget):
             return
         gat = self.dane['WARSTWY'][wi]['gatunki']
         if 0 <= gi < len(gat):
+            przed = copy.deepcopy(self.dane)
+            kod = gat[gi]['SPECIES_CD']
             del gat[gi]
+            self._do_historii(f"usunięcie gatunku {kod} "
+                              f"({self.dane['WARSTWY'][wi]['STOREY_CD']})", przed)
             self._po_zmianie_warstwy(wi)
 
     def idz_do_warstwy(self, wi):
@@ -1481,7 +1544,27 @@ class OknoOpisu(QWidget):
         else:
             self.nowa_warstwa_z_klawiatury(-1)
 
+    def keyPressEvent(self, event):
+        # Esc poza edycją komórki - zamknięcie karty (z pytaniem o zmiany)
+        if event.key() == Qt.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
+
     def eventFilter(self, obiekt, event):
+        if obiekt is getattr(self, 'info', None):
+            if event.type() == QEvent.FocusOut:
+                self._info_krok = False
+            elif event.type() == QEvent.KeyPress and \
+                    event.key() == Qt.Key_Escape:
+                self.close()
+                return True
+            return super().eventFilter(obiekt, event)
+        if obiekt is self.t_opis and event.type() == QEvent.KeyPress and \
+                event.key() == Qt.Key_Escape and \
+                self.t_opis.state() != QAbstractItemView.EditingState:
+            self.close()  # pierwszy Esc porzucił edycję, drugi zamyka
+            return True
         if obiekt is self.t_opis and event.type() == QEvent.KeyPress and \
                 event.key() in (Qt.Key_Return, Qt.Key_Enter) and \
                 self.t_opis.state() != QAbstractItemView.EditingState:
@@ -1502,6 +1585,7 @@ class OknoOpisu(QWidget):
             self._blad(f'Warstwa {kod} już jest w tym wydzieleniu')
             return
         stan = self._stan_grup()
+        przed = copy.deepcopy(self.dane)
         self.dane['WARSTWY'].append({
             'STOREY_CD': kod, 'MIXTURE_CD': '', 'DENSITY_CD': '',
             'STANDDENSITY_INDEX': None, 'gatunki': []})
@@ -1509,6 +1593,7 @@ class OknoOpisu(QWidget):
         self.dane['WARSTWY'].sort(key=lambda w: ow.KOLEJNOSC_SPECJALNA.get(
             w['STOREY_CD'], nr.get(w['STOREY_CD'], 99.0)))
         stan[kod] = True
+        self._do_historii(f'dodanie warstwy {kod}', przed)
         self._przelicz()
         self._odbuduj_grupy(stan)
         self._status(f'dodano warstwę {kod} - wpisz gatunki')
@@ -1527,7 +1612,9 @@ class OknoOpisu(QWidget):
         if odp != QMessageBox.Yes:
             return
         stan = self._stan_grup()
+        przed = copy.deepcopy(self.dane)
         del self.dane['WARSTWY'][wi]
+        self._do_historii(f"usunięcie warstwy {w['STOREY_CD']}", przed)
         self._przelicz()
         self._odbuduj_grupy(stan)
         self._odswiez_przyciski()
@@ -1550,6 +1637,11 @@ class OknoOpisu(QWidget):
             self.info.setTextCursor(kursor)
             tekst = tekst[:MAX_INFO]
             self._blad(f'Informacje różne: maksymalnie {MAX_INFO} znaków')
+        if not self._info_krok and self.dane['SUBAREA_INFO'] != tekst.strip():
+            self._do_historii('Informacje różne', copy.deepcopy(self.dane),
+                              wymus=True)
+            self._info_krok = True
+        self._timer_info.start()
         self.dane['SUBAREA_INFO'] = tekst.strip()
         self._licznik()
         self._odswiez_przyciski()
@@ -1567,6 +1659,12 @@ class OknoOpisu(QWidget):
         self.btn_cofnij.setEnabled(zm)
         self.btn_zapisz.setVisible(not self.tylko_odczyt)
         self.btn_cofnij.setVisible(not self.tylko_odczyt)
+        historia = getattr(self, '_historia', [])
+        self.btn_cofnij_krok.setVisible(not self.tylko_odczyt)
+        self.btn_cofnij_krok.setEnabled(bool(historia))
+        self.btn_cofnij_krok.setToolTip(
+            (f'Cofnij: {historia[-1][0]}' if historia else
+             'Cofa po kolei ostatnie zmiany') + ' (Ctrl+Z; ponów - Ctrl+Y)')
         self.btn_usun.setVisible(not self.tylko_odczyt)
         self.btn_usun.setEnabled(self.dane is not None and self.aint is not None)
         if zm:
@@ -1583,10 +1681,33 @@ class OknoOpisu(QWidget):
         return False
 
     def _cofnij(self):
-        if self.oryginal is None:
+        """Cofnij wszystko - stan z bazy (krok w historii, da się odwrócić)."""
+        if self.oryginal is None or not self._zmienione():
             return
+        self._do_historii('Cofnij wszystko', copy.deepcopy(self.dane))
+        self._odtworz(copy.deepcopy(self.oryginal))
+        self._status('przywrócono stan z bazy (Ctrl+Z - odwróć)')
+
+    # ------------------------------------------------ historia (Ctrl+Z / Y)
+
+    def _do_historii(self, opis, przed, wymus=False):
+        """Krok historii, jeśli dane faktycznie się zmieniły (wymus - stan
+        zapisywany PRZED zmianą, jak przy pisaniu w Informacjach różnych)."""
+        if self.dane is None or (self.dane == przed and not wymus):
+            return
+        self._historia.append((opis, przed))
+        del self._historia[:-200]
+        self._ponow = []
+        self._odswiez_przyciski()
+
+    def _zamknij_krok_info(self):
+        self._info_krok = False
+
+    def _odtworz(self, dane):
+        """Pokazuje podany stan danych w całej karcie."""
         stan = self._stan_grup()
-        self.dane = copy.deepcopy(self.oryginal)
+        self.dane = dane
+        self._info_krok = False
         self._wypelnij_opis()
         self._przelicz()
         self._odbuduj_grupy(stan)
@@ -1594,9 +1715,24 @@ class OknoOpisu(QWidget):
         self.info.setPlainText(self.dane['SUBAREA_INFO'])
         self.info.blockSignals(False)
         self._licznik()
-        self._status('cofnięto zmiany')
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
+
+    def cofnij_krok(self):
+        if self.tylko_odczyt or self.dane is None or not self._historia:
+            return
+        opis, przed = self._historia.pop()
+        self._ponow.append((opis, copy.deepcopy(self.dane)))
+        self._odtworz(przed)
+        self._status(f'cofnięto: {opis}')
+
+    def ponow_krok(self):
+        if self.tylko_odczyt or self.dane is None or not self._ponow:
+            return
+        opis, po = self._ponow.pop()
+        self._historia.append((opis, copy.deepcopy(self.dane)))
+        self._odtworz(po)
+        self._status(f'ponowiono: {opis}')
 
     # ------------------------------------------------------------- zapis
 
@@ -1732,17 +1868,22 @@ class OknoOpisu(QWidget):
             'Opis taksacyjny', f'Usunięto z bazy: {adr}')
 
     def _zapytaj_o_zmiany(self):
-        """True - można przejść dalej (zapisane albo porzucone)."""
+        """True - można przejść dalej (zapisane albo odrzucone)."""
         if not self._zmienione() or self.tylko_odczyt:
             return True
-        odp = QMessageBox.question(
-            self, 'Niezapisane zmiany',
-            f'Wydzielenie {self.adr} ma niezapisane zmiany. Zapisać?',
-            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-            QMessageBox.Save)
-        if odp == QMessageBox.Save:
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Question)
+        box.setWindowTitle('Niezapisane zmiany')
+        box.setText(f'Wydzielenie {self.adr} ma niezapisane zmiany.\n'
+                    'Zapisać je czy odrzucić wszystko?')
+        zapisz = box.addButton('Zapisz', QMessageBox.AcceptRole)
+        odrzuc = box.addButton('Odrzuć wszystko', QMessageBox.DestructiveRole)
+        box.addButton('Anuluj', QMessageBox.RejectRole)
+        box.setDefaultButton(zapisz)
+        box.exec_()
+        if box.clickedButton() is zapisz:
             return self.zapisz()
-        return odp == QMessageBox.Discard
+        return box.clickedButton() is odrzuc
 
     # ------------------------------------------------------ zaznaczenie
 
@@ -2222,7 +2363,7 @@ class PanelOpisu(QDockWidget):
         else:
             w = next(x for x in warstwy if x[0] == glowna)
             linie.append(f'{glowna}: zwarcie <b>{_txt(w[1]) or "-"}</b> '
-                         f'&nbsp; zadrz. <b>{_fmt(w[2], 2) or "-"}</b>')
+                         f'&nbsp; zadrz. <b>{_fmt(w[2], 1) or "-"}</b>')
             gat = gatunki.get(glowna, [])
             na_udziale = [g for g in gat if g[1].isdigit()] if \
                 glowna == 'DRZEW' else gat
@@ -2237,17 +2378,26 @@ class PanelOpisu(QDockWidget):
             mjs = sum(1 for g in gat if g[1] == 'MJS')
             pjd = sum(1 for g in gat if g[1] == 'PJD')
             if mjs:
-                domieszki.append(f'+{mjs} inne MJS')
+                # 5 najczęstszych gatunków domieszek (bez wieku), liczba
+                # wystąpień tylko gdy > 1: "JD (4), ŚW (2), BRZ, LP, MD"
+                kody = [g[0] for g in gat if g[1] == 'MJS']
+                czestosc = Counter(kody)
+                kolejnosc = sorted(czestosc, key=lambda x: (-czestosc[x],
+                                                            kody.index(x)))
+                lista = ', '.join(f'{x} ({czestosc[x]})' if czestosc[x] > 1
+                                  else x for x in kolejnosc[:5])
+                if len(kolejnosc) > 5:
+                    lista += ', ...'
+                domieszki.append(f'+{mjs} inne MJS ({lista})')
             if pjd:
                 domieszki.append(f'+{pjd} inne PJD')
-            if domieszki:
-                wiersze += (f'<tr><td colspan="3"><i>{", ".join(domieszki)}'
-                            '</i></td></tr>')
             tabela = (
                 '<table cellspacing="0" cellpadding="1" style="margin-top:3px">'
                 '<tr><th align="left">Kod&nbsp;</th><th align="left">Udział'
                 '&nbsp;</th><th align="right">Wiek</th></tr>' + wiersze +
                 '</table>')
+            if domieszki:  # pod tabelką - długi tekst nie rozciąga kolumn
+                tabela += f'<i>{", ".join(domieszki)}</i>'
 
         inne = ''
         for kod, _zw, zd in warstwy:
@@ -2260,9 +2410,9 @@ class PanelOpisu(QDockWidget):
             reszta = len(gat) - len(pokazane)
             tekst = ', '.join(g[0] for g in pokazane)
             if reszta > 0:
-                tekst += f' + {reszta} inne'
+                tekst += f' <i>+ {reszta} inne</i>'
             inne += (f'<tr><td><b>{kod}</b>&nbsp;</td>'
-                     f'<td>{_fmt(zd, 2)}&nbsp;</td><td>{tekst}</td></tr>')
+                     f'<td>{_fmt(zd, 1)}&nbsp;</td><td>{tekst}</td></tr>')
         if inne:
             inne = ('<table cellspacing="0" cellpadding="1" '
                     'style="margin-top:4px">' + inne + '</table>')
