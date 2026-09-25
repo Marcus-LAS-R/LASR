@@ -1,6 +1,75 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0o — 2026-09-25
+------------------------------------------------
+
+1. NOWOŚĆ: "Podgląd/Edycja opisu taksacyjnego" (menu LAS-R, pod
+   "Generuj") - edycja opisu z bazy prosto w QGIS, w układzie karty jak w
+   Taksatorze.
+   - Panel "Edytor opisu taksacyjnego" (po lewej, pod Warstwami): wybór
+     warstwy wydzieleń i bazy, status (tryb EDYCJA albo PODGLĄD, gdy baza
+     jest otwarta w Taksatorze), kontrola zgodności warstwy z bazą,
+     warstwa "WYDZ bez opisu w bazie", kopia bazy jednym przyciskiem.
+   - Karta otwiera się po zaznaczeniu wydzielenia na mapie: opis
+     wydzielenia, warstwy (zwijane), gatunki, wskazania gospodarcze,
+     informacje różne.
+   - Wpisywanie kodem albo numerem jak w Taksatorze (SO = 1, D-STAN = 92,
+     NAL = 6), rozwijane listy ze słowników bazy.
+   - Szybkie pisanie Enterem: kursor przeskakuje tylko po polach
+     wymaganych dla danej warstwy; na końcu wiersza - nowy gatunek,
+     następna warstwa albo okienko nowej warstwy (wpisz numer).
+   - Kontrola poprawności na bieżąco wg reguł Taksatora: czerwone pola
+     blokują zapis, żółte to tylko ostrzeżenia (np. brak pomiarów).
+   - Gatunki i warstwy układają się same w poprawnej kolejności;
+     podpowiedź bonitacji z tablic (zatwierdzasz Enterem).
+   - Cofnij (Ctrl+Z), Ponów (Ctrl+Y), Cofnij wszystko; przy zamykaniu
+     pytanie o zapis; drugi Esc zamyka kartę.
+   - Usuwanie wydzielenia z bazy (geometria na mapie zostaje).
+   - Bezpieczeństwo: kopia bazy przed pierwszą zmianą, dziennik zmian w
+     pliku CSV obok bazy, zapis każdego wydzielenia w całości albo wcale.
+   - "Podglądnij opis": przytrzymaj prawy przycisk myszy na wydzieleniu,
+     żeby zobaczyć skrót opisu (rodzaj pow., TSL, zwarcie, zadrzewienie,
+     gatunki, domieszki, pozostałe warstwy).
+
+2. BEZPIECZEŃSTWO: gdy baza jest otwarta w Edytorze opisu, inne narzędzia
+   wtyczki nie połączą się z nią - pojawi się komunikat, żeby najpierw
+   zamknąć Edytor. Chroni to bazę przed uszkodzeniem.
+
+3. NOWOŚĆ: "Edytor warstw do opisów" - nowe grupy TURYST i RETENCJA;
+   punkty dostają od razu siedlisko (STL, z WYDZ_POL_stare) i pokrywę,
+   które "Dopisz opisy taksacyjne" wpisuje do bazy. Uszkodzone polskie
+   znaki w kodach są naprawiane automatycznie.
+
+4. NOWOŚĆ: "Usuń nadmiarowe adr_upul" (Rozliczenie powierzchni) - usuwa
+   punkty adr_upul leżące poza obrębami (warstwa OBR), z kopią warstwy.
+
+5. NOWOŚĆ: "Wydziel właścicieli do nowej bazy" - wydzielenie grup
+   rejestrowych do osobnej bazy z raportami i warstwami SHP.
+
+6. ZMIANA: "Dopisz/sprawdź zabiegi" - opcja wyczyszczenia wskazań
+   gospodarczych przed dopisaniem; przy rębniach nowa uwaga o następstwie
+   cięć.
+
+7. ZMIANA: "Uzupełnij uszkodzenia w bazie" - młode drzewostany (poniżej
+   20 lat) dostają przyczynę ZWIERZ; poprawiony kod WODNE; baza wybierana
+   automatycznie (też w "Napraw F_STOREY_SPECIES").
+
+8. ZMIANA: "Sprawdź cięcie starych WYDZ" - dodatkowe kontrole (adr_upul,
+   kilka opisów na wydzieleniu, PNSW); "Dodaj/Uzupełnij MUNICIP i
+   COMMUNITY" połączone w jedną pozycję z automatycznym rozpoznaniem
+   adresu; "Rozlicz powierzchnię" domyślnie czyści rozliczenie.
+
+9. POPRAWKI: klonowanie opisów nie kasuje już informacji różnych; "Klonuj
+   opisy" rysuje odcinek jak natywne narzędzia QGIS; "Kontrola Ls z bazą"
+   poprawnie traktuje działki z arkuszem; "Przygotuj stare WYDZ do
+   cięcia" dopisuje dane przy innej formie własności w adresie; kontrola
+   słowników wg SULMN akceptuje RETENCJA i TURYST; usuwanie wydzieleń nie
+   kasuje przez pomyłkę żywych oddziałów.
+
+10. TESTOWE: "Wyeksportuj SHP z GML" i "Rozdziel warstwy wg baz".
+
+
 Wersja 2.0n — 2026-09-04
 ------------------------------------------------
 
