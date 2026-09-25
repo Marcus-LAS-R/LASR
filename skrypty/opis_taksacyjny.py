@@ -20,7 +20,10 @@ Panel otwarty = baza podłączona:
   Taksatorze (SO albo 1, D-STAN albo 92) - numery ze słowników TEJ bazy
   (kolumny *_NR, dla gatunków BUL_SPECIES_NR; numery rodzaju powierzchni
   różnią się między bazami),
-- nic nie jest przeliczane (zasobność, przyrost - robi to Taksator PU),
+- w DRZEW masa <-> zadrzewienie wzorem F3 Aktualizacji UPUL: wpisanie
+  masy przelicza Zd, nadpisanie Zd przelicza masy, zmiana gatunku,
+  udziału, wieku lub bonitacji - masę tego gatunku (Zd bez zmian);
+  przyrost nie jest liczony (robi to Taksator PU),
 - zapis pojedynczego wydzielenia w jednej transakcji; pakiet kopii (baza +
   pliki warstwy wydzieleń, Kopie_manipulacyjne/edycja_opisu_<czas>/) raz
   na połączenie i na żądanie ("Zapisz kopię bazy"), trzymane 5 ostatnich,
@@ -474,23 +477,37 @@ class _DelegatTabeli(QStyledItemDelegate):
                 editor.hide()  # zdarzenie z listy podpowiedzi
             self._strzalka(ed, event.key())
             return True
+        enter = self.po_enter is not None and \
+            event.type() == QEvent.KeyPress and \
+            event.key() in (Qt.Key_Return, Qt.Key_Enter)
         if editor.property('edytor_komorki') is not None:
             # pole tekstowe / lista podpowiedzi to NIE edytor komórki - inne
-            # klawisze (Esc, Enter, Tab) obsługuje sam edytor (lista)
-            return False
-        if self.po_enter is not None and event.type() == QEvent.KeyPress \
-                and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            # klawisze (Esc, Tab) obsługuje sam edytor (lista); Enter od
+            # razu zatwierdza wpisany tekst (bez tego pierwszy Enter tylko
+            # zamykał listę podpowiedzi), chyba że rozwinięto pełną listę
+            ed = editor.property('edytor_komorki')
+            if not enter or ed.view().isVisible():
+                return False
+            if editor is not ed.lineEdit():
+                editor.hide()  # lista podpowiedzi
+            self._enter_zatwierdz(ed)
+            return True
+        if enter:
             if isinstance(editor, QComboBox) and editor.view().isVisible():
                 return super().eventFilter(editor, event)
-            wiersz = editor.property('wiersz')
-            kolumna = editor.property('kolumna')
-            editor.setProperty('enter', True)
-            self.commitData.emit(editor)
-            self.closeEditor.emit(editor, QAbstractItemDelegate.NoHint)
-            # po odroczonym callback (ustaw_*) - kolejność kolejki zdarzeń
-            QTimer.singleShot(0, lambda: self.po_enter(wiersz, kolumna, True))
+            self._enter_zatwierdz(editor)
             return True
         return super().eventFilter(editor, event)
+
+    def _enter_zatwierdz(self, editor):
+        """Enter: zatwierdź komórkę i przejdź dalej (po_enter)."""
+        wiersz = editor.property('wiersz')
+        kolumna = editor.property('kolumna')
+        editor.setProperty('enter', True)
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QAbstractItemDelegate.NoHint)
+        # po odroczonym callback (ustaw_*) - kolejność kolejki zdarzeń
+        QTimer.singleShot(0, lambda: self.po_enter(wiersz, kolumna, True))
 
     def createEditor(self, parent, option, index):
         typ, slow = self.spec[index.column()]
@@ -900,8 +917,9 @@ class _GrupaWarstwy(QWidget):
 
     def _enter(self, tab, r, c, w_edycji):
         """Enter: następna wymagana komórka wiersza (reguły warstwy); na
-        ostatniej - pierwszy Enter zatwierdza, drugi przechodzi do nowego
-        wiersza gatunku. Parametry warstwy -> dalej gatunki."""
+        ostatniej - pierwszy Enter zatwierdza, drugi przechodzi do gatunku
+        w następnym wierszu (za ostatnim - nowy wiersz). Parametry
+        warstwy -> dalej gatunki."""
         okno = self.okno
         if okno.dane is None or sip.isdeleted(self) or \
                 self.wi >= len(okno.dane['WARSTWY']):
@@ -928,7 +946,8 @@ class _GrupaWarstwy(QWidget):
         if dalej:
             self._idz(self.tg, r, kolumny.index(dalej[0]))
         elif not w_edycji:
-            self._idz(self.tg, len(gat), 0)  # drugi Enter - nowy wiersz
+            # drugi Enter - gatunek w następnym wierszu (za ostatnim: nowy)
+            self._idz(self.tg, r + 1, 0)
 
 
 # kolumna z przyciskiem usunięcia wiersza gatunku (✕)
@@ -1551,9 +1570,12 @@ class OknoOpisu(QWidget):
             return
         przed = copy.deepcopy(self.dane)
         self.dane['WARSTWY'][wi][pole] = v
+        info = self._masy_z_zd(wi) if pole == 'STANDDENSITY_INDEX' else ''
         self._do_historii(
             f"{self.dane['WARSTWY'][wi]['STOREY_CD']} - {_n}", przed)
         self._po_zmianie_warstwy(wi)
+        if info:
+            self._status(info)
 
     def ustaw_gatunek(self, wi, gi, pole, tekst):
         if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
@@ -1567,6 +1589,7 @@ class OknoOpisu(QWidget):
         przed = copy.deepcopy(self.dane)
         kod_w = self.dane['WARSTWY'][wi]['STOREY_CD']
         kod_g = gat[gi]['SPECIES_CD'] if gi < len(gat) else v
+        info = ''
         if gi >= len(gat):
             if pole != 'SPECIES_CD' or not v:
                 return
@@ -1578,8 +1601,77 @@ class OknoOpisu(QWidget):
             # wiersz znika dopiero, gdy wyczyszczono wszystkie jego komórki
             if all(ow.pusty(gat[gi][p]) for p in ow.POLA_GATUNKU):
                 del gat[gi]
+            else:
+                info = self._masa_po_zmianie_gatunku(wi, gi, pole)
         self._do_historii(f'{kod_w} / {kod_g or "?"} - {_n}', przed)
         self._po_zmianie_warstwy(wi)
+        if info:
+            self._status(info)
+
+    # ------------------------------ masa <-> zadrzewienie (DRZEW, wzór F3)
+
+    def _masy_z_zd(self, wi):
+        """Nadpisane Zd w DRZEW -> masy wszystkich gatunków na udziale
+        1-10; zwraca tekst statusu."""
+        w = self.dane['WARSTWY'][wi]
+        zd = w['STANDDENSITY_INDEX']
+        if w['STOREY_CD'] != ow.WARSTWA_MASY or zd is None or \
+                not self.panel.tablica_mas:
+            return ''
+        policzone, pominiete = 0, []
+        for g in w['gatunki']:
+            if ow.udzial_masy(g) is None:
+                continue
+            m = ow.masa_z_zd(self.panel.tablica_mas, self.panel.grupy_bonit,
+                             g, zd)
+            if m is None:
+                pominiete.append(g['SPECIES_CD'] or '?')
+                continue
+            g['VOLUME'] = m
+            policzone += 1
+        if not policzone and not pominiete:
+            return ''
+        return f'masy z Zd {_fmt(zd, 1)}: {policzone}' + \
+            self._tekst_pominietych(pominiete)
+
+    def _masa_po_zmianie_gatunku(self, wi, gi, pole):
+        """DRZEW: wpisana masa -> Zd z mas; zmiana gatunku, udziału, wieku
+        lub bonitacji -> masa tego gatunku z obecnego Zd (Zd bez zmian);
+        zwraca tekst statusu."""
+        w = self.dane['WARSTWY'][wi]
+        if w['STOREY_CD'] != ow.WARSTWA_MASY or not self.panel.tablica_mas:
+            return ''
+        g = w['gatunki'][gi]
+        if pole == 'VOLUME':
+            zd, pominiete = ow.zd_z_mas(self.panel.tablica_mas,
+                                        self.panel.grupy_bonit, w['gatunki'])
+            if zd is None:
+                return 'Zd nie przeliczone' + \
+                    self._tekst_pominietych(pominiete) if pominiete else ''
+            w['STANDDENSITY_INDEX'] = zd
+            return f'Zd z mas: {_fmt(zd, 1)}' + \
+                self._tekst_pominietych(pominiete)
+        if pole not in ('SPECIES_CD', 'PART_CD', 'SPECIES_AGE',
+                        'SITE_CLASS_CD'):
+            return ''
+        if (g['PART_CD'] or '').strip() in ('PJD', 'MJS'):
+            # GAT17: dla PJD/MJS zasobność musi być pusta
+            if g['VOLUME'] is None:
+                return ''
+            g['VOLUME'] = None
+            return f'{g["SPECIES_CD"]}: masa usunięta (PJD/MJS)'
+        m = ow.masa_z_zd(self.panel.tablica_mas, self.panel.grupy_bonit, g,
+                         w['STANDDENSITY_INDEX'])
+        if m is None:
+            return ''
+        g['VOLUME'] = m
+        return f'{g["SPECIES_CD"]}: masa z Zd {_fmt(w["STANDDENSITY_INDEX"], 1)}' \
+            f' = {m}'
+
+    @staticmethod
+    def _tekst_pominietych(pominiete):
+        return f' (pominięte, brak w tablicy lub bez masy: ' \
+            f'{", ".join(pominiete)})' if pominiete else ''
 
     def podpowiedz_bonitacji(self, wi, gi):
         """Bonitacja z tablic (gatunek, wiek, wysokość) do pustej komórki."""
@@ -1685,9 +1777,6 @@ class OknoOpisu(QWidget):
         if dlg.exec_() != QDialog.Accepted or not dlg.kod:
             return
         self.dodaj_warstwe(dlg.kod)
-        nowy = next(i for i, w in enumerate(self.dane['WARSTWY'])
-                    if w['STOREY_CD'] == dlg.kod)
-        QTimer.singleShot(0, lambda: self.idz_do_warstwy(nowy))
 
     # -------------------------------------------- Enter w opisie wydzielenia
 
@@ -1769,6 +1858,11 @@ class OknoOpisu(QWidget):
         self._status(f'dodano warstwę {kod} - wpisz gatunki')
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
+        # od razu edycja pierwszego pola warstwy (DRZEW - Zmiesz.; PODSZ,
+        # NAL, podrost - Zd.; pozostałe - kod gatunku), też po "+ Warstwa"
+        nowy = next(i for i, w in enumerate(self.dane['WARSTWY'])
+                    if w['STOREY_CD'] == kod)
+        QTimer.singleShot(0, lambda: self.idz_do_warstwy(nowy))
 
     def usun_warstwe(self, wi):
         if self.dane is None or self.tylko_odczyt:
@@ -2127,7 +2221,7 @@ class PanelOpisu(QDockWidget):
         self.slowniki = {}
         self.wydz = {}
         self.karta = None
-        self.tablica_bonit, self.grupy_bonit = {}, {}
+        self.tablica_bonit, self.tablica_mas, self.grupy_bonit = {}, {}, {}
         self._podglad = None
         self.max_h = 0
         self.kopia_zrobiona = False
@@ -2328,7 +2422,7 @@ class PanelOpisu(QDockWidget):
         zajmij_baze(baza_sc)
         self.tylko_odczyt = bool(blokada)
         self.slowniki = slowniki
-        self.tablica_bonit, self.grupy_bonit = \
+        self.tablica_bonit, self.tablica_mas, self.grupy_bonit = \
             ow.wczytaj_tablice_bonitacji(baza.cur)
         self.wydz = wydz
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly

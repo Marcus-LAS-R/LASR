@@ -25,6 +25,15 @@ Wersja 2.0o — 2026-09-25
      blokują zapis, żółte to tylko ostrzeżenia (np. brak pomiarów).
    - Gatunki i warstwy układają się same w poprawnej kolejności;
      podpowiedź bonitacji z tablic (zatwierdzasz Enterem).
+   - Masa i zadrzewienie w warstwie DRZEW liczą się same, w dwie strony
+     (wzór z tablic, jak w "Korekcie masy wg zadrzewienia"): wpisz masy
+     gatunków - uzupełni się Zd; nadpisz Zd - masy przeliczą się same.
+     Zmiana udziału, wieku albo bonitacji przelicza masę tego gatunku.
+   - Jeden Enter wystarcza także w polach z listą (gatunek, udział,
+     bonitacja); na końcu wiersza drugi Enter przechodzi do gatunku w
+     następnym wierszu.
+   - Po dodaniu warstwy od razu wpisujesz jej pierwsze pole (np. Zd dla
+     PODSZ, zmieszanie dla DRZEW).
    - Cofnij (Ctrl+Z), Ponów (Ctrl+Y), Cofnij wszystko; przy zamykaniu
      pytanie o zapis; drugi Esc zamyka kartę.
    - Usuwanie wydzielenia z bazy (geometria na mapie zostaje).

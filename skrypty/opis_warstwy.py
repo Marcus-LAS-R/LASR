@@ -16,6 +16,8 @@ Kody jako tekst ('' = brak), liczby jako int/float albo None.
 """
 import json
 
+from .aktualizacja_upul.core.formula import obliczona_masa
+
 BLAD, OSTRZ = 'blad', 'ostrz'
 
 # warstwy dostępne w "+ Warstwa" (używane w praktyce - decyzja użytkownika)
@@ -184,26 +186,29 @@ def lista_bledow(walidacja, warstwy):
 
 
 def wczytaj_tablice_bonitacji(cur):
-    """(tablica, grupy): tablica {(gatunek, wiek): {klasa: wysokość}} z
-    F_TABLICA_ROZSZERZONA, grupy {gatunek: gatunek tablicowy} z
-    F_TREE_SPECIES.HEIGHT_GRP (gatunki bez własnej tablicy). Pusta
-    tablica, gdy bazy nie mają tych tabel."""
-    tablica, grupy = {}, {}
+    """(tablica, masy, grupy): tablica {(gatunek, wiek): {klasa: wysokość}}
+    i masy {(gatunek, wiek): {klasa: zasobność}} z F_TABLICA_ROZSZERZONA,
+    grupy {gatunek: gatunek tablicowy} z F_TREE_SPECIES.HEIGHT_GRP
+    (gatunki bez własnej tablicy). Puste, gdy bazy nie mają tych tabel."""
+    tablica, masy, grupy = {}, {}, {}
     try:
-        for g, k, w, h in cur.execute(
-                'select SPECIES_CD, SITE_CLASS_CD, SPECIES_AGE, HEIGHT '
-                'from F_TABLICA_ROZSZERZONA').fetchall():
-            if g is None or k is None or w is None or h is None:
+        for g, k, w, h, v in cur.execute(
+                'select SPECIES_CD, SITE_CLASS_CD, SPECIES_AGE, HEIGHT, '
+                'VOLUME from F_TABLICA_ROZSZERZONA').fetchall():
+            if g is None or k is None or w is None:
                 continue
-            tablica.setdefault((str(g).strip(), int(w)), {})[
-                str(k).strip()] = float(h)
+            klucz, klasa = (str(g).strip(), int(w)), str(k).strip()
+            if h is not None:
+                tablica.setdefault(klucz, {})[klasa] = float(h)
+            if v is not None:
+                masy.setdefault(klucz, {})[klasa] = float(v)
         for g, grp in cur.execute(
                 'select SPECIES_CD, HEIGHT_GRP from F_TREE_SPECIES').fetchall():
             if g is not None and grp is not None:
                 grupy[str(g).strip()] = str(grp).strip()
     except Exception:
-        return {}, {}
-    return tablica, grupy
+        return {}, {}, {}
+    return tablica, masy, grupy
 
 
 def sugeruj_bonitacje(tablica, grupy, gatunek, wiek, wysokosc):
@@ -219,6 +224,69 @@ def sugeruj_bonitacje(tablica, grupy, gatunek, wiek, wysokosc):
         return None
     return min(klasy, key=lambda k: (abs(klasy[k] - float(wysokosc)),
                                      klasy[k]))
+
+
+# ------------------------------------------------- masa <-> zadrzewienie
+# Wzór F3 z Aktualizacji UPUL (aktualizacja_upul/core/formula.py), liczony
+# w dwie strony, tylko dla warstwy DRZEW:
+#   masa gatunku = ROUND(Vtab * 0,1 * udział * Zd)
+#   Zd           = ROUND(suma mas / suma(Vtab * udział / 10), 1)
+# Vtab z F_TABLICA_ROZSZERZONA (gatunek, wiek, bonitacja), dla gatunków
+# bez własnej tablicy - gatunek tablicowy (HEIGHT_GRP); IA poza SO* jak I,
+# 0 w tablicy jak 1; PJD/MJS poza obliczeniami.
+
+WARSTWA_MASY = 'DRZEW'
+WSP_MASY, ZERO_MASY = 0.1, 1   # constants.json Aktualizacji UPUL
+
+
+def masa_tablicowa(masy, grupy, g):
+    """Vtab dla gatunku albo None (brak gatunku, wieku, bonitacji lub
+    wpisu w tablicy)."""
+    gat, wiek = g['SPECIES_CD'], g['SPECIES_AGE']
+    klasa = (g['SITE_CLASS_CD'] or '').strip()
+    if not masy or pusty(gat) or wiek is None or not klasa:
+        return None
+    if klasa == 'IA' and not gat.startswith('SO'):
+        klasa = 'I'
+    for klucz in (gat, grupy.get(gat)):
+        v = masy.get((klucz, int(wiek)), {}).get(klasa)
+        if v is not None:
+            return v
+    return None
+
+
+def udzial_masy(g):
+    u = udzial_liczbowy(g['PART_CD'])
+    return u if u is not None and 1 <= u <= 10 else None
+
+
+def masa_z_zd(masy, grupy, g, zd):
+    """Masa gatunku z zadrzewienia albo None, gdy nie da się policzyć."""
+    u = udzial_masy(g)
+    vt = masa_tablicowa(masy, grupy, g)
+    if u is None or vt is None or zd is None:
+        return None
+    return obliczona_masa(vt, zd, u, ZERO_MASY, WSP_MASY)
+
+
+def zd_z_mas(masy, grupy, gatunki):
+    """(Zd albo None, pominięte gatunki) - zadrzewienie z mas gatunków na
+    udziale 1-10; gatunek bez masy albo bez wpisu w tablicy pomijany."""
+    suma_v = suma_t = 0.0
+    pominiete = []
+    for g in gatunki:
+        u = udzial_masy(g)
+        if u is None:
+            continue
+        vt = masa_tablicowa(masy, grupy, g)
+        if vt is None or g['VOLUME'] is None:
+            pominiete.append(g['SPECIES_CD'] or '?')
+            continue
+        suma_v += g['VOLUME']
+        suma_t += (vt or ZERO_MASY) * u / 10
+    if suma_t <= 0:
+        return None, pominiete
+    return round(suma_v / suma_t, 1), pominiete
 
 
 def pola_wymagane_warstwy(kod):
