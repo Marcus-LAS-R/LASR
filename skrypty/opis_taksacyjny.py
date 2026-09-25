@@ -668,7 +668,7 @@ class _GrupaWarstwy(QWidget):
             self.tw.setFixedWidth(
                 sum(k[5] for k in KOLUMNY_WARSTWY
                     if k[1] not in ('MIXTURE_CD', 'DENSITY_CD'))
-                + 2 * self.tw.frameWidth())
+                + 2 * self.tw.frameWidth() + ZAPAS)
         miejsce = QWidget()
         miejsce.setFixedWidth(pelna)
         ml = QVBoxLayout(miejsce)
@@ -835,7 +835,7 @@ class _GrupaWarstwy(QWidget):
 
 
 # kolumna z przyciskiem usunięcia wiersza gatunku (✕)
-KOLUMNA_USUN = ('', '_USUN', 'usun', None, None, 22)
+KOLUMNA_USUN = ('', '_USUN', 'usun', None, None, 18)
 SZEROKOSC_GRUPY = (14 + sum(k[5] for k in KOLUMNY_WARSTWY)
                    + sum(k[5] for k in KOLUMNY_GATUNKI) + KOLUMNA_USUN[5]
                    + 4 + 4 * 2)
@@ -853,8 +853,24 @@ def _tabela(naglowki, szerokosci):
     t.verticalHeader().setDefaultSectionSize(20)
     for i, s in enumerate(szerokosci):
         t.setColumnWidth(i, s)
-    t.setFixedWidth(sum(szerokosci) + 2 * t.frameWidth())
+    t.setFixedWidth(sum(szerokosci) + 2 * t.frameWidth() + ZAPAS)
+    _bez_przewijania(t)
     return t
+
+
+# kilka pikseli zapasu na różnice stylu/skalowania ekranu - bez niego tabela
+# bywa o włos węższa od sumy kolumn i daje się przewinąć
+ZAPAS = 4
+
+
+def _bez_przewijania(t):
+    """Tabela zawsze pokazana w całości: bez autoprzewijania przy
+    przytrzymaniu myszy przy krawędzi i bez przesunięcia widoku przez
+    scrollTo (np. przy wejściu w skrajną komórkę)."""
+    t.setAutoScroll(False)
+    for pasek in (t.horizontalScrollBar(), t.verticalScrollBar()):
+        pasek.valueChanged.connect(
+            lambda v, p=pasek: p.setValue(0) if v else None)
 
 
 def _item(tekst, szary=False):
@@ -866,9 +882,10 @@ def _item(tekst, szary=False):
 
 def _dopasuj(t):
     """Wysokość tabeli = nagłówek + wszystkie wiersze (bez przewijania)."""
-    h = t.horizontalHeader().sizeHint().height() + 2 * t.frameWidth()
-    h += sum(t.rowHeight(r) for r in range(t.rowCount()))
-    t.setFixedHeight(h)
+    nag = t.horizontalHeader()
+    h = max(nag.sizeHint().height(), nag.height() if nag.isVisible() else 0)
+    h += 2 * t.frameWidth() + sum(t.rowHeight(r) for r in range(t.rowCount()))
+    t.setFixedHeight(h + ZAPAS)
 
 
 def _sekcja(tytul):
@@ -1013,7 +1030,9 @@ class OknoOpisu(QWidget):
         szer = self._szerokosci_opisu()
         for i, w in enumerate(szer):
             self.t_opis.setColumnWidth(i, w)
-        self.t_opis.setFixedWidth(sum(szer) + 2 * self.t_opis.frameWidth())
+        self.t_opis.setFixedWidth(
+            sum(szer) + 2 * self.t_opis.frameWidth() + ZAPAS)
+        _bez_przewijania(self.t_opis)
         self.t_opis.setItemDelegate(_DelegatTabeli(
             self, [('kod' if k[2] in ('kod', 'lista') else 'liczba', k[3])
                    for k in KOLUMNY_OPIS],
@@ -1083,19 +1102,19 @@ class OknoOpisu(QWidget):
         self.btn_cofnij_krok = QPushButton('Cofnij')
         self.btn_cofnij_krok.clicked.connect(self.cofnij_krok)
         self.pasek.addWidget(self.btn_cofnij_krok)
-        self.pasek.addStretch(1)
         self.btn_cofnij = QPushButton('Cofnij wszystko')
         self.btn_cofnij.setToolTip(
             'Przywraca stan wydzielenia z bazy (odrzuca wszystkie niezapisane '
             'zmiany). Można to odwrócić przyciskiem "Cofnij" / Ctrl+Z.')
         self.btn_cofnij.clicked.connect(self._cofnij)
+        self.pasek.addWidget(self.btn_cofnij)  # obok "Cofnij", na środku
+        self.pasek.addStretch(1)
         self.btn_zapisz = QPushButton('Zapisz')
         self.btn_zapisz.setToolTip(
             'Zapisuje zmiany wydzielenia w bazie (jedna transakcja; przed '
             'pierwszą zmianą w sesji - kopia bazy). Błędy (czerwone) '
             'blokują zapis.')
         self.btn_zapisz.clicked.connect(self.zapisz)
-        self.pasek.addWidget(self.btn_cofnij)
         self.pasek.addWidget(self.btn_zapisz)
         glowny.addLayout(self.pasek)
 
@@ -2416,7 +2435,11 @@ class PanelOpisu(QDockWidget):
                 [g for g in gat if not g[1]]
             pokazane = na_udziale[:4]
             reszta = len(gat) - len(pokazane)
-            tekst = ', '.join(g[0] for g in pokazane)
+            if kod == 'PRZES':  # przestoje - gatunek z wiekiem
+                tekst = ', '.join(f'{g[0]} {_fmt(g[2], 0)}'.strip()
+                                  for g in pokazane)
+            else:
+                tekst = ', '.join(g[0] for g in pokazane)
             if reszta > 0:
                 tekst += f' <i>+ {reszta} inne</i>'
             inne += (f'<tr><td><b>{kod}</b>&nbsp;</td>'
