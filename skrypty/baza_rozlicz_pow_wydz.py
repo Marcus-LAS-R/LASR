@@ -681,6 +681,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         oroz.oblicz_staty()
         oroz.zestaw_staty()
 
+        self.brak_wlasnosci = oroz.brak_wlasnosci
         self.wypis += oroz.zwroc_wypis()
 
     def zapisz_raport(self):
@@ -716,6 +717,10 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
 
         self.iface.messageBar().pushMessage(
             'OK', 'Rozliczenie powierzchni zakończone!', Qgis.Success, 10)
+        if getattr(self, 'brak_wlasnosci', False):
+            self.iface.messageBar().pushMessage(
+                'UWAGA', SprawdzRozliczenie.KOMUNIKAT_BRAK_WLASNOSCI,
+                Qgis.Warning, 0)
 
 
 class SprawdzRozliczenie():
@@ -732,17 +737,33 @@ class SprawdzRozliczenie():
         self.sl_rozl_rej_of = {}
         self.sl_rozl_rej_opif = {}
         self.sl_rozl_rej_nielas = {}
+        # Ls bez przypisanej grupy wlasnosci (brak wlascicieli w bazie albo
+        # dzialka spoza OF/OP/OPiF) - wczesniej po cichu wypadaly ze
+        # sprawdzenia
+        self.sl_rozl_rej_bez_wl = {}
 
         # tablice z bledami rozliczeniowymi w postaci:
         # [[LANDID, POW_ROZL, POW_REJ], ]
         self.op_bl = []
         self.of_bl = []
         self.opif_bl = []
+        self.bez_wl_bl = []
+
+        # True gdy V_ADDRESS/V_PARCEL_PARTICIPATION puste - wolajacy pokazuje
+        # KOMUNIKAT_BRAK_WLASNOSCI w pasku komunikatow
+        self.brak_wlasnosci = False
+
+    KOMUNIKAT_BRAK_WLASNOSCI = 'Brak danych o właścicielach- V_ADRESS puste!'
 
     def przetworz_baze(self):
         p = Przetworz()
+        wlasnosci = self.baza.wlasnosci()
+        self.brak_wlasnosci = len(wlasnosci) == 0
+        if self.brak_wlasnosci:
+            QgsMessageLog.logMessage(
+                self.KOMUNIKAT_BRAK_WLASNOSCI, 'Las-R', Qgis.Warning)
         p.dodaj_uzytki(self.baza.uzytki())
-        p.dodaj_wlasnosci(self.baza.wlasnosci())
+        p.dodaj_wlasnosci(wlasnosci)
         p.przetworz_dzialki()
         p.przetworz_uzytkowanie()
         self.p = p
@@ -767,16 +788,17 @@ class SprawdzRozliczenie():
                     _uz_rozl[r[1]][r[2]] = round(poprzed + r[3], 4)
 
         # zbuduj slownik dla uzytkow w postaci :
-        # sl[PACEL_ID][SHAPE_NR] = [PARCELID, LAND_USE_AREA, AU+SQ]
+        # sl[PACEL_ID][SHAPE_NR] = [PARCELID, LAND_USE_AREA, AU+SQ, AU]
         # tylko dla ls i innych użytków, które zostały przecięte z wydz
         _uz_sl = recursivedefaultdict()
         for u in self.baza.uzytki():
             if u[9] == 'Ls':
-                _uz_sl[u[6]][u[8]] = [u[12], u[11], u[9]+self.isNone(u[10])]
+                _uz_sl[u[6]][u[8]] = [
+                    u[12], u[11], u[9]+self.isNone(u[10]), u[9]]
             elif u[6] in _uz_rozl:
                 if u[8] in _uz_rozl[u[6]]:
                     _uz_sl[u[6]][u[8]] = [
-                        u[12], u[11], u[9]+self.isNone(u[10])
+                        u[12], u[11], u[9]+self.isNone(u[10]), u[9]
                     ]
 
         # przygotuj slownik ze sprawdzeniem rozliczenia powierzchni z podziałem
@@ -786,7 +808,8 @@ class SprawdzRozliczenie():
                 landid = '.'.join(_uz_sl[dzid][shpnr][0:3:2])
                 wp = False
 
-                if 'Ls' not in landid:
+                # po samym kodzie uzytku - Br-Ls to nie grunt lesny
+                if _uz_sl[dzid][shpnr][3] != 'Ls':
                     wp = self.sl_rozl_rej_nielas
                 else:
                     if _uz_sl[dzid][shpnr][0][4:] in self.p.dz_of:
@@ -795,6 +818,8 @@ class SprawdzRozliczenie():
                         wp = self.sl_rozl_rej_op
                     elif _uz_sl[dzid][shpnr][0][4:] in self.p.dz_opif:
                         wp = self.sl_rozl_rej_opif
+                    else:
+                        wp = self.sl_rozl_rej_bez_wl
 
                 if wp is not False:
                     # sprawdz czy uzytek jest w sl, jezeli nie, ustaw pow na
@@ -827,6 +852,7 @@ class SprawdzRozliczenie():
         self.of_pow = [v for v in self.sl_rozl_rej_of.values()]
         self.opif_pow = [v for v in self.sl_rozl_rej_opif.values()]
         self.nielas_pow = [v for v in self.sl_rozl_rej_nielas.values()]
+        self.bez_wl_pow = [v for v in self.sl_rozl_rej_bez_wl.values()]
 
         # policz sumy pow dla rozliczen i bazy
         self.sum_op_pow_ = round(sum([x[0] for x in self.op_pow]), 4)
@@ -837,6 +863,8 @@ class SprawdzRozliczenie():
         self.sum_opif_pow_b = round(sum([x[1] for x in self.opif_pow]), 4)
         self.sum_nielas_pow_ = round(sum([x[0] for x in self.nielas_pow]), 4)
         self.sum_nielas_pow_b = round(sum([x[1] for x in self.nielas_pow]), 4)
+        self.sum_bez_wl_pow_ = round(sum([x[0] for x in self.bez_wl_pow]), 4)
+        self.sum_bez_wl_pow_b = round(sum([x[1] for x in self.bez_wl_pow]), 4)
 
     def zestaw_staty(self):
         """ Metoda zestawia statystyki dla poszczegółnych własności w ls i
@@ -849,48 +877,55 @@ class SprawdzRozliczenie():
             len(self.sl_rozl_rej_of),
             len(self.sl_rozl_rej_op),
             len(self.sl_rozl_rej_opif),
+            len(self.sl_rozl_rej_bez_wl),
         ])
 
         suma_cala_roz = round(
             self.sum_of_pow_ +
             self.sum_op_pow_ +
             self.sum_opif_pow_ +
+            self.sum_bez_wl_pow_ +
             self.sum_nielas_pow_,
             4)
         suma_cala_rej = round(
             self.sum_of_pow_b +
             self.sum_op_pow_b +
             self.sum_opif_pow_b +
+            self.sum_bez_wl_pow_b +
             self.sum_nielas_pow_b,
             4)
 
-        QgsMessageLog.logMessage(
-            '\nSPRAWDZENIE ROZLICZENIA wg REJESTRU\n'
-            'Rozliczono użytków: '+str(rozlicz_uz)+'\n'
-            'Nieleśnych: ' + str(len(self.sl_rozl_rej_nielas.keys())) +
-            '\nLeśnych: ' + str(
-                len(self.sl_rozl_rej_of) +
-                len(self.sl_rozl_rej_op) +
-                len(self.sl_rozl_rej_opif)
-            ) +
-            '\n__w tym:\n____OF: ' + str(len(self.sl_rozl_rej_of)) +
-            '\n____OPiF: ' + str(len(self.sl_rozl_rej_opif)) +
-            '\n____OP: ' + str(len(self.sl_rozl_rej_op)),
-            'Las-R',
-            Qgis.Info
-        )
+        # przy braku wlascicieli wszystkie Ls laduja w tej grupie
+        self.etykieta_bez_wl = 'bez danych o własności' \
+            if self.brak_wlasnosci else 'własność nieustalona'
 
-        self.wypis += '----[ SPRAWDZENIE ROZLICZENIA wg REJESTRU ]----\n' + \
+        zliczenie = \
             'Rozliczono użytków: '+str(rozlicz_uz)+'\n' + \
             'Nieleśnych: ' + str(len(self.sl_rozl_rej_nielas.keys())) + \
             '\nLeśnych: ' + str(
                 len(self.sl_rozl_rej_of) +
                 len(self.sl_rozl_rej_op) +
-                len(self.sl_rozl_rej_opif)
+                len(self.sl_rozl_rej_opif) +
+                len(self.sl_rozl_rej_bez_wl)
             ) + \
             '\n  w tym:\n    OF: ' + str(len(self.sl_rozl_rej_of)) + \
             '\n    OPiF: ' + str(len(self.sl_rozl_rej_opif)) + \
-            '\n    OP: ' + str(len(self.sl_rozl_rej_op)) + '\n\n'
+            '\n    OP: ' + str(len(self.sl_rozl_rej_op))
+        if self.sl_rozl_rej_bez_wl:
+            zliczenie += '\n    ' + self.etykieta_bez_wl + ': ' + \
+                str(len(self.sl_rozl_rej_bez_wl))
+
+        QgsMessageLog.logMessage(
+            '\nSPRAWDZENIE ROZLICZENIA wg REJESTRU\n' + zliczenie,
+            'Las-R',
+            Qgis.Info
+        )
+
+        self.wypis += '----[ SPRAWDZENIE ROZLICZENIA wg REJESTRU ]----\n'
+        if self.brak_wlasnosci:
+            self.wypis += '!!! ' + self.KOMUNIKAT_BRAK_WLASNOSCI + \
+                ' Sprawdzenie bez podziału na OF/OP/OPiF.\n\n'
+        self.wypis += zliczenie + '\n\n'
 
         self.wypis += 'Zestawienie powierzchniowe:\n' + \
             'Całkowita pow:\t' + str(suma_cala_roz) + '  /  ' + \
@@ -929,6 +964,16 @@ class SprawdzRozliczenie():
         else:
             self.wypis += '\n'
 
+        if self.sl_rozl_rej_bez_wl:
+            self.wypis += '  Ls ' + self.etykieta_bez_wl + ':\t' + \
+                str(self.sum_bez_wl_pow_) + ' / ' + \
+                str(self.sum_bez_wl_pow_b) + ' [ha]\t\t'
+            if self.sum_bez_wl_pow_ - self.sum_bez_wl_pow_b != 0:
+                self.wypis += '[ ' + str(round(
+                    self.sum_bez_wl_pow_-self.sum_bez_wl_pow_b, 4)) + ' ]\n'
+            else:
+                self.wypis += '\n'
+
         self.wypis += '  nielas:\t' + str(self.sum_nielas_pow_) + ' / ' + \
             str(self.sum_nielas_pow_b) + \
             ' [ha] \n\n(przy pozaewidencyjnych, ' + \
@@ -941,11 +986,15 @@ class SprawdzRozliczenie():
                       if round(v[0], 4) != round(v[1], 4)]
         self.opif_bl = [[k]+v for k, v in self.sl_rozl_rej_opif.items()
                         if round(v[0], 4) != round(v[1], 4)]
+        self.bez_wl_bl = [[k]+v for k, v in self.sl_rozl_rej_bez_wl.items()
+                          if round(v[0], 4) != round(v[1], 4)]
 
         ttt = [
             [self.of_bl, 'Błędy rozliczenia Ls w włas OF: '],
             [self.opif_bl, 'Błędy rozliczenia Ls w włas OPiF: '],
             [self.op_bl, 'Błędy rozliczenia Ls w włas OP: '],
+            [self.bez_wl_bl,
+             'Błędy rozliczenia Ls (' + self.etykieta_bez_wl + '): '],
         ]
         bbledow = True
 

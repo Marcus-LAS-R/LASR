@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import QFileDialog
 
 from .baza_wrapper import Baza
 from .funkcje import wybierz_warstwe_z_kandydatow
+from .aktualizacja_upul.core.utworz_klon_txt import zapisz_plik
 
 
 class SprawdzCiecie:
@@ -153,16 +154,20 @@ class SprawdzCiecie:
             return
 
         adm = {}  # slownik z kodami administracyjnymi
+        adm_baza = {}  # kod obrebu (MUNICIP+COMMUNITY) -> sciezka bazy
 
         for sc in bazy:
             b = Baza(sc)
+            pob = []
             if b.polacz():
                 pob = b.pobierz_naglowek()
                 pob = [] if pob is False else pob
+                b.zamknij()
             adm.update({x[4]+x[5]: x[3] for x in pob})
-            b.zamknij()
+            adm_baza.update({x[4]+x[5]: sc for x in pob})
 
         naglowki = ['MUNICIP', 'COMMUNITY', 'ODDZ', 'WYDZ', 'NR_ROBO', 'OBR']
+        # wiersz: (kolumny raportu, ADR_LES, czy_do_klonowania)
         tab = []
 
         for k, val in self.slkart.items():
@@ -181,23 +186,67 @@ class SprawdzCiecie:
             if key[3:10] in adm:
                 obr = adm[key[3:10]]
 
-            t = [tp+['-'.join(x[:2])]+[obr] for x in val]
+            # klonowac mozna tylko wydzielenie z jedna karta i poprawnym
+            # adresem - kilka kart w jednym wydzieleniu to blad do wyjasnienia
+            klonowalne = len(val) == 1 and len(key) > 20 \
+                and key[3:10] in adm_baza
+            t = [(tp+['-'.join(x[:2])]+[obr], key, klonowalne) for x in val]
             if len(val) == 0:
-                t = [tp + ['---', obr]]
+                t = [(tp + ['---', obr], key, False)]
             tab += t
-        tout = sorted(tab, key=lambda x: ''.join(x[:3])+x[3][::-1])
+        tout = sorted(tab, key=lambda x: ''.join(x[0][:3])+x[0][3][::-1])
+
+        # powtarzajace sie karty: pierwsze wydzielenie (wg sortowania raportu)
+        # jest wzorcem do klepania, pozostale ida do KLON_po_klepaniu - osobno
+        # dla kazdej bazy, bo Klonuj odrzuca plik z adresami spoza bazy
+        wzorce = {}  # (baza, nr_robo) -> indeks wiersza wzorca w do_klepania
+        do_klepania = []  # [kolumny, ile_klonow]
+        klony = []  # (kolumny, adr_celu, adr_wzorca, baza)
+        for kolumny, adr, klonowalne in tout:
+            if not klonowalne:
+                do_klepania.append([kolumny, ''])
+                continue
+            grupa = (adm_baza[adr[3:10]], kolumny[4])
+            if grupa not in wzorce:
+                wzorce[grupa] = (len(do_klepania), adr)
+                do_klepania.append([kolumny, 0])
+                continue
+            idx, adr_wzorca = wzorce[grupa]
+            do_klepania[idx][1] += 1
+            klony.append((kolumny, adr, adr_wzorca, grupa[0]))
+
+        kat_wyj = os.path.normpath(os.path.join(self.kat, '..'))
 
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = 'Raport kart'
-        ws.append(naglowki)
-        for wiersz in tout:
-            ws.append(wiersz)
-        wb.save(os.path.join(self.kat, '..', 'raport_nr_robocze.xlsx'))
+        ws.append(naglowki + ['ILE_KLONOW'])
+        for kolumny, ile in do_klepania:
+            ws.append(kolumny + [ile or ''])
+        ws_kl = wb.create_sheet('Klony')
+        ws_kl.append(naglowki + ['ADR_LES', 'ADR_WZORCA', 'BAZA'])
+        for kolumny, adr, adr_wzorca, baza in klony:
+            ws_kl.append(
+                kolumny + [adr, adr_wzorca, os.path.basename(baza)])
+        wb.save(os.path.join(kat_wyj, 'raport_nr_robocze.xlsx'))
 
-        self.iface.messageBar().pushSuccess(
-            'OK', 'Zapisano raport z kartami'
-        )
+        pary_baz = {}  # baza -> [(adr_wzorca, adr_celu)]
+        for _kolumny, adr, adr_wzorca, baza in klony:
+            pary_baz.setdefault(baza, []).append((adr_wzorca, adr))
+        pliki = []
+        for baza, pary in pary_baz.items():
+            nazwa = 'KLON_po_klepaniu.txt'
+            if len(pary_baz) > 1:
+                nazwa = 'KLON_po_klepaniu_{}.txt'.format(
+                    os.path.splitext(os.path.basename(baza))[0])
+            zapisz_plik(pary, os.path.join(kat_wyj, nazwa))
+            pliki.append(nazwa)
+
+        kom = 'Zapisano raport z kartami'
+        if pliki:
+            kom += ' ({} wydz. do klonowania po klepaniu: {})'.format(
+                len(klony), ', '.join(pliki))
+        self.iface.messageBar().pushSuccess('OK', kom)
 
     def raport_rozbieznosci(self):
         wydz_bez = [str(k) for k, v in self.slkart.items() if len(v) == 0]

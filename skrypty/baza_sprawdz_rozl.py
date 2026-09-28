@@ -63,3 +63,7 @@ def sprawdz_rozliczenie_bazy(iface):
 
     iface.messageBar().pushMessage(
         'OK', 'Sprawdzanie powierzchni zakończone!', Qgis.Success, 10)
+    if oroz.brak_wlasnosci:
+        iface.messageBar().pushMessage(
+            'UWAGA', SprawdzRozliczenie.KOMUNIKAT_BRAK_WLASNOSCI,
+            Qgis.Warning, 0)
