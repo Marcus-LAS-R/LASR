@@ -1,4 +1,5 @@
 import os
+import re
 import platform
 from datetime import date, datetime
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
@@ -142,15 +143,14 @@ def _sprawdz(baza: Baza, tab_d: str, pole_d: str, tab_sl: str, pole_sl: str):
 def _sprawdz_parcel(baza: Baza, pole_d: str, tab_sl: str, pole_sl: str):
     """Jak _sprawdz(), ale dla pól bezpośrednio w F_PARCEL - ta tabela nie
     ma ARODES_INT_NUM (nie jest powiązana z F_ARODES), więc rekordy
-    niezgodne ze słownikiem raportowane są po adresie działki
-    (COUNTY.DISTRICT.MUNICIPALITY.COMMUNITY.PARCEL_NR) zamiast adresu
-    leśnego. Zwraca listę (adres_dzialki, wartość) - Access nie pozwala
+    niezgodne ze słownikiem raportowane są po PARCELID działki zamiast
+    adresu leśnego. Zwraca listę (parcelid, wartość) - Access nie pozwala
     sortować po kolumnie skonkatenowanej w SQL razem z DISTINCT, więc
     sklejamy adres w Pythonie zamiast w zapytaniu.
     """
     sql = (
         f"SELECT DISTINCT p.COUNTY_CD, p.DISTRICT_CD, p.MUNICIPALITY_CD, "
-        f"p.COMMUNITY_CD, p.PARCEL_NR, p.{pole_d} "
+        f"p.COMMUNITY_CD, p.REG_SHEET_NR2, p.PARCEL_NR, p.{pole_d} "
         f"FROM F_PARCEL AS p "
         f"LEFT JOIN {tab_sl} AS s ON "
         f"StrComp(RTrim(p.{pole_d}), RTrim(s.{pole_sl}), 0) = 0 "
@@ -160,7 +160,15 @@ def _sprawdz_parcel(baza: Baza, pole_d: str, tab_sl: str, pole_sl: str):
     wynik = baza.pobierz(sql)
     if wynik is False:
         return False
-    return [('.'.join(str(x) for x in row[:5]), row[5]) for row in wynik]
+    return [(_parcelid(*row[:6]), row[6]) for row in wynik]
+
+
+def _parcelid(woj, pow_, gm, obr, arkusz, nr):
+    """PARCELID jak w warstwie działek i Baza.uzytki() (Wyr1):
+    WWPPGGGOOOO.[arkusz.]nr - bez kropek między kodami, arkusz tylko gdy
+    wpisany."""
+    ark = str(arkusz).strip() if arkusz is not None else ''
+    return f'{woj}{pow_}{gm}{obr}.' + (f'{ark}.' if ark else '') + str(nr)
 
 
 def _sprawdz_whitelist_parcel_dziecko(baza: Baza, tab_d: str, pole_d: str,
@@ -294,29 +302,79 @@ def _zbierz_waypointy(wyniki):
     return wiersze
 
 
+def _klucz_adresu(adres):
+    """Sortowanie naturalne adresu - numery oddziałów/działek jako liczby
+    (tekstowo '99' wypadłoby po '108'), spacje wyrównujące pomijane."""
+    return [int(x) if x.isdigit() else x
+            for x in re.split(r'(\d+)', str(adres).replace(' ', ''))]
+
+
+def zapisz_grupy(plik, tytul, grupy):
+    """Zapisuje sekcję raportu z uwagami pogrupowanymi po obiekcie.
+    grupy: {obiekt (adres): [uwaga, ...]} - obiekty sortowane naturalnie po
+    adresie, uwagi w kolejności dopisania, zdublowane wypisywane raz. Pusta
+    sekcja nie jest zapisywana. Wspólne z kontrolą opisu
+    (baza_kontrola_opisow_wgSULMN)."""
+    if not grupy:
+        return
+    nl = '\r\n'
+    l = '-' * 72
+    plik.write(f'{tytul} ({len(grupy)}){nl}{l}{nl}')
+    for obiekt in sorted(grupy, key=_klucz_adresu):
+        plik.write(f'{obiekt}{nl}')
+        for uwaga in dict.fromkeys(grupy[obiekt]):
+            plik.write(f'    - {uwaga}{nl}')
+    plik.write(nl)
+
+
+def _zapisz_wyniki(plik, wyniki):
+    """Zapisuje wyniki jednej bazy - wyłącznie błędy, pogrupowane po
+    wydzieleniu / działce; kontrole bez błędów nie są wypisywane. Kontrole,
+    których nie udało się wykonać, na końcu (to nie OK - to brak kontroli).
+    Zwraca liczbę błędnych wartości."""
+    nl = '\r\n'
+    wydz, dzialki, bez_adresu = {}, {}, {}
+    pominiete = []
+    ile = 0
+    for opis, bledy, typ in wyniki:
+        if bledy is False:
+            pominiete.append(opis)
+            continue
+        ile += len(bledy)
+        for wiersz in bledy:
+            if typ == 'arodes':
+                adr, _arodes_int_num, wartosc = wiersz
+                wydz.setdefault(str(adr).rstrip(), []).append(
+                    f'{opis}: {wartosc!r}')
+            elif typ == 'parcel':
+                adr, wartosc = wiersz
+                dzialki.setdefault(adr, []).append(f'{opis}: {wartosc!r}')
+            else:
+                bez_adresu.setdefault(opis, []).append(
+                    ' '.join(str(x) for x in wiersz))
+
+    if ile == 0:
+        plik.write(f'Nie stwierdzono błędów.{nl}{nl}')
+    zapisz_grupy(plik, 'WYDZIELENIA Z BŁĘDAMI', wydz)
+    zapisz_grupy(plik, 'DZIAŁKI Z BŁĘDAMI', dzialki)
+    zapisz_grupy(plik, 'BŁĘDY BEZ ADRESU', bez_adresu)
+    if pominiete:
+        plik.write(f'KONTROLE NIEWYKONANE (błąd zapytania - patrz log){nl}')
+        for opis in pominiete:
+            plik.write(f'    - {opis}{nl}')
+        plik.write(nl)
+    return ile
+
+
 def _zapisz_raport(plik, opis_baza, wyniki):
     """Dopisuje do otwartego pliku raportu sekcję z wynikami dla jednej bazy."""
     lp = '=' * 72
-    l = '-' * 72
     nl = '\r\n'
 
     plik.write(lp + nl)
     plik.write(f'Baza:  {opis_baza}{nl}')
     plik.write(lp + nl + nl)
-
-    for opis, bledy, _typ in wyniki:
-        if bledy is False:
-            plik.write(f'[POMINIĘTO]  {opis}{nl}')
-        elif len(bledy) == 0:
-            plik.write(f'[OK]         {opis}{nl}')
-        else:
-            plik.write(nl + l + nl)
-            plik.write(f'[BŁĄD]       {opis}{nl}')
-            plik.write(l + nl)
-            for wiersz in bledy:
-                plik.write('  ' + '\t'.join(str(x) for x in wiersz) + nl)
-
-    plik.write(nl)
+    _zapisz_wyniki(plik, wyniki)
 
 
 def KontrolaSlownikowWiele(katalog_raportu: str, sciezki: list):
@@ -329,7 +387,7 @@ def KontrolaSlownikowWiele(katalog_raportu: str, sciezki: list):
     nl = '\r\n'
     ile_blednych = 0
 
-    with open(rap_sc, 'w', encoding='utf-8') as plik:
+    with open(rap_sc, 'w', encoding='utf-8', newline='') as plik:
         plik.write(f'KONTROLA SŁOWNIKOWA BAZ WEJŚCIOWYCH PRZED ŁĄCZENIEM TPU{nl}')
         plik.write(f'Data:  {date.today()}{nl}{nl}')
 
@@ -381,9 +439,6 @@ def KontrolaSlownikow(iface):
     baza.zamknij()
 
     ile_blednych = sum(len(b) for _, b, _t in wyniki if b is not False and len(b) > 0)
-    ile_z_bledami = sum(1 for _, b, _t in wyniki if b is not False and len(b) > 0)
-    ile_ok = sum(1 for _, b, _t in wyniki if b is not False and len(b) == 0)
-    ile_pom = sum(1 for _, b, _t in wyniki if b is False)
 
     # raport TXT obok bazy
     nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
@@ -393,33 +448,19 @@ def KontrolaSlownikow(iface):
     )
 
     lp = '=' * 72
-    l  = '-' * 72
     nl = '\r\n'
 
-    with open(rap_sc, 'w', encoding='utf-8') as plik:
+    with open(rap_sc, 'w', encoding='utf-8', newline='') as plik:
         plik.write(f'KONTROLA SŁOWNIKOWA BAZY TAKSATORA{nl}')
         plik.write(lp + nl)
         plik.write(f'Baza:  {baza_sc}{nl}')
         plik.write(f'Data:  {date.today()}{nl}')
         plik.write(lp + nl + nl)
 
-        for opis, bledy, _typ in wyniki:
-            if bledy is False:
-                plik.write(f'[POMINIĘTO]  {opis}{nl}')
-            elif len(bledy) == 0:
-                plik.write(f'[OK]         {opis}{nl}')
-            else:
-                plik.write(nl + l + nl)
-                plik.write(f'[BŁĄD]       {opis}{nl}')
-                plik.write(l + nl)
-                for wiersz in bledy:
-                    plik.write('  ' + '\t'.join(str(x) for x in wiersz) + nl)
+        _zapisz_wyniki(plik, wyniki)
 
-        plik.write(nl + lp + nl)
-        plik.write(
-            f'OK: {ile_ok} | Z błędami: {ile_z_bledami} | '
-            f'Pominięto: {ile_pom} | Błędnych wartości łącznie: {ile_blednych}{nl}'
-        )
+        plik.write(lp + nl)
+        plik.write(f'Błędnych wartości łącznie: {ile_blednych}{nl}')
 
     waypointy_sc = None
     wiersze_wp = _zbierz_waypointy(wyniki)

@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import tempfile
 import platform
@@ -7,8 +8,11 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
 from .pw import PasekPostepu
+from .baza_kontrola_slownikow_wgSULMN import zapisz_grupy
 
-_SZABLONY_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'szablony')
+_ADRES_DZIALKI = re.compile(r'^\d{2}-\d{2}-\d{3}-\d{4}-\S+$')
+
+_SZABLONY_DIR =os.path.join(os.path.dirname(os.path.dirname(__file__)), 'szablony')
 _BAZA_KONTROLI = os.path.join(_SZABLONY_DIR, 'baza_kontroli_upul.mdb')
 
 _MAPA_PU_BAZA_KONTROLI = os.path.join(
@@ -48,36 +52,29 @@ class _KontrolaOpisu:
         self.queries.append(sql)
 
 
-def _formatuj_blad(wiersz, opis: str) -> str:
+def _formatuj_blad(wiersz, opis: str) -> tuple:
     """Zamienia @nazwa_kolumny w szablonie opisu na wartości z wiersza
-    (wg metodologii Mapa PU: cursor_description pyodbc).
+    (wg metodologii Mapa PU: cursor_description pyodbc). Zwraca
+    (adres, opis) - adres z pierwszej kolumny ADRES*, None gdy kwerenda
+    kontroli go nie zwraca (raport grupuje wtedy po nazwie kontroli).
     """
     try:
         kol_szabl = [_Kolumna(n) for n in opis.split() if n.startswith('@')]
         kol_wiersz = [_Kolumna(n[0]) for n in wiersz.cursor_description]
         idx_adres = [i for i, k in enumerate(kol_wiersz)
                      if k.standardized.startswith('ADRES')]
-        # ARODES_INT_NUM doklejany oportunistycznie, tylko jesli dana
-        # kwerenda kontroli (zdefiniowana w bazie_kontroli_upul.mdb) akurat
-        # go zwraca w SELECT-cie - nie kazda to gwarantuje
-        idx_arodes = [i for i, k in enumerate(kol_wiersz)
-                      if k.standardized == 'ARODES_INT_NUM']
         for kol in kol_szabl:
             idx = [i for i, k in enumerate(kol_wiersz)
                    if k.standardized == kol.standardized]
             if idx:
                 val = wiersz[idx[0]]
                 opis = opis.replace(kol.name, str(val) if val is not None else '')
-        if idx_adres and idx_arodes:
-            return (
-                f'Adres: {wiersz[idx_adres[0]]}\t{wiersz[idx_arodes[0]]}'
-                f'  Opis: {opis}'
-            )
-        if idx_adres:
-            return f'Adres: {wiersz[idx_adres[0]]}  Opis: {opis}'
-        return f'Opis: {opis}'
+        adres = None
+        if idx_adres and wiersz[idx_adres[0]] is not None:
+            adres = str(wiersz[idx_adres[0]]).rstrip() or None
+        return adres, opis
     except Exception as e:
-        return f'[błąd formatowania: {e}]'
+        return None, f'[błąd formatowania: {e}]'
 
 
 def _zaladuj_kontrole(baza_kontroli: Baza) -> list:
@@ -141,13 +138,27 @@ def _zapisz_raport(kontrole: list, baza_sc: str,
         f'kontrola_opisow_{nazwa_bazy}_{czas}.txt'
     )
     lp = '=' * 72
-    l  = '-' * 72
     nl = '\r\n'
 
-    obligatoryjne = [k for k in kontrole if not k.dodatkowa]
-    pomocnicze    = [k for k in kontrole if k.dodatkowa]
+    # wylacznie bledy, pogrupowane po wydzieleniu (kilka kontroli czesto
+    # dotyka tego samego wydzielenia); bledy bez adresu - po nazwie kontroli.
+    # Nazwy kolumn (ADRES01 itp.) nie odrozniaja dzialki od wydzielenia,
+    # wiec rozpoznanie po formacie adresu dzialki WW-PP-GGG-OOOO-nr
+    # najpierw obligatoryjne, potem pomocnicze (sort stabilny - w obrebie
+    # grupy kolejnosc z bazy kontroli), wiec uwagi pod wydzieleniem ida
+    # w tej samej kolejnosci
+    wydz, dzialki, bez_adresu = {}, {}, {}
+    for k in sorted(kontrole, key=lambda k: k.dodatkowa):
+        znacznik = '[pomocnicza] ' if k.dodatkowa else ''
+        for adres, opis in k.errors:
+            if adres is None:
+                bez_adresu.setdefault(znacznik + k.nazwa, []).append(opis)
+            else:
+                cel = dzialki if _ADRES_DZIALKI.match(adres) else wydz
+                cel.setdefault(adres, []).append(
+                    f'{znacznik}{k.nazwa}: {opis}')
 
-    with open(rap_sc, 'w', encoding='utf-8') as plik:
+    with open(rap_sc, 'w', encoding='utf-8', newline='') as plik:
         plik.write(f'KONTROLA OPISU TAKSACYJNEGO{nl}')
         plik.write(lp + nl)
         plik.write(f'Baza UPUL:     {baza_sc}{nl}')
@@ -155,29 +166,19 @@ def _zapisz_raport(kontrole: list, baza_sc: str,
         plik.write(f'Data:          {date.today()}{nl}')
         plik.write(lp + nl + nl)
 
-        for sekcja, lista in (('OBLIGATORYJNE', obligatoryjne),
-                               ('POMOCNICZE',    pomocnicze)):
-            if not lista:
-                continue
-            plik.write(lp + nl)
-            plik.write(f'KONTROLE {sekcja}{nl}')
-            plik.write(lp + nl)
-            for k in lista:
-                plik.write(l + nl)
-                plik.write(f'{k.nazwa}{nl}')
-                plik.write(l + nl)
-                plik.write(
-                    f'Wynik: {"OK" if not k.is_error else "Stwierdzono błędy"}{nl}'
-                )
-                for blad in k.errors:
-                    plik.write(f'  {blad}{nl}')
+        if not wydz and not dzialki and not bez_adresu:
+            plik.write(f'Nie stwierdzono błędów.{nl}{nl}')
+        zapisz_grupy(plik, 'WYDZIELENIA Z BŁĘDAMI', wydz)
+        zapisz_grupy(plik, 'DZIAŁKI Z BŁĘDAMI', dzialki)
+        zapisz_grupy(plik, 'BŁĘDY BEZ ADRESU', bez_adresu)
 
         ile_k    = len(kontrole)
         ile_err  = sum(1 for k in kontrole if k.is_error)
         ile_wier = sum(len(k.errors) for k in kontrole)
-        plik.write(nl + lp + nl)
+        plik.write(lp + nl)
         plik.write(
             f'Wykonano kontroli: {ile_k} | Z błędami: {ile_err} | '
+            f'Wydzieleń z błędami: {len(wydz)} | '
             f'Błędnych wierszy łącznie: {ile_wier}{nl}'
         )
 
