@@ -16,6 +16,15 @@ NAGLOWEK = [
 ]
 
 
+def katalog_raportow(katalog_bazy):
+    """Zwraca podkatalog "Raporty" obok bazy (tworzy go, jeśli nie ma) -
+    wspólne miejsce na raporty TXT i waypointy CSV z kontroli, żeby nie
+    zaśmiecały katalogu z bazą."""
+    kat = os.path.join(katalog_bazy, 'Raporty')
+    os.makedirs(kat, exist_ok=True)
+    return kat
+
+
 def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania=''):
     """Buduje jeden świeży wiersz waypointów (bez oznaczenia).
 

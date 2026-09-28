@@ -43,7 +43,7 @@ from collections import Counter
 from datetime import datetime
 
 from PyQt5 import sip
-from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
+from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
     QBrush, QColor, QCursor, QDoubleValidator, QFont, QFontDatabase,
     QIntValidator, QKeySequence,
@@ -2207,6 +2207,10 @@ class PanelOpisu(QDockWidget):
 
     TYTUL = 'Edytor opisu taksacyjnego'
 
+    # ścieżka pliku waypointów z "Pokaż puste opisy" - las_r wczytuje go do
+    # Nawigatora błędów (panel nie zależy od Nawigatora)
+    waypointyGotowe = pyqtSignal(str)
+
     def __init__(self, iface):
         super().__init__(self.TYTUL, iface.mainWindow())
         # nowa nazwa - stara ('LasR_PanelOpisuTaks') mogła zostać w
@@ -2519,7 +2523,10 @@ class PanelOpisu(QDockWidget):
         """Pokaż puste wydzielenia na podłączonej bazie i wybranej warstwie
         (import w funkcji - moduł kontroli nie zależy od Edytora)."""
         from . import shp_pokaz_puste_wydz
-        return shp_pokaz_puste_wydz.uruchom_z_panelu(self)
+        wp_sc = shp_pokaz_puste_wydz.uruchom_z_panelu(self)
+        if wp_sc:
+            self.waypointyGotowe.emit(wp_sc)
+        return wp_sc
 
     def odswiez_bez_opisu(self):
         """Warstwa pamięci z poligonami wydzieleń, których ADR_LES nie ma w

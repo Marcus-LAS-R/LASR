@@ -8,7 +8,10 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
 from .pw import PasekPostepu
-from .baza_kontrola_slownikow_wgSULMN import zapisz_grupy
+from . import waypointy
+from .baza_kontrola_slownikow_wgSULMN import zapisz_grupy, \
+    _klucz_adresu as klucz_adresu, _parcelid as parcelid
+from .waypointy import katalog_raportow
 
 _ADRES_DZIALKI = re.compile(r'^\d{2}-\d{2}-\d{3}-\d{4}-\S+$')
 
@@ -130,23 +133,15 @@ def _wykonaj_kontrole(baza_upul: Baza, kontrole: list, pasek) -> None:
                 )
 
 
-def _zapisz_raport(kontrole: list, baza_sc: str,
-                   baza_kontroli_sc: str, czas: str) -> str:
-    nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
-    rap_sc = os.path.join(
-        os.path.dirname(baza_sc),
-        f'kontrola_opisow_{nazwa_bazy}_{czas}.txt'
-    )
-    lp = '=' * 72
-    nl = '\r\n'
-
-    # wylacznie bledy, pogrupowane po wydzieleniu (kilka kontroli czesto
-    # dotyka tego samego wydzielenia); bledy bez adresu - po nazwie kontroli.
-    # Nazwy kolumn (ADRES01 itp.) nie odrozniaja dzialki od wydzielenia,
-    # wiec rozpoznanie po formacie adresu dzialki WW-PP-GGG-OOOO-nr
-    # najpierw obligatoryjne, potem pomocnicze (sort stabilny - w obrebie
-    # grupy kolejnosc z bazy kontroli), wiec uwagi pod wydzieleniem ida
-    # w tej samej kolejnosci
+def _grupuj(kontrole: list):
+    """Wyłącznie błędy, pogrupowane po wydzieleniu (kilka kontroli często
+    dotyka tego samego wydzielenia) - wspólne dla raportu i waypointów.
+    Zwraca (wydz, dzialki, bez_adresu): {adres: [uwaga, ...]}; błędy bez
+    adresu - po nazwie kontroli. Nazwy kolumn (ADRES01 itp.) nie odróżniają
+    działki od wydzielenia, więc rozpoznanie po formacie adresu działki
+    WW-PP-GGG-OOOO-nr. Najpierw obligatoryjne, potem pomocnicze (sort
+    stabilny - w obrębie grupy kolejność z bazy kontroli), więc uwagi pod
+    wydzieleniem idą w tej samej kolejności."""
     wydz, dzialki, bez_adresu = {}, {}, {}
     for k in sorted(kontrole, key=lambda k: k.dodatkowa):
         znacznik = '[pomocnicza] ' if k.dodatkowa else ''
@@ -157,6 +152,64 @@ def _zapisz_raport(kontrole: list, baza_sc: str,
                 cel = dzialki if _ADRES_DZIALKI.match(adres) else wydz
                 cel.setdefault(adres, []).append(
                     f'{znacznik}{k.nazwa}: {opis}')
+    return wydz, dzialki, bez_adresu
+
+
+def _arkusze_dzialek(baza_upul: Baza) -> dict:
+    """{adres działki z kontroli 'WW-PP-GGG-OOOO-nr': PARCELID} - adres
+    z kwerend kontroli nie ma arkusza, a PARCELID w warstwie działek go
+    zawiera (WWPPGGGOOOO.[arkusz.]nr). Przy kilku działkach o tym samym
+    numerze w różnych arkuszach - pierwsza."""
+    wiersze = baza_upul.pobierz(
+        "SELECT COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, "
+        "REG_SHEET_NR2, PARCEL_NR FROM F_PARCEL;")
+    mapa = {}
+    for w in wiersze or []:
+        adres = '-'.join(str(x) for x in (w[0], w[1], w[2], w[3], w[5]))
+        mapa.setdefault(adres, parcelid(*w))
+    return mapa
+
+
+def _zapisz_waypointy(kontrole: list, arkusze: dict, baza_sc: str,
+                      czas: str):
+    """Waypointy dla Nawigatora błędów - jeden na wydzielenie/działkę,
+    w opisie wszystkie uwagi (obligatoryjne, potem pomocnicze). Błędy bez
+    adresu tylko w raporcie TXT. Zwraca ścieżkę CSV albo None."""
+    wydz, dzialki, _bez_adresu = _grupuj(kontrole)
+    zr = 'Kontrola opisu SULMN'
+    wiersze = []
+    for adres in sorted(wydz, key=klucz_adresu):
+        wiersze.append(waypointy.wiersz(
+            zr, 'Wydzielenia', 'ADR_LES', adres,
+            ' | '.join(dict.fromkeys(wydz[adres]))))
+    for adres in sorted(dzialki, key=klucz_adresu):
+        # bez wpisu w F_PARCEL - przeliczenie bez arkusza
+        cz = adres.split('-', 4)
+        pid = arkusze.get(adres) or parcelid(*cz[:4], None, cz[4])
+        wiersze.append(waypointy.wiersz(
+            zr, 'Działki', 'PARCELID', pid,
+            ' | '.join(dict.fromkeys(dzialki[adres]))))
+    if not wiersze:
+        return None
+    nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
+    wp_sc = os.path.join(
+        katalog_raportow(os.path.dirname(baza_sc)),
+        f'kontrola_opisow_waypointy_{nazwa_bazy}_{czas}.csv')
+    waypointy.zapisz(wp_sc, wiersze)
+    return wp_sc
+
+
+def _zapisz_raport(kontrole: list, baza_sc: str,
+                   baza_kontroli_sc: str, czas: str) -> str:
+    nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
+    rap_sc = os.path.join(
+        katalog_raportow(os.path.dirname(baza_sc)),
+        f'kontrola_opisow_{nazwa_bazy}_{czas}.txt'
+    )
+    lp = '=' * 72
+    nl = '\r\n'
+
+    wydz, dzialki, bez_adresu = _grupuj(kontrole)
 
     with open(rap_sc, 'w', encoding='utf-8', newline='') as plik:
         plik.write(f'KONTROLA OPISU TAKSACYJNEGO{nl}')
@@ -332,15 +385,18 @@ def KontrolaOpisow(iface):
     pw = PasekPostepu(iface)
     pasek = pw.stworz_pasek(f'Kontrola opisów ({len(kontrole)} kontroli)…')
 
+    arkusze = {}
     try:
         _wykonaj_kontrole(baza_upul, kontrole, pasek)
+        arkusze = _arkusze_dzialek(baza_upul)
     finally:
         baza_upul.zamknij()
         shutil.rmtree(tmp_dir, ignore_errors=True)
         pw.clear()
 
-    # raport
+    # raport + waypointy dla Nawigatora błędów
     rap_sc = _zapisz_raport(kontrole, baza_sc, baza_kontroli_sc, czas)
+    wp_sc = _zapisz_waypointy(kontrole, arkusze, baza_sc, czas)
 
     ile_err  = sum(1 for k in kontrole if k.is_error)
     ile_wier = sum(len(k.errors) for k in kontrole)
@@ -366,3 +422,5 @@ def KontrolaOpisow(iface):
     msg.addButton('Tak', QMessageBox.ActionRole)
     if msg.exec_() == 1 and platform.system()[:3] == 'Win':
         os.startfile(rap_sc)
+
+    return wp_sc

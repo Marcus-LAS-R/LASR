@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QMessageBox
 from .baza_rozlicz_pow_wydz import SprawdzRozliczenie
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .pw import PasekPostepu
+from . import raporty
 
 
 def sprawdz_rozliczenie_bazy(iface):
@@ -37,14 +38,17 @@ def sprawdz_rozliczenie_bazy(iface):
 
     iface.messageBar().clearWidgets()
 
+    # obok bazy; starsze raporty rozliczenia (rozliczenie i sprawdzenie) do
+    # Raporty/Archiwum
     sc = os.path.join(
-        os.path.dirname(baza.baza),
+        os.path.dirname(os.path.abspath(baza.baza)),
         'raport_spr_rozliczPow_'+baza.czas+'.txt')
 
     plik = open(sc, 'w')
 
     plik.write(wypis)
     plik.close()
+    raporty.archiwizuj_starsze(sc, 'ROZLICZENIE', iface)
 
     message = QMessageBox()
     message.setIcon(QMessageBox.Information)

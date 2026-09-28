@@ -6,9 +6,13 @@ pary najpierw) i koryguje SQ w granicach progu PROG_POW, zamiast zglaszac
 zmian - to osobne narzedzie do rownoleglych testow (analogicznie do
 "Przysnapuj do dzialek (nowy)")."""
 
+import os
+
 from qgis.core import Qgis, QgsMessageLog, QgsProject
 
-from .przygotuj_ls import PrzygotujLs, AnalizujKlus, PrzetworzKlu
+from . import raporty, waypointy
+from .przygotuj_ls import PrzygotujLs, AnalizujKlus, PrzetworzKlu, \
+    GenerujRaport
 
 # prog wzglednej roznicy pow. graficznej i rejestrowej, ponizej ktorego
 # dopasowanie graf<->baza jest akceptowane
@@ -233,6 +237,81 @@ class AnalizujKlusTest(AnalizujKlus):
 
             val.polacz_ostateczne()
             val.dopisz_uwagi_pow()
+
+    def generuj_raport(self):
+        """Jak AnalizujKlus.generuj_raport (ta sama treść TXT). Raport obok
+        baz (katalog z bazami z dialogu) - starsze raporty Ls (przygotowanie
+        i kontrola) do Raporty/Archiwum; waypointy dla Nawigatora błędów
+        (jak w Kontroli Ls z bazą) do Raporty."""
+        raport = GenerujRaport(self.strukt, self.wl, self.p)
+        raport.zestaw_dane()
+        rap_out = raport.generuj_raport()
+
+        kat_bazy = os.path.abspath(
+            self.dd.ui.lineEdit_bazy.text() or os.path.join(self.kat, '..'))
+        self.rap_sc = os.path.join(kat_bazy, 'ls_raport_' + self.czas + '.txt')
+        with open(self.rap_sc, 'w', encoding='cp1250') as plik:
+            plik.write(rap_out)
+        raporty.archiwizuj_starsze(self.rap_sc, 'LS', self.iface)
+        kat_rap = waypointy.katalog_raportow(kat_bazy)
+
+        self.waypointy_sc = None
+        wiersze = self._zbierz_waypointy(raport)
+        if wiersze:
+            self.waypointy_sc = os.path.join(
+                kat_rap, 'ls_waypointy_' + self.czas + '.csv')
+            waypointy.zapisz(self.waypointy_sc, wiersze)
+
+    def _zbierz_waypointy(self, r):
+        """Waypointy z sekcji raportu (obiekt GenerujRaport po
+        zestaw_dane) - klucze jak w Kontroli Ls z bazą: PARCELID dla Ls
+        brakujących w grafice (dorysowanie, LANDID do wklejenia), LANDID
+        dla Ls z nowej warstwy LS_<czas>."""
+        zr = 'Przygotuj Lsy'
+        wiersze = []
+        for landid, pow_rej in r.brakujace_ls_w_shp:
+            wiersze.append(waypointy.wiersz(
+                zr, 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',
+                '.'.join(landid.split('.')[:-1]),
+                f'LANDID={landid} pow_rej={pow_rej}', do_skopiowania=landid))
+        for landid, pow_graf in r.brakujace_ls_w_bazie:
+            wiersze.append(waypointy.wiersz(
+                zr, 'BRAKUJĄCE LSy [W BAZIE]', 'LANDID', landid,
+                f'pow_graf={pow_graf}'))
+        for landid in sorted(self.p.ls_podwojne):
+            wiersze.append(waypointy.wiersz(
+                zr, 'POWÓJNE LS [BAZA]', 'LANDID', landid,
+                'Ls występuje w bazie więcej niż raz na tej działce'))
+        for landid, stary, nowy, pow_rej, pow_graf in sorted(r.lista_zm_sq):
+            wiersze.append(waypointy.wiersz(
+                zr, 'PODMIENIONE KLASY LS [W SHP]', 'LANDID', landid,
+                f'SQ {stary} -> {nowy} pow_rej={pow_rej} pow_graf={pow_graf}'))
+        for landid, stary, nowy, pow_rej, pow_graf in sorted(r.lista_zm_au):
+            wiersze.append(waypointy.wiersz(
+                zr, 'PRZEMIANOWANE NA LS [W SHP]', 'LANDID', landid,
+                f'AU {stary} -> {nowy} pow_rej={pow_rej} pow_graf={pow_graf}'))
+        niejedn = sorted({
+            landid for ob in self.strukt.values()
+            for landid, f in ob.zwroc_ostateczne()[0].items()
+            if UW_NIEJEDNOZNACZNE in str(f['SPRAWDZ'] or '')})
+        for landid in niejedn:
+            wiersze.append(waypointy.wiersz(
+                zr, 'NIEJEDNOZNACZNE DOPASOWANIE KLAS', 'LANDID', landid,
+                'Kilka kawałków z tą samą klasą, a rekord bazy bez grafiki'))
+        for landid in sorted(r.pow_zerowe_baza):
+            wiersze.append(waypointy.wiersz(
+                zr, 'LSy z ZEROWĄ POW', 'LANDID', landid,
+                'Zerowa powierzchnia Ls w bazie'))
+        for landid in sorted(set(r.lista_mikro)):
+            wiersze.append(waypointy.wiersz(
+                zr, 'MIKRO LSy (<21 m2)', 'LANDID', landid,
+                'Mikro Ls po rozbiciu na poligony'))
+        for landid, pow_graf, pow_rej in sorted(r.rozb_pow):
+            wiersze.append(waypointy.wiersz(
+                zr, 'LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', landid,
+                f'pow_graf={pow_graf} pow_rej={pow_rej} '
+                f'różnica={round(pow_graf - pow_rej, 4)}'))
+        return wiersze
 
 
 class PrzygotujLsTest(PrzygotujLs):

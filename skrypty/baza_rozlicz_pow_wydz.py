@@ -13,6 +13,7 @@ from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
+from . import raporty
 from .funkcje import wyczysc_katalog_temp, wybierz_warstwe_z_kandydatow
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
@@ -688,6 +689,8 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         """ Metoda zbiera dane z kolejnych sprawdzeń i zapisuje je do pliku,
         tekstowego w katalogu z bazą.
         """
+        # obok bazy; starsze raporty rozliczenia (rozliczenie i sprawdzenie)
+        # do Raporty/Archiwum
         sc = os.path.join(
             os.path.dirname(os.path.abspath(self.baza.baza)),
             'raport_rozliczPow_'+self.baza.czas+'.txt')
@@ -699,6 +702,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         self.wypis += '\n\n----[ KONIEC RAPORTU ]----'
         plik.write(self.wypis)
         plik.close()
+        raporty.archiwizuj_starsze(sc, 'ROZLICZENIE', self.iface)
 
         message = QMessageBox()
         message.setIcon(QMessageBox.Information)

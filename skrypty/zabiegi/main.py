@@ -9,6 +9,7 @@ from qgis.core import Qgis, QgsMessageLog
 
 from .wydzielenie import Wydzielenie
 from ..baza_wrapper import Baza
+from .. import raporty
 
 
 class Zabiegi():
@@ -194,12 +195,14 @@ class Zabiegi():
                 ])
                 rap += '\n'
 
-        plik = open(
-            os.path.join(self.kat, 'raport_zabiegi_'+self.baza.czas+'.txt'),
-            'w',
-        )
+        rap_sc = os.path.join(
+            self.kat, 'raport_zabiegi_'+self.baza.czas+'.txt')
+        plik = open(rap_sc, 'w')
         plik.write(rap)
         plik.close()
+        # na wierzchu tylko najnowszy raport zabiegów - starsze do
+        # Raporty/Archiwum
+        raporty.archiwizuj_starsze(rap_sc, 'ZABIEGI', self.iface)
 
         if self.iface:
             self.iface.messageBar().clearWidgets()

@@ -231,7 +231,7 @@ def podsumowanie(wynik):
 def zapisz_raport(baza_sc, lyr, wynik):
     """Raport TXT + waypointy CSV obok bazy. Zwraca (raport, waypointy albo
     None)."""
-    kat = os.path.dirname(baza_sc)
+    kat = waypointy.katalog_raportow(os.path.dirname(baza_sc))
     nazwa = os.path.splitext(os.path.basename(baza_sc))[0]
     czas = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     rap_sc = os.path.join(kat, f'puste_wydzielenia_{nazwa}_{czas}.txt')

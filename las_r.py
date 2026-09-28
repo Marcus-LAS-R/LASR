@@ -682,15 +682,6 @@ class LasR:
         self.m_testowe.addAction(self.a_przyg_ls_chama)
         self.a_przyg_ls_chama.triggered.connect(self.przygotuj_ls_na_chama)
 
-        self.a_kangurkuj = QAction(
-            QIcon(None), "Kangurkuj", self.iface.mainWindow()
-        )
-        self.a_kangurkuj.setToolTip(
-            "Testowe wywołanie Nawigatora błędów (skakanie po waypointach "
-            "na mapie) bez uruchamiania pełnej kontroli Ls/SULMN.")
-        self.m_testowe.addAction(self.a_kangurkuj)
-        self.a_kangurkuj.triggered.connect(self.pokaz_nawigator)
-
         self.a_eksport_shp_gml = QAction(
             QIcon(None), "Wyeksportuj SHP z GML", self.iface.mainWindow()
         )
@@ -1395,6 +1386,8 @@ class LasR:
         # QGIS odtwarzał go w zapamiętanym miejscu układu paneli
         self.dockOpisTaks = opis_taksacyjny.PanelOpisu(self.iface)
         self.dockOpisTaks.zadokuj()
+        # "Pokaż puste opisy" w panelu - waypointy od razu do Nawigatora
+        self.dockOpisTaks.waypointyGotowe.connect(self.wczytaj_do_nawigatora)
         # QGIS po starcie odtwarza zapamiętaną widoczność paneli (także
         # naszego) - Edytor ma zawsze startować ukryty, otwierany z menu
         self.iface.initializationCompleted.connect(self._schowaj_panel_opisu)
@@ -1530,6 +1523,14 @@ class LasR:
             return
         if spr.przygotuj():
             spr.przetworz()
+            self.wczytaj_do_nawigatora(getattr(spr.a, 'waypointy_sc', None))
+
+    def wczytaj_do_nawigatora(self, waypointy_sc):
+        """Wczytuje plik waypointów do Nawigatora błędów i pokazuje panel
+        (nic nie robi, gdy kontrola nie znalazła błędów - brak pliku)."""
+        if waypointy_sc:
+            self.dockNawigator.wczytaj_plik(waypointy_sc)
+            self.dockNawigator.show()
 
     def przygotuj_ls_na_chama(self):
         spr = przygotuj_ls_na_chama.PrzygotujLsNaChama(self.iface)
@@ -1867,7 +1868,8 @@ class LasR:
             self.dockNawigator.show()
 
     def kontrola_opisow_taksacyjnych(self):
-        baza_kontrola_opisow_wgSULMN.KontrolaOpisow(self.iface)
+        self.wczytaj_do_nawigatora(
+            baza_kontrola_opisow_wgSULMN.KontrolaOpisow(self.iface))
 
     def aktualizuj_slownik_kontroli(self):
         baza_kontrola_opisow_wgSULMN.AktualizujSlownikKontroli(self.iface)
@@ -1886,8 +1888,8 @@ class LasR:
         self.dockNawigator.show()
 
     def pokaz_puste_wydzielenia(self):
-        # zwraca plik waypointów - do wczytania w Nawigatorze (kolejny krok)
-        shp_pokaz_puste_wydz.pokaz_puste_wydzielenia(self.iface)
+        self.wczytaj_do_nawigatora(
+            shp_pokaz_puste_wydz.pokaz_puste_wydzielenia(self.iface))
 
     def pokaz_warstwa_opisow(self):
         self.dockWarstwaOpisow.show()

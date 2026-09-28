@@ -382,7 +382,8 @@ def KontrolaSlownikowWiele(katalog_raportu: str, sciezki: list):
     łączeniem baz TPU) i zapisuje jeden wspólny raport TXT w podanym katalogu.
     Zwraca (ile_blednych_lacznie, sciezka_raportu)."""
     czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
-    rap_sc = os.path.join(katalog_raportu, f'kontrola_slownikow_przed_laczeniem_{czas}.txt')
+    rap_sc = os.path.join(waypointy.katalog_raportow(katalog_raportu),
+                          f'kontrola_slownikow_przed_laczeniem_{czas}.txt')
 
     nl = '\r\n'
     ile_blednych = 0
@@ -442,8 +443,9 @@ def KontrolaSlownikow(iface):
 
     # raport TXT obok bazy
     nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]
+    kat_rap = waypointy.katalog_raportow(os.path.dirname(baza_sc))
     rap_sc = os.path.join(
-        os.path.dirname(baza_sc),
+        kat_rap,
         f'kontrola_slownikow_{nazwa_bazy}_{czas}.txt'
     )
 
@@ -466,7 +468,7 @@ def KontrolaSlownikow(iface):
     wiersze_wp = _zbierz_waypointy(wyniki)
     if len(wiersze_wp) > 0:
         waypointy_sc = os.path.join(
-            os.path.dirname(baza_sc),
+            kat_rap,
             f'kontrola_slownikow_waypointy_{nazwa_bazy}_{czas}.csv'
         )
         waypointy.zapisz(waypointy_sc, wiersze_wp)

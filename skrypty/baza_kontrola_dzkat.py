@@ -15,6 +15,7 @@ from .baza_wrapper import znajdz_baze_do_wydz, Baza
 from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
+from . import raporty
 
 
 class KontrolaDzKat(object):
@@ -486,11 +487,14 @@ class KontrolaDzKat(object):
         # zapisz raport do pliku
         self.czas = datetime.now().isoformat().replace(
             ":", "")[:-7].replace('-', '')
-        self.rap_sc = os.path.join(self.kat, '..',
+        # obok bazy (katalog nad SHP); starsze raporty DZKAT (przygotowanie
+        # i kontrola) do Raporty/Archiwum
+        self.rap_sc = os.path.join(os.path.dirname(self.kat),
                                    'dzkat_kontrola_'+self.czas+'.txt')
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(raport)
         plik.close()
+        raporty.archiwizuj_starsze(self.rap_sc, 'DZKAT', self.iface)
 
         message = QMessageBox()
         message.setIcon(QMessageBox.Information)

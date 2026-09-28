@@ -6,7 +6,7 @@ from qgis.core import Qgis
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
-from . import waypointy
+from . import raporty, waypointy
 
 
 class KontrolaLs:
@@ -457,17 +457,22 @@ class KontrolaLs:
         self.wypis += '\n-----[ KONIEC RAPORTU ]------'
 
         self.postep.setValue(90)
+        # raport obok bazy (starsze raporty Ls - przygotowanie i kontrola -
+        # do Raporty/Archiwum), waypointy do Raporty
+        kat_bazy = os.path.dirname(os.path.abspath(self.baza.baza))
+        kat_rap = waypointy.katalog_raportow(kat_bazy)
         self.rap_sc = os.path.join(
-            self.kat, '..', "ls_kontrola_"+self.baza.czas+".txt")
+            kat_bazy, "ls_kontrola_"+self.baza.czas+".txt")
 
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(self.wypis)
         plik.close()
+        raporty.archiwizuj_starsze(self.rap_sc, 'LS', self.iface)
 
         wiersze_wp = self._zbierz_waypointy()
         if len(wiersze_wp) > 0:
             self.waypointy_sc = os.path.join(
-                self.kat, '..', "ls_waypointy_"+self.baza.czas+".csv")
+                kat_rap, "ls_waypointy_"+self.baza.czas+".csv")
             waypointy.zapisz(self.waypointy_sc, wiersze_wp)
 
         self.iface.messageBar().clearWidgets()
@@ -481,15 +486,10 @@ class KontrolaLs:
 
         if pok_rap == 1:
             if platform.system()[:3] == 'Win':
-                os.startfile(
-                    os.path.join(self.kat, '..',
-                                 'ls_kontrola_'+self.baza.czas+'.txt'))
+                os.startfile(self.rap_sc)
             else:
                 import subprocess
-                subprocess.call(
-                    ['kate',
-                     os.path.join(self.kat, '..',
-                                  'ls_kontrola_'+self.baza.czas+'.txt')])
+                subprocess.call(['kate', self.rap_sc])
 
         ilosc = ' (Nic nie dopisywano w warstwie)'
         if self.dopisane > 0:
