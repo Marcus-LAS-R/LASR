@@ -1,6 +1,51 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0p — 2026-09-28
+------------------------------------------------
+
+1. NOWOŚĆ: Nawigator błędów otwiera się sam po kolejnych narzędziach -
+   od razu możesz skakać po mapie od błędu do błędu:
+   - "Przygotuj Lsy" - brakujące Ls (z gotowym LANDID do wklejenia),
+     podmienione klasy, duże różnice powierzchni, mikro Ls itd.,
+   - "Kontrola opisu taksacyjnego" - jeden punkt na wydzielenie lub
+     działkę, ze wszystkimi uwagami do niego naraz,
+   - "Pokaż puste wydzielenia" (menu Narzędziowe i przycisk w Edytorze
+     opisu).
+2. NOWOŚĆ: "Pokaż puste wydzielenia" (menu Narzędziowe, przycisk "Pokaż
+   puste opisy" w Edytorze opisu) - wydzielenia bez opisu w bazie
+   i z pustym opisem na osobnych warstwach, z raportem.
+3. ZMIANA: raporty "Kontroli słownikowej" i "Kontroli opisu
+   taksacyjnego" są czytelniejsze - tylko błędy, pogrupowane pod adresem
+   wydzielenia (najpierw kontrole obowiązkowe, potem pomocnicze),
+   wydzielenia w kolejności oddziałów.
+4. ZMIANA: porządek w raportach przy bazie:
+   - raporty z przygotowania i kontroli Ls i działek, rozliczenia
+     powierzchni oraz zabiegów leżą obok bazy - zawsze tylko najnowszy
+     z danego rodzaju, starsze same trafiają do Raporty/Archiwum (raport
+     otwarty np. w Wordzie zostaje na miejscu),
+   - pozostałe raporty kontroli i pliki dla Nawigatora - w folderze
+     Raporty obok bazy.
+5. POPRAWKA: "Przygotuj Lsy" nie zamienia już poprawnych klas Ls z KLU
+   przy dopasowaniu po powierzchni (np. działka z LsIII i LsIV dawała
+   dwa LsIII i "brakujący" LsIV). Niejasne przypadki dostają uwagę "do
+   sprawdzenia".
+6. NOWOŚĆ: "Stwórz raport kart do klepania" - przy tej samej karcie
+   w kilku wydzieleniach do klepania zostaje jedno, a pozostałe trafiają
+   do pliku KLON_po_klepaniu.txt - po wklepaniu wystarczy "Klonuj opisy
+   wydzieleń".
+7. POPRAWKA: sprawdzenie rozliczenia powierzchni działa też dla baz bez
+   właścicieli (np. z BDL) - wcześniej pokazywało "0 użytków" i fałszywe
+   "OK"; teraz jest komunikat "Brak danych o właścicielach" i prawdziwe
+   rozbieżności. Br-Ls liczony jako grunt nieleśny.
+8. POPRAWKA: Nawigator odnajduje działki z "Kontroli słownikowej"
+   (wcześniej zawsze "nie znaleziono").
+9. Drobne: układ panelu Edytora opisu (bez przycisku "Karta" - karta
+   otwiera się sama po zaznaczeniu wydzielenia); poprawiony przykład
+   LANDID w "Przygotuj Lsy"; usunięto zdublowaną pozycję "Kangurkuj"
+   z menu Testowe (to samo co "Nawigator błędów").
+
+
 Wersja 2.0o — 2026-09-25
 ------------------------------------------------
 
