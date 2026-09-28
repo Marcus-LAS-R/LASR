@@ -183,7 +183,7 @@ class Ui_Dialog(object):
         self.label_5.setText(_translate("Dialog", "Sposób identyfikacji użytków:"))
         self.comboBox_ident.setItemText(0, _translate("Dialog", "---"))
         self.comboBox_ident.setItemText(1, _translate("Dialog", "AU i SQ"))
-        self.comboBox_ident.setItemText(2, _translate("Dialog", "LANDID (20020150012.AR_2.446/1_LsV)"))
+        self.comboBox_ident.setItemText(2, _translate("Dialog", "LANDID (20020150012.AR_2.446/1.LsV)"))
         self.groupBox_adradm.setTitle(_translate("Dialog", "Kolumna z LANDID"))
         self.groupBox_kol.setTitle(_translate("Dialog", "Kolumny z AU i SQ"))
         self.label_6.setText(_translate("Dialog", "Kolumna z kodem AU:"))
