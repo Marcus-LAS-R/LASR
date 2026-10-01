@@ -609,16 +609,6 @@ class LasR:
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
 
-        self.a_zab_podmien = QAction(
-            QIcon(None), "Podmień wybrane zabiegi", self.iface.mainWindow()
-        )
-        self.a_zab_podmien.setToolTip(
-            "Zamienia albo usuwa wskazane zabiegi (np. IVDU na IVD 40%) w całej "
-            "bazie, wybranych obrębach albo formach ochrony przyrody, "
-            "z poprawą odnowień, PIEL i AGROT.")
-        self.m_rozlicz_pow.addAction(self.a_zab_podmien)
-        self.a_zab_podmien.triggered.connect(self.zabiegi_podmien)
-
         self.m_rozlicz_pow.addSeparator()
 
         self.kasr = QAction(
@@ -1126,6 +1116,16 @@ class LasR:
             "ręcznie), razem z grafiką SHP.")
         self.m_narzedzia.addAction(self.a_rozdziel_upul_isl)
         self.a_rozdziel_upul_isl.triggered.connect(self.rozdziel_upul_isl)
+
+        self.a_zab_podmien = QAction(
+            QIcon(None), "Podmień wybrane zabiegi", self.iface.mainWindow()
+        )
+        self.a_zab_podmien.setToolTip(
+            "Zamienia albo usuwa wskazane zabiegi (np. IVDU na IVD 40%) w całej "
+            "bazie, wybranych obrębach albo formach ochrony przyrody, "
+            "z poprawą odnowień, PIEL i AGROT.")
+        self.m_narzedzia.addAction(self.a_zab_podmien)
+        self.a_zab_podmien.triggered.connect(self.zabiegi_podmien)
 
         self.m_narzedzia.addSeparator()
 
