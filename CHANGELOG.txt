@@ -1,6 +1,38 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0q — 2026-10-01
+------------------------------------------------
+
+1. NOWOŚĆ: "Rozdziel bazy na UPUL i ISL" (menu Narzędziowe) - dzieli
+   bazę na dwie nowe bazy obok źródłowej według sumy powierzchni Ls
+   w obrębach:
+   - automatycznie: obręby poniżej 10 ha do ISL, pozostałe do UPUL,
+   - albo ręcznie - sam zaznaczasz obręby ISL,
+   - obręby bez Ls są usuwane z obu baz, baza źródłowa zostaje bez zmian,
+   - opcjonalnie dzieli też grafikę SHP (foldery SHP_UPUL i SHP_ISL),
+   - przypomina o ponownym rozliczeniu powierzchni, gdy jest potrzebne.
+2. NOWOŚĆ: "Podmień wybrane zabiegi" (pod "Dopisz/sprawdź zabiegi") -
+   zamienia albo usuwa zabiegi, np. IVDU na IVD 40% albo rębnię na TP:
+   - w całej bazie, wybranych obrębach albo formach ochrony przyrody,
+   - sam poprawia odnowienia (zrębu / złożone), PIEL i AGROT oraz ich
+     powierzchnie i procenty, dopisuje brakujące i usuwa zbędne,
+   - opcjonalnie dopisuje Twoją uwagę do opisu zmienionych wydzieleń,
+   - podgląd przed zapisem, kopia bazy i raport "przed/po"; masę
+     przelicz w TPU.
+3. ZMIANA: "Napraw F_STOREY_SPECIES":
+   - porządkuje też gatunki w przestojach (wg masy, wieku, gatunku),
+     podroście II piętra i podsadzeniach,
+   - ustawia kolejność pięter wg kodów pięter (drzewostan, podrost,
+     nalot, podszyt, przestoje...),
+   - usuwa puste wiersze bez gatunku, przez które skrypt się wywracał
+     (lista w raporcie).
+4. ZMIANA: "Klonuj opisy wydzieleń" - gdy wydzielenie docelowe ma już
+   opis, pokazuje ich listę (stary i nowy rodzaj powierzchni) i pyta:
+   nadpisz / pomiń / anuluj. Opis jest kopiowany w całości albo wcale -
+   koniec z pomieszanymi opisami. Działa też tryb wskazywania wydzieleń
+   na mapie w panelu (wcześniej zawsze był czytany plik).
+
 Wersja 2.0p — 2026-09-28
 ------------------------------------------------
 
