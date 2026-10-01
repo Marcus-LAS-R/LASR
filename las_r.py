@@ -119,6 +119,7 @@ from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
 from .skrypty import rozdziel_upul_isl
+from .skrypty import zabiegi_podmien
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -607,6 +608,16 @@ class LasR:
             "pielęgnacje) w bazie.")
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
+
+        self.a_zab_podmien = QAction(
+            QIcon(None), "Podmień wybrane zabiegi", self.iface.mainWindow()
+        )
+        self.a_zab_podmien.setToolTip(
+            "Zamienia albo usuwa wskazane zabiegi (np. IVDU na IVD 40%) w całej "
+            "bazie, wybranych obrębach albo formach ochrony przyrody, "
+            "z poprawą odnowień, PIEL i AGROT.")
+        self.m_rozlicz_pow.addAction(self.a_zab_podmien)
+        self.a_zab_podmien.triggered.connect(self.zabiegi_podmien)
 
         self.m_rozlicz_pow.addSeparator()
 
@@ -1720,6 +1731,9 @@ class LasR:
         if w.pobierz_warstwy():
             w.sprawdz_wlasnosci()
             w.wyswietl_info()
+
+    def zabiegi_podmien(self):
+        zabiegi_podmien.uruchom(self.iface)
 
     def zabiegi_nowe(self):
         z = Zabiegi()
