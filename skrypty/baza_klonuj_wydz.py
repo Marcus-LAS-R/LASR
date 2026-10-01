@@ -1,6 +1,7 @@
 import os
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox, QDockWidget, \
-    QAction
+    QAction, QAbstractItemView, QDialogButtonBox, QLabel, QTableWidget, \
+    QTableWidgetItem, QVBoxLayout
 from qgis.core import Qgis, QgsMessageLog, QgsRectangle, QgsFeatureRequest
 from qgis.gui import QgsMapToolEmitPoint
 
@@ -13,6 +14,12 @@ from qgis.PyQt.uic import loadUiType
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui',  'ui_klonuj_dock.ui'))
 
+# tabele opisu wydzielenia czyszczone w celu przed wpisaniem kopii
+# (kolejność: najpierw tabele zależne)
+_TABELE_OPISU = (
+    'F_STOREY_SPECIES', 'F_AROD_STOREY', 'F_AROD_GOAL', 'F_AROD_STAND_PEC',
+)
+
 
 class Klonuj():
     def __init__(self, iface):
@@ -23,6 +30,8 @@ class Klonuj():
         self.instr = []  # [[adr_les_org, adr_les_klon], ...] oba adr w bazie!!
         self.bledy = 0  # liczba bledów podczas klonowania
         self.sklonowano = 0  # liczba poprawnych operacji
+        self.pominieto = 0  # cele z istniejącym opisem pominięte
+        self._tabela = ''  # tabela w trakcie zapisu (do komunikatu błędu)
 
     def dane_dock(self, baza, z, do):
         self.baza = Baza(baza)
@@ -144,9 +153,10 @@ class Klonuj():
 
     def sprawdz_dane(self):
         """ Metoda sprawdza czy wskazana baza i plik tekstowy jest
-        kompatybilny, jeżeli tak zwraca True
+        kompatybilny, jeżeli tak zwraca True. Kopia bazy - osobno
+        (zrob_kopie), dopiero po decyzji użytkownika o nadpisaniu.
         """
-        self.wydz = self.baza.pobierz_wydzielenia()
+        self.wydz = self.baza.pobierz_wydzielenia() or {}
 
         # sprawdz czy wszystkie adresy lesne sa w bazie
         nieobecne = []  # tab z adresami lesnymi nieobecnymi w bazie
@@ -165,41 +175,80 @@ class Klonuj():
                 0
             )
             return False
-
-        self.baza.utworz_kopie('klonowanie_wydz')
         return True
 
-    def klonuj(self):
-        """ Metoda zbiorcza dla klonowania danych z bazy """
+    def zrob_kopie(self):
+        self.baza.utworz_kopie('klonowanie_wydz')
 
+    def _rodzaj_pow(self, aid):
+        w = self.baza.pobierz(
+            'select AREA_TYPE_CD from F_SUBAREA where ARODES_INT_NUM = ' +
+            str(aid) + ';')
+        return isNone(w[0][0]) if w else ''
+
+    def _ma_opis(self, aid):
+        """Wydzielenie ma opis, jeśli ma rodzaj powierzchni albo choć jeden
+        wpis w tabelach opisu (piętra, gatunki, cele, osobliwości)."""
+        if self._rodzaj_pow(aid).strip():
+            return True
+        for tabela in _TABELE_OPISU:
+            w = self.baza.pobierz(
+                f'select count(*) from {tabela} where ARODES_INT_NUM = '
+                f'{aid};')
+            if w and w[0][0]:
+                return True
+        return False
+
+    def wydzielenia_z_opisem(self):
+        """Zwraca [(adr_les celu, stary rodzaj pow., nowy rodzaj pow.)]
+        dla celów, które mają już opis w bazie (do ewentualnego
+        nadpisania)."""
+        wynik = []
+        widziane = set()
+        for z, do in self.instr:
+            if z == do or do in widziane:
+                continue
+            widziane.add(do)
+            if self._ma_opis(self.wydz[do]):
+                wynik.append((do, self._rodzaj_pow(self.wydz[do]),
+                               self._rodzaj_pow(self.wydz[z])))
+        return wynik
+
+    def klonuj(self, pomin=()):
+        """ Metoda zbiorcza dla klonowania danych z bazy. Każda para
+        (źródło -> cel) w jednej transakcji: najpierw usuwany jest
+        dotychczasowy opis celu (piętra, gatunki, cele, osobliwości), potem
+        wpisywana kopia źródła - błąd wycofuje całą parę. Cele z `pomin`
+        (adr_les) nie są ruszane. """
+        pomin = set(pomin)
         for kl in self.instr:
-            if not self.k_subarea(kl[0], kl[1]):
-                self.blad(kl, 'f_subarea')
+            z, do = kl
+            if z == do:
                 continue
-
-            if not self.k_arod_goal(kl[0], kl[1]):
-                self.blad(kl, 'f_arod_goal')
+            if do in pomin:
+                self.pominieto += 1
                 continue
-
-            if not self.k_arod_stand_pec(kl[0], kl[1]):
-                self.blad(kl, 'f_arod_stand_pec')
-                continue
-
-            if not self.k_arod_storey(kl[0], kl[1]):
-                self.blad(kl, 'f_arod_storey')
-                continue
-
-            if not self.k_storey_spec(kl[0], kl[1]):
-                self.blad(kl, 'f_storey_species')
-                continue
-
-            self.sklonowano += 1
+            self._tabela = ''
+            try:
+                self._usun_opis_celu(do)
+                self.k_subarea(z, do)
+                self.k_arod_goal(z, do)
+                self.k_arod_stand_pec(z, do)
+                self.k_arod_storey(z, do)
+                self.k_storey_spec(z, do)
+                self.baza.con.commit()
+                self.sklonowano += 1
+            except Exception as e:
+                self.baza.con.rollback()
+                self.blad(kl, self._tabela, e)
 
     def wyswietl_info(self):
+        pomin = (f', pominięto (istniejący opis): {self.pominieto}'
+                 if self.pominieto else '')
         if self.bledy > 0:
             self.iface.messageBar().pushMessage(
-                'Sklonowano '+str(self.sklonowano)+' wydzieleń. '
-                'Błędów podczas '
+                'Sklonowano '+str(self.sklonowano)+' wydzieleń' + pomin +
+                '. Błędów podczas '
                 'klonowania: '+str(self.bledy)+' (Szczegóły w logu Las-R)',
                 Qgis.Warning,
                 0
@@ -207,70 +256,48 @@ class Klonuj():
             return
 
         self.iface.messageBar().pushMessage(
-            'Sklonowano wydzieleń: '+str(self.sklonowano),
+            'Sklonowano wydzieleń: '+str(self.sklonowano) + pomin,
             Qgis.Success,
             10
         )
 
-    def blad(self, kl, kwer):
+    def blad(self, kl, kwer, wyjatek=None):
         self.bledy += 1
 
         if self.bledy == 1:
             QgsMessageLog.logMessage(
                 '--------------\n'
                 'Kolejność modyfikowania tabel przy klonowaniu wydzielenia:\n'
-                'f_subarea\nf_arod_goal\nf_arod_stand_spec\nf_arod_storey\n'
-                'f_storey_spec\n-------------\n'
-                '(w nawiasach podano ARODES_INT_NUM)\n',
+                'usunięcie opisu celu\nf_subarea\nf_arod_goal\n'
+                'f_arod_stand_spec\nf_arod_storey\nf_storey_spec\n'
+                '-------------\n'
+                '(w nawiasach podano ARODES_INT_NUM; błąd wycofuje całą parę '
+                '- opis celu zostaje bez zmian)\n',
                 'Las-R'
             )
 
         QgsMessageLog.logMessage(
             'Błąd klonowania: ' + kl[0] + ' (' + str(self.wydz[kl[0]]) + ')' +
             ' --> ' + kl[1] + ' (' + str(self.wydz[kl[1]]) + ')' +
-            ' | tabela: '+kwer,
+            ' | tabela: ' + kwer +
+            (f' | {wyjatek}' if wyjatek is not None else ''),
             'Las-R'
         )
 
-    def k_subarea(self, z, do):  # noqa
+    def _wykonaj(self, sql, parametry=()):
+        self.baza.cur.execute(sql, parametry)
+
+    def _usun_opis_celu(self, do):
+        self._tabela = 'usunięcie opisu celu'
+        for tabela in _TABELE_OPISU:
+            self._wykonaj(
+                f'delete from {tabela} where ARODES_INT_NUM = ?',
+                (self.wydz[do],))
+
+    def k_subarea(self, z, do):
         # z - z jakiego adresy kopiujemy
         # do - do jakiego adresu kopiujemy ...
-
-        sql = '''
-        SELECT
-            DAMAGE_DEGREE_CD,
-            CAUSE_CD,
-            AREA_TYPE_CD,
-            POSITION_CD ,
-            RELIEF_CD ,
-            SITE_TYPE_CD ,
-            DEGRADATION_CD ,
-            VEG_COVER_CD ,
-            STAND_STRUCT_CD ,
-            SLOPE_CD ,
-            EXPOSURE_CD ,
-            MOISTURE_CD ,
-            SOIL_PEC_CD ,
-            SOIL_SUBTYPE_CD ,
-            PLANT_COMM_CD ,
-            FOREST_FUNC_CD ,
-            ROTATION_AGE ,
-            DEAD_WOOD,
-            SUBAREA_INFO
-        FROM
-            F_SUBAREA
-        WHERE
-            F_SUBAREA.ARODES_INT_NUM = '''
-
-        sql += str(self.wydz[z]) + ';'
-
-        try:
-            item = self.baza.pobierz(sql)[0]
-            if len(item) == 0:
-                return False
-        except:  # nopep8
-            return False
-
+        self._tabela = 'f_subarea'
         kolumny = [
             'DAMAGE_DEGREE_CD', 'CAUSE_CD', 'AREA_TYPE_CD', 'POSITION_CD',
             'RELIEF_CD', 'SITE_TYPE_CD', 'DEGRADATION_CD', 'VEG_COVER_CD',
@@ -278,6 +305,13 @@ class Klonuj():
             'SOIL_PEC_CD', 'SOIL_SUBTYPE_CD', 'PLANT_COMM_CD',
             'FOREST_FUNC_CD', 'ROTATION_AGE', 'DEAD_WOOD',
         ]
+        item = self.baza.cur.execute(
+            'select ' + ', '.join(kolumny + ['SUBAREA_INFO']) +
+            ' from F_SUBAREA where ARODES_INT_NUM = ?',
+            (self.wydz[z],)).fetchall()
+        if not item:
+            raise ValueError('brak wiersza F_SUBAREA w wydzieleniu źródłowym')
+        item = item[0]
         wartosci = list(item[:len(kolumny)])
 
         # SUBAREA_INFO - nie nadpisuj opisu wydzielenia docelowego
@@ -290,252 +324,69 @@ class Klonuj():
 
         ustawienia = ', '.join(f'{kolumna} = ?' for kolumna in kolumny)
         wartosci.append(self.wydz[do])
-
-        sql = [
-            f'update f_subarea set {ustawienia} where ARODES_INT_NUM = ?; ',
-            tuple(wartosci),
-        ]
-        if not self.baza.wpisz_tab(sql):
-            return False
-
-        return True
+        self._wykonaj(
+            f'update f_subarea set {ustawienia} where ARODES_INT_NUM = ?',
+            tuple(wartosci))
 
     def k_arod_goal(self, z, do):
-        sql = '''
-        SELECT
-            GOAL_TYPE_FL,
-            ARODES_INT_NUM ,
-            SPECIES_CD ,
-            GOAL_RANK_ORDER ,
-            GOAL_SPECIES_PERC
-        FROM
-            F_AROD_GOAL
-        WHERE
-            ARODES_INT_NUM = '''
-
-        sql += str(self.wydz[z]) + ';'
-
-        try:
-            item = self.baza.pobierz(sql)
-            # wydzielenia nielesne lener, inne_wyl
-            if len(item) == 0:
-                return True
-        except:  # nopep8
-            return False
-
-        # jezeli w bazie nie ma takich rekordow dodajemy kopie
-        sql = 'select * from f_arod_goal where arodes_int_num = ' + \
-            str(self.wydz[do]) + ";"
-
-        spr = self.baza.pobierz(sql)
-
-        if len(spr) > 0:
-            return False
-
-        blednie_wpisano = False
+        self._tabela = 'f_arod_goal'
+        item = self.baza.cur.execute(
+            'select GOAL_TYPE_FL, SPECIES_CD, GOAL_RANK_ORDER from F_AROD_GOAL '
+            'where ARODES_INT_NUM = ?', (self.wydz[z],)).fetchall()
+        # wydzielenia nielesne lener, inne_wyl - bez celów
         for it in item:
-            sql = '''insert into f_arod_goal (
-                    GOAL_TYPE_FL,
-                    ARODES_INT_NUM ,
-                    SPECIES_CD ,
-                    GOAL_RANK_ORDER
-                    )
-                    values (\'''' + \
-                str(isNone(it[0])) + '\', ' + \
-                str(self.wydz[do]) + ', \'' + \
-                str(isNone(it[2])) + '\', ' +  \
-                str(it[3]) + ');'
-
-            tab = [
-                '''insert into f_arod_goal (
-                    GOAL_TYPE_FL,
-                    ARODES_INT_NUM ,
-                    SPECIES_CD ,
-                    GOAL_RANK_ORDER
-                    )
-                    values (?,?,?,?);''',
-                (
-                    it[0],
-                    self.wydz[do],
-                    it[2],
-                    it[3]
-                )
-            ]
-
-            if not self.baza.wpisz_tab(tab):
-                blednie_wpisano = True
-
-        if blednie_wpisano:
-            return False
-        return True
+            self._wykonaj(
+                'insert into f_arod_goal (GOAL_TYPE_FL, ARODES_INT_NUM, '
+                'SPECIES_CD, GOAL_RANK_ORDER) values (?,?,?,?)',
+                (it[0], self.wydz[do], it[1], it[2]))
 
     def k_arod_stand_pec(self, z, do):
-        # F_AROD_STAND_PEC
-        sql = '''
-        SELECT
-            FOREST_PEC_CD ,ARODES_INT_NUM ,PEC_RANK_ORDER
-        FROM
-            F_AROD_STAND_PEC
-        WHERE
-            ARODES_INT_NUM = '''
-        sql += str(self.wydz[z]) + ";"
-        item = self.baza.pobierz(sql)
-
+        self._tabela = 'f_arod_stand_pec'
+        item = self.baza.cur.execute(
+            'select FOREST_PEC_CD, PEC_RANK_ORDER from F_AROD_STAND_PEC '
+            'where ARODES_INT_NUM = ?', (self.wydz[z],)).fetchall()
         for it in item:
-            sql = [
-                '''insert into f_arod_stand_pec(
-                    FOREST_PEC_CD,
-                    ARODES_INT_NUM,
-                    PEC_RANK_ORDER) values (?,?,?);''',
-                (it[0], self.wydz[do], it[2])
-            ]
-
-            if not self.baza.wpisz_tab(sql):
-                return False
-
-        return True
+            self._wykonaj(
+                'insert into f_arod_stand_pec (FOREST_PEC_CD, ARODES_INT_NUM, '
+                'PEC_RANK_ORDER) values (?,?,?)',
+                (it[0], self.wydz[do], it[1]))
 
     def k_arod_storey(self, z, do):
-
-        # F_AROD_STOREY
-        sql = '''
-        SELECT
-            STOREY_CD ,
-            STOREY_RANK_ORDER ,
-            STANDDENSITY_INDEX ,
-            MIXTURE_CD ,
-            DENSITY_CD ,
-            TREE_STOCK_CD ,
-            SILV_QUALITY_CD ,
-            LOCATION_CD
-        FROM
-            F_AROD_STOREY
-        WHERE
-            ARODES_INT_NUM = '''
-        sql += str(self.wydz[z]) + ";"
-        item = self.baza.pobierz(sql)
-
+        self._tabela = 'f_arod_storey'
+        item = self.baza.cur.execute(
+            'select STOREY_CD, STOREY_RANK_ORDER, STANDDENSITY_INDEX, '
+            'MIXTURE_CD, DENSITY_CD, TREE_STOCK_CD, SILV_QUALITY_CD, '
+            'LOCATION_CD from F_AROD_STOREY where ARODES_INT_NUM = ?',
+            (self.wydz[z],)).fetchall()
         for it in item:
-            # sql = '''insert into f_arod_storey(
-                        # ARODES_INT_NUM ,
-                        # STOREY_CD ,
-                        # STOREY_RANK_ORDER ,
-                        # STANDDENSITY_INDEX ,
-                        # MIXTURE_CD ,
-                        # DENSITY_CD ,
-                        # TREE_STOCK_CD ,
-                        # SILV_QUALITY_CD ,
-                        # LOCATION_CD) values ( \'''' + \
-                # str(self.wydz[do]) + ', \'' + \
-                # str(isNone(it[0])) + '\', ' + \
-                # str(it[1]) + ', ' + \
-                # str(round(float(str(isNone(it[2])), 1))) + ', ' + \
-                # str(it[3]) + ', \'' + \
-                # str(it[4]) + '\', \'' + \
-                # str(it[5]) + '\', ' + \
-                # str(it[6]) + ', \'' + \
-                # str(it[7]) + '\', ' + \
-                # ');'
-
-            sql = [
-                '''insert into f_arod_storey(
-                        ARODES_INT_NUM ,
-                        STOREY_CD ,
-                        STOREY_RANK_ORDER ,
-                        STANDDENSITY_INDEX ,
-                        MIXTURE_CD ,
-                        DENSITY_CD ,
-                        TREE_STOCK_CD ,
-                        SILV_QUALITY_CD ,
-                        LOCATION_CD) values (?,?,?,?,?,?,?,?,?);''',
-                (
-                    self.wydz[do],
-                    it[0],
-                    it[1],
-                    it[2],
-                    it[3],
-                    it[4],
-                    it[5],
-                    it[6],
-                    it[7]
-                )
-            ]
-
-            if not self.baza.wpisz_tab(sql):
-                return False
-        return True
+            self._wykonaj(
+                'insert into f_arod_storey (ARODES_INT_NUM, STOREY_CD, '
+                'STOREY_RANK_ORDER, STANDDENSITY_INDEX, MIXTURE_CD, '
+                'DENSITY_CD, TREE_STOCK_CD, SILV_QUALITY_CD, LOCATION_CD) '
+                'values (?,?,?,?,?,?,?,?,?)',
+                (self.wydz[do],) + tuple(it))
 
     def k_storey_spec(self, z, do):
+        self._tabela = 'f_storey_species'
+        kolumny = [
+            'STOREY_CD', 'SPECIES_RANK_ORDER', 'SPECIES_CD', 'PART_CD',
+            'SPECIES_AGE', 'BHD', 'HEIGHT', 'VOLUME', 'SITE_CLASS_CD',
+            'TECHN_QUALITY_CD', 'INCREMENT_CURRENT', 'VOLUME_TEMP',
+            'INCREMENT_CURRENT_AREA',
+        ]
+        item = self.baza.cur.execute(
+            'select ' + ', '.join(kolumny) + ' from F_STOREY_SPECIES '
+            'where ARODES_INT_NUM = ?', (self.wydz[z],)).fetchall()
+        cur_ind = self.baza.cur.execute(
+            'select max(spec_stor_int_num) from f_storey_species'
+        ).fetchall()[0][0] or 0
 
-        # F_STORE_SPEC
-        sql = '''
-        SELECT
-            STOREY_CD,
-            SPECIES_RANK_ORDER,
-            SPECIES_CD,
-            PART_CD,
-            SPECIES_AGE,
-            BHD,
-            HEIGHT,
-            VOLUME,
-            SITE_CLASS_CD,
-            TECHN_QUALITY_CD,
-            INCREMENT_CURRENT,
-            VOLUME_TEMP,
-            INCREMENT_CURRENT_AREA
-        FROM
-            F_STOREY_SPECIES
-        WHERE
-            ARODES_INT_NUM = '''
-        sql += str(self.wydz[z]) + ';'
-
-        item = self.baza.pobierz(sql)
-        sql = 'select max(f.spec_stor_int_num) from f_storey_species as f;'
-        cur_ind = self.baza.pobierz(sql)[0][0]
-
+        sql = ('insert into f_storey_species (SPEC_STOR_INT_NUM, '
+               'ARODES_INT_NUM, ' + ', '.join(kolumny) + ') values (' +
+               ','.join('?' for _ in range(len(kolumny) + 2)) + ')')
         for it in item:
             cur_ind += 1
-            sql = [
-                '''insert into f_storey_species(
-                    SPEC_STOR_INT_NUM,
-                    ARODES_INT_NUM,
-                    STOREY_CD,
-                    SPECIES_RANK_ORDER,
-                    SPECIES_CD,
-                    PART_CD,
-                    SPECIES_AGE,
-                    BHD,
-                    HEIGHT,
-                    VOLUME,
-                    SITE_CLASS_CD,
-                    TECHN_QUALITY_CD,
-                    INCREMENT_CURRENT,
-                    VOLUME_TEMP,
-                    INCREMENT_CURRENT_AREA)
-                values
-                    (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);''',
-                (
-                    cur_ind,
-                    self.wydz[do],
-                    it[0],
-                    it[1],
-                    it[2],
-                    it[3],
-                    it[4],
-                    it[5],
-                    it[6],
-                    it[7],
-                    it[8],
-                    it[9],
-                    it[10],
-                    it[11],
-                    it[12]
-                )
-            ]
-
-            if not self.baza.wpisz_tab(sql):
-                return False
-        return True
+            self._wykonaj(sql, (cur_ind, self.wydz[do]) + tuple(it))
 
 
 class PobierzDaneDock(QDockWidget, FORM_CLASS):
@@ -679,9 +530,14 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
 
     def klonuj(self):
         klon = Klonuj(self.iface)
-        if not self.sprawdz_ok:
+        if not self.sprawdz_ok():
+            if not self.radioButton_k.isChecked():
+                self.iface.messageBar().pushMessage(
+                    'BŁĄD', 'Wskaż bazę, wydzielenie źródłowe i co najmniej '
+                    'jedno wydzielenie docelowe.', Qgis.Critical, 10)
             return
-        if self.radioButton_k:
+        tryb_plik = self.radioButton_k.isChecked()
+        if tryb_plik:
             wyn = klon.dane_konf(
                 self.lineEdit_baza.text(), self.lineEdit_plik.text()
             )
@@ -692,13 +548,83 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
                 [self.listWidget.item(x).text()
                  for x in range(self.listWidget.count())]
             )
-            self.listWidget.clear()
 
         if not wyn:
             return
-        if klon.sprawdz_dane():
-            klon.klonuj()
-            klon.wyswietl_info()
+        if not klon.sprawdz_dane():
+            klon.baza.zamknij()
+            return
+
+        # cele z istniejącym opisem - decyzja użytkownika
+        pomin = set()
+        z_opisem = klon.wydzielenia_z_opisem()
+        if z_opisem:
+            decyzja = NadpisanieDialog(z_opisem, self).wybor()
+            if decyzja == 'anuluj':
+                klon.baza.zamknij()
+                return
+            if decyzja == 'pomin':
+                pomin = {x[0] for x in z_opisem}
+
+        klon.zrob_kopie()
+        klon.klonuj(pomin)
+        klon.baza.zamknij()
+        klon.wyswietl_info()
+        if not tryb_plik:
+            self.listWidget.clear()
+
+
+class NadpisanieDialog(QDialog):
+    """Lista wydzieleń docelowych, które mają już opis w bazie, i wybór:
+    nadpisz / pomiń / anuluj."""
+
+    def __init__(self, wiersze, parent=None):
+        super().__init__(parent)
+        self._wybor = 'anuluj'
+        self.setWindowTitle('Wydzielenia z istniejącym opisem')
+        self.resize(560, 420)
+        layout = QVBoxLayout(self)
+        opis = QLabel(
+            f'{len(wiersze)} wydzieleń docelowych ma już opis w bazie. '
+            '"Nadpisz" - ich dotychczasowy opis (piętra, gatunki, cele, '
+            'osobliwości i dane F_SUBAREA) zostanie zastąpiony kopią. '
+            '"Pomiń" - te wydzielenia zostaną bez zmian, pozostałe zostaną '
+            'sklonowane. "Anuluj" - nic nie zostanie zmienione.')
+        opis.setWordWrap(True)
+        layout.addWidget(opis)
+
+        tabela = QTableWidget(len(wiersze), 3)
+        tabela.setHorizontalHeaderLabels(
+            ['adr_les', 'stary rodzaj powierzchni', 'nowy rodzaj powierzchni'])
+        tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        tabela.verticalHeader().setVisible(False)
+        for i, (adr, stary, nowy) in enumerate(wiersze):
+            tabela.setItem(i, 0, QTableWidgetItem(adr))
+            tabela.setItem(i, 1, QTableWidgetItem(stary))
+            tabela.setItem(i, 2, QTableWidgetItem(nowy))
+        tabela.resizeColumnsToContents()
+        tabela.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(tabela, 1)
+
+        przyciski = QDialogButtonBox()
+        for tekst, wartosc in (('Nadpisz', 'nadpisz'), ('Pomiń', 'pomin'),
+                               ('Anuluj', 'anuluj')):
+            rola = (QDialogButtonBox.RejectRole if wartosc == 'anuluj'
+                    else QDialogButtonBox.AcceptRole)
+            btn = przyciski.addButton(tekst, rola)
+            btn.clicked.connect(lambda _, w=wartosc: self._ustaw(w))
+        layout.addWidget(przyciski)
+
+    def _ustaw(self, wartosc):
+        self._wybor = wartosc
+        if wartosc == 'anuluj':
+            self.reject()
+        else:
+            self.accept()
+
+    def wybor(self):
+        self.exec_()
+        return self._wybor
 
 
 class PobierzDane(QDialog):

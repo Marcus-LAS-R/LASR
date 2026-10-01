@@ -10,13 +10,25 @@ class NaprawFStorSpec:
         self.sl = {}
         self.uwagi = []
         self.wpisanych = 0
+        self.wydz_kol_pieter = 0  # wydzielenia z poprawioną kolejnością pięter
+        self.usuniete_puste = []  # wiersze z SPECIES_CD = NULL (usunięte)
+        self.inne_puste = []      # wiersze z pustym ARODES_INT_NUM/STOREY_CD
 
         # warstwy do poprawy sortowania
-        self.lwar = ['DRZEW', 'PODR', 'DODRII', 'NAL', 'PODSZ', 'IP', 'IIP', ]
+        # (ZADRZEW celowo pominięte - bez sortowania)
+        self.lwar = ['DRZEW', 'PODR', 'PODRII', 'NAL', 'PODS', 'PODSZ', 'IP',
+                     'IIP', 'PRZES', ]
 
     def pobierz_z_bazy(self):
-        '''Pobiera z bazy tabele f_storey_species '''
+        '''Pobiera z bazy tabele f_storey_species. Na wstępie kopia bazy
+        i usunięcie pustych wierszy (SPECIES_CD = NULL) - przez nie skrypt
+        się wywracał.'''
         if not self.baza.polacz():
+            return False
+
+        # kopia przed jakąkolwiek zmianą (także przed usunięciem pustych)
+        self.baza.utworz_kopie(wpis='napraw_FStoreySpecies')
+        if not self.usun_puste_wiersze():
             return False
 
         sql = '''select
@@ -33,6 +45,33 @@ class NaprawFStorSpec:
                 species_rank_order asc;
         '''
         self.raw = self.baza.pobierz(sql)
+        if self.raw is False:
+            return False
+
+        # pozostałe puste (bez wydzielenia albo piętra) - tylko do raportu,
+        # z sortowania wyłączone
+        self.inne_puste = [r for r in self.raw
+                           if r[1] is None or r[2] is None]
+        self.raw = [r for r in self.raw
+                    if r[1] is not None and r[2] is not None]
+        return True
+
+    def usun_puste_wiersze(self):
+        '''Usuwa z F_STOREY_SPECIES wiersze z SPECIES_CD = NULL, zapamiętując
+        je do raportu.'''
+        sql = '''select spec_stor_int_num, arodes_int_num, storey_cd,
+                    species_rank_order, species_cd, part_cd, species_age,
+                    volume
+                from f_storey_species where species_cd is null;'''
+        puste = self.baza.pobierz(sql)
+        if puste is False:
+            return False
+        if not puste:
+            return True
+        if not self.baza.wpisz(
+                'delete from f_storey_species where species_cd is null;'):
+            return False
+        self.usuniete_puste = puste
         return True
 
     def zbuduj_strukture(self):
@@ -96,6 +135,12 @@ class NaprawFStorSpec:
                        )
 
         t1 = sorted(tab, key=lambda x: x[4])  # sort po gat
+
+        # przestoje: bez udziału - masa, potem wiek, potem gatunek
+        if pietro == 'PRZES':
+            t2 = sorted(t1, key=lambda x: x[6], reverse=True)  # sort po wieku
+            return sorted(t2, key=lambda x: x[7], reverse=True)  # po vol
+
         t2 = sorted(t1, key=lambda x: x[7], reverse=True)  # sort po vol
         t3 = sorted(t2, key=lambda x: x[6], reverse=True)  # sort po wieku
         # sort po udziale
@@ -110,30 +155,102 @@ class NaprawFStorSpec:
         return t4
 
     def dopisz_poprawki(self):
-        self.baza.utworz_kopie(wpis='napraw_FStoreySpecies')
-
+        # kopia bazy powstaje już w pobierz_z_bazy
         for key, val in self.sl.items():
             self.d_wydz(key)
 
+        self.popraw_kolejnosc_pieter()
+
+    def popraw_kolejnosc_pieter(self):
+        '''Ustawia STOREY_RANK_ORDER w F_AROD_STOREY wg kolejności kodów
+        pięter ze słownika F_STOREY_DIC.STOREY_NR (DRZEW 1, PODR 4, NAL 6,
+        PODSZ 9, PRZES 10, ...), numeracja w wydzieleniu od 1 bez dziur.
+        Piętra spoza słownika na końcu, w dotychczasowej kolejności.'''
+        dic = self.baza.pobierz(
+            'select STOREY_CD, STOREY_NR from F_STOREY_DIC;')
+        if not dic:
+            return
+        nr = {x[0]: (x[1] if x[1] is not None else 999) for x in dic}
+
+        wiersze = self.baza.pobierz(
+            'select ARODES_INT_NUM, STOREY_CD, STOREY_RANK_ORDER '
+            'from F_AROD_STOREY;')
+        if not wiersze:
+            return
+        pietra = {}
+        for aid, cd, rank in wiersze:
+            pietra.setdefault(aid, []).append((cd, rank))
+
+        sql = ('update F_AROD_STOREY set STOREY_RANK_ORDER = ? '
+               'where ARODES_INT_NUM = ? and STOREY_CD = ?;')
+        for aid, lista in pietra.items():
+            nowa = sorted(lista, key=lambda x: (
+                nr.get(x[0], 999), 999 if x[1] is None else x[1]))
+            if [x[1] for x in nowa] == list(range(1, len(nowa) + 1)):
+                continue
+            # dwa przebiegi (jak przy gatunkach) - bez chwilowych dubli numeru
+            ok = True
+            for przes in (100, 1):
+                for i, (cd, _) in enumerate(nowa):
+                    if not self.baza.wpisz_tab([sql, (i + przes, aid, cd)]):
+                        ok = False
+            if ok:
+                self.wydz_kol_pieter += 1
+            else:
+                self.uwagi.append(aid)
+
+    def _adres(self, sl_int, aid):
+        if aid is None:
+            return '(brak ARODES_INT_NUM)'
+        return sl_int.get(aid, f'ARODES_INT_NUM={aid}')
+
+    def _opis_wiersza(self, sl_int, r):
+        # r = spec_stor_int_num, arodes_int_num, storey_cd, rank, species_cd,
+        #     part_cd, species_age, volume
+        return (f'{self._adres(sl_int, r[1])}  piętro: {r[2]}  '
+                f'gatunek: {r[4]}  udział: {r[5]}  wiek: {r[6]}  '
+                f'masa: {r[7]}  (SPEC_STOR_INT_NUM={r[0]})')
+
     def raport(self):
-        uw = sorted(list(set(self.uwagi)))
+        uw = sorted({x for x in self.uwagi if x is not None})
         wyps = '------[ RAPORT ]--------\n\n'
-        wyps += 'Wpisano poprawek do bazy: '+str(self.wpisanych) + '\n\n'
+        wyps += 'Wpisano poprawek do bazy: '+str(self.wpisanych) + '\n'
+        wyps += 'Poprawiono kolejność pięter w wydzieleniach: ' + \
+            str(self.wydz_kol_pieter) + '\n'
+        wyps += 'Usunięto pustych wierszy (SPECIES_CD = NULL): ' + \
+            str(len(self.usuniete_puste)) + '\n\n'
+
+        # adresy wszystkich wierszy F_ARODES (nie tylko WYDZIEL) - żeby
+        # raport nie wywracał się na numerze spoza wydzieleń
+        sl_int = {}
+        wiersze = self.baza.pobierz(
+            'select ARODES_INT_NUM, ADRESS_FOREST from F_ARODES;')
+        if wiersze:
+            sl_int = {a: adr for a, adr in wiersze}
+
+        if self.usuniete_puste:
+            wyps += 'USUNIĘTE PUSTE WIERSZE (brak gatunku):\n'
+            wyps += '\n'.join(self._opis_wiersza(sl_int, r)
+                              for r in self.usuniete_puste) + '\n\n'
+
+        if self.inne_puste:
+            wyps += ('POZOSTAŁE PUSTE WIERSZE - brak wydzielenia albo '
+                     'piętra (NIE usunięte, pominięte przy sortowaniu, '
+                     'popraw ręcznie):\n')
+            wyps += '\n'.join(self._opis_wiersza(sl_int, r)
+                              for r in self.inne_puste) + '\n\n'
 
         if len(uw) > 0:
-            sl_wydz = self.baza.pobierz_wydzielenia()
-            sl_int = {v: k for k, v in sl_wydz.items()}
-
             wyps += 'Znaleziono błędów krytycznych: ' + str(len(uw)) + '\n'
-            wyps += '(Należy sprawdzić poniższe wydzielenia)\n\n'
-            wyps += '\n'.join([sl_int[int(x)] for x in uw])
+            wyps += '(Należy sprawdzić poniższe wydzielenia)\n\n'
+            wyps += '\n'.join([self._adres(sl_int, x) for x in uw])
 
         wyps += '\n\n\n----------[ KONIEC ]----------------'
         kat = os.path.dirname(self.baza.baza)
         open(os.path.join(
             kat,
             'raport_naprawa_FStoreySpecies_'+str(self.baza.czas)+'.txt'),
-            'w').write(wyps)
+            'w', encoding='utf-8').write(wyps)
 
     def d_wydz(self, wydz):
         for key, val in self.sl[wydz].items():
