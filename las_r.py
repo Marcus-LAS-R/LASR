@@ -118,6 +118,7 @@ from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
+from .skrypty import rozdziel_upul_isl
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1105,6 +1106,16 @@ class LasR:
         self.m_narzedzia.addAction(self.a_wydziel_wlasc)
         self.a_wydziel_wlasc.triggered.connect(self.wydziel_wlascicieli)
 
+        self.a_rozdziel_upul_isl = QAction(
+            QIcon(None), "Rozdziel bazy na UPUL i ISL", self.iface.mainWindow()
+        )
+        self.a_rozdziel_upul_isl.setToolTip(
+            "Dzieli bazę na dwie nowe bazy UPUL i ISL według sumy powierzchni "
+            "użytku LS w obrębach (automatycznie: ISL poniżej 10 ha, albo "
+            "ręcznie), razem z grafiką SHP.")
+        self.m_narzedzia.addAction(self.a_rozdziel_upul_isl)
+        self.a_rozdziel_upul_isl.triggered.connect(self.rozdziel_upul_isl)
+
         self.m_narzedzia.addSeparator()
 
         self.dop_wydz = QAction(
@@ -1842,6 +1853,9 @@ class LasR:
 
     def wydziel_wlascicieli(self):
         wydziel_wlascicieli.uruchom(self.iface)
+
+    def rozdziel_upul_isl(self):
+        rozdziel_upul_isl.uruchom(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)
