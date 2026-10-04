@@ -102,6 +102,7 @@ from .skrypty import (
     pobierz_BDL,
     utworz_baze_z_BDL,
     przygotuj_baze_z_ewid,
+    utworz_baze_z_gml,
     shp_aktualizuj_ewidencje,
     shp_buduj_oddzialy,
     napraw_topologie_hierarchii,
@@ -455,6 +456,16 @@ class LasR:
             "(np. z geoportalu) - jeden właściciel, wszystko jako użytek Ls.")
         self.m_przyg_danych.addAction(self.a_przygotuj_baze_ewid)
         self.a_przygotuj_baze_ewid.triggered.connect(self.przygotuj_baze_ewid)
+
+        self.a_utworz_baze_gml = QAction(
+            QIcon(None), "Utwórz bazę z GML", self.iface.mainWindow()
+        )
+        self.a_utworz_baze_gml.setToolTip(
+            "Tworzy nowe bazy (kopia wzoru pustej bazy) z plików GML EGiB - "
+            "działki, klasoużytki i właściciele; baza w każdym folderze z GML "
+            "albo jedna wspólna _CALOSC.")
+        self.m_przyg_danych.addAction(self.a_utworz_baze_gml)
+        self.a_utworz_baze_gml.triggered.connect(self.utworz_baze_gml)
 
         # -----------------------------------------
 
@@ -1846,6 +1857,9 @@ class LasR:
 
     def przygotuj_baze_ewid(self):
         przygotuj_baze_z_ewid.uruchom(self.iface)
+
+    def utworz_baze_gml(self):
+        utworz_baze_z_gml.uruchom(self.iface)
 
     def dopisz_dane_do_wydzielen(self):
         aktualizacja_upul.uruchom_dopisz_dane_wydzielen(self.iface)

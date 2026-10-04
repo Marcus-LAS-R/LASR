@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 )
 from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 
+from . import teryt_obreby
 from .baza_wrapper import Baza
 from .baza_korekta_gmin_dialog import KorektaGminDialog
 from .ui.ui_przygotuj_baze_z_ewid import Ui_Dialog
@@ -475,9 +476,13 @@ def PrzygotujBazeZEWID(iface, shp_sc, baza_sc, dobre, obreby, wlasciciel,
                     'INSERT INTO F_COMMUNITY (COUNTY_CD, DISTRICT_CD, '
                     'MUNICIPALITY_CD, COMMUNITY_CD, COMMUNITY_NAME) '
                     'VALUES (?,?,?,?,?)',
+                    # brak nazwy w SHP -> słownik TERYT wtyczki; pusty
+                    # string odrzucany przez bazę (Allow Zero Length = Nie)
                     (obr['county_cd'], obr['district_cd'],
                      obr['municipality_cd'], obr['community_cd'],
-                     (obr['nazwa_obreb'] or '')[:30]))
+                     (obr['nazwa_obreb'] or teryt_obreby.nazwa_obrebu(
+                         teryt_obreby.id_obrebu(*klucz_com)) or '')[:30] or
+                     None))
                 istniejace_community.add(klucz_com)
                 community_dopisane += 1
 
