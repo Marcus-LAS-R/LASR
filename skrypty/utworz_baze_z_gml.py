@@ -51,7 +51,7 @@ from collections import Counter, OrderedDict
 from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QApplication, QButtonGroup, QComboBox, QDialog, QDialogButtonBox,
+    QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMessageBox, QPushButton, QRadioButton, QTableWidget, QTableWidgetItem,
     QVBoxLayout,
@@ -435,11 +435,14 @@ def klucz_dzialki(kody):
         kody['arkusz'] + '.' if kody['arkusz'] else '', kody['nr'])
 
 
-def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None):
+def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
+                     tylko_ls=False):
     """Łączy działki z GML jednej bazy. sparsowane: {sciezka_gml: dane
     z parsuj_gml albo None (błąd)}. konwersje: {(county, district,
     municipality) z GML: municipality docelowe} - zamiana błędnego kodu
-    gminy na kod ze słownika PRZED deduplikacją. Zwraca dict:
+    gminy na kod ze słownika PRZED deduplikacją. tylko_ls: tylko działki
+    z co najmniej jednym klasoużytkiem Ls (z kompletem ich klasoużytków).
+    Zwraca dict:
       dzialki    OrderedDict id -> {'kody', 'pole', 'klasouzytki',
                  'grupa', 'wlasciciele': OrderedDict klucz -> (nazwa,
                  adres, licznik, mianownik), 'zrodlo'}
@@ -450,8 +453,10 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None):
       duplikaty  int
       z_wlascicielami_gml int
       skonwertowane [(id z GML, id po konwersji)]
+      bez_ls     int - działki pominięte (tylko_ls, brak klasoużytku Ls)
     """
     konwersje = konwersje or {}
+    bez_ls = 0
     dzialki = OrderedDict()
     skonwertowane = []
     obreby = {}
@@ -472,6 +477,13 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None):
                 kody = rozbierz_id_dzialki(dz['id'])
                 if kody is None or not kody['nr']:
                     bledne_id.append((gml, dz['id'] or '(brak idDzialki)'))
+                    continue
+                klasouzytki = [k for k in dz['klasouzytki']
+                               if any(k[:3]) or k[3]]
+                if tylko_ls and not any(
+                        kod_uzytku(k[0], k[1]).lower() == 'ls'
+                        for k in klasouzytki):
+                    bez_ls += 1
                     continue
                 nowa_gmina = konwersje.get(
                     (kody['county'], kody['district'], kody['municipality']))
@@ -502,8 +514,6 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None):
                         dane['obreby'].get(id_obr) or
                         teryt_obreby.nazwa_obrebu(id_obr) or '')
 
-                klasouzytki = [k for k in dz['klasouzytki']
-                               if any(k[:3]) or k[3]]
                 istniejaca = dzialki.get(id_dz)
                 if istniejaca is not None:
                     duplikaty += 1
@@ -540,6 +550,7 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None):
         'rozbieznosci': rozbieznosci, 'duplikaty': duplikaty,
         'z_wlascicielami_gml': z_wl_gml,
         'skonwertowane': skonwertowane,
+        'bez_ls': bez_ls,
         'obreby_bez_nazwy': sorted(
             teryt_obreby.id_obrebu(*k) for k, n in obreby.items() if not n),
     }
@@ -786,6 +797,17 @@ class _DialogGlowny(QDialog):
         wiersz.addWidget(self.pole_nazwa)
         uklad.addLayout(wiersz)
 
+        self.pole_tylko_ls = QCheckBox(
+            'Importuj tylko użytki Ls  (działki z co najmniej jednym '
+            'klasoużytkiem Ls, z kompletem ich klasoużytków)')
+        self.pole_tylko_ls.setToolTip(
+            'Działki bez żadnego klasoużytku Ls są pomijane (liczba w '
+            'raporcie). Liczy się tylko kod Ls - Lz, Lzr, W-Ls itp. nie.')
+        self.pole_tylko_ls.setChecked(
+            str(ust.value(_USTAWIENIA + 'tylko_ls', 'false')).lower() ==
+            'true')
+        uklad.addWidget(self.pole_tylko_ls)
+
         self.etykieta_info = QLabel('')
         self.etykieta_info.setWordWrap(True)
         uklad.addWidget(self.etykieta_info)
@@ -851,6 +873,7 @@ class _DialogGlowny(QDialog):
         ust.setValue(_USTAWIENIA + 'folder', folder)
         ust.setValue(_USTAWIENIA + 'wzor', wzor)
         ust.setValue(_USTAWIENIA + 'tryb', self.tryb())
+        ust.setValue(_USTAWIENIA + 'tylko_ls', self.tylko_ls())
         self.accept()
 
     def folder(self):
@@ -863,6 +886,9 @@ class _DialogGlowny(QDialog):
 
     def tryb(self):
         return TRYB_CALOSC if self.radio_calosc.isChecked() else TRYB_FOLDERY
+
+    def tylko_ls(self):
+        return self.pole_tylko_ls.isChecked()
 
     def nazwa_calosc(self):
         nazwa = self.pole_nazwa.text().strip()
@@ -928,6 +954,14 @@ class _DialogKodow(QDialog):
                 if self.tabela.item(w, 0).checkState() == Qt.Checked]
 
 
+def _krotka_uwaga(uwaga):
+    """Krótki status do kolumny tabeli (pełny opis z uwagi_teryt_gminy
+    bywa bardzo długi)."""
+    if uwaga.startswith('BRAK w TERYT - '):
+        return 'BRAK w TERYT - błąd kodu w GML?'
+    return uwaga
+
+
 AKCJA_KONWERTUJ = 'Konwertuj na kod ze słownika'
 AKCJA_DOPISZ = 'Dopisz gminę do słownika'
 AKCJA_POMIN = 'Pomiń działki'
@@ -940,24 +974,26 @@ class _DialogGmin(QDialog):
     def __init__(self, parent, gminy, slowniki, uwagi, kandydaci):
         super().__init__(parent)
         self.setWindowTitle(_TYTUL + ' - WYKRYTO NOWĄ GMINĘ')
-        self.setMinimumWidth(1000)
+        self.resize(1000, 420)
         self._klucze = []
         self._kandydaci = kandydaci
         self._akcje = []
         self._cele = []
         self._nazwy = []
+        self._uwagi = []
         uklad = QVBoxLayout(self)
 
         ostrzezenie = QLabel(
             'UWAGA: w GML wykryto gminy, których NIE MA w słowniku '
-            'F_MUNICIPALITY wzoru bazy.\n\n'
+            'F_MUNICIPALITY wzoru bazy.\n'
             '- Konwertuj: błędny kod gminy w GML - działki dostają kod gminy '
-            'ze słownika\n  (obręby bez zmian), proponowany, gdy TERYT zna '
-            'te obręby pod innym kodem.\n'
+            'ze słownika (obręby bez zmian); proponowany, gdy TERYT zna te '
+            'obręby pod innym kodem.\n'
             '- Dopisz: prawdziwie nowa gmina (gminy się zmieniają, słownik '
             'jest stały).\n'
             '- Pomiń: działki z tej gminy NIE trafią do bazy.')
         ostrzezenie.setStyleSheet('color: #b00000; font-weight: bold;')
+        ostrzezenie.setWordWrap(True)
         uklad.addWidget(ostrzezenie)
 
         self.tabela = QTableWidget(len(gminy), 6)
@@ -974,7 +1010,10 @@ class _DialogGmin(QDialog):
             item.setFlags(Qt.ItemIsEnabled)
             self.tabela.setItem(w, 1, item)
             uwaga = uwagi.get(klucz, '')
-            item = QTableWidgetItem(uwaga)
+            self._uwagi.append(uwaga)
+            # w tabeli tylko krótki status - pełny opis w podpowiedzi i w
+            # polu "Szczegóły" pod tabelą
+            item = QTableWidgetItem(_krotka_uwaga(uwaga))
             item.setFlags(Qt.ItemIsEnabled)
             item.setToolTip(uwaga)
             if uwaga.startswith('BRAK'):
@@ -1011,17 +1050,35 @@ class _DialogGmin(QDialog):
             self._akcje.append(akcja)
             self._odswiez_wiersz(w)
 
-        self.tabela.resizeColumnsToContents()
-        self.tabela.setColumnWidth(2, 320)
+        # stałe szerokości (do zmiany myszą) - resizeColumnsToContents
+        # rozpychał kolumny z listami rozwijanymi na setki pikseli
+        for kolumna, szerokosc in enumerate((90, 55, 210, 190, 280)):
+            self.tabela.setColumnWidth(kolumna, szerokosc)
         self.tabela.horizontalHeader().setSectionResizeMode(
             5, QHeaderView.Stretch)
         uklad.addWidget(self.tabela)
+
+        self.szczegoly = QLabel('')
+        self.szczegoly.setWordWrap(True)
+        self.szczegoly.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.szczegoly.setStyleSheet(
+            'QLabel { border: 1px solid #c0c0c0; padding: 4px; }')
+        uklad.addWidget(self.szczegoly)
+        self.tabela.currentCellChanged.connect(
+            lambda w, _k, _pw, _pk: self._pokaz_szczegoly(w))
+        self._pokaz_szczegoly(0)
 
         przyciski = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         przyciski.accepted.connect(self._akceptuj)
         przyciski.rejected.connect(self.reject)
         uklad.addWidget(przyciski)
+
+    def _pokaz_szczegoly(self, w):
+        if 0 <= w < len(self._uwagi):
+            self.szczegoly.setText(
+                'Szczegóły (%s): %s' % (' '.join(self._klucze[w]),
+                                        self._uwagi[w] or '-'))
 
     def _odswiez_wiersz(self, w):
         akcja = self._akcje[w].currentText() if w < len(self._akcje) else ''
@@ -1092,6 +1149,7 @@ def uruchom(iface):
     folder_startowy = dlg.folder()
     wzor = dlg.wzor()
     tryb = dlg.tryb()
+    tylko_ls = dlg.tylko_ls()
 
     foldery = znajdz_foldery_z_gml(folder_startowy)
     if not foldery:
@@ -1141,7 +1199,8 @@ def uruchom(iface):
             QgsMessageLog.logMessage(
                 'Błąd odczytu GML %s: %s' % (gml, e), _LOG, Qgis.Warning)
 
-    dane_baz = [zbierz_dane_bazy(foldery_bazy, sparsowane)
+    dane_baz = [zbierz_dane_bazy(foldery_bazy, sparsowane,
+                                 tylko_ls=tylko_ls)
                 for _sc, foldery_bazy in plan]
     pasek.clear()
 
@@ -1175,7 +1234,8 @@ def uruchom(iface):
         if konwersje:
             # ponowne zebranie z kodami po konwersji - deduplikacja i nazwy
             # obrębów (TERYT) liczone już dla kodu ze słownika
-            dane_baz = [zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje)
+            dane_baz = [zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje,
+                                         tylko_ls)
                         for _sc, foldery_bazy in plan]
 
     # 3. tworzenie baz
@@ -1228,7 +1288,8 @@ def uruchom(iface):
     # 4. raport
     sc_raportu = _zapisz_raport(folder_startowy, wzor, tryb, wyniki,
                                 bledy_gml, nowe_kody, nowe_gminy,
-                                brak_kodow, brak_gmin, uwagi_gmin, konwersje)
+                                brak_kodow, brak_gmin, uwagi_gmin, konwersje,
+                                tylko_ls)
     utworzone = sum(1 for w in wyniki if w['stat'] is not None)
     bledne = [w for w in wyniki if w['blad'] and w['dane']['dzialki']]
 
@@ -1251,7 +1312,7 @@ def uruchom(iface):
 
 def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
                    nowe_kody, nowe_gminy, brak_kodow, brak_gmin,
-                   uwagi_gmin=None, konwersje=None):
+                   uwagi_gmin=None, konwersje=None, tylko_ls=False):
     czas = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
     w = []
     w.append('---- ' + _TYTUL.upper() + ' ----\n')
@@ -1259,6 +1320,9 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
     w.append('Wzór bazy: ' + wzor)
     w.append('Tryb: ' + ('baza w każdym folderze' if tryb == TRYB_FOLDERY
                          else 'jedna wspólna baza'))
+    if tylko_ls:
+        w.append('Tylko użytki Ls: działki z co najmniej jednym klasoużytkiem '
+                 'Ls (z kompletem ich klasoużytków)')
     w.append('')
 
     if bledy_gml:
@@ -1309,6 +1373,9 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
         w.append('  Działek z właścicielami z GML: %d (pozostałe: '
                  'właściciel z nazwy folderu, grupa %s)' % (
                      dane['z_wlascicielami_gml'], GRUPA_DOMYSLNA))
+        if tylko_ls:
+            w.append('  Działek pominiętych - bez klasoużytku Ls: %d' %
+                     dane['bez_ls'])
         w.append('  Duplikatów działek między GML (zapisane raz): %d' %
                  dane['duplikaty'])
         if dane['rozbieznosci']:
