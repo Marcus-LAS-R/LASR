@@ -1,6 +1,30 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0r — 2026-10-07
+------------------------------------------------
+
+1. NOWOŚĆ: "Utwórz bazę z GML" (pod "Przygotuj bazę z EWID") - tworzy
+   bazę z plików GML z EGiB na wzorze pustej bazy:
+   - jedna baza na każdy folder z GML albo jedna wspólna baza,
+   - działki, klasoużytki, obręby i właściciele (gdy są w GML),
+   - opcja "Importuj tylko użytki Ls" - tylko działki z lasem,
+   - nowe kody użytków i gminy spoza słownika - pyta, co z nimi zrobić
+     (dopisać, przekonwertować na kod ze słownika albo pominąć),
+   - raport w folderze Raporty.
+2. NOWOŚĆ: wbudowany słownik obrębów TERYT (cała Polska) - brakujące
+   nazwy obrębów uzupełniane automatycznie w "Utwórz bazę z GML"
+   i "Przygotuj bazę z EWID".
+3. ZMIANA: "Wyeksportuj SHP z GML" - lista warstw zbierana ze wszystkich
+   plików GML w folderze (z liczbą obiektów), przyciski Zaznacz/Odznacz
+   wszystkie, poprawny eksport warstw bez geometrii.
+4. ZMIANA: "Podmień wybrane zabiegi" przeniesione do menu Narzędziowe.
+5. POPRAWKA: koniec z ręcznym "Ustaw kodowanie UTF-8" po każdym otwarciu
+   projektu - warstwy WYDZ (Przygotuj wydzielenia do cięcia),
+   WYDZ_DOPISANE (Dopisz metadane do wydzieleń) i DZKAT zapisują się
+   teraz w UTF-8 z poprawnym plikiem .cpg. Przycisk "Ustaw kodowanie
+   UTF-8" zapamiętuje ustawienie na stałe w pliku warstwy.
+
 Wersja 2.0q — 2026-10-01
 ------------------------------------------------
 
