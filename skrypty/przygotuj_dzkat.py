@@ -2,7 +2,6 @@ import os
 import re
 import glob
 import platform
-import shutil
 from datetime import datetime
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import QVariant
@@ -16,6 +15,7 @@ from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
 from . import raporty
+from .funkcje import zapisz_shp_utf8
 
 
 class PrzygotujDzKat(object):
@@ -202,42 +202,26 @@ class AnalizujDzKat(object):
         # jezeli uzytkownik wybral pole 'PARCELID' najpierw zrob dissolva
         sciezka = self.lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
         self.kat = os.path.dirname(sciezka)
+        # DZKAT zapisujemy przez QgsVectorFileWriter w UTF-8 (z .cpg) -
+        # wcześniej pliki były kopiowane bez .cpg, a dopisywane atrybuty
+        # szły w UTF-8, więc kodowanie w pliku się rozjeżdżało
+        dzkat_sc = os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp"
         if self.typ == 'PAR':
-            processing.run("native:dissolve", {
-                'INPUT': self.lyr.name(),
+            zrodlo = processing.run("native:dissolve", {
+                'INPUT': self.lyr,
                 'FIELD': "PARCELID",
-                'OUTPUT': sciezka+'__dissolve.shp'
-            })
-
-            shutil.copy(
-                sciezka+"__dissolve.shp",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
-            shutil.copy(
-                sciezka+"__dissolve.shx",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
-            shutil.copy(
-                sciezka+"__dissolve.dbf",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
-            shutil.copy(
-                sciezka+"__dissolve.prj",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            })['OUTPUT']
         else:
-            shutil.copy(
-                sciezka+".shp",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp")
-            shutil.copy(
-                sciezka+".shx",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shx")
-            shutil.copy(
-                sciezka+".dbf",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".dbf")
-            shutil.copy(
-                sciezka+".prj",
-                os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".prj")
+            zrodlo = self.lyr
+        ok, komunikat = zapisz_shp_utf8(zrodlo, dzkat_sc)
+        if not ok:
+            QgsMessageLog.logMessage(
+                "Błąd zapisu " + dzkat_sc + ": " + komunikat, "Las-R")
 
         # podmien warstwe na ostateczną
         self.lyrw = QgsVectorLayer(
-            os.path.dirname(sciezka)+os.sep+"DZKAT_"+self.czas+".shp",
+            dzkat_sc,
             "DZKAT_"+self.czas,
             "ogr"
         )

@@ -3,10 +3,10 @@ from collections import defaultdict
 from qgis.core import QgsVectorLayer, Qgis, QgsProject, \
     QgsField, QgsMessageLog, QgsFields
 from PyQt5.QtCore import QVariant
-from shutil import copyfile
 
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .sprawdzenia_warstw import SprawdzWydzielenia
+from .funkcje import zapisz_shp_utf8
 
 
 class recursivedefaultdict(defaultdict):
@@ -358,19 +358,28 @@ class DopiszKody(SprawdzWydzielenia):
                 self.dopis[x[0]]['INNE'].append(x[1])
 
     def dopisz_kody(self):  # noqa
-        # kopiujemy shp
-        for roz in ['shp', 'shx', 'prj', 'dbf', 'cpg']:
-            try:
-                copyfile(self.wydz_path[:-3]+roz,
-                         os.path.join(self.kat, 'WYDZ_DOPISANE.' + roz))
-            except Exception:
-                pass
+        # kopia WYDZ przepisana do UTF-8 - przy kopiowaniu plików 1:1
+        # .cpg ze źródła (np. 1250) nie zgadzał się z dopisanymi danymi
+        # (UTF-8) i po każdym otwarciu projektu trzeba było ręcznie
+        # ustawiać kodowanie
+        wpol_sc = os.path.join(self.kat, "WYDZ_DOPISANE.shp")
+        if os.path.normcase(os.path.abspath(self.wydz_path)) == \
+                os.path.normcase(os.path.abspath(wpol_sc)):
+            self.iface.messageBar().pushMessage(
+                'BŁĄD', 'Wskaż warstwę WYDZ, a nie WYDZ_DOPISANE',
+                Qgis.Critical, 10)
+            return
+        ok, komunikat = zapisz_shp_utf8(self.wydz, wpol_sc)
+        if not ok:
+            self.iface.messageBar().pushMessage(
+                'BŁĄD',
+                'Nie udało się zapisać WYDZ_DOPISANE (jeśli jest otwarta '
+                'w projekcie, usuń ją z warstw): ' + komunikat,
+                Qgis.Critical, 10)
+            return
 
-        self.wpol = QgsVectorLayer(
-            os.path.join(self.kat, "WYDZ_DOPISANE.shp"),
-            "WYDZ_DOPISANE", "ogr")
+        self.wpol = QgsVectorLayer(wpol_sc, "WYDZ_DOPISANE", "ogr")
         self.wpol_data = self.wpol.dataProvider()
-        self.wpol_data.setEncoding('UTF-8')
 
         # Dodajemy odpowiednie kolumny:
         attr_nazwy = [x.name() for x in self.wpol.fields()]

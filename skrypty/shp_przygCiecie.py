@@ -8,6 +8,7 @@ import processing
 
 from . import shp_wyszukaj_lz
 from . import shp_obszary_ciecia
+from .funkcje import zapisz_shp_utf8
 
 
 def stworz_linie(kat):
@@ -310,7 +311,7 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
     # ----------------------------
 
     # sprawdz czy nie ma poprzedniej wersji pliku
-    rozsz = ['shp', 'shx', 'dbf', 'prj', 'sbx', 'shx', ]
+    rozsz = ['shp', 'shx', 'dbf', 'prj', 'sbx', 'cpg', 'qix', ]
     try:
         for r in rozsz:
             if os.path.isfile(os.path.join(kat, 'WYDZ.'+r)):
@@ -330,11 +331,21 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
     # (ls_sciezka) - processing otwiera ścieżkę od nowa z domyślnym
     # kodowaniem, gubiąc ręczne ustawienie kodowania (np. UTF-8) zrobione
     # przez użytkownika we właściwościach warstwy LS
+    # WYDZ zapisujemy zawsze w UTF-8 (z .cpg = UTF-8): wynik processingu
+    # dziedziczy kodowanie LS (np. 1250), a skrypty dalej w łańcuchu
+    # (np. Dopisz metadane do wydzieleń) zapisują już w UTF-8 - przy .cpg
+    # 1250 trzeba było po każdym otwarciu projektu ręcznie ustawiać UTF-8
     wydz_sc = os.path.join(kat, 'WYDZ.shp')
-    processing.run("native:multiparttosingleparts", {
-        'OUTPUT': wydz_sc,
+    wydz_tmp = processing.run("native:multiparttosingleparts", {
+        'OUTPUT': 'TEMPORARY_OUTPUT',
         'INPUT': ls,
-    })
+    })['OUTPUT']
+    ok, komunikat = zapisz_shp_utf8(wydz_tmp, wydz_sc)
+    if not ok:
+        iface.messageBar().pushMessage(
+            'BŁĄD', 'Nie udało się zapisać warstwy WYDZ: ' + komunikat,
+            Qgis.Critical, 10)
+        return
 
     wydz = QgsVectorLayer(wydz_sc, 'WYDZ', 'ogr')
     wydz.startEditing()

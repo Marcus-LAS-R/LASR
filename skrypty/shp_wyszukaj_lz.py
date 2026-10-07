@@ -302,9 +302,12 @@ class WyszukajLz():
                             })
 
         else:
-            for roz in ['shp', 'shx', 'prj', 'dbf']:
-                shutil.copy(os.path.join(self.tempkat, "uz_wybr."+roz),
-                            os.path.join(self.tempkat, "uz_diss."+roz))
+            # razem z .cpg - bez niego kopia czytana jest w innym
+            # kodowaniu niz oryginal
+            for roz in ['shp', 'shx', 'prj', 'dbf', 'cpg']:
+                if os.path.isfile(os.path.join(self.tempkat, "uz_wybr."+roz)):
+                    shutil.copy(os.path.join(self.tempkat, "uz_wybr."+roz),
+                                os.path.join(self.tempkat, "uz_diss."+roz))
 
         if len(self.uz_fts.keys()) > 1:
             processing.run("native:multiparttosingleparts", {
@@ -315,9 +318,12 @@ class WyszukajLz():
                     self.tempkat, 'uz_diss.shp')
             })
         else:
-            for roz in ['shp', 'shx', 'prj', 'dbf']:
-                shutil.copy(os.path.join(self.tempkat, "uz_diss."+roz),
-                            os.path.join(self.tempkat, "uz_diss_single."+roz))
+            # razem z .cpg - bez niego kopia czytana jest w innym
+            # kodowaniu niz oryginal
+            for roz in ['shp', 'shx', 'prj', 'dbf', 'cpg']:
+                if os.path.isfile(os.path.join(self.tempkat, "uz_diss."+roz)):
+                    shutil.copy(os.path.join(self.tempkat, "uz_diss."+roz),
+                                os.path.join(self.tempkat, "uz_diss_single."+roz))
 
         processing.run(
             "native:difference",

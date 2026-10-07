@@ -6,7 +6,7 @@ import numpy as np
 from qgis.core import (
     QgsVectorLayer, QgsGeometry, QgsProject, Qgis, QgsField,
     QgsFeatureRenderer, QgsReadWriteContext, QgsRenderContext,
-    QgsSymbolLayerUtils,
+    QgsSymbolLayerUtils, QgsVectorFileWriter,
 )
 from qgis.PyQt.QtXml import QDomDocument
 from PyQt5.QtCore import QVariant, QSize, QFile, QIODevice
@@ -216,10 +216,47 @@ def isNone(a):
         return a
 
 
+def zapisz_cpg_utf8(sciezka_shp):
+    """Zapisuje obok shapefile'a plik .cpg z kodowaniem UTF-8.
+
+    Uwaga: wolno to zrobić tylko wtedy, gdy dane w .dbf faktycznie są
+    w UTF-8 - inaczej .cpg znowu będzie się rozjeżdżał z zawartością.
+    """
+    with open(os.path.splitext(sciezka_shp)[0] + '.cpg', 'w') as f:
+        f.write('UTF-8')
+
+
+def zapisz_shp_utf8(warstwa, sciezka_shp):
+    """Zapisuje warstwę (obiekt QgsVectorLayer) do shapefile'a w UTF-8.
+
+    Zamiast kopiować pliki 1:1 (razem z cudzym .cpg, np. 1250) przepisuje
+    dane przez QgsVectorFileWriter - atrybuty są czytane w kodowaniu
+    warstwy źródłowej (także ręcznie ustawionym we właściwościach) i
+    przekodowane do UTF-8, a .cpg = UTF-8. Dzięki temu .cpg zawsze zgadza
+    się z danymi i po ponownym otwarciu projektu nie trzeba ręcznie
+    ustawiać kodowania. Zwraca (True, '') albo (False, komunikat).
+    """
+    opcje = QgsVectorFileWriter.SaveVectorOptions()
+    opcje.driverName = 'ESRI Shapefile'
+    opcje.fileEncoding = 'UTF-8'
+    opcje.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+    wynik = QgsVectorFileWriter.writeAsVectorFormatV3(
+        warstwa, sciezka_shp,
+        QgsProject.instance().transformContext(), opcje)
+    if wynik[0] != QgsVectorFileWriter.NoError:
+        return False, wynik[1]
+    return True, ''
+
+
 def ustaw_utf8(iface):
     # metoda ustawia kodowanie utf aktywnej warstwy
     try:
         iface.activeLayer().dataProvider().setEncoding('UTF-8')
+        # dla shapefile'a zapisz tez .cpg - inaczej po ponownym otwarciu
+        # projektu QGIS znowu czyta warstwe w kodowaniu ze starego .cpg
+        lyr = iface.activeLayer()
+        if lyr.dataProvider().storageType() == 'ESRI Shapefile':
+            zapisz_cpg_utf8(lyr.source().split('|')[0])
         iface.messageBar().pushMessage(
             'OK', 'Ustawiono kodowanie UTF-8', Qgis.Success)
     except:  # nopep8
