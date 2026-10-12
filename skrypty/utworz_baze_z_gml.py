@@ -24,6 +24,12 @@ zagnieżdżone klasoużytki w listy):
     EGB_Instytucja, EGB_PodmiotGrupowy, EGB_Malzenstwo, adresy podmiotów.
     Wg schematu EGiB 1.11; odnośniki rozpoznawane po nazwach elementów
     (przedmiot*/podmiot*/adres*/osobaFizyczna*), bez sztywnej ścieżki.
+    V_ADDRESS: osoba fizyczna NAME_1 = nazwisko, NAME_2 = imiona;
+    instytucja/podmiot grupowy NAME_1 = nazwa pełna. Małżeństwo -> dwa
+    rekordy (każdy z małżonków z udziałem małżeństwa). addr_grp_fl: osoba
+    fizyczna OF, instytucja OP, podmiot grupowy wg grupy rejestrowej JRG
+    (7 osoby fizyczne, 10 wspólnota gruntowa -> OF, reszta OP); nieustaleni
+    zawsze OF.
 Działka bez właścicieli w GML dostaje właściciela o nazwie folderu
 (podkreślenia -> spacje), udział 1/1 i LAND_REGISTER_NR = 'G1'.
 
@@ -185,10 +191,33 @@ def _parsuj_dzialke(el):
 
 
 def _nazwa_osoby(el):
-    czesci = [_tekst_dziecka(el, n) for n in (
-        'pierwszyCzlonNazwiska', 'drugiCzlonNazwiska', 'pierwszeImie',
-        'drugieImie')]
-    return ' '.join(c for c in czesci if c)
+    """(nazwisko, imiona) osoby fizycznej -> NAME_1, NAME_2."""
+    def polacz(*nazwy):
+        return ' '.join(c for c in (_tekst_dziecka(el, n) for n in nazwy)
+                        if c)
+    return (polacz('pierwszyCzlonNazwiska', 'drugiCzlonNazwiska'),
+            polacz('pierwszeImie', 'drugieImie'))
+
+
+# nieustaleni właściciele traktowani jak osoby fizyczne (jak w
+# baza_przetworz.py)
+_NIEUSTALONY = re.compile(r'NIEUSTAL|NIEZNAN|^\?+$', re.IGNORECASE)
+
+# grupy rejestrowe EGiB osób fizycznych i wspólnot gruntowych - podmiot
+# grupowy w JRG z tych grup to OF, w pozostałych OP
+_GRUPY_OF = ('7', '10')
+
+
+def flaga_wlasciciela(typ, name_1, name_2, grupa_rej):
+    """addr_grp_fl (OF/OP): typ podmiotu z GML (OF - osoba fizyczna, OP -
+    instytucja, GRP - podmiot grupowy rozstrzygany wg grupy rejestrowej
+    JRG); nieustaleni zawsze OF."""
+    if _NIEUSTALONY.search(name_1 or '') or \
+            _NIEUSTALONY.search(name_2 or ''):
+        return 'OF'
+    if typ == 'GRP':
+        return 'OF' if (grupa_rej or '').strip() in _GRUPY_OF else 'OP'
+    return typ
 
 
 def _adres(el):
@@ -210,14 +239,16 @@ def parsuj_gml(sciezka):
       dzialki   [dict z _parsuj_dzialke]
       obreby    {'WWPPGG_R.OOOO': nazwa}
       jrg       {gml_id: numer grupy, np. 'G12'}
+      jrg_grupa {gml_id: grupa rejestrowa EGiB, np. '7'}
       udzialy   [{'jrg': [href], 'podmioty': [href], 'licznik', 'mianownik'}]
-      osoby     {gml_id: {'nazwa', 'adresy': [href]}}  (osoby fiz.,
-                instytucje, podmioty grupowe)
+      osoby     {gml_id: {'name_1', 'name_2', 'typ' (OF/OP/GRP),
+                'adresy': [href]}}  (osoby fiz., instytucje, podmioty
+                grupowe)
       malzenstwa {gml_id: [href osoby]}
       adresy    {gml_id: dict adresu}
     """
-    wynik = {'dzialki': [], 'obreby': {}, 'jrg': {}, 'udzialy': [],
-             'osoby': {}, 'malzenstwa': {}, 'adresy': {}}
+    wynik = {'dzialki': [], 'obreby': {}, 'jrg': {}, 'jrg_grupa': {},
+             'udzialy': [], 'osoby': {}, 'malzenstwa': {}, 'adresy': {}}
     for _zdarzenie, el in ET.iterparse(sciezka, events=('end',)):
         if _lokalna(el.tag) != 'featureMember':
             continue
@@ -234,6 +265,9 @@ def parsuj_gml(sciezka):
                 idj = _tekst_dziecka(obj, 'idJednostkiRejestrowej')
                 if gid and idj:
                     wynik['jrg'][gid] = idj.rsplit('.', 1)[-1].strip()
+                if gid:
+                    wynik['jrg_grupa'][gid] = _tekst_dziecka(
+                        obj, 'grupaRejestrowa')
             elif nazwa == 'EGB_UdzialWeWlasnosci':
                 wynik['udzialy'].append({
                     'jrg': _hrefy(obj, lambda n: n.startswith('JRG')),
@@ -250,13 +284,16 @@ def parsuj_gml(sciezka):
             elif nazwa in ('EGB_OsobaFizyczna', 'EGB_Instytucja',
                            'EGB_PodmiotGrupowy'):
                 if nazwa == 'EGB_OsobaFizyczna':
-                    nazwa_podm = _nazwa_osoby(obj)
+                    name_1, name_2 = _nazwa_osoby(obj)
+                    typ = 'OF'
                 else:
-                    nazwa_podm = (_tekst_dziecka(obj, 'nazwaPelna') or
-                                  _tekst_dziecka(obj, 'nazwaSkrocona'))
+                    name_1 = (_tekst_dziecka(obj, 'nazwaPelna') or
+                              _tekst_dziecka(obj, 'nazwaSkrocona'))
+                    name_2 = ''
+                    typ = 'OP' if nazwa == 'EGB_Instytucja' else 'GRP'
                 if gid:
                     wynik['osoby'][gid] = {
-                        'nazwa': nazwa_podm,
+                        'name_1': name_1, 'name_2': name_2, 'typ': typ,
                         'adresy': _hrefy(obj, lambda n: n.startswith(
                             'adres')),
                     }
@@ -272,36 +309,31 @@ def parsuj_gml(sciezka):
 
 
 def wlasciciele_z_gml(dane):
-    """{gml_id JRG: [(klucz, nazwa, adres, licznik, mianownik)]} z udziałów
-    we własności jednego pliku GML. Klucz właściciela: ('gml', gml_id
-    podmiotu) - ten sam podmiot w kilku plikach to jeden V_ADDRESS."""
-    def opis_podmiotu(href):
+    """{gml_id JRG: [(klucz, name_1, name_2, adres, addr_grp_fl, licznik,
+    mianownik)]} z udziałów we własności jednego pliku GML. Klucz
+    właściciela: ('gml', gml_id podmiotu) - ten sam podmiot w kilku plikach
+    to jeden V_ADDRESS. Małżeństwo -> osobny właściciel dla każdego z
+    małżonków (klucz = gml_id osoby), oboje z udziałem małżeństwa."""
+    def osoby_podmiotu(href):
         if href in dane['malzenstwa']:
-            osoby = [dane['osoby'][h] for h in dane['malzenstwa'][href]
-                     if h in dane['osoby']]
-            if not osoby:
-                return None
-            nazwa = ' i '.join(o['nazwa'] for o in osoby if o['nazwa'])
-            adresy = osoby[0]['adresy']
-        elif href in dane['osoby']:
-            nazwa = dane['osoby'][href]['nazwa']
-            adresy = dane['osoby'][href]['adresy']
-        else:
-            return None
-        adres = next((dane['adresy'][a] for a in adresy
-                      if a in dane['adresy']), {})
-        return nazwa or '(brak nazwy)', adres
+            return [h for h in dane['malzenstwa'][href]
+                    if h in dane['osoby']]
+        return [href] if href in dane['osoby'] else []
 
     wynik = {}
     for u in dane['udzialy']:
         for href in u['podmioty']:
-            opis = opis_podmiotu(href)
-            if opis is None:
-                continue
-            for jrg in u['jrg']:
-                wynik.setdefault(jrg, []).append((
-                    ('gml', href), opis[0], opis[1],
-                    u['licznik'] or 1, u['mianownik'] or 1))
+            for h in osoby_podmiotu(href):
+                o = dane['osoby'][h]
+                adres = next((dane['adresy'][a] for a in o['adresy']
+                              if a in dane['adresy']), {})
+                name_1 = o['name_1'] or '(brak nazwy)'
+                for jrg in u['jrg']:
+                    fl = flaga_wlasciciela(o['typ'], name_1, o['name_2'],
+                                           dane['jrg_grupa'].get(jrg))
+                    wynik.setdefault(jrg, []).append((
+                        ('gml', h), name_1, o['name_2'], adres, fl,
+                        u['licznik'] or 1, u['mianownik'] or 1))
     return wynik
 
 
@@ -444,8 +476,9 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
     z co najmniej jednym klasoużytkiem Ls (z kompletem ich klasoużytków).
     Zwraca dict:
       dzialki    OrderedDict id -> {'kody', 'pole', 'klasouzytki',
-                 'grupa', 'wlasciciele': OrderedDict klucz -> (nazwa,
-                 adres, licznik, mianownik), 'zrodlo'}
+                 'grupa', 'wlasciciele': OrderedDict klucz -> (name_1,
+                 name_2, adres, addr_grp_fl, licznik, mianownik),
+                 'zrodlo'}
       obreby     {(county, district, municip, community): nazwa}
       bledne_id  [(gml, id)]
       bez_klasouzytkow [id]
@@ -502,7 +535,8 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
                 if wlasciciele:
                     z_wl_gml += 1
                 else:
-                    wlasciciele = [(klucz_folderu, nazwa_folderu, {}, 1, 1)]
+                    wlasciciele = [(klucz_folderu, nazwa_folderu, '', {},
+                                    'OF', 1, 1)]
 
                 klucz_obr = (kody['county'], kody['district'],
                              kody['municipality'], kody['community'])
@@ -528,14 +562,13 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
                         rozbieznosci.append((
                             id_dz, istniejaca['zrodlo'], gml,
                             ', '.join(roznice)))
-                    for k, nazwa, adres, licz, mian in wlasciciele:
-                        istniejaca['wlasciciele'].setdefault(
-                            k, (nazwa, adres, licz, mian))
+                    for k, *opis in wlasciciele:
+                        istniejaca['wlasciciele'].setdefault(k, tuple(opis))
                     continue
 
                 wl = OrderedDict()
-                for k, nazwa, adres, licz, mian in wlasciciele:
-                    wl.setdefault(k, (nazwa, adres, licz, mian))
+                for k, *opis in wlasciciele:
+                    wl.setdefault(k, tuple(opis))
                 dzialki[id_dz] = {
                     'kody': kody, 'pole': dz['pole'],
                     'klasouzytki': klasouzytki,
@@ -724,18 +757,25 @@ def zapisz_baze(baza, dane, slowniki, nowe_kody, nowe_gminy, postep=None):
                 (parcel_int_num, shape_nr, klasa, kod_kan, pow_, False))
             stat['klasouzytki'] += 1
 
-        for klucz_wl, (nazwa, adres, licz, mian) in d['wlasciciele'].items():
+        for klucz_wl, (name_1, name_2, adres, fl, licz, mian) in \
+                d['wlasciciele'].items():
             addr_nr = adresy_nr.get(klucz_wl)
             if addr_nr is None:
                 cur.execute(
-                    'INSERT INTO V_ADDRESS (NAME_1, PLACE, STREET, post_cd, '
-                    'VIEW_ADDRESS_FL, LP_PRICE) VALUES (?,?,?,?,?,?)',
-                    (nazwa[:255], adres.get('PLACE') or None,
-                     adres.get('STREET') or None,
-                     adres.get('post_cd') or None, False, False))
+                    'INSERT INTO V_ADDRESS (NAME_1, NAME_2, PLACE, STREET, '
+                    'post_cd, VIEW_ADDRESS_FL, LP_PRICE, addr_grp_fl) '
+                    'VALUES (?,?,?,?,?,?,?,?)',
+                    (name_1[:255], (name_2 or '')[:255] or None,
+                     adres.get('PLACE') or None, adres.get('STREET') or None,
+                     adres.get('post_cd') or None, False, False, fl))
                 addr_nr = int(cur.execute('SELECT @@IDENTITY').fetchval())
                 adresy_nr[klucz_wl] = addr_nr
                 stat['wlasciciele'] += 1
+                stat['wlasciciele_' + fl] += 1
+                if klucz_wl[0] == 'gml':
+                    stat['wlasciciele_gml'] += 1
+                    if not (adres.get('PLACE') or adres.get('STREET')):
+                        stat['bez_adresu'] += 1
             cur.execute(
                 'INSERT INTO V_PARCEL_PARTICIPATION (addr_nr, '
                 'parcel_int_num, part_numerator, part_denominator) '
@@ -1366,7 +1406,15 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
             w.append('  Działek zapisanych: %d' % stat['dzialki'])
             w.append('  Klasoużytków zapisanych: %d' % stat['klasouzytki'])
             w.append('  Obrębów (F_COMMUNITY): %d' % stat['obreby'])
-            w.append('  Właścicieli (V_ADDRESS): %d' % stat['wlasciciele'])
+            w.append('  Właścicieli (V_ADDRESS): %d (OF: %d, OP: %d)' % (
+                stat['wlasciciele'], stat['wlasciciele_OF'],
+                stat['wlasciciele_OP']))
+            if stat['bez_adresu']:
+                w.append('  !!! Właściciele z GML bez adresu: %d z %d%s' % (
+                    stat['bez_adresu'], stat['wlasciciele_gml'],
+                    ' - GML nie zawiera adresów podmiotów (eksport bez '
+                    'danych adresowych?)'
+                    if stat['bez_adresu'] == stat['wlasciciele_gml'] else ''))
             if stat['gminy']:
                 w.append('  Dopisanych gmin (F_MUNICIPALITY): %d' %
                          stat['gminy'])
