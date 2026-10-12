@@ -73,7 +73,15 @@ class Wpisz:
         wpisanych. Jeżeli użytkownik wpisał swoją rębnie, dopisane sa zabiegi
         na podstawie wskazanego cięcia.
         """
+        # kod zabiegu może być w F_AROD_CUE tylko raz na wydzielenie (klucz
+        # SULMN) - powtórzony na liście wygenerowanych jest pomijany
+        kody = set()
         for it in self.zabiegi:
+            if it[0] in kody:
+                self.uw_raport.append(
+                    f'Pominięto powtórzony wygenerowany zabieg ({it[0]})')
+                continue
+            kody.add(it[0])
             self.max_cue += 1
             self._dopisz_zabieg(it)
 

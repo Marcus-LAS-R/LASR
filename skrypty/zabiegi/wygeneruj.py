@@ -126,13 +126,17 @@ class Generuj:
         self.zabiegi.append(['PIEL', self.pow_wydz])
 
     def zab_dstan_cp(self):
+        # CP mogło już zostać dodane razem z CW (janczulewicz, wiek 4-9) -
+        # drugie CP łamie klucz F_AROD_CUE (wydzielenie + zabieg) w SULMN
+        jest_cp = any(z[0] == 'CP' for z in self.zabiegi)
         if self.gat_gl_vol == 0:
-            self.zabiegi.append(['CP', self.pow_wydz])
+            if not jest_cp:
+                self.zabiegi.append(['CP', self.pow_wydz])
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd < 10:
             if self.gat_gl[:2] in ['TP', 'BR', 'WB', 'OS']:
                 self.zabiegi.append(['TW', self.pow_wydz])
                 self.trzebiez = True
-            else:
+            elif not jest_cp:
                 self.zabiegi.append(['CP', self.pow_wydz])
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd > 9.9999:
             self.zabiegi.append(['TW', self.pow_wydz])

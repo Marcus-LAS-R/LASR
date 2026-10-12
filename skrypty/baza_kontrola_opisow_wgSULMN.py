@@ -108,6 +108,31 @@ def _zaladuj_kontrole(baza_kontroli: Baza) -> list:
     return lista
 
 
+# Kontrole wtyczki spoza bazy kontroli Mapa_PU (ta jest podmieniana przez
+# AktualizujSlownikKontroli, więc własnych kontroli nie dopisujemy do niej).
+# Access nie ma kluczy, które ma baza SULMN - duplikat przechodzi lokalnie,
+# a eksport do SULMN kończy się błędem klucza.
+_KONTROLE_WLASNE = [
+    ('Zdublowany zabieg w wydzieleniu (klucz pk_arod_cue w SULMN)',
+     'W wydzieleniu @adres01 zabieg @kod wpisano @ile razy - SULMN odrzuci '
+     'bazę (duplicate key pk_arod_cue); usuń nadmiarowy wpis',
+     'SELECT F_ARODES.ADRESS_FOREST AS ADRES01, F_AROD_CUE.MEASURE_CD AS KOD, '
+     'Count(*) AS ILE FROM F_ARODES INNER JOIN F_AROD_CUE ON '
+     'F_ARODES.ARODES_INT_NUM = F_AROD_CUE.ARODES_INT_NUM '
+     'GROUP BY F_ARODES.ADRESS_FOREST, F_AROD_CUE.MEASURE_CD '
+     'HAVING Count(*) > 1;'),
+]
+
+
+def _kontrole_wlasne() -> list:
+    lista = []
+    for i, (nazwa, opis, sql) in enumerate(_KONTROLE_WLASNE, 1):
+        kontrola = _KontrolaOpisu(f'LASR_{i}', nazwa, opis, False)
+        kontrola.dodaj_sql(_Sql(1, sql))
+        lista.append(kontrola)
+    return lista
+
+
 def _wykonaj_kontrole(baza_upul: Baza, kontrole: list, pasek) -> None:
     """Uruchamia wszystkie kontrole na kopii bazy UPUL."""
     n = len(kontrole)
@@ -357,6 +382,7 @@ def KontrolaOpisow(iface):
             Qgis.Warning, 10
         )
         return
+    kontrole += _kontrole_wlasne()
 
     # kopia bazy UPUL do tmp
     tmp_dir = tempfile.mkdtemp(prefix='lasr_kontrola_')
