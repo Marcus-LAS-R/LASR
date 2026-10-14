@@ -18,6 +18,7 @@ FORM_CLASS, _ = loadUiType(os.path.join(
 # (kolejność: najpierw tabele zależne)
 _TABELE_OPISU = (
     'F_STOREY_SPECIES', 'F_AROD_STOREY', 'F_AROD_GOAL', 'F_AROD_STAND_PEC',
+    'F_AROD_CUE',
 )
 
 
@@ -188,7 +189,8 @@ class Klonuj():
 
     def _ma_opis(self, aid):
         """Wydzielenie ma opis, jeśli ma rodzaj powierzchni albo choć jeden
-        wpis w tabelach opisu (piętra, gatunki, cele, osobliwości)."""
+        wpis w tabelach opisu (piętra, gatunki, cele, osobliwości,
+        zabiegi)."""
         if self._rodzaj_pow(aid).strip():
             return True
         for tabela in _TABELE_OPISU:
@@ -217,7 +219,8 @@ class Klonuj():
     def klonuj(self, pomin=()):
         """ Metoda zbiorcza dla klonowania danych z bazy. Każda para
         (źródło -> cel) w jednej transakcji: najpierw usuwany jest
-        dotychczasowy opis celu (piętra, gatunki, cele, osobliwości), potem
+        dotychczasowy opis celu (piętra, gatunki, cele, osobliwości,
+        zabiegi), potem
         wpisywana kopia źródła - błąd wycofuje całą parę. Cele z `pomin`
         (adr_les) nie są ruszane. """
         pomin = set(pomin)
@@ -236,6 +239,7 @@ class Klonuj():
                 self.k_arod_stand_pec(z, do)
                 self.k_arod_storey(z, do)
                 self.k_storey_spec(z, do)
+                self.k_arod_cue(z, do)
                 self.baza.con.commit()
                 self.sklonowano += 1
             except Exception as e:
@@ -270,6 +274,7 @@ class Klonuj():
                 'Kolejność modyfikowania tabel przy klonowaniu wydzielenia:\n'
                 'usunięcie opisu celu\nf_subarea\nf_arod_goal\n'
                 'f_arod_stand_spec\nf_arod_storey\nf_storey_spec\n'
+                'f_arod_cue\n'
                 '-------------\n'
                 '(w nawiasach podano ARODES_INT_NUM; błąd wycofuje całą parę '
                 '- opis celu zostaje bez zmian)\n',
@@ -387,6 +392,40 @@ class Klonuj():
         for it in item:
             cur_ind += 1
             self._wykonaj(sql, (cur_ind, self.wydz[do]) + tuple(it))
+
+    def _pow_wydz(self, aid):
+        w = self.baza.cur.execute(
+            'select SUB_AREA from F_SUBAREA where ARODES_INT_NUM = ?',
+            (aid,)).fetchall()
+        return float(w[0][0]) if w and w[0][0] else 0.0
+
+    def k_arod_cue(self, z, do):
+        """Zabiegi źródła -> cel. Powierzchnia zabiegu przeliczana
+        proporcjonalnie do powierzchni wydzieleń (SUB_AREA), masa do
+        pozyskania (LARGE_TIMBER_VALUE, _NET) czyszczona - do przeliczenia
+        w TPU."""
+        self._tabela = 'f_arod_cue'
+        item = self.baza.cur.execute(
+            'select MEASURE_CD, URGENCY, CUTTING_AREA, LARGE_TIMBER_PERC, '
+            'CUE_RANK_ORDER, SITE_NR, PROC_AREA from F_AROD_CUE '
+            'where ARODES_INT_NUM = ?', (self.wydz[z],)).fetchall()
+        if not item:
+            return
+        pow_z = self._pow_wydz(self.wydz[z])
+        pow_do = self._pow_wydz(self.wydz[do])
+        # bez powierzchni któregoś z wydzieleń - powierzchnia jak w źródle
+        skala = pow_do / pow_z if pow_z > 0 and pow_do > 0 else 1.0
+        for it in item:
+            pow_zab = it[2]
+            if pow_zab is not None:
+                pow_zab = round(float(pow_zab) * skala, 4)
+            self._wykonaj(
+                'insert into f_arod_cue (ARODES_INT_NUM, MEASURE_CD, URGENCY, '
+                'CUTTING_AREA, LARGE_TIMBER_PERC, CUE_RANK_ORDER, SITE_NR, '
+                'PROC_AREA, LARGE_TIMBER_VALUE, LARGE_TIMBER_VALUE_NET) '
+                'values (?,?,?,?,?,?,?,?,NULL,NULL)',
+                (self.wydz[do], it[0], it[1], pow_zab, it[3], it[4], it[5],
+                 it[6]))
 
 
 class PobierzDaneDock(QDockWidget, FORM_CLASS):
@@ -587,7 +626,8 @@ class NadpisanieDialog(QDialog):
         opis = QLabel(
             f'{len(wiersze)} wydzieleń docelowych ma już opis w bazie. '
             '"Nadpisz" - ich dotychczasowy opis (piętra, gatunki, cele, '
-            'osobliwości i dane F_SUBAREA) zostanie zastąpiony kopią. '
+            'osobliwości, zabiegi i dane F_SUBAREA) zostanie zastąpiony '
+            'kopią. '
             '"Pomiń" - te wydzielenia zostaną bez zmian, pozostałe zostaną '
             'sklonowane. "Anuluj" - nic nie zostanie zmienione.')
         opis.setWordWrap(True)
