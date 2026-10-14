@@ -130,7 +130,8 @@ class Zabiegi():
                 )
                 return
 
-        if self.wybor in ['Dop', 'Uzu']:
+        # tryb Uzu to tylko korekta powierzchni zabiegów - pięter nie rusza
+        if self.wybor == 'Dop':
             self.baza.usun_zadrzew_w_przes()
             self.baza.usun_mase_z_podr_podsz_nal()
 

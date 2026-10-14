@@ -305,7 +305,8 @@ def test_zmiany_pow_rebni_w_bazie(baza_pusta):
     w.baza = baza_pusta
     w.wiekReb = 95  # zmiana żeby wygenerował rębnie
     w.generuj_zabiegi()
-    w.gen_pow_reb = 0.9
+    # korekta do % rebni wpisanej w bazie x pow. wydzielenia
+    w.proc_reb = 50
 
     cnt_przed = baza_pusta.pobierz('select * from f_arod_cue;')
     res = w._zmodyfikuj_pow_rebni()
@@ -315,7 +316,7 @@ def test_zmiany_pow_rebni_w_bazie(baza_pusta):
     cnt = baza_pusta.pobierz('select count(*) from f_arod_cue;')
 
     assert cnt_przed[0][3] == 1.0972
-    assert cnt_po[0][3] == 0.9
+    assert cnt_po[0][3] == round(w.pow_wydz * 0.5, 4)
     assert cnt == [(0,)]
     assert res
 

@@ -104,7 +104,7 @@ class Ui_Dialog(object):
         self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
         self.grupBox.setTitle(_translate("Dialog", "Wybierz czynność:"))
         self.radioButton_sprawdz.setText(_translate("Dialog", "Sprawdź wpisane zabiegi w bazie (Nie modyfikuje zawartości)"))
-        self.radioButton_uzpelnij.setText(_translate("Dialog", "Uzupełnij powierzchnię zabiegów w bazie (Modyfikuje zawartość bazy, nie dodaje nowych rekordów)"))
+        self.radioButton_uzpelnij.setText(_translate("Dialog", "Popraw powierzchnię wpisanych zabiegów (nie dopisuje zabiegów, nie zmienia uwag ani pięter)"))
         self.radioButton_dopisz.setText(_translate("Dialog", "Dopisz zabiegi do bazy (dopisuje brakujące zabiegi oraz poprawia niezgodne powierzchnie)"))
         self.checkBox_czysc_cue.setText(_translate("Dialog", "Wyczyść tabelę F_AROD_CUE przed dopisaniem (zabiegi zostaną wygenerowane od zera)"))
         self.label.setText(_translate("Dialog", "Baza taksatora:"))

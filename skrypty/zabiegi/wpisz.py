@@ -10,18 +10,22 @@ class Wpisz:
             alter='' - aktualizuje wydzielenia o wygenerowane zabiegi, jeżli
                 jakis zabieg jest juz wpisany i jest zgodny z wygenerowanym ale
                 ma rózną powierzchnię albo co innego to zostanie zakutalizowany
-            alter='update' - aktualizuje powierzchnie przy zabiegach na takie
-                które są zgodne z powierzchnią wydzielenia, o ile w rebniach
-                wpisane sa procenty.
+            alter='alter' - tylko korekta powierzchni zabiegów JUŻ wpisanych
+                do bazy (rębnia: % rębni x pow. wydzielenia). Nie dopisuje
+                zabiegów i nie zmienia uwag w f_subarea - brakujące zabiegi
+                trafiają wyłącznie do raportu.
         """
+        if alter != '':
+            if self._zmodyfikuj_pow_rebni() is False:
+                self.uw_raport.append(
+                    'Nie udało się zmodyfikować powierzchni rębni')
+            self._popraw_pow_zabiegow()
+            return
+
         # dopisz rebnie
-        if alter == '':
-            status, val = self._dopisz_nowa_rebnie()
-            if not status:
-                self.uw_raport.append(val)
-        else:
-            if not self._zmodyfikuj_pow_rebni():
-                self.uw_raport.append('Nie udało się zmodyfikować powierzchni')
+        status, val = self._dopisz_nowa_rebnie()
+        if not status:
+            self.uw_raport.append(val)
 
         # metoda sama ogarnia czy zmienic powierzchnie czy nie
         self._dopisz_zabiegi()
@@ -57,16 +61,46 @@ class Wpisz:
             return True, 'OK'
         return False, 'Nie udało się dopisać cięcia do bazy'
 
-    def _zmodyfikuj_pow_rebni(self) -> bool:
-        """Metoda modyfikuje rebnie, w bazie dla podanego wydz
+    def _zmodyfikuj_pow_rebni(self) -> Union[bool, None]:
+        """Koryguje powierzchnię rębni wpisanej do bazy do % rębni x pow.
+        wydzielenia (niezależnie od tego, jaką rębnię wygenerowałby skrypt).
+        Zwraca None, gdy nie ma czego poprawiać.
         """
-        trig = False
-        if self.reb == self.gen_reb and self.reb != '':
-            if self.pow_reb != self.gen_pow_reb:
-                trig = True
-        if not trig:
-            return
-        return self._zmodyfikuj_powierzchnie([self.gen_reb, self.gen_pow_reb])
+        if self.reb == '':
+            return None
+        proc = self.proc_reb if self.proc_reb > 0 else 100
+        if proc > 100:
+            proc = 100
+        pow_reb = round(self.pow_wydz * (proc/100), 4)
+        if round(float(self.pow_reb), 4) == pow_reb:
+            return None
+        # kod w bazie może być małymi literami (SQLite rozróżnia wielkość)
+        kod = next((k for k in self.cue if k.upper() == self.reb), self.reb)
+        return self._zmodyfikuj_powierzchnie([kod, pow_reb])
+
+    def _popraw_pow_zabiegow(self) -> None:
+        """Tryb korekty powierzchni: poprawia powierzchnię tylko tych
+        wygenerowanych zabiegów, które są już wpisane do bazy. Brakujących
+        nie dopisuje - wypisuje je do raportu.
+        """
+        brak = []
+        kody = set()
+        for zab in self.zabiegi:
+            if zab[0] in kody:
+                continue
+            kody.add(zab[0])
+            if zab[0] not in self.cue:
+                brak.append(f'{zab[0]} {zab[1]} ha')
+                continue
+            if zab[1] != self.cue[zab[0]]:
+                if not self._zmodyfikuj_powierzchnie(zab):
+                    self.uw_baza.append(
+                        'Nie udało się zmodyfikować powierzchni zabiegu: '
+                        f'{zab[0]} {zab[1]}')
+        if brak:
+            self.uw_raport.append(
+                'Brak w bazie: ' + ', '.join(brak) +
+                ' - nie dopisano (tryb korekty powierzchni)')
 
     def _dopisz_zabiegi(self):
         """Metoda dopisuje zabiegi do bazy, lub uzupełnia powierzchnię juz
