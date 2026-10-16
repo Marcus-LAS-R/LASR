@@ -26,7 +26,8 @@ zagnieżdżone klasoużytki w listy):
     (przedmiot*/podmiot*/adres*/osobaFizyczna*), bez sztywnej ścieżki.
     V_ADDRESS: osoba fizyczna NAME_1 = nazwisko, NAME_2 = imiona;
     instytucja/podmiot grupowy NAME_1 = nazwa pełna. Małżeństwo -> dwa
-    rekordy (każdy z małżonków z udziałem małżeństwa). addr_grp_fl: osoba
+    rekordy V_ADDRESS i jeden udział w V_PARCEL_PARTICIPATION (pierwszy
+    małżonek z GML w addr_nr, drugi w second_addr_nr). addr_grp_fl: osoba
     fizyczna OF, instytucja OP, podmiot grupowy wg grupy rejestrowej JRG
     (7 osoby fizyczne, 10 wspólnota gruntowa -> OF, reszta OP); nieustaleni
     zawsze OF.
@@ -44,8 +45,10 @@ słownika; konwersja przed deduplikacją), dopisz gminę do słownika
 (gminy się zmieniają, słownik jest stały) albo pomiń działki.
 
 Duplikaty działek (ta sama działka w kilku GML jednej bazy) - zapisywana
-raz (pierwsze wystąpienie), właściciele sumowani; różnice powierzchni/
-klasoużytków między kopiami - do raportu.
+raz (pierwsze wystąpienie), udziały z kolejnych kopii dokładane, jeśli
+ich jeszcze nie ma; różnice powierzchni/klasoużytków między kopiami - do
+raportu. Właściciel w kilku udziałach jednej działki (np. udział własny
+i małżeński) - zapisywane wszystkie, lista w raporcie.
 """
 import os
 import re
@@ -309,11 +312,13 @@ def parsuj_gml(sciezka):
 
 
 def wlasciciele_z_gml(dane):
-    """{gml_id JRG: [(klucz, name_1, name_2, adres, addr_grp_fl, licznik,
-    mianownik)]} z udziałów we własności jednego pliku GML. Klucz
-    właściciela: ('gml', gml_id podmiotu) - ten sam podmiot w kilku plikach
-    to jeden V_ADDRESS. Małżeństwo -> osobny właściciel dla każdego z
-    małżonków (klucz = gml_id osoby), oboje z udziałem małżeństwa."""
+    """{gml_id JRG: [(osoby, licznik, mianownik)]} z udziałów we własności
+    jednego pliku GML; osoby = [(klucz, name_1, name_2, adres,
+    addr_grp_fl)]. Klucz właściciela: ('gml', gml_id podmiotu) - ten sam
+    podmiot w kilku plikach to jeden V_ADDRESS. Małżeństwo -> jeden udział
+    z dwiema osobami (kolejność z GML; pierwsza -> addr_nr, druga ->
+    second_addr_nr), każda osoba to osobny V_ADDRESS (klucz = gml_id
+    osoby)."""
     def osoby_podmiotu(href):
         if href in dane['malzenstwa']:
             return [h for h in dane['malzenstwa'][href]
@@ -323,18 +328,42 @@ def wlasciciele_z_gml(dane):
     wynik = {}
     for u in dane['udzialy']:
         for href in u['podmioty']:
-            for h in osoby_podmiotu(href):
-                o = dane['osoby'][h]
-                adres = next((dane['adresy'][a] for a in o['adresy']
-                              if a in dane['adresy']), {})
-                name_1 = o['name_1'] or '(brak nazwy)'
-                for jrg in u['jrg']:
+            hrefy = osoby_podmiotu(href)[:2]
+            if not hrefy:
+                continue
+            for jrg in u['jrg']:
+                osoby = []
+                for h in hrefy:
+                    o = dane['osoby'][h]
+                    adres = next((dane['adresy'][a] for a in o['adresy']
+                                  if a in dane['adresy']), {})
+                    name_1 = o['name_1'] or '(brak nazwy)'
                     fl = flaga_wlasciciela(o['typ'], name_1, o['name_2'],
                                            dane['jrg_grupa'].get(jrg))
-                    wynik.setdefault(jrg, []).append((
-                        ('gml', h), name_1, o['name_2'], adres, fl,
-                        u['licznik'] or 1, u['mianownik'] or 1))
+                    osoby.append((('gml', h), name_1, o['name_2'], adres, fl))
+                wynik.setdefault(jrg, []).append((
+                    osoby, u['licznik'] or 1, u['mianownik'] or 1))
     return wynik
+
+
+def _klucz_udzialu(udzial):
+    osoby, licznik, mianownik = udzial
+    return (tuple(o[0] for o in osoby), licznik, mianownik)
+
+
+def zdublowane_udzialy(udzialy):
+    """Opisy właścicieli występujących w więcej niż jednym udziale działki
+    (jako addr_nr albo second_addr_nr), np. 'KOWALSKI JAN: 1/2, 1/4
+    (małż.)'."""
+    wystapienia = OrderedDict()
+    for osoby, licznik, mianownik in udzialy:
+        for o in osoby:
+            wystapienia.setdefault(o[0], [o, []])[1].append(
+                '%s/%s%s' % (licznik, mianownik,
+                             ' (małż.)' if len(osoby) > 1 else ''))
+    return ['%s: %s' % (' '.join(x for x in (o[1], o[2]) if x),
+                        ', '.join(u))
+            for o, u in wystapienia.values() if len(u) > 1]
 
 
 # ---------------------------------------------------------------------
@@ -476,14 +505,16 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
     z co najmniej jednym klasoużytkiem Ls (z kompletem ich klasoużytków).
     Zwraca dict:
       dzialki    OrderedDict id -> {'kody', 'pole', 'klasouzytki',
-                 'grupa', 'wlasciciele': OrderedDict klucz -> (name_1,
-                 name_2, adres, addr_grp_fl, licznik, mianownik),
-                 'zrodlo'}
+                 'grupa', 'wlasciciele': [(osoby, licznik, mianownik)]
+                 (jak w wlasciciele_z_gml; kopia działki z kolejnego GML
+                 dokłada tylko udziały, których jeszcze nie ma), 'zrodlo'}
       obreby     {(county, district, municip, community): nazwa}
       bledne_id  [(gml, id)]
       bez_klasouzytkow [id]
       rozbieznosci [(id, gml_pierwszy, gml_kolejny, opis)]
       duplikaty  int
+      zdublowane_udzialy [(id, opis)] - właściciel w kilku udziałach
+                 jednej działki (zapisane wszystkie, jak w GML)
       z_wlascicielami_gml int
       skonwertowane [(id z GML, id po konwersji)]
       bez_ls     int - działki pominięte (tylko_ls, brak klasoużytku Ls)
@@ -535,8 +566,8 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
                 if wlasciciele:
                     z_wl_gml += 1
                 else:
-                    wlasciciele = [(klucz_folderu, nazwa_folderu, '', {},
-                                    'OF', 1, 1)]
+                    wlasciciele = [([(klucz_folderu, nazwa_folderu, '',
+                                      {}, 'OF')], 1, 1)]
 
                 klucz_obr = (kody['county'], kody['district'],
                              kody['municipality'], kody['community'])
@@ -562,18 +593,19 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
                         rozbieznosci.append((
                             id_dz, istniejaca['zrodlo'], gml,
                             ', '.join(roznice)))
-                    for k, *opis in wlasciciele:
-                        istniejaca['wlasciciele'].setdefault(k, tuple(opis))
+                    znane = {_klucz_udzialu(u)
+                             for u in istniejaca['wlasciciele']}
+                    for u in wlasciciele:
+                        if _klucz_udzialu(u) not in znane:
+                            znane.add(_klucz_udzialu(u))
+                            istniejaca['wlasciciele'].append(u)
                     continue
 
-                wl = OrderedDict()
-                for k, *opis in wlasciciele:
-                    wl.setdefault(k, tuple(opis))
                 dzialki[id_dz] = {
                     'kody': kody, 'pole': dz['pole'],
                     'klasouzytki': klasouzytki,
                     'grupa': (grupa or GRUPA_DOMYSLNA)[:8],
-                    'wlasciciele': wl, 'zrodlo': gml,
+                    'wlasciciele': list(wlasciciele), 'zrodlo': gml,
                 }
 
     return {
@@ -581,6 +613,9 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
         'bez_klasouzytkow': [i for i, d in dzialki.items()
                              if not d['klasouzytki']],
         'rozbieznosci': rozbieznosci, 'duplikaty': duplikaty,
+        'zdublowane_udzialy': [
+            (i, opis) for i, d in dzialki.items()
+            for opis in zdublowane_udzialy(d['wlasciciele'])],
         'z_wlascicielami_gml': z_wl_gml,
         'skonwertowane': skonwertowane,
         'bez_ls': bez_ls,
@@ -713,6 +748,30 @@ def zapisz_baze(baza, dane, slowniki, nowe_kody, nowe_gminy, postep=None):
         stat['obreby'] += 1
 
     adresy_nr = {}
+
+    def _addr_nr(klucz_wl, name_1, name_2, adres, fl):
+        """ADDR_NR właściciela - V_ADDRESS dopisywany przy pierwszym
+        wystąpieniu."""
+        addr_nr = adresy_nr.get(klucz_wl)
+        if addr_nr is not None:
+            return addr_nr
+        cur.execute(
+            'INSERT INTO V_ADDRESS (NAME_1, NAME_2, PLACE, STREET, '
+            'post_cd, VIEW_ADDRESS_FL, LP_PRICE, addr_grp_fl) '
+            'VALUES (?,?,?,?,?,?,?,?)',
+            (name_1[:255], (name_2 or '')[:255] or None,
+             adres.get('PLACE') or None, adres.get('STREET') or None,
+             adres.get('post_cd') or None, False, False, fl))
+        addr_nr = int(cur.execute('SELECT @@IDENTITY').fetchval())
+        adresy_nr[klucz_wl] = addr_nr
+        stat['wlasciciele'] += 1
+        stat['wlasciciele_' + fl] += 1
+        if klucz_wl[0] == 'gml':
+            stat['wlasciciele_gml'] += 1
+            if not (adres.get('PLACE') or adres.get('STREET')):
+                stat['bez_adresu'] += 1
+        return addr_nr
+
     ile = len(dane['dzialki'])
     for i, (id_dz, d) in enumerate(dane['dzialki'].items()):
         if postep is not None and i % 200 == 0:
@@ -757,29 +816,19 @@ def zapisz_baze(baza, dane, slowniki, nowe_kody, nowe_gminy, postep=None):
                 (parcel_int_num, shape_nr, klasa, kod_kan, pow_, False))
             stat['klasouzytki'] += 1
 
-        for klucz_wl, (name_1, name_2, adres, fl, licz, mian) in \
-                d['wlasciciele'].items():
-            addr_nr = adresy_nr.get(klucz_wl)
-            if addr_nr is None:
-                cur.execute(
-                    'INSERT INTO V_ADDRESS (NAME_1, NAME_2, PLACE, STREET, '
-                    'post_cd, VIEW_ADDRESS_FL, LP_PRICE, addr_grp_fl) '
-                    'VALUES (?,?,?,?,?,?,?,?)',
-                    (name_1[:255], (name_2 or '')[:255] or None,
-                     adres.get('PLACE') or None, adres.get('STREET') or None,
-                     adres.get('post_cd') or None, False, False, fl))
-                addr_nr = int(cur.execute('SELECT @@IDENTITY').fetchval())
-                adresy_nr[klucz_wl] = addr_nr
-                stat['wlasciciele'] += 1
-                stat['wlasciciele_' + fl] += 1
-                if klucz_wl[0] == 'gml':
-                    stat['wlasciciele_gml'] += 1
-                    if not (adres.get('PLACE') or adres.get('STREET')):
-                        stat['bez_adresu'] += 1
+        for osoby, licz, mian in d['wlasciciele']:
+            nr = [_addr_nr(*o) for o in osoby]
+            # sterownik Access nie wiąże None jako parametru - second_addr_nr
+            # tylko dla małżeństwa
+            kolumny = ['addr_nr', 'parcel_int_num', 'part_numerator',
+                       'part_denominator', 'second_addr_nr'][:4 + len(nr[1:2])]
             cur.execute(
-                'INSERT INTO V_PARCEL_PARTICIPATION (addr_nr, '
-                'parcel_int_num, part_numerator, part_denominator) '
-                'VALUES (?,?,?,?)', (addr_nr, parcel_int_num, licz, mian))
+                'INSERT INTO V_PARCEL_PARTICIPATION (' + ', '.join(kolumny) +
+                ') VALUES (' + ','.join('?' * len(kolumny)) + ')',
+                (nr[0], parcel_int_num, licz, mian) + tuple(nr[1:2]))
+            stat['udzialy'] += 1
+            if len(nr) > 1:
+                stat['malzenstwa'] += 1
 
     stat['pominiete_uzytki'] = pominiete_uzytki
     stat['nieznane_klasy'] = nieznane_klasy
@@ -1409,6 +1458,9 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
             w.append('  Właścicieli (V_ADDRESS): %d (OF: %d, OP: %d)' % (
                 stat['wlasciciele'], stat['wlasciciele_OF'],
                 stat['wlasciciele_OP']))
+            w.append('  Udziałów (V_PARCEL_PARTICIPATION): %d, w tym '
+                     'małżeńskich (second_addr_nr): %d' % (
+                         stat['udzialy'], stat['malzenstwa']))
             if stat['bez_adresu']:
                 w.append('  !!! Właściciele z GML bez adresu: %d z %d%s' % (
                     stat['bez_adresu'], stat['wlasciciele_gml'],
@@ -1432,6 +1484,11 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
             for id_dz, g1, g2, opis in dane['rozbieznosci']:
                 w.append('    %s: %s  [%s | %s]' % (
                     id_dz, opis, os.path.basename(g1), os.path.basename(g2)))
+        if dane['zdublowane_udzialy']:
+            w.append('  !!! Właściciel w kilku udziałach jednej działki '
+                     '(zapisano wszystkie, jak w GML) - %d:' %
+                     len(dane['zdublowane_udzialy']))
+            w.extend('    %s: %s' % x for x in dane['zdublowane_udzialy'])
         if dane['skonwertowane']:
             w.append('  Działki ze skonwertowanym kodem gminy (GML -> baza) '
                      '- %d:' % len(dane['skonwertowane']))
