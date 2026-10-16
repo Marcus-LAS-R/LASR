@@ -3,12 +3,24 @@ import os
 from qgis.core import QgsProject
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 
+# docelowa kolejność warstw w wydzieleniu (STOREY_RANK_ORDER), od góry;
+# zgodna z kontrolami: OT (DRZEW/IP = 1) i SULMN ID82 (na HAL/ZRĘB jako
+# pierwsze tylko NAL/PODR/PODRII/PODSZ - stąd PRZES za PODSZ) oraz z
+# kolejnością w bazach z TPU. Słownik F_STOREY_DIC.STOREY_NR stawia IP/IIP
+# za PRZES - nie używać. Kody spoza listy na końcu.
+KOLEJNOSC_PIETER = ['DRZEW', 'IP', 'IIP', 'PODRII', 'PODR', 'NAL', 'PODS',
+                    'PODSZ', 'PRZES', 'ZADRZEW', 'PLANT', 'ZAKRZEW', 'SAMOS']
+
+# kody udziału w kolejności sortowania gatunków (10 = 100% pierwsze)
+KOLEJNOSC_UDZIALOW = [str(x) for x in range(10, 0, -1)] + ['MJS', 'PJD']
+
 
 class NaprawFStorSpec:
     def __init__(self):
         self.baza = Baza('')
         self.sl = {}
-        self.uwagi = []
+        self.uwagi = {}           # arodes_int_num -> [opis błędu]
+        self.nieznane_udzialy = []  # wiersze z PART_CD spoza słownika
         self.wpisanych = 0
         self.wydz_kol_pieter = 0  # wydzielenia z poprawioną kolejnością pięter
         self.usuniete_puste = []  # wiersze z SPECIES_CD = NULL (usunięte)
@@ -100,6 +112,27 @@ class NaprawFStorSpec:
             if row[2] in self.lwar:
                 self.sl[row[1]][row[2]].append(row)
 
+    def _uwaga(self, aid, opis):
+        self.uwagi.setdefault(aid, []).append(opis)
+
+    def _zapisz_kolejnosc(self, sql, wiersze):
+        """Numeruje wiersze od 1 w dwóch przebiegach (najpierw +100 - bez
+        chwilowych dubli numeru) w jednej transakcji. wiersze: [krotka
+        klucza do where]. Zwraca None albo treść błędu (po wycofaniu)."""
+        cur, con = self.baza.cur, self.baza.con
+        try:
+            for przes in (100, 1):
+                for i, klucz in enumerate(wiersze):
+                    cur.execute(sql, (i + przes,) + tuple(klucz))
+            con.commit()
+        except Exception as e:
+            try:
+                con.rollback()
+            except Exception:
+                pass
+            return '%s: %s' % (type(e).__name__, e)
+        return None
+
     def popraw(self):
         '''Sortuje na nowo poszczegolne tablice w slowniku, o ile w listach
         jest przynajmniej 1 rekord i tworzy nowe tabele z dodatkiem
@@ -112,8 +145,9 @@ class NaprawFStorSpec:
                     if k != 'raw']) > 0:
                 try:
                     self.p_pietro(intnum)
-                except Exception:
-                    self.uwagi.append(intnum)
+                except Exception as e:
+                    self._uwaga(intnum, 'błąd sortowania gatunków - %s: %s'
+                                % (type(e).__name__, e))
 
     def p_pietro(self, key_wydz):
         '''obliczenia dla pietra'''
@@ -143,16 +177,14 @@ class NaprawFStorSpec:
 
         t2 = sorted(t1, key=lambda x: x[7], reverse=True)  # sort po vol
         t3 = sorted(t2, key=lambda x: x[6], reverse=True)  # sort po wieku
-        # sort po udziale
-        t4 = sorted(
-            t3,
-            key=lambda x: (
-                10 - int(x[5]) if x[5].isdigit() else (
-                    11 if x[5] == 'MJS' else
-                    12 if x[5] == 'PJD' else 13)
-            ))
-
-        return t4
+        # sort po udziale; kod spoza słownika na końcu + raport (pusty
+        # udział też na końcu, bez raportu)
+        for x in t3:
+            if x[5] and x[5] not in KOLEJNOSC_UDZIALOW:
+                self.nieznane_udzialy.append(x)
+        return sorted(t3, key=lambda x: (
+            KOLEJNOSC_UDZIALOW.index(x[5]) if x[5] in KOLEJNOSC_UDZIALOW
+            else len(KOLEJNOSC_UDZIALOW)))
 
     def dopisz_poprawki(self):
         # kopia bazy powstaje już w pobierz_z_bazy
@@ -162,16 +194,9 @@ class NaprawFStorSpec:
         self.popraw_kolejnosc_pieter()
 
     def popraw_kolejnosc_pieter(self):
-        '''Ustawia STOREY_RANK_ORDER w F_AROD_STOREY wg kolejności kodów
-        pięter ze słownika F_STOREY_DIC.STOREY_NR (DRZEW 1, PODR 4, NAL 6,
-        PODSZ 9, PRZES 10, ...), numeracja w wydzieleniu od 1 bez dziur.
-        Piętra spoza słownika na końcu, w dotychczasowej kolejności.'''
-        dic = self.baza.pobierz(
-            'select STOREY_CD, STOREY_NR from F_STOREY_DIC;')
-        if not dic:
-            return
-        nr = {x[0]: (x[1] if x[1] is not None else 999) for x in dic}
-
+        '''Ustawia STOREY_RANK_ORDER w F_AROD_STOREY wg KOLEJNOSC_PIETER,
+        numeracja w wydzieleniu od 1 bez dziur. Piętra spoza listy na
+        końcu, w dotychczasowej kolejności.'''
         wiersze = self.baza.pobierz(
             'select ARODES_INT_NUM, STOREY_CD, STOREY_RANK_ORDER '
             'from F_AROD_STOREY;')
@@ -181,23 +206,22 @@ class NaprawFStorSpec:
         for aid, cd, rank in wiersze:
             pietra.setdefault(aid, []).append((cd, rank))
 
+        def poz(cd):
+            return (KOLEJNOSC_PIETER.index(cd) if cd in KOLEJNOSC_PIETER
+                    else len(KOLEJNOSC_PIETER))
+
         sql = ('update F_AROD_STOREY set STOREY_RANK_ORDER = ? '
                'where ARODES_INT_NUM = ? and STOREY_CD = ?;')
         for aid, lista in pietra.items():
             nowa = sorted(lista, key=lambda x: (
-                nr.get(x[0], 999), 999 if x[1] is None else x[1]))
+                poz(x[0]), 999 if x[1] is None else x[1]))
             if [x[1] for x in nowa] == list(range(1, len(nowa) + 1)):
                 continue
-            # dwa przebiegi (jak przy gatunkach) - bez chwilowych dubli numeru
-            ok = True
-            for przes in (100, 1):
-                for i, (cd, _) in enumerate(nowa):
-                    if not self.baza.wpisz_tab([sql, (i + przes, aid, cd)]):
-                        ok = False
-            if ok:
+            blad = self._zapisz_kolejnosc(sql, [(aid, cd) for cd, _ in nowa])
+            if blad is None:
                 self.wydz_kol_pieter += 1
             else:
-                self.uwagi.append(aid)
+                self._uwaga(aid, 'kolejność pięter niezapisana - ' + blad)
 
     def _adres(self, sl_int, aid):
         if aid is None:
@@ -212,7 +236,7 @@ class NaprawFStorSpec:
                 f'masa: {r[7]}  (SPEC_STOR_INT_NUM={r[0]})')
 
     def raport(self):
-        uw = sorted({x for x in self.uwagi if x is not None})
+        uw = sorted(x for x in self.uwagi if x is not None)
         wyps = '------[ RAPORT ]--------\n\n'
         wyps += 'Wpisano poprawek do bazy: '+str(self.wpisanych) + '\n'
         wyps += 'Poprawiono kolejność pięter w wydzieleniach: ' + \
@@ -240,10 +264,19 @@ class NaprawFStorSpec:
             wyps += '\n'.join(self._opis_wiersza(sl_int, r)
                               for r in self.inne_puste) + '\n\n'
 
+        if self.nieznane_udzialy:
+            wyps += ('UDZIAŁ SPOZA SŁOWNIKA (gatunek ustawiony na końcu '
+                     'warstwy):\n')
+            wyps += '\n'.join(self._opis_wiersza(sl_int, r)
+                              for r in self.nieznane_udzialy) + '\n\n'
+
         if len(uw) > 0:
             wyps += 'Znaleziono błędów krytycznych: ' + str(len(uw)) + '\n'
-            wyps += '(Należy sprawdzić poniższe wydzielenia)\n\n'
-            wyps += '\n'.join([self._adres(sl_int, x) for x in uw])
+            wyps += ('(Należy sprawdzić poniższe wydzielenia - zmiany w nich '
+                     'wycofane)\n\n')
+            for x in uw:
+                wyps += self._adres(sl_int, x) + '\n'
+                wyps += ''.join('    ' + o + '\n' for o in self.uwagi[x])
 
         wyps += '\n\n\n----------[ KONIEC ]----------------'
         kat = os.path.dirname(self.baza.baza)
@@ -260,7 +293,8 @@ class NaprawFStorSpec:
                 continue
 
             if key in self.lwar and key+'_s' not in self.sl[wydz]:
-                self.uwagi.append(wydz)
+                self._uwaga(wydz, '%s: brak posortowanej listy gatunków'
+                            % key)
                 continue
 
             # sprawdz czy sortowanie zmienilo liste z bazy
@@ -274,25 +308,21 @@ class NaprawFStorSpec:
             # czy listy maja taka sama dlugosc, - raczej tak ale dla swietego
             # spokoju sprawdzmy
             if len(self.sl[wydz][key]) != len(self.sl[wydz][key+'_s']):
-                self.uwagi.append(wydz)
+                self._uwaga(wydz, '%s: różna liczba gatunków przed i po '
+                            'sortowaniu' % key)
                 continue
 
-            # jezeli tu dotarlismy to mozemy zmienic baze
-            for i, it in enumerate(self.sl[wydz][key+'_s']):
-                sql = 'update f_storey_species set ' + \
-                    'species_rank_order='+str(i+100) + \
-                    ' where spec_stor_int_num='+str(it[0])+';'
-                wyn = self.baza.wpisz(sql)
-
-            for i, it in enumerate(self.sl[wydz][key+'_s']):
-                sql = 'update f_storey_species set ' + \
-                    'species_rank_order='+str(i+1) + \
-                    ' where spec_stor_int_num='+str(it[0])+';'
-                wyn = self.baza.wpisz(sql)
-                if not wyn:
-                    self.uwagi.append(wydz)
-                else:
-                    self.wpisanych += 1
+            # jezeli tu dotarlismy to mozemy zmienic baze - cała warstwa
+            # w jednej transakcji (błąd -> wycofanie, bez numerów 100+)
+            blad = self._zapisz_kolejnosc(
+                'update f_storey_species set species_rank_order = ? '
+                'where spec_stor_int_num = ?;',
+                [(it[0],) for it in self.sl[wydz][key+'_s']])
+            if blad is None:
+                self.wpisanych += len(self.sl[wydz][key+'_s'])
+            else:
+                self._uwaga(wydz, '%s: kolejność gatunków niezapisana - %s'
+                            % (key, blad))
 
 
 class WrapNaprawFStorSpec(NaprawFStorSpec):
