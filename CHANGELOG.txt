@@ -1,6 +1,45 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0s — 2026-10-16
+------------------------------------------------
+
+1. NOWOŚĆ: "Podmień kwerendy w bazach" (menu Narzędziowe) - w bazach
+   z wybranego folderu wymienia kwerendy na te ze wskazanej bazy
+   źródłowej:
+   - siedem kwerend TPU (VIEW_...) zostaje nietkniętych,
+   - tabele F_TABLICA i F_TABLICA_ROZSZERZONA kopiowane ze źródła,
+   - bazy *_BDO pomijane,
+   - przed zmianą kopia każdej bazy w Kopie_manipulacyjne, raport
+     w folderze Raporty.
+2. ZMIANA: "Połącz bazy TPU":
+   - można wskazać folder z obrębami lub gminami - bazy są szukane też
+     w podfolderach (pomijane: archiwa, kopie, foldery zaczynające się
+     od "_"),
+   - bazy BDO łączone osobno, nigdy razem ze zwykłymi,
+   - gdy w folderze jest kilka baz, skrypt pyta, którą wziąć,
+   - połączona baza zawsze w folderze Baza_polaczona,
+   - nowa opcja "Utwórz bazę BDO" - od razu druga, zanonimizowana baza
+     bez kwerend.
+3. ZMIANA: "Napraw F_STOREY_SPECIES" - poprawna kolejność warstw
+   w wydzieleniu: DRZEW, IP, IIP, PODRII, PODR, NAL, PODS, PODSZ, PRZES,
+   ZADRZEW, PLANT, ZAKRZEW, SAMOS (wcześniej I i II piętro lądowały za
+   podrostem i przestojami); błędy z przyczyną w raporcie, zapis
+   bezpieczny (bez urwanej numeracji).
+4. ZMIANA: "Utwórz bazę z GML" - właściciele:
+   - nazwisko w NAME_1, imiona w NAME_2, oznaczenie OF/OP,
+   - małżeństwo jako jeden udział z dwojgiem małżonków (drugi
+     w second_addr_nr),
+   - wszystkie udziały właściciela w działce (wcześniej ginęły powtórne),
+   - bardzo duże ułamki udziałów (np. z Gniezna) nie wywracają już
+     importu - lista w raporcie.
+5. POPRAWKA: generator zabiegów nie dubluje już CP (błąd SULMN
+   "pk_arod_cue"); Kontrola opisu SULMN wskazuje zdublowane zabiegi.
+6. POPRAWKA: Zabiegi, tryb 2 - tylko korekta powierzchni zabiegów
+   wpisanych w bazie, bez dopisywania nowych.
+7. ZMIANA: "Klonuj opisy wydzieleń" klonuje też zabiegi (powierzchnia
+   przeliczona do wydzielenia docelowego).
+
 Wersja 2.0r — 2026-10-07
 ------------------------------------------------
 
