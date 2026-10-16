@@ -54,6 +54,7 @@ import os
 import re
 import shutil
 import datetime
+from math import gcd
 import xml.etree.ElementTree as ET
 from collections import Counter, OrderedDict
 
@@ -80,6 +81,8 @@ TRYB_FOLDERY = 1
 TRYB_CALOSC = 2
 
 GRUPA_DOMYSLNA = 'G1'
+# part_numerator/part_denominator - INTEGER (Long) w Access
+MAKS_ULAMKA = 2 ** 31 - 1
 NAZWA_NOWEGO_KODU = 'nowy'
 
 # idDzialki: WOJ(2)POW(2)GMI(2)_RODZ(1).OBREB(4).<reszta>, <reszta> to NR
@@ -351,6 +354,20 @@ def _klucz_udzialu(udzial):
     return (tuple(o[0] for o in osoby), licznik, mianownik)
 
 
+def ulamek_do_bazy(licznik, mianownik):
+    """Udział mieszczący się w INTEGER Access: najpierw skrócenie (wartość
+    bez zmian), a gdy dalej za duży - obcięcie tylu samych końcowych cyfr
+    licznika i mianownika, żeby oba się zmieściły (licznik min. 1)."""
+    if licznik <= MAKS_ULAMKA and mianownik <= MAKS_ULAMKA:
+        return licznik, mianownik
+    d = gcd(licznik, mianownik) or 1
+    licznik, mianownik = licznik // d, mianownik // d
+    dzielnik = 1
+    while max(licznik, mianownik) // dzielnik > MAKS_ULAMKA:
+        dzielnik *= 10
+    return max(licznik // dzielnik, 1), max(mianownik // dzielnik, 1)
+
+
 def zdublowane_udzialy(udzialy):
     """Opisy właścicieli występujących w więcej niż jednym udziale działki
     (jako addr_nr albo second_addr_nr), np. 'KOWALSKI JAN: 1/2, 1/4
@@ -518,6 +535,8 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
       z_wlascicielami_gml int
       skonwertowane [(id z GML, id po konwersji)]
       bez_ls     int - działki pominięte (tylko_ls, brak klasoużytku Ls)
+      zmienione_ulamki [(id, właściciel, ułamek z GML, ułamek w bazie)] -
+                 udziały za duże dla INTEGER (ulamek_do_bazy)
     """
     konwersje = konwersje or {}
     bez_ls = 0
@@ -608,6 +627,17 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
                     'wlasciciele': list(wlasciciele), 'zrodlo': gml,
                 }
 
+    zmienione_ulamki = []
+    for id_dz, d in dzialki.items():
+        for n, (osoby, licz, mian) in enumerate(d['wlasciciele']):
+            nowy = ulamek_do_bazy(licz, mian)
+            if nowy != (licz, mian):
+                d['wlasciciele'][n] = (osoby, nowy[0], nowy[1])
+                zmienione_ulamki.append((
+                    id_dz, ' + '.join(' '.join(x for x in (o[1], o[2]) if x)
+                                      for o in osoby),
+                    '%s/%s' % (licz, mian), '%s/%s' % nowy))
+
     return {
         'dzialki': dzialki, 'obreby': obreby, 'bledne_id': bledne_id,
         'bez_klasouzytkow': [i for i, d in dzialki.items()
@@ -619,6 +649,7 @@ def zbierz_dane_bazy(foldery_bazy, sparsowane, konwersje=None,
         'z_wlascicielami_gml': z_wl_gml,
         'skonwertowane': skonwertowane,
         'bez_ls': bez_ls,
+        'zmienione_ulamki': zmienione_ulamki,
         'obreby_bez_nazwy': sorted(
             teryt_obreby.id_obrebu(*k) for k, n in obreby.items() if not n),
     }
@@ -1489,6 +1520,13 @@ def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
                      '(zapisano wszystkie, jak w GML) - %d:' %
                      len(dane['zdublowane_udzialy']))
             w.extend('    %s: %s' % x for x in dane['zdublowane_udzialy'])
+        if dane['zmienione_ulamki']:
+            w.append('  !!! Udziały za duże dla bazy (INTEGER) - skrócone, '
+                     'a gdy to nie wystarczyło: obcięte końcowe cyfry '
+                     'licznika i mianownika - %d:' %
+                     len(dane['zmienione_ulamki']))
+            w.extend('    %s: %s  %s -> %s' % x
+                     for x in dane['zmienione_ulamki'])
         if dane['skonwertowane']:
             w.append('  Działki ze skonwertowanym kodem gminy (GML -> baza) '
                      '- %d:' % len(dane['skonwertowane']))
