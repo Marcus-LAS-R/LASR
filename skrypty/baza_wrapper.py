@@ -38,6 +38,18 @@ def zwolnij_baze(sc):
     _BAZY_ZAJETE.discard(_klucz_bazy(sc))
 
 
+# kwerendy TPU, których nie usuwamy (Usuń kwerendy, Podmień kwerendy)
+KWERENDY_CHRONIONE = frozenset({
+    'VIEW_AROD_GOAL_RULE_SPECIES',
+    'VIEW_AROD_LAND_USE',
+    'VIEW_AROD_LAND_USE_LS',
+    'VIEW_AROD_LAND_USE_NLS',
+    'VIEW_AROD_STOREY_RULE_SPECIES',
+    'VIEW_GAT_PAN',
+    'VIEW_PREB_FL',
+})
+
+
 def baza_zajeta(sc):
     """Czy baza (dowolny zapis ścieżki tego samego pliku) jest podłączona do
     Edytora opisu taksacyjnego."""
@@ -1019,15 +1031,7 @@ class Baza(object):
         Zwraca listę nazw usuniętych kwerend.
         Działa tylko dla plików .mdb (DAO/COM), dla sqlite zwraca [].
         """
-        WHITELIST = {
-            'VIEW_AROD_GOAL_RULE_SPECIES',
-            'VIEW_AROD_LAND_USE',
-            'VIEW_AROD_LAND_USE_LS',
-            'VIEW_AROD_LAND_USE_NLS',
-            'VIEW_AROD_STOREY_RULE_SPECIES',
-            'VIEW_GAT_PAN',
-            'VIEW_PREB_FL',
-        }
+        WHITELIST = KWERENDY_CHRONIONE
 
         if not self.baza.endswith('.mdb'):
             return []

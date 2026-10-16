@@ -52,8 +52,11 @@ def _etykiety_obr(obreby):
 
 
 class WyborObrebowDialog(QDialog):
-    def __init__(self, iface, lista_baz):
+    def __init__(self, iface, lista_baz, katalog_bazowy=None):
         super().__init__(iface.mainWindow())
+        # folder wskazany przy łączeniu - w etykiecie bazy jej podfolder
+        # (bazy z różnych obrębów mogą mieć tę samą nazwę pliku)
+        self.katalog_bazowy = katalog_bazowy
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
         self.lista_baz = lista_baz
@@ -134,7 +137,13 @@ class WyborObrebowDialog(QDialog):
             lambda stan, b=baza_sc: self._zaznacz_baze(b, stan))
         naglowek.addWidget(checkbox_baza)
 
-        etykieta_nazwy = QLabel(_etykieta_bazy(baza_sc))
+        etykieta = _etykieta_bazy(baza_sc)
+        if self.katalog_bazowy:
+            folder = os.path.relpath(os.path.dirname(baza_sc),
+                                     self.katalog_bazowy)
+            if folder != '.' and not folder.startswith('..'):
+                etykieta += '   [' + folder + ']'
+        etykieta_nazwy = QLabel(etykieta)
         czcionka = QFont()
         czcionka.setBold(True)
         etykieta_nazwy.setFont(czcionka)

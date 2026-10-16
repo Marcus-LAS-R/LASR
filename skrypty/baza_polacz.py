@@ -1,5 +1,4 @@
 import os
-import glob
 import platform
 from PyQt5.QtWidgets import QDialog, QMessageBox
 from datetime import datetime
@@ -15,7 +14,9 @@ from .baza_polacz_rejestr import (
 from .baza_polacz_dialog import WyborGrupDialog
 from .baza_polacz_obreby_dialog import WyborObrebowDialog
 from .baza_polacz_docelowa_dialog import WyborBazyDocelowejDialog
-from .baza_wybor_katalogu_dialog import WybierzKatalogDialog
+from .baza_polacz_wyszukaj import (
+    KATALOG_WYNIKU, StartPolaczDialog, WyborBazyWFolderzeDialog,
+    sciezka_wzgledna, znajdz_bazy)
 
 
 def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
@@ -156,48 +157,121 @@ class PolaczBazy():
         # {baza_sc: set(tuple)|None} - nadpisywane przez wybierz_obreby();
         # None dla danej bazy = brak filtra (wszystkie obreby dozwolone)
         self.obreby_wybrane = {}
+        self.katalog = ''        # wskazany folder z obrębami/gminami
+        self.kat_wyniku = ''     # <katalog>\Baza_polaczona - wynik i raporty
+        self.bdo = False         # tryb: łączenie baz *_BDO
+        self.utworz_bdo = False  # po połączeniu kopia zanonimizowana *_BDO
         self.postep = PasekPostepu(self.iface).stworz_pasek(
             'Kopiowanie baz TPU')
         self.postep.setValue(0)
 
     def pobierz_katalog(self):
+        """Wybór folderu z obrębami/gminami i trybu (zwykłe/BDO), wyszukanie
+        baz (baza_polacz_wyszukaj.znajdz_bazy), rozstrzygnięcie folderów
+        z kilkoma bazami i potwierdzenie listy przez użytkownika."""
         wzorzec = "*.mdb" if platform.system()[:3] == 'Win' else "*.sqlite"
 
-        dlg = WybierzKatalogDialog(
-            self.iface, "Połącz bazy TPU — katalog z bazami danych", wzorzec)
+        dlg = StartPolaczDialog(
+            self.iface, "Połącz bazy TPU — folder z obrębami lub gminami",
+            wzorzec)
         if dlg.exec_() != QDialog.Accepted:
             return False
-        bazy_kat = dlg.katalog()
+        self.katalog = os.path.normpath(dlg.katalog())
+        self.bdo = dlg.bdo()
+        self.utworz_bdo = dlg.utworz_bdo()
+        rodzaj = 'BDO' if self.bdo else 'zwykłych (bez *_BDO)'
 
-        bTemp = glob.glob(os.path.join(bazy_kat, wzorzec))
+        if not os.path.isdir(self.katalog):
+            return self._blad('Wskazany folder nie istnieje: ' + self.katalog)
+        poziom, foldery, glebsze = znajdz_bazy(self.katalog, self.bdo)
+        if poziom is None:
+            return self._blad('Nie odnalazłem żadnej bazy ' + rodzaj +
+                              ' we wskazanym folderze ani w podfolderach.')
 
-        mess = ''
-        if len(bTemp) == 0:
-            mess = 'Nie odnalazłem żadnej bazy we wskazanym katalogu!'
+        lista = []
+        pominiete_foldery = []
+        if poziom == 0:
+            lista = foldery[self.katalog]
+        else:
+            wiele = {f: b for f, b in foldery.items() if len(b) > 1}
+            wybor = {}
+            if wiele:
+                dlg_w = WyborBazyWFolderzeDialog(
+                    self.iface, wiele, self.katalog)
+                if dlg_w.exec_() != QDialog.Accepted:
+                    return False
+                wybor = dlg_w.wybor()
+            for folder, bazy in foldery.items():
+                if len(bazy) == 1:
+                    lista.append(bazy[0])
+                elif wybor.get(folder):
+                    lista.append(wybor[folder])
+                else:
+                    pominiete_foldery.append(folder)
+        if not lista:
+            return self._blad('Nie wybrano żadnej bazy do łączenia.')
+
+        if not self._potwierdz_liste(
+                lista, poziom, pominiete_foldery, glebsze, rodzaj):
+            return False
+
+        self.kat_wyniku = os.path.join(self.katalog, KATALOG_WYNIKU)
+        try:
+            os.makedirs(self.kat_wyniku, exist_ok=True)
+        except OSError as e:
+            return self._blad('Nie udało się utworzyć folderu ' +
+                              self.kat_wyniku + ': ' + str(e))
 
         # sortujemy, zeby wybor bazy bazowej (lista[0]) byl deterministyczny
         # i przewidywalny dla uzytkownika, zamiast zalezec od kolejnosci
         # zwracanej przez system plikow
-        bTemp.sort()
-        self.lista = bTemp
-
-        if mess != '':
-            self.iface.messageBar().clearWidgets()
-            self.iface.messageBar().pushMessage(
-                'BŁĄD',
-                mess,
-                Qgis.Critical,
-                0)
-            return False
-
+        self.lista = sorted(lista)
         self.iface.messageBar().pushMessage(
             'Połącz bazy TPU',
-            'Znaleziono ' + str(len(self.lista)) + ' baz.',
+            'Znaleziono ' + str(len(self.lista)) + ' baz ' + rodzaj + '.',
             Qgis.Info,
             10
         )
-
         return True
+
+    def _potwierdz_liste(self, lista, poziom, pominiete_foldery, glebsze,
+                         rodzaj):
+        def wzgl(x):
+            return sciezka_wzgledna(x, self.katalog)
+
+        tekst = ('Bazy ' + rodzaj + ' do połączenia: ' + str(len(lista)) +
+                 (' (bezpośrednio we wskazanym folderze)' if poziom == 0
+                  else ' (podfoldery poziomu ' + str(poziom) + ')') + '.')
+        szczegoly = ['DO POŁĄCZENIA:'] + ['  ' + wzgl(x) for x in sorted(lista)]
+        if pominiete_foldery:
+            tekst += ('\nPominięte foldery (kilka baz, nie wskazano): ' +
+                      str(len(pominiete_foldery)) + '.')
+            szczegoly += ['', 'POMINIĘTE FOLDERY (kilka baz):']
+            szczegoly += ['  ' + wzgl(x) for x in pominiete_foldery]
+        if glebsze:
+            ile = sum(len(b) for b in glebsze.values())
+            tekst += ('\n!!! Bazy położone głębiej - POMINIĘTE: ' + str(ile) +
+                      ' (w ' + str(len(glebsze)) + ' folderach).')
+            szczegoly += ['', 'POMINIĘTE - GŁĘBIEJ NIŻ WYBRANY POZIOM:']
+            szczegoly += ['  ' + wzgl(b) for f in glebsze for b in glebsze[f]]
+        tekst += ('\n\nWynik: ' + os.path.join(self.katalog, KATALOG_WYNIKU) +
+                  '\nKontynuować?')
+
+        msg = QMessageBox(self.iface.mainWindow())
+        msg.setIcon(QMessageBox.Warning if glebsze or pominiete_foldery
+                    else QMessageBox.Question)
+        msg.setWindowTitle('Połącz bazy TPU — znalezione bazy')
+        msg.setText(tekst)
+        msg.setDetailedText('\n'.join(szczegoly))
+        tak = msg.addButton('Tak', QMessageBox.AcceptRole)
+        msg.addButton('Nie', QMessageBox.RejectRole)
+        msg.exec_()
+        return msg.clickedButton() == tak
+
+    def _blad(self, tekst):
+        self.iface.messageBar().clearWidgets()
+        self.iface.messageBar().pushMessage('BŁĄD', tekst, Qgis.Critical, 0)
+        return False
 
     def wybierz_baze_docelowa(self):
         """Pokazuje dialog wyboru bazy docelowej. Zwraca True i zapisuje
@@ -246,7 +320,7 @@ class PolaczBazy():
         self.lista). Zwraca True i zapisuje wybór w self.obreby_wybrane,
         albo False jeśli użytkownik zrezygnował. To pierwszy, nadrzędny
         filtr - wywoływany przed wyborem grup tabel."""
-        dlg = WyborObrebowDialog(self.iface, self.lista)
+        dlg = WyborObrebowDialog(self.iface, self.lista, self.katalog)
         if dlg.exec_() != QDialog.Accepted:
             return False
         self.obreby_wybrane = dlg.wybor()
@@ -278,7 +352,7 @@ class PolaczBazy():
         (self.obreby_wybrane). Zwraca False i przerywa łączenie (bez
         możliwości kontynuowania), jeśli znajdzie duplikaty - w
         przeciwieństwie do kontroli słownikowej to kontrola blokująca."""
-        katalog, _ = os.path.split(self.lista[0])
+        katalog = self.kat_wyniku
         sciezki = self._sciezki_do_kontroli()
         if self.wybrane.get('f_arodes'):
             fn = (lambda k, s: _kontrola_duplikatow_wydzieln(
@@ -312,7 +386,7 @@ class PolaczBazy():
         można kontynuować łączenie (brak błędów albo użytkownik
         zdecydował się kontynuować mimo błędów), False gdy użytkownik
         zrezygnował."""
-        katalog, _ = os.path.split(self.lista[0])
+        katalog = self.kat_wyniku
         sciezki = self._sciezki_do_kontroli()
         ile_blednych, rap_sc = KontrolaSlownikowWiele(katalog, sciezki)
 
@@ -340,7 +414,7 @@ class PolaczBazy():
         return msg.clickedButton() == tak
 
     def stworz_docelowa(self):
-        katalog, plik = os.path.split(self.lista[0])
+        katalog = self.kat_wyniku
         self.czas = \
             datetime.now().isoformat().replace(':', '')[:-7]
 
@@ -349,7 +423,8 @@ class PolaczBazy():
         # z faktycznego pliku zrodlowego, nie z platformy, zeby poprawnie
         # obslugiwac wskazana baze niezaleznie od jej typu
         zrodlo = self.baza_docelowa_wskazana or self.lista[0]
-        plikn = 'baza_polaczona_' + self.czas + os.path.splitext(zrodlo)[1]
+        plikn = ('baza_polaczona_' + self.czas +
+                 ('_BDO' if self.bdo else '') + os.path.splitext(zrodlo)[1])
 
         try:
             copyfile(zrodlo, os.path.join(katalog, plikn))
@@ -409,18 +484,21 @@ class PolaczBazy():
                         (baza_sc, tabela, '(cała tabela - błąd odczytu)', blad))
                 baza_zrodlowa.zamknij()
 
-        self.postep.setValue(100)
         self.baza0.zamknij()
+        bdo_info = ''
+        if self.utworz_bdo:
+            bdo_info = self._utworz_baze_bdo()
+        self.postep.setValue(100)
         self.iface.messageBar().clearWidgets()
 
         if bledy_wszystkie:
-            katalog, _ = os.path.split(self.lista[0])
-            rap_sc = self._zapisz_raport_bledow(katalog, bledy_wszystkie)
+            rap_sc = self._zapisz_raport_bledow(
+                self.kat_wyniku, bledy_wszystkie)
             self.iface.messageBar().pushMessage(
                 'POŁĄCZONE Z BŁĘDAMI',
                 'Łączenie zakończone, ale wystąpiło ' +
                 str(len(bledy_wszystkie)) +
-                ' błędów odczytu/zapisu. Raport: ' + rap_sc,
+                ' błędów odczytu/zapisu. Raport: ' + rap_sc + bdo_info,
                 Qgis.Warning,
                 0
             )
@@ -428,10 +506,36 @@ class PolaczBazy():
             self.iface.messageBar().pushMessage(
                 'POŁĄCZONE',
                 'Łączenie ' + str(len(zrodla)) +
-                ' baz zakończone powodzeniem',
+                ' baz zakończone powodzeniem: ' + self.baza0.baza +
+                bdo_info,
                 Qgis.Success,
                 0
             )
+
+    def _utworz_baze_bdo(self):
+        """Kopia połączonej bazy *_BDO.mdb: anonimizacja V_ADDRESS, bez
+        V_ADDRESS_second i kwerend (jak "Anonimizuj bazy TPU"). Zwraca
+        dopisek do komunikatu końcowego."""
+        sc = self.baza0.baza
+        sc_bdo = os.path.splitext(sc)[0] + '_BDO' + os.path.splitext(sc)[1]
+        try:
+            copyfile(sc, sc_bdo)
+            baza = Baza(sc_bdo)
+            if not baza.polacz():
+                raise RuntimeError('nie udało się połączyć z kopią')
+            baza.anonimizuj_vaddress()
+            baza.usun_tabele(['V_ADDRESS_second'])
+            usuniete = baza.usun_kwerendy()
+            baza.zamknij()
+        except Exception as e:
+            QgsMessageLog.logMessage(
+                'Połącz bazy TPU - baza BDO nieutworzona (' + sc_bdo +
+                '): ' + str(e), 'Las-R', Qgis.Critical)
+            return '; !!! BAZA BDO NIEUTWORZONA: ' + str(e)
+        QgsMessageLog.logMessage(
+            'Połącz bazy TPU - baza BDO: ' + sc_bdo + ', usunięto kwerend: ' +
+            str(len(usuniete)), 'Las-R', Qgis.Info)
+        return '; baza BDO: ' + os.path.basename(sc_bdo)
 
     def _zapisz_raport_bledow(self, katalog, bledy):
         czas = datetime.now().isoformat().replace(':', '')[:-7]

@@ -78,6 +78,7 @@ from .skrypty import (
     baza_popraw_LS,
     baza_anonimizuj,
     baza_usun_kwerendy,
+    baza_podmien_kwerendy,
     baza_polacz,
     shp_sprawdz_ciecie,
     shp_usun_nadmiarowe_adr_upul,
@@ -1101,10 +1102,22 @@ class LasR:
         self.m_narzedzia.addAction(self.a_usun_kw)
         self.a_usun_kw.triggered.connect(self.usun_kwerendy)
 
+        self.a_podmien_kw = QAction(
+            QIcon(None), "Podmień kwerendy w bazach", self.iface.mainWindow()
+        )
+        self.a_podmien_kw.setToolTip(
+            "W bazach z wybranego folderu usuwa kwerendy (poza 7 "
+            "chronionymi) i wgrywa kwerendy oraz F_TABLICA/"
+            "F_TABLICA_ROZSZERZONA ze wskazanej bazy źródłowej.")
+        self.m_narzedzia.addAction(self.a_podmien_kw)
+        self.a_podmien_kw.triggered.connect(self.podmien_kwerendy)
+
         self.a_copy = QAction(QIcon(None), "Połącz bazy TPU", self.iface.mainWindow())
         self.a_copy.setToolTip(
             "Scala dane z kilku baz TPU (np. od różnych taksatorów) w jedną "
-            "bazę.")
+            "bazę. Bazy szukane we wskazanym folderze albo w podfolderach "
+            "obrębów/gmin (bez archiwów i kopii); BDO łączone osobno. Wynik "
+            "w folderze Baza_polaczona, opcjonalnie też wersja BDO.")
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
 
@@ -1607,6 +1620,9 @@ class LasR:
 
     def anonimizuj(self):
         baza_anonimizuj.Anonimizuj(self.iface)
+
+    def podmien_kwerendy(self):
+        baza_podmien_kwerendy.uruchom(self.iface)
 
     def usun_kwerendy(self):
         baza_usun_kwerendy.UsunKwerendy(self.iface)
