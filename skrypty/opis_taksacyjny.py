@@ -32,7 +32,15 @@ Panel otwarty = baza podłączona:
 - usuwanie wydzielenia z bazy (Baza.usun_rekordy; TD, cechy, PNSW,
   rozliczenie znikają kaskadowo) - geometria warstw bez zmian, poligon
   oznaczany na warstwie pamięci "Opis - usunięte z bazy",
-- okno karty tylko rośnie (maks. 90% ekranu, powyżej - przewijanie).
+- okno karty tylko rośnie (maks. 90% ekranu, powyżej - przewijanie),
+- pasek adresu karty (opis_adres.py): edytowalne obręb / grupa / oddział /
+  wydzielenie -> adres leśny na żywo (do skopiowania); zmiana =
+  przeadresowanie w F_ARODES przy "Zapisz" (w tej samej transakcji,
+  brakujący ODDZ dopisywany, pusty stary ODDZ/L-CTWO usuwany),
+- "Dodaj nowe wydzielenie" (panel): karta nowego wydzielenia w oddziale
+  bieżącego (grupa 10, następna wolna litera), zapis F_ARODES + F_SUBAREA
+  + opis po "Zapisz"; po zapisie adresu - schowek i niezgodność
+  baza-warstwa w statusie panelu, dopóki adres nie trafi do ADR_LES.
 """
 import copy
 import csv
@@ -43,10 +51,10 @@ from collections import Counter
 from datetime import datetime
 
 from PyQt5 import sip
-from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QEvent, QPoint, QRegExp, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
     QBrush, QColor, QCursor, QDoubleValidator, QFont, QFontDatabase,
-    QIntValidator, QKeySequence,
+    QFontMetrics, QIntValidator, QKeySequence, QRegExpValidator,
 )
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox,
@@ -65,6 +73,7 @@ from qgis.core import (
 from PyQt5.QtCore import QVariant
 
 from . import kopie_manipulacyjne
+from . import opis_adres as oa
 from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 
@@ -360,7 +369,7 @@ def _warstwy_poligonowe():
 
 def sprawdz_zgodnosc(lyr, wydz_baza):
     """Porównanie ADR_LES warstwy z wydzieleniami bazy. Zwraca (czy_ok,
-    krótkie podsumowanie, szczegóły)."""
+    krótkie podsumowanie, szczegóły, liczniki do statusu panelu)."""
     adr_warstwa = []
     puste = 0
     for f in lyr.getFeatures():
@@ -374,23 +383,27 @@ def sprawdz_zgodnosc(lyr, wydz_baza):
     bez_opisu = sorted(zbior - set(wydz_baza))
     bez_poligonu = sorted(set(wydz_baza) - zbior)
 
-    czesci, szczegoly = [], []
-    for opis, lista in (
-            ('wydzielenia w warstwie bez opisu w bazie', bez_opisu),
-            ('opisy w bazie bez poligonu w warstwie', bez_poligonu),
-            ('zdublowane ADR_LES w warstwie', duble)):
+    czesci, szczegoly, liczniki = [], [], []
+    for opis, krotko, lista in (
+            ('wydzielenia w warstwie bez opisu w bazie', 'bez opisu',
+             bez_opisu),
+            ('opisy w bazie bez poligonu w warstwie', 'bez poligonu',
+             bez_poligonu),
+            ('zdublowane ADR_LES w warstwie', 'duble', duble)):
         if lista:
             czesci.append(f'{len(lista)} - {opis}')
+            liczniki.append(f'{krotko}: {len(lista)}')
             szczegoly.append(f'{opis.upper()} ({len(lista)}):\n'
                              + '\n'.join(lista[:300])
                              + ('\n...' if len(lista) > 300 else ''))
     if puste:
         czesci.append(f'{puste} - poligony z pustym ADR_LES')
+        liczniki.append(f'pusty ADR_LES: {puste}')
     ok = not czesci
     podsum = (f'Warstwa: {len(zbior)} wydzieleń, baza: {len(wydz_baza)}.\n'
               + ('Warstwa i baza są zgodne.' if ok else
                  'Niezgodności:\n- ' + '\n- '.join(czesci)))
-    return ok, podsum, '\n\n'.join(szczegoly)
+    return ok, podsum, '\n\n'.join(szczegoly), liczniki
 
 
 def okno_zgodnosci(parent, podsum, szczegoly, z_wyborem):
@@ -918,7 +931,8 @@ class _GrupaWarstwy(QWidget):
     def _enter(self, tab, r, c, w_edycji):
         """Enter: następna wymagana komórka wiersza (reguły warstwy); na
         ostatniej - pierwszy Enter zatwierdza, drugi przechodzi do gatunku
-        w następnym wierszu (za ostatnim - nowy wiersz). Parametry
+        w następnym wierszu (za ostatnim - nowy wiersz); gdy wymagany jest
+        sam kod gatunku (PODSZ, ZAKRZEW) - od razu jeden Enter. Parametry
         warstwy -> dalej gatunki."""
         okno = self.okno
         if okno.dane is None or sip.isdeleted(self) or \
@@ -945,8 +959,9 @@ class _GrupaWarstwy(QWidget):
         dalej = [x for x in pola if kolumny.index(x) > c]
         if dalej:
             self._idz(self.tg, r, kolumny.index(dalej[0]))
-        elif not w_edycji:
-            # drugi Enter - gatunek w następnym wierszu (za ostatnim: nowy)
+        elif not w_edycji or pola == ['SPECIES_CD']:
+            # drugi Enter (sam kod gatunku - pierwszy) - gatunek w następnym
+            # wierszu (za ostatnim: nowy)
             self._idz(self.tg, r + 1, 0)
 
 
@@ -1029,8 +1044,12 @@ class OknoOpisu(QWidget):
         self.tylko_odczyt = panel.tylko_odczyt
         self.slowniki = panel.slowniki
         self.wydz = panel.wydz
-        self.adr = None
-        self.aint = None
+        self.adr = None          # ADR_LES zaznaczonego poligonu
+        self.aint = None         # None przy nowym, jeszcze niezapisanym
+        self.adres_bazy = None   # adres wydzielenia w F_ARODES
+        self.prefiks = ''        # adres[:6] - stały w pasku adresu
+        self._adresy_cache = None  # {ADRESS_FOREST: ARODES_TYP_CD}
+        self._adr_krok = False   # pisanie w jednym oknie adresu = 1 krok
         self.dane = None
         self.oryginal = None
         self.grupy = []
@@ -1050,7 +1069,11 @@ class OknoOpisu(QWidget):
         self.zmiana_zaznaczenia()
 
     def _ustaw_tytul(self):
-        czesci = [self.adr, rozbij_adres(self.adr)] if self.adr else []
+        if self.dane is not None and self.aint is None:
+            czesci = ['NOWE WYDZIELENIE']
+        else:
+            adr = self.adres_bazy or self.adr
+            czesci = [adr, rozbij_adres(adr)] if adr else []
         czesci.append('Opis taksacyjny')
         if self.tylko_odczyt:
             czesci.append('[TYLKO PODGLĄD]')
@@ -1069,7 +1092,15 @@ class OknoOpisu(QWidget):
         if not sub:
             return None
         s = sub[0]
+        adr = self._wiersze('select ADRESS_FOREST from F_ARODES where '
+                            'ARODES_INT_NUM = ?', (aint,))
+        # bez strip - klucz jak w panel.wydz (pobierz_wydzielenia)
+        self.adres_bazy = str(adr[0]['ADRESS_FOREST']) \
+            if adr and adr[0]['ADRESS_FOREST'] is not None else None
+        self.prefiks = (self.adres_bazy or '')[:6]
         dane = {p: s.get(p) for p in POLA_SUBAREA}
+        cz = oa.skladowe(self.adres_bazy)
+        dane['ADRES_CZ'] = tuple(cz[k] for k in oa.CZESCI) if cz else None
         for p in POLA_SUBAREA:
             if p != 'DEAD_WOOD':
                 dane[p] = _txt(dane[p])
@@ -1104,7 +1135,7 @@ class OknoOpisu(QWidget):
             if s is not None and s.kody:
                 w = max(w, max(fm.width(k) for k in s.kody) + 32)
             elif typ == 'liczba':
-                w = max(w, fm.width('0000,00') + 14)
+                w = max(w, fm.width('0000') + 14)
             wyn.append(w)
         return wyn
 
@@ -1112,18 +1143,61 @@ class OknoOpisu(QWidget):
         glowny = QVBoxLayout(self)
         glowny.setContentsMargins(6, 6, 6, 6)
 
-        gora = QHBoxLayout()
-        self.lbl_adr = QLabel()
-        f = QFont(self.lbl_adr.font())
+        # pasek adresu: obręb / grupa / oddział / wydzielenie (edycja =
+        # przeadresowanie albo adres nowego wydzielenia, zapis po "Zapisz")
+        # + adres leśny do skopiowania
+        self.pasek_adr = QWidget()
+        gora = QHBoxLayout(self.pasek_adr)
+        gora.setContentsMargins(0, 0, 0, 0)
+        gora.setSpacing(4)
+        f = QFont(self.font())
         f.setBold(True)
-        f.setPointSize(f.pointSize() + 2)
-        self.lbl_adr.setFont(f)
-        gora.addWidget(self.lbl_adr)
+        f.setPointSize(f.pointSize() + 1)
+        fm = QFontMetrics(f)
+        self.pola_adr = {}
+        for czesc, nag, wzor, znaki, tip in (
+                ('obreb', 'Obręb', r'\d{0,4}', 4, 'Obręb ewidencyjny '
+                 '(4 cyfry, musi istnieć w bazie)'),
+                ('grp', 'Gr.', r'\d{0,2}', 2, 'Grupa / forma własności '
+                 '(10 - prywatni, 05 - gmina, 99 - współwłasność)'),
+                ('oddz', 'Oddz.', r'\d{0,4}', 4, 'Oddział (1-9999)'),
+                ('wydz', 'Wydz.', r'[a-zA-Z]{0,2}', 2, 'Litera wydzielenia; '
+                 'puste - następna wolna w oddziale')):
+            gora.addWidget(QLabel(nag))
+            e = QLineEdit()
+            e.setFont(f)
+            e.setMaxLength(znaki)
+            e.setValidator(QRegExpValidator(QRegExp(wzor), e))
+            e.setFixedWidth(fm.width('0' * znaki) + 14)
+            e.setAlignment(Qt.AlignCenter)
+            e.setToolTip(tip)
+            e.textEdited.connect(
+                lambda t, c=czesc: self._zmiana_adresu(c, t))
+            e.editingFinished.connect(
+                lambda c=czesc: self._koniec_adresu(c))
+            self.pola_adr[czesc] = e
+            gora.addWidget(e)
+        gora.addSpacing(8)
+        self.ed_adres = QLineEdit()
+        self.ed_adres.setReadOnly(True)
+        fa = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        fa.setBold(True)
+        fa.setPointSize(f.pointSize())
+        self.ed_adres.setFont(fa)
+        self.ed_adres.setFixedWidth(QFontMetrics(fa).width('W' * 25) + 12)
+        self.ed_adres.setToolTip('Adres leśny - zaznacz i skopiuj (Ctrl+C) '
+                                 'albo przycisk obok')
+        gora.addWidget(self.ed_adres)
+        btn_kopiuj = QToolButton()
+        btn_kopiuj.setText('📋')
+        btn_kopiuj.setToolTip('Kopiuj adres leśny do schowka')
+        btn_kopiuj.clicked.connect(self._kopiuj_adres)
+        gora.addWidget(btn_kopiuj)
         self.lbl_status = QLabel()
         gora.addWidget(self.lbl_status, 1)
         self.lbl_walidacja = QLabel()
         gora.addWidget(self.lbl_walidacja)
-        glowny.addLayout(gora)
+        glowny.addWidget(self.pasek_adr)
 
         self.przewijanie = QScrollArea()
         self.przewijanie.setWidgetResizable(True)
@@ -1264,6 +1338,8 @@ class OknoOpisu(QWidget):
         self.info.setPlainText('')
         self.info.blockSignals(False)
         self.lbl_licznik.setText('')
+        self.adres_bazy = None
+        self._wypelnij_adres()
         self._status(tekst_statusu)
         self._odswiez_przyciski()
         self._dopasuj_okno()
@@ -1379,6 +1455,8 @@ class OknoOpisu(QWidget):
         self.info.setPlainText(dane['SUBAREA_INFO'])
         self.info.blockSignals(False)
         self._licznik()
+        self._adr_krok = False
+        self._wypelnij_adres()
         self._status('')
         self._odswiez_przyciski()
         # rozmiary widgetów są wiarygodne dopiero po wyświetleniu/polerowaniu
@@ -1407,7 +1485,10 @@ class OknoOpisu(QWidget):
                     tekst, tip, edytowalna = '', '', False
                 elif typ == 'liczba':
                     v = self.dane[pole]
-                    tekst = _fmt(v, 2) if not _pusty(v) else ''
+                    # drewno martwe w liczbach całkowitych; ułamek z bazy
+                    # widoczny (bez cichego zaokrąglania)
+                    tekst = '' if _pusty(v) else _fmt(
+                        v, 0 if float(v).is_integer() else 2)
                     tip = ''
                     zmienione = v != self.oryginal[pole]
                 else:
@@ -1449,7 +1530,7 @@ class OknoOpisu(QWidget):
         self.lay_tresc.activate()
         m = self.layout().contentsMargins()
         return (self.tresc.sizeHint().height()
-                + self.lbl_adr.sizeHint().height()
+                + self.pasek_adr.sizeHint().height()
                 + self.btn_zapisz.sizeHint().height()
                 + m.top() + m.bottom() + 2 * self.layout().spacing() + 4)
 
@@ -1920,7 +2001,9 @@ class OknoOpisu(QWidget):
         self.lbl_licznik.setText(f'{n}/{MAX_INFO}')
 
     def _zmienione(self):
-        return self.dane is not None and self.dane != self.oryginal
+        """Niezapisane zmiany; nowe wydzielenie (bez aint) - zawsze."""
+        return self.dane is not None and (
+            self.aint is None or self.dane != self.oryginal)
 
     def _odswiez_przyciski(self):
         zm = self._zmienione() and not self.tylko_odczyt
@@ -1948,6 +2031,131 @@ class OknoOpisu(QWidget):
         self._status(tekst, '#c00000')
         QApplication.beep()
         return False
+
+    # ------------------------------------------------------ pasek adresu
+
+    def _adresy(self, odswiez=False):
+        """{ADRESS_FOREST: ARODES_TYP_CD} całej F_ARODES (pamiętane do
+        zapisu / usunięcia / zmiany wydzielenia)."""
+        if self._adresy_cache is None or odswiez:
+            self._adresy_cache = {
+                str(w['ADRESS_FOREST']): _txt(w['ARODES_TYP_CD'])
+                for w in self._wiersze(
+                    'select ADRESS_FOREST, ARODES_TYP_CD from F_ARODES', ())
+                if w['ADRESS_FOREST'] is not None}
+        return self._adresy_cache
+
+    def _adres_docelowy(self):
+        """(adres, błąd, litera_auto) z okien paska adresu."""
+        if self.dane is None or self.dane.get('ADRES_CZ') is None:
+            return self.adres_bazy, '', None
+        from .shp_literkuj import LITERY
+        return oa.docelowy(self.prefiks, dict(zip(oa.CZESCI,
+                                                  self.dane['ADRES_CZ'])),
+                           LITERY, self._adresy(), self.adres_bazy)
+
+    def _wypelnij_adres(self, pola=True):
+        """Okna paska adresu z danych karty (pola=False - bez nadpisywania
+        tekstu okien, w trakcie pisania), adres wynikowy i kolory."""
+        edycja = self.dane is not None and not self.tylko_odczyt and \
+            self.dane.get('ADRES_CZ') is not None
+        if self.dane is not None and self.dane.get('ADRES_CZ') is not None:
+            cz = dict(zip(oa.CZESCI, self.dane['ADRES_CZ']))
+        else:
+            cz = oa.skladowe(self.adres_bazy or self.adr) or {}
+        org = self.oryginal.get('ADRES_CZ') if self.oryginal else None
+        org = dict(zip(oa.CZESCI, org)) if org else {}
+        adr, blad, auto = self._adres_docelowy() if edycja else \
+            (self.adres_bazy or self.adr, '', None)
+        for czesc, e in self.pola_adr.items():
+            if pola:
+                e.setText(cz.get(czesc, ''))
+            e.setReadOnly(not edycja)
+            e.setPlaceholderText((auto or '') if czesc == 'wydz' else '')
+            zmienione = edycja and oa.normalizuj(
+                czesc, cz.get(czesc, '')) != org.get(czesc)
+            e.setStyleSheet('QLineEdit { background: #d6eaff; color: #141414; }'
+                            if zmienione else '')
+        self.ed_adres.setText(adr or '')
+        if blad:
+            self.ed_adres.setStyleSheet(
+                'QLineEdit { background: #ffc4c4; color: #141414; }')
+            self.ed_adres.setToolTip(f'BŁĄD adresu: {blad}')
+        else:
+            zmieniony = edycja and adr != self.adres_bazy
+            self.ed_adres.setStyleSheet(
+                'QLineEdit { background: #d6eaff; color: #141414; }'
+                if zmieniony else '')
+            self.ed_adres.setToolTip(
+                'Adres leśny - zaznacz i skopiuj (Ctrl+C) albo przycisk obok'
+                + (f'\nw bazie: {self.adres_bazy}' if zmieniony and
+                   self.adres_bazy else ''))
+        return blad
+
+    def _zmiana_adresu(self, czesc, tekst):
+        if self.dane is None or self.tylko_odczyt or \
+                self.dane.get('ADRES_CZ') is None:
+            return
+        przed = copy.deepcopy(self.dane)
+        cz = dict(zip(oa.CZESCI, self.dane['ADRES_CZ']))
+        cz[czesc] = tekst.strip().lower() if czesc == 'wydz' else tekst.strip()
+        self.dane['ADRES_CZ'] = tuple(cz[k] for k in oa.CZESCI)
+        if not self._adr_krok:
+            self._do_historii('adres leśny', przed, wymus=True)
+            self._adr_krok = True
+        blad = self._wypelnij_adres(pola=False)
+        self._odswiez_przyciski()
+        if blad:
+            self._status(f'adres: {blad}', '#c00000')
+
+    def _koniec_adresu(self, czesc):
+        """Koniec pisania w oknie: postać docelowa (zera wiodące itd.)."""
+        self._adr_krok = False
+        if self.dane is None or self.dane.get('ADRES_CZ') is None:
+            return
+        cz = dict(zip(oa.CZESCI, self.dane['ADRES_CZ']))
+        cz[czesc] = oa.normalizuj(czesc, cz[czesc])
+        self.dane['ADRES_CZ'] = tuple(cz[k] for k in oa.CZESCI)
+        self._wypelnij_adres()
+        self._odswiez_przyciski()
+
+    def _kopiuj_adres(self):
+        adr = self.ed_adres.text().strip()
+        if adr:
+            QApplication.clipboard().setText(adr)
+            self._status(f'skopiowano: {adr}')
+
+    def nowe_wydzielenie(self):
+        """Pusta karta nowego wydzielenia (zapis do bazy dopiero po
+        "Zapisz"): obręb i oddział z bieżącego wydzielenia, grupa 10,
+        następna wolna litera."""
+        if self.tylko_odczyt:
+            return self._blad('Baza tylko do podglądu')
+        zrodlo = self.adres_bazy if self.aint is not None else self.adr
+        cz = oa.skladowe(zrodlo)
+        if not cz:
+            return self._blad('Zaznacz wydzielenie, w którego oddziale '
+                              'dodać nowe')
+        if not self._zapytaj_o_zmiany():
+            return False
+        self.prefiks = zrodlo[:6]
+        self.adr = None
+        self.aint = None
+        self.adres_bazy = None
+        self._adresy_cache = None
+        pusty = {p: (None if p == 'DEAD_WOOD' else '') for p in POLA_SUBAREA}
+        # stan wyjściowy z adresem startowym ("Cofnij wszystko" wraca do
+        # niego); karta bez aint = nowe - zawsze do zapisu (_zmienione)
+        pusty.update({'FOREST_PEC_CD': [], 'TD': [], 'WARSTWY': [],
+                      'ADRES_CZ': (cz['obreb'], oa.GRUPA_NOWEGO, cz['oddz'],
+                                   '')})
+        self._wypelnij(pusty, [], [], [])
+        self._ustaw_tytul()
+        self._odswiez_przyciski()
+        self._status('nowe wydzielenie - do bazy trafi po "Zapisz"',
+                     '#b36b00')
+        QTimer.singleShot(0, self._dopasuj_okno)
+        return True
 
     def _cofnij(self):
         """Cofnij wszystko - stan z bazy (krok w historii, da się odwrócić)."""
@@ -1984,6 +2192,8 @@ class OknoOpisu(QWidget):
         self.info.setPlainText(self.dane['SUBAREA_INFO'])
         self.info.blockSignals(False)
         self._licznik()
+        self._adr_krok = False
+        self._wypelnij_adres()
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
 
@@ -2014,6 +2224,12 @@ class OknoOpisu(QWidget):
             return self._blad('Plik bazy zniknął - nie zapisano')
 
         self._przelicz()
+        nowy_adr, blad_adr, _auto = self._adres_docelowy()
+        if blad_adr:
+            QMessageBox.warning(self, 'Nie zapisano - błędny adres',
+                                f'Popraw adres leśny i zapisz ponownie:\n\n'
+                                f'{blad_adr}')
+            return False
         bledy = self._lista_bledow()
         if bledy:
             QMessageBox.warning(
@@ -2026,13 +2242,56 @@ class OknoOpisu(QWidget):
             return self._blad('Nie udało się zrobić kopii bazy - nie zapisano')
 
         d, o, aint = self.dane, self.oryginal, self.aint
+        cur = self.baza.cur
+        stary_adr = self.adres_bazy
+        nowe_wydz = aint is None
+        zmiana_adr = nowe_wydz or nowy_adr != stary_adr
+        poziomy = []
+        if zmiana_adr:
+            # świeży stan F_ARODES - numery i brakujące poziomy hierarchii
+            # (odczyt przed transakcją; zapis niżej w jednej transakcji)
+            from .baza_dopisz_wydz import DopiszWydzielenia
+            dopisz = DopiszWydzielenia(None)
+            adresy = self._adresy(odswiez=True)
+            if nowy_adr in adresy:
+                return self._blad(f'Adres zajęty w bazie: {nowy_adr}')
+            poziomy = oa.brakujace_poziomy(nowy_adr, adresy, dopisz)
+            nast = (cur.execute('select max(ARODES_INT_NUM) from F_ARODES')
+                    .fetchone()[0] or 0) + 1
+            if nowe_wydz:
+                aint = nast + len(poziomy)
+            op_wydz = dopisz.stworz_ops_wydz(nowy_adr)
         plan_warstw, dziennik_warstw = [], []
         if d['WARSTWY'] != o['WARSTWY']:
             nowe = ow.posortuj(copy.deepcopy(d['WARSTWY']), self._nr_warstw())
             plan_warstw, dziennik_warstw = ow.plan_zapisu(
                 aint, o['WARSTWY'], nowe)
-        cur = self.baza.cur
+        usuniete_poziomy = []
         try:
+            if zmiana_adr:
+                sql_arodes = (
+                    'insert into F_ARODES (ARODES_INT_NUM, ADRESS_FOREST, '
+                    'ARODES_TYP_CD, ORDER_KEY, ADRESS_VALID) '
+                    'values (?, ?, ?, ?, ?)')
+                for i, op in enumerate(poziomy):
+                    cur.execute(sql_arodes, (nast + i, *op))
+                if nowe_wydz:
+                    cur.execute(sql_arodes, (aint, *op_wydz))
+                    cur.execute('insert into F_SUBAREA (ARODES_INT_NUM, '
+                                'SUB_AREA) values (?, 0)', (aint,))
+                else:
+                    cur.execute('update F_ARODES set ADRESS_FOREST = ?, '
+                                'ORDER_KEY = ? where ARODES_INT_NUM = ?',
+                                (nowy_adr, op_wydz[2], aint))
+                    # oddział / leśnictwo starego adresu, które zostały puste
+                    usuniete_poziomy = oa.puste_poziomy(
+                        stary_adr, cur.execute(
+                            'select ADRESS_FOREST, ARODES_INT_NUM, '
+                            'ARODES_TYP_CD from F_ARODES').fetchall())
+                    for numer in usuniete_poziomy:
+                        for tabela in ('F_ERROR_HEAD', 'F_SET', 'F_ARODES'):
+                            cur.execute(f'delete from {tabela} where '
+                                        'ARODES_INT_NUM = ?', (numer,))
             zmiany = [p for p in POLA_SUBAREA if d[p] != o[p]]
             if zmiany:
                 wart = [None if d[p] in ('', None) else d[p] for p in zmiany]
@@ -2069,17 +2328,51 @@ class OknoOpisu(QWidget):
                 f'Zapis nie powiódł się, nic nie zostało zmienione:\n{e}')
             return False
 
+        self._adresy_cache = None
+        if zmiana_adr:
+            if not nowe_wydz:
+                self.wydz.pop(stary_adr, None)
+            self.wydz[nowy_adr] = aint
+            self.aint = aint
+            self.adr = nowy_adr
+            self.adres_bazy = nowy_adr
+
         pola = POLA_SUBAREA + ['FOREST_PEC_CD', 'TD']
+        wpisy = []
+        if nowe_wydz:
+            wpisy.append((nowy_adr, 'NOWE', 'ADRESS_FOREST', '', nowy_adr))
+        elif zmiana_adr:
+            wpisy.append((nowy_adr, 'ADRES', 'ADRESS_FOREST', stary_adr,
+                          nowy_adr))
         self._do_dziennika(
-            [(self.adr, 'ZMIANA', p, o[p], d[p]) for p in pola if d[p] != o[p]]
-            + [(self.adr, *w) for w in dziennik_warstw])
+            wpisy
+            + [(self.adres_bazy, 'ZMIANA', p, o[p], d[p])
+               for p in pola if d[p] != o[p]]
+            + [(self.adres_bazy, *w) for w in dziennik_warstw])
 
         wynik = self._wczytaj(aint)
         if wynik:
             self._wypelnij(*wynik)
+        self._ustaw_tytul()
+        if zmiana_adr:
+            # baza ma adres, którego nie ma (jeszcze) na warstwie - status
+            # zgodności w panelu i "Sprawdź zgodność" pokażą różnicę
+            self.panel.przelicz_zgodnosc()
+            QApplication.clipboard().setText(nowy_adr)
+            co = 'dodano wydzielenie' if nowe_wydz else 'zmieniono adres'
+            self._status(f'{co} {nowy_adr} - adres w schowku, wklej go do '
+                         'ADR_LES poligonu', '#107010')
+            self.iface.messageBar().pushSuccess(
+                'Opis taksacyjny',
+                f'{co.capitalize()}: {nowy_adr} (adres w schowku)'
+                + (f', usunięte puste poziomy: {len(usuniete_poziomy)}'
+                   if usuniete_poziomy else '')
+                + '. Do czasu wklejenia adresu do ADR_LES poligonu warstwa '
+                'i baza są niezgodne.')
+            return True
         self._status('zapisano', '#107010')
         self.iface.messageBar().pushSuccess(
-            'Opis taksacyjny', f'Zapisano zmiany: {self.adr}')
+            'Opis taksacyjny', f'Zapisano zmiany: {self.adres_bazy}')
         return True
 
     def _do_dziennika(self, wiersze):
@@ -2106,7 +2399,7 @@ class OknoOpisu(QWidget):
     def usun_wydzielenie(self):
         if self.tylko_odczyt or self.aint is None or self.dane is None:
             return
-        adr, aint = self.adr, self.aint
+        adr, aint = self.adres_bazy or self.adr, self.aint
         odp = QMessageBox.question(
             self, 'Usuń wydzielenie',
             f'Usunąć z bazy wydzielenie\n{adr}\nz całym opisem (warstwy, '
@@ -2130,6 +2423,7 @@ class OknoOpisu(QWidget):
         self._do_dziennika(
             [(adr, 'USUNIECIE', tabela, dane, '') for tabela, dane in migawka])
         self.wydz.pop(adr, None)
+        self._adresy_cache = None
         self.panel.przelicz_zgodnosc()  # też warstwa "WYDZ bez opisu"
         self.dane = self.oryginal = None
         self._pokaz('wydzielenie usunięte z bazy (geometria bez zmian)')
@@ -2143,7 +2437,9 @@ class OknoOpisu(QWidget):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Question)
         box.setWindowTitle('Niezapisane zmiany')
-        box.setText(f'Wydzielenie {self.adr} ma niezapisane zmiany.\n'
+        kto = 'Nowe wydzielenie (jeszcze nie w bazie)' \
+            if self.aint is None else f'Wydzielenie {self.adres_bazy}'
+        box.setText(f'{kto} ma niezapisane zmiany.\n'
                     'Zapisać je czy odrzucić wszystko?')
         zapisz = box.addButton('Zapisz', QMessageBox.AcceptRole)
         odrzuc = box.addButton('Odrzuć wszystko', QMessageBox.DestructiveRole)
@@ -2176,18 +2472,20 @@ class OknoOpisu(QWidget):
                          '#b36b00')
             return
         self.adr = adr
-        self.lbl_adr.setText(
-            f'{adr}      {rozbij_adres(adr)}' if adr else '(puste ADR_LES)')
-        self._ustaw_tytul()
+        self._adresy_cache = None
         if adr not in self.wydz:
-            self._pokaz('brak opisu tego wydzielenia w bazie')
+            self._pokaz('brak opisu tego wydzielenia w bazie' if adr else
+                        'poligon z pustym ADR_LES')
+            self._ustaw_tytul()
             return
         self.aint = self.wydz[adr]
         wynik = self._wczytaj(self.aint)
         if wynik is None:
             self._pokaz('brak rekordu F_SUBAREA dla tego wydzielenia')
+            self._ustaw_tytul()
             return
         self._wypelnij(*wynik)
+        self._ustaw_tytul()
 
     # -------------------------------------------------------- zamknięcie
 
@@ -2236,6 +2534,7 @@ class PanelOpisu(QDockWidget):
         self.max_h = 0
         self.kopia_zrobiona = False
         self._szczegoly = ''
+        self._liczniki = []
         self._warstwy = []
         # przeliczenie zgodności po zmianach na warstwie - z opóźnieniem,
         # żeby seryjne kasowanie poligonów nie liczyło jej przy każdym
@@ -2279,6 +2578,15 @@ class PanelOpisu(QDockWidget):
         lay.addWidget(self.btn_podglad)
 
         lay.addWidget(self._separator())
+
+        self.btn_nowe = QPushButton('Dodaj nowe wydzielenie')
+        self.btn_nowe.setToolTip(
+            'Karta nowego, pustego wydzielenia w oddziale wydzielenia '
+            'otwartego w karcie: grupa 10, następna wolna litera (adres do '
+            'zmiany w pasku adresu karty). Do bazy trafia po "Zapisz", adres '
+            'kopiowany do schowka - wklej go do ADR_LES poligonu.')
+        self.btn_nowe.clicked.connect(self.nowe_wydzielenie)
+        lay.addWidget(self.btn_nowe)
 
         # dwa przyciski po pół szerokości, tekst w dwóch liniach - wąski
         # panel nie obetnie napisu
@@ -2375,6 +2683,7 @@ class PanelOpisu(QDockWidget):
         self.btn_kopia.setEnabled(pol)
         self.btn_puste.setEnabled(pol)
         self.btn_szczegoly.setEnabled(pol)
+        self.btn_nowe.setEnabled(pol and not self.tylko_odczyt)
         self.btn_podglad.setEnabled(pol)
         if not pol and self.btn_podglad.isChecked():
             self.btn_podglad.setChecked(False)
@@ -2388,6 +2697,11 @@ class PanelOpisu(QDockWidget):
         zg = ('<span style="color:#107010">zgodna z warstwą</span>'
               if not self._szczegoly else
               '<span style="color:#b36b00">niezgodności z warstwą</span>')
+        # liczniki niezgodności (np. nowe / przeadresowane wydzielenie przed
+        # wklejeniem adresu do warstwy) - szczegóły w "Sprawdź zgodność"
+        if self._szczegoly:
+            zg += ''.join(f'<br><span style="color:#b36b00">&nbsp;&nbsp;{x}'
+                          '</span>' for x in self._liczniki)
         # krótkie linie - wąski panel ucina zawinięty tekst; opis w podpowiedzi
         if self.zrodlo_tablicy == ow.TABLICA_Z_BAZY:
             tab, tab_opis = '', ''
@@ -2451,7 +2765,7 @@ class PanelOpisu(QDockWidget):
                                  f'Nie udało się połączyć z bazą:\n{e}')
             return
 
-        ok, podsum, szczegoly = sprawdz_zgodnosc(lyr, wydz)
+        ok, podsum, szczegoly, liczniki = sprawdz_zgodnosc(lyr, wydz)
         if not ok and not okno_zgodnosci(self, podsum, szczegoly, True):
             baza.zamknij()
             return
@@ -2467,6 +2781,7 @@ class PanelOpisu(QDockWidget):
             self.zrodlo_tablicy = ow.wczytaj_tablice_bonitacji(baza.cur)
         self.wydz = wydz
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
+        self._liczniki = liczniki
         self.max_h = 0
         self.kopia_zrobiona = False
         self.lyr.selectionChanged.connect(self._zaznaczenie)
@@ -2502,7 +2817,8 @@ class PanelOpisu(QDockWidget):
         wydzieleń bazy (aktualizowanej przy usuwaniu w Edytorze)."""
         if not self.polaczona() or sip.isdeleted(self.lyr):
             return
-        ok, podsum, szczegoly = sprawdz_zgodnosc(self.lyr, self.wydz)
+        ok, podsum, szczegoly, self._liczniki = sprawdz_zgodnosc(
+            self.lyr, self.wydz)
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
         self._odswiez()
         self.odswiez_bez_opisu()
@@ -2819,6 +3135,7 @@ class PanelOpisu(QDockWidget):
         self.slowniki = {}
         self.wydz = {}
         self._szczegoly = ''
+        self._liczniki = []
         self._odswiez()
         self._wczytaj_warstwy()
         return True
@@ -2850,6 +3167,20 @@ class PanelOpisu(QDockWidget):
             return
         self.karta = OknoOpisu(self)
         self.karta.show()
+
+    def nowe_wydzielenie(self):
+        """Karta nowego wydzielenia (zapis po "Zapisz" w karcie)."""
+        if not self.polaczona() or self.tylko_odczyt:
+            return
+        if not self._karta_otwarta():
+            QMessageBox.information(
+                self, 'Dodaj nowe wydzielenie',
+                'Zaznacz na warstwie wydzielenie, w którego oddziale dodać '
+                'nowe - otworzy się karta, potem kliknij ponownie.')
+            return
+        self.karta.raise_()
+        self.karta.activateWindow()
+        self.karta.nowe_wydzielenie()
 
     def _pokaz_szczegoly(self):
         """Przeliczenie zgodności (i warstwy "WYDZ bez opisu") na żądanie."""
