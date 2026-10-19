@@ -324,6 +324,31 @@ def zd_z_mas(masy, grupy, gatunki):
     return round(suma_v / suma_t, 1), pominiete
 
 
+# ------------------------------------------------ TD z typu siedliskowego
+# Typ drzewostanu (gatunki TD w kolejności) dla TSL - tabela zespołu
+# (materialy/TSL_slownik.jpg). Brak: BGW (nie ma w tabeli).
+TD_DLA_TSL = {
+    'BB': 'SO', 'BGB': 'ŚW', 'BGŚW': 'ŚW', 'BMB': 'SO', 'BMGB': 'ŚW',
+    'BMGŚW': 'ŚW', 'BMGW': 'ŚW', 'BMŚW': 'SO', 'BMW': 'SO',
+    'BMWYŻŚW': 'JD SO', 'BMWYŻW': 'JD BK', 'BS': 'SO', 'BŚW': 'SO',
+    'BW': 'SO', 'BWG': 'ŚW', 'LGŚW': 'ŚW JD BK', 'LGW': 'JD',
+    'LŁ': 'JS DB', 'LŁG': 'JS OL', 'LŁWYŻ': 'OL', 'LMB': 'OL',
+    'LMGŚW': 'ŚW BK JD', 'LMGW': 'ŚW JD BK', 'LMŚW': 'SO DB',
+    'LMW': 'DB SO', 'LMWYŻŚW': 'SO JD', 'LMWYŻW': 'SO JD BK', 'LŚW': 'DB',
+    'LW': 'DB', 'LWYŻŚW': 'JD BK', 'LWYŻW': 'BK JD', 'OL': 'OL',
+    'OLJ': 'JS OL', 'OLJG': 'JS OL', 'OLJWYŻ': 'ŚW',
+}
+
+
+def podpowiedz_td(tsl, wpisane):
+    """Następny gatunek TD dla TSL, którego jeszcze nie ma na liście TD
+    (None - brak TSL w tabeli albo wszystkie już wpisane)."""
+    for g in TD_DLA_TSL.get((tsl or '').strip(), '').split():
+        if g not in wpisane:
+            return g
+    return None
+
+
 def pola_wymagane_warstwy(kod):
     """Pola parametrów warstwy odwiedzane przez Enter (kolejność kolumn)."""
     if kod in JAK_DRZEW:

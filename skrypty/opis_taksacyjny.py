@@ -40,7 +40,9 @@ Panel otwarty = baza podłączona:
 - "Dodaj nowe wydzielenie" (panel): karta nowego wydzielenia w oddziale
   bieżącego (grupa 10, następna wolna litera), zapis F_ARODES + F_SUBAREA
   + opis po "Zapisz"; po zapisie adresu - schowek i niezgodność
-  baza-warstwa w statusie panelu, dopóki adres nie trafi do ADR_LES.
+  baza-warstwa w statusie panelu, dopóki adres nie trafi do ADR_LES,
+- opis wydzielenia: podpowiedź TD z TSL (opis_warstwy.TD_DLA_TSL, Enter
+  przyjmuje kolejne gatunki), ↓ w polu z listą otwiera listę.
 """
 import copy
 import csv
@@ -287,9 +289,10 @@ class Slownik:
         return None
 
     def pozycja(self, kod):
-        """Tekst pozycji na liście/w podpowiedzi: "KOD | nr" (bez nazwy)."""
+        """Tekst pozycji na liście/w podpowiedzi: "KOD | nr" (bez nazwy);
+        numer równy kodowi (udziały: 9 | 9) - sam kod."""
         nr = self.kod_nr.get(kod) if self.numery else None
-        return f'{kod} | {nr}' if nr else kod
+        return f'{kod} | {nr}' if nr and str(nr) != kod else kod
 
     def pozycje(self):
         return [self.pozycja(k) for k in self.kody]
@@ -298,7 +301,7 @@ class Slownik:
         if not kod:
             return ''
         nr = self.kod_nr.get(kod)
-        dop = f' (nr {nr})' if nr and self.numery else ''
+        dop = f' (nr {nr})' if nr and self.numery and str(nr) != kod else ''
         return f'{kod} - {self.nazwy.get(kod, "?")}{dop}'
 
 
@@ -451,9 +454,12 @@ class _DelegatTabeli(QStyledItemDelegate):
     tabelę (liczba wierszy)."""
 
     def __init__(self, okno, specyfikacja, callback, po_enter=None,
-                 podpowiedz=None, po_strzalce=None):
+                 podpowiedz=None, po_strzalce=None, dol_otwiera_liste=False):
         super().__init__(okno)
         self.okno = okno
+        # ↓ w polu z listą otwiera listę (opis wydzielenia) zamiast przejścia
+        # niżej; wybór z tak otwartej listy Enterem - dalej jak po Enterze
+        self.dol_otwiera_liste = dol_otwiera_liste
         self.spec = specyfikacja  # [(typ, słownik), ...] per kolumna
         self.callback = callback
         # podpowiedz(wiersz, kolumna) -> tekst wstawiany do PUSTEJ komórki,
@@ -488,6 +494,10 @@ class _DelegatTabeli(QStyledItemDelegate):
                 return super().eventFilter(editor, event)
             if ed is not editor and not isinstance(editor, QLineEdit):
                 editor.hide()  # zdarzenie z listy podpowiedzi
+            if self.dol_otwiera_liste and event.key() == Qt.Key_Down and \
+                    isinstance(ed, QComboBox) and ed.count() > 1:
+                self._otworz_liste(ed)
+                return True
             self._strzalka(ed, event.key())
             return True
         enter = self.po_enter is not None and \
@@ -561,7 +571,20 @@ class _DelegatTabeli(QStyledItemDelegate):
         ed.activated.connect(lambda _i, e=ed: self._zatwierdz(e))
         return ed
 
+    def _otworz_liste(self, ed):
+        """Pełna lista z zaznaczoną bieżącą wartością (pierwsza pozycja
+        listy jest pusta - start od niej, gdy pole puste)."""
+        tekst = ed.currentText().strip()
+        i = ed.findText(tekst, Qt.MatchStartsWith) if tekst else -1
+        ed.setProperty('z_klawiatury', True)
+        ed.setCurrentIndex(max(i, 0))
+        ed.showPopup()
+
     def _zatwierdz(self, ed):
+        if ed.property('z_klawiatury') and self.po_enter is not None:
+            # lista otwarta strzałką - wybór Enterem prowadzi dalej
+            self._enter_zatwierdz(ed)
+            return
         self.commitData.emit(ed)
         self.closeEditor.emit(ed)
 
@@ -1228,7 +1251,8 @@ class OknoOpisu(QWidget):
                    for k in KOLUMNY_OPIS],
             lambda r, c, t: self.ustaw_pole(KOLUMNY_OPIS[c][1], t, r),
             lambda r, c, e: self._enter_opis(r, c, e),
-            None, lambda r, c, k: self._strzalka_opis(r, c, k)))
+            self._podpowiedz_opis, lambda r, c, k: self._strzalka_opis(r, c, k),
+            dol_otwiera_liste=True))
         if not self.tylko_odczyt:
             self.t_opis.installEventFilter(self)
         self.t_opis.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -1558,6 +1582,11 @@ class OknoOpisu(QWidget):
         nag = next(k[0] for k in KOLUMNY_OPIS if k[1] == pole)
         self._ustaw_pole(pole, tekst, wiersz)
         self._do_historii(nag.replace('\n', ' '), przed)
+        td = ow.TD_DLA_TSL.get(self.dane['SITE_TYPE_CD'])
+        if pole == 'SITE_TYPE_CD' and td:
+            self._status(f'TD dla {self.dane["SITE_TYPE_CD"]}: {td} - '
+                         'podpowiedź w kolumnie TD, Enter przyjmuje',
+                         '#1f5fa8')
 
     def _ustaw_pole(self, pole, tekst, wiersz=0):
         _n, _p, typ, slow = next(k for k in KOLUMNY_OPIS if k[1] == pole)
@@ -1605,6 +1634,14 @@ class OknoOpisu(QWidget):
         self._status('')
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
+
+    def _podpowiedz_opis(self, r, c):
+        """Podpowiedź do pustej komórki opisu wydzielenia: TD z TSL
+        (kolejne gatunki typu drzewostanu, których jeszcze nie ma)."""
+        if self.dane is None or KOLUMNY_OPIS[c][1] != 'TD' or \
+                r != len(self.dane['TD']):
+            return None
+        return ow.podpowiedz_td(self.dane['SITE_TYPE_CD'], self.dane['TD'])
 
     def _wartosc(self, typ, slow, tekst):
         """(ok, wartość) z tekstu komórki; przy błędzie komunikat w statusie."""
