@@ -1615,9 +1615,10 @@ class OknoOpisu(QWidget):
         1-10; zwraca tekst statusu."""
         w = self.dane['WARSTWY'][wi]
         zd = w['STANDDENSITY_INDEX']
-        if w['STOREY_CD'] != ow.WARSTWA_MASY or zd is None or \
-                not self.panel.tablica_mas:
+        if w['STOREY_CD'] != ow.WARSTWA_MASY or zd is None:
             return ''
+        if not self.panel.tablica_mas:
+            return 'masy nie przeliczone - brak tablicy mas'
         policzone, pominiete = 0, []
         for g in w['gatunki']:
             if ow.udzial_masy(g) is None:
@@ -1639,15 +1640,19 @@ class OknoOpisu(QWidget):
         lub bonitacji -> masa tego gatunku z obecnego Zd (Zd bez zmian);
         zwraca tekst statusu."""
         w = self.dane['WARSTWY'][wi]
-        if w['STOREY_CD'] != ow.WARSTWA_MASY or not self.panel.tablica_mas:
+        if w['STOREY_CD'] != ow.WARSTWA_MASY:
             return ''
+        if not self.panel.tablica_mas:
+            return 'Zd nie przeliczone - brak tablicy mas' \
+                if pole == 'VOLUME' else ''
         g = w['gatunki'][gi]
         if pole == 'VOLUME':
             zd, pominiete = ow.zd_z_mas(self.panel.tablica_mas,
                                         self.panel.grupy_bonit, w['gatunki'])
             if zd is None:
-                return 'Zd nie przeliczone' + \
-                    self._tekst_pominietych(pominiete) if pominiete else ''
+                return 'Zd nie przeliczone' + (
+                    self._tekst_pominietych(pominiete) if pominiete else
+                    ' (brak gatunków z udziałem 1-10)')
             w['STANDDENSITY_INDEX'] = zd
             return f'Zd z mas: {_fmt(zd, 1)}' + \
                 self._tekst_pominietych(pominiete)
@@ -2226,6 +2231,7 @@ class PanelOpisu(QDockWidget):
         self.wydz = {}
         self.karta = None
         self.tablica_bonit, self.tablica_mas, self.grupy_bonit = {}, {}, {}
+        self.zrodlo_tablicy = None
         self._podglad = None
         self.max_h = 0
         self.kopia_zrobiona = False
@@ -2382,11 +2388,22 @@ class PanelOpisu(QDockWidget):
         zg = ('<span style="color:#107010">zgodna z warstwą</span>'
               if not self._szczegoly else
               '<span style="color:#b36b00">niezgodności z warstwą</span>')
+        # krótkie linie - wąski panel ucina zawinięty tekst; opis w podpowiedzi
+        if self.zrodlo_tablicy == ow.TABLICA_Z_BAZY:
+            tab, tab_opis = '', ''
+        elif self.zrodlo_tablicy == ow.TABLICA_Z_WTYCZKI:
+            tab = '<br><span style="color:#b36b00">tablica mas z wtyczki</span>'
+            tab_opis = ('\n\nBaza nie ma F_TABLICA_ROZSZERZONA - masa/Zd i '
+                        'podpowiedź bonitacji z tablicy dołączonej do wtyczki.')
+        else:
+            tab = '<br><span style="color:#c00000">brak tablicy mas</span>'
+            tab_opis = ('\n\nBrak F_TABLICA_ROZSZERZONA - masa/Zd i '
+                        'podpowiedź bonitacji nie są przeliczane.')
         self.lbl_status.setText(
             f'<b>{os.path.basename(self.baza_sc)}</b><br>'
             f'{self.lyr.name()} | {tryb}<br>'
-            f'wydzieleń: {len(self.wydz)}<br>{zg}')
-        self.lbl_status.setToolTip(self.baza_sc)
+            f'wydzieleń: {len(self.wydz)}<br>{zg}{tab}')
+        self.lbl_status.setToolTip(self.baza_sc + tab_opis)
 
     # ------------------------------------------------------- połączenie
 
@@ -2446,8 +2463,8 @@ class PanelOpisu(QDockWidget):
         zajmij_baze(baza_sc)
         self.tylko_odczyt = bool(blokada)
         self.slowniki = slowniki
-        self.tablica_bonit, self.tablica_mas, self.grupy_bonit = \
-            ow.wczytaj_tablice_bonitacji(baza.cur)
+        self.tablica_bonit, self.tablica_mas, self.grupy_bonit, \
+            self.zrodlo_tablicy = ow.wczytaj_tablice_bonitacji(baza.cur)
         self.wydz = wydz
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
         self.max_h = 0
@@ -2459,6 +2476,15 @@ class PanelOpisu(QDockWidget):
         self.odswiez_bez_opisu()
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Podłączono bazę {os.path.basename(baza_sc)}')
+        if self.zrodlo_tablicy == ow.TABLICA_Z_WTYCZKI:
+            self.iface.messageBar().pushWarning(
+                'Opis taksacyjny', 'Baza nie ma tabeli F_TABLICA_ROZSZERZONA '
+                '- masa/Zd i podpowiedź bonitacji liczone z tablicy '
+                'dołączonej do wtyczki.')
+        elif self.zrodlo_tablicy is None:
+            self.iface.messageBar().pushCritical(
+                'Opis taksacyjny', 'Brak tablicy mas (F_TABLICA_ROZSZERZONA) '
+                '- masa/Zd i podpowiedź bonitacji nie będą liczone.')
         self._zaznaczenie()
 
     def _sygnaly_warstwy(self):

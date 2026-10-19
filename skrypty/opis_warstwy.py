@@ -14,7 +14,9 @@ Model danych warstwy (słownik):
                   'SITE_CLASS_CD', 'VOLUME'}, ...]}
 Kody jako tekst ('' = brak), liczby jako int/float albo None.
 """
+import csv
 import json
+import os
 
 from .aktualizacja_upul.core.formula import obliczona_masa
 
@@ -185,30 +187,63 @@ def lista_bledow(walidacja, warstwy):
     return wyn
 
 
+# Kopia F_TABLICA_ROZSZERZONA (z czysta_baza_do_wgrywania_2026_09_08.mdb)
+# dla baz bez tej tabeli; UTF-8, separator ';', nagłówek:
+#   SPECIES_CD;SITE_CLASS_CD;SPECIES_AGE;HEIGHT;VOLUME
+SCIEZKA_TABLICY = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'szablony', 'tablica_rozszerzona.csv')
+
+TABLICA_Z_BAZY, TABLICA_Z_WTYCZKI = 'baza', 'wtyczka'
+
+
+def _dopisz_do_tablicy(tablica, masy, g, k, w, h, v):
+    if g is None or k is None or w is None:
+        return
+    klucz, klasa = (str(g).strip(), int(w)), str(k).strip()
+    if h is not None:
+        tablica.setdefault(klucz, {})[klasa] = float(h)
+    if v is not None:
+        masy.setdefault(klucz, {})[klasa] = float(v)
+
+
 def wczytaj_tablice_bonitacji(cur):
-    """(tablica, masy, grupy): tablica {(gatunek, wiek): {klasa: wysokość}}
-    i masy {(gatunek, wiek): {klasa: zasobność}} z F_TABLICA_ROZSZERZONA,
+    """(tablica, masy, grupy, źródło): tablica {(gatunek, wiek): {klasa:
+    wysokość}} i masy {(gatunek, wiek): {klasa: zasobność}} z
+    F_TABLICA_ROZSZERZONA bazy, a gdy baza jej nie ma - z kopii we wtyczce
+    (źródło TABLICA_Z_BAZY / TABLICA_Z_WTYCZKI, None - brak tablicy);
     grupy {gatunek: gatunek tablicowy} z F_TREE_SPECIES.HEIGHT_GRP
-    (gatunki bez własnej tablicy). Puste, gdy bazy nie mają tych tabel."""
+    (gatunki bez własnej tablicy)."""
     tablica, masy, grupy = {}, {}, {}
+    zrodlo = None
     try:
         for g, k, w, h, v in cur.execute(
                 'select SPECIES_CD, SITE_CLASS_CD, SPECIES_AGE, HEIGHT, '
                 'VOLUME from F_TABLICA_ROZSZERZONA').fetchall():
-            if g is None or k is None or w is None:
-                continue
-            klucz, klasa = (str(g).strip(), int(w)), str(k).strip()
-            if h is not None:
-                tablica.setdefault(klucz, {})[klasa] = float(h)
-            if v is not None:
-                masy.setdefault(klucz, {})[klasa] = float(v)
+            _dopisz_do_tablicy(tablica, masy, g, k, w, h, v)
+        zrodlo = TABLICA_Z_BAZY
+    except Exception:
+        tablica, masy = {}, {}
+    if not masy and os.path.isfile(SCIEZKA_TABLICY):
+        tablica, masy = {}, {}
+        try:
+            with open(SCIEZKA_TABLICY, encoding='utf-8', newline='') as plik:
+                for r in csv.DictReader(plik, delimiter=';'):
+                    _dopisz_do_tablicy(
+                        tablica, masy, r['SPECIES_CD'], r['SITE_CLASS_CD'],
+                        r['SPECIES_AGE'], r['HEIGHT'] or None,
+                        r['VOLUME'] or None)
+            zrodlo = TABLICA_Z_WTYCZKI if masy else None
+        except Exception:
+            tablica, masy, zrodlo = {}, {}, None
+    try:
         for g, grp in cur.execute(
                 'select SPECIES_CD, HEIGHT_GRP from F_TREE_SPECIES').fetchall():
             if g is not None and grp is not None:
                 grupy[str(g).strip()] = str(grp).strip()
     except Exception:
-        return {}, {}, {}
-    return tablica, masy, grupy
+        grupy = {}
+    return tablica, masy, grupy, zrodlo
 
 
 def sugeruj_bonitacje(tablica, grupy, gatunek, wiek, wysokosc):
