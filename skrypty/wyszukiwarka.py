@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 """Wyszukiwarka skryptów Las-R w pasku wyszukiwania QGIS-a (lewy dolny
-róg, Ctrl+K). Prefiks 'lr' - tylko skrypty Las-R (samo 'lr ' - wszystkie);
+róg, Ctrl+K). Prefiks 'lasr' - tylko skrypty Las-R (samo 'lasr ' - wszystkie);
 bez prefiksu wyniki Las-R obok wyników QGIS-a. Enter uruchamia skrypt.
 Menu "Znajdź skrypt..." i lupa na pasku LAS-R wołają otworz()."""
 from qgis.core import QgsLocatorFilter, QgsLocatorResult
 
 from . import indeks_skryptow as ix
 
-PREFIKS = 'lr'
+# QGIS przyjmuje od wtyczek prefiksy min. 3-znakowe (krótsze po cichu
+# ignoruje - 'lr' nie działał)
+PREFIKS = 'lasr'
 LIMIT = 30
 
 
@@ -36,7 +38,12 @@ class FiltrSkryptow(QgsLocatorFilter):
         return PREFIKS
 
     def flags(self):
-        return QgsLocatorFilter.FastFlag
+        # nazwa stałej: FlagFast (QGIS 3.x, m.in. 3.34/3.44); FastFlag
+        # (wg części dokumentacji) - awaryjnie
+        szybki = getattr(QgsLocatorFilter, 'FlagFast', None)
+        if szybki is None:
+            szybki = getattr(QgsLocatorFilter, 'FastFlag')
+        return QgsLocatorFilter.Flags(szybki)
 
     def priority(self):
         return QgsLocatorFilter.High
@@ -44,7 +51,7 @@ class FiltrSkryptow(QgsLocatorFilter):
     def fetchResults(self, tekst, kontekst, feedback):
         tekst = (tekst or '').strip()
         # bez prefiksu - dopiero od 2 znaków (pojedyncza litera zalewałaby
-        # listę QGIS-a); z prefiksem 'lr ' - także cała lista
+        # listę QGIS-a); z prefiksem 'lasr ' - także cała lista
         # activePrefix() zwraca prefix() także bez wpisanego prefiksu -
         # o prefiksie mówi kontekst
         if len(tekst) < 2 and not getattr(kontekst, 'usingPrefix', False):
@@ -74,5 +81,5 @@ class FiltrSkryptow(QgsLocatorFilter):
 
 
 def otworz(iface):
-    """Pasek wyszukiwania QGIS-a z wpisanym 'lr ' - lista skryptów Las-R."""
+    """Pasek wyszukiwania QGIS-a z wpisanym 'lasr ' - lista skryptów Las-R."""
     iface.locatorSearch(PREFIKS + ' ')

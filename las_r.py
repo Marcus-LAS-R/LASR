@@ -1045,7 +1045,7 @@ class LasR:
         self.a_znajdz_skrypt.setToolTip(
             "Pasek wyszukiwania QGIS (lewy dolny róg) z listą skryptów Las-R - "
             "wpisz nazwę, dawną nazwę albo słowo kluczowe, Enter uruchamia. "
-            "Z dowolnego miejsca: Ctrl+K, 'lr ' + szukane słowo.")
+            "Z dowolnego miejsca: Ctrl+K, 'lasr ' + szukane słowo.")
         self.menu.addAction(self.a_znajdz_skrypt)
         self.a_znajdz_skrypt.triggered.connect(
             lambda: wyszukiwarka.otworz(self.iface))
@@ -1470,7 +1470,7 @@ class LasR:
         QgsProject.instance().cleared.connect(
             self.dockWarstwaOpisow.zresetuj_stan_projektu)
 
-        # wyszukiwarka skryptów (Ctrl+K, 'lr') i Ulubione - po zbudowaniu
+        # wyszukiwarka skryptów (Ctrl+K, 'lasr') i Ulubione - po zbudowaniu
         # całego menu i pasków
         self._ids_skryptow = spis_skryptow.nadaj_identyfikatory(self)
         self._spis_skryptow = None
