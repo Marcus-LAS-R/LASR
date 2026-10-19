@@ -33,7 +33,7 @@ import configparser
 # Import the code for the dialog
 # from .las_r_dialog import LasRDialog
 import os.path
-from qgis.core import QgsProject, Qgis
+from qgis.core import QgsApplication, QgsProject, Qgis
 from qgis.utils import plugins
 
 from .skrypty import (
@@ -111,6 +111,9 @@ from .skrypty import (
     baza_aktualizuj_strukture,
     baza_uzupelnij_uszkodzenia,
     shp_pokaz_puste_wydz,
+    spis_skryptow,
+    wyszukiwarka,
+    ulubione,
 )
 
 from .skrypty import aktualizacja_upul
@@ -310,7 +313,13 @@ class LasR:
         self.m_narzedzia = QMenu("Narzędziowe", self.menu)
         self.m_raporty = QMenu("Generuj", self.menu)
         self.m_testowe = QMenu("Testowe", self.menu)
+        # Ulubione na samej górze - wypełniane na końcu initGui (ulubione.py)
+        self.m_ulubione = QMenu("Ulubione", self.menu)
+        self.m_ulubione.setIcon(
+            QgsApplication.getThemeIcon('/mIconFavorites.svg'))
 
+        self.menu.addMenu(self.m_ulubione)
+        self.menu.addSeparator()
         self.menu.addMenu(self.m_przyg_danych)
         self.menu.addMenu(self.m_rozlicz_pow)
         self.menu.addMenu(self.m_aktualizacja_upul)
@@ -1030,6 +1039,17 @@ class LasR:
 
         self.menu.addSeparator()
 
+        self.a_znajdz_skrypt = QAction(
+            QgsApplication.getThemeIcon('/search.svg'),
+            "Znajdź skrypt... (Ctrl+K)", self.iface.mainWindow())
+        self.a_znajdz_skrypt.setToolTip(
+            "Pasek wyszukiwania QGIS (lewy dolny róg) z listą skryptów Las-R - "
+            "wpisz nazwę, dawną nazwę albo słowo kluczowe, Enter uruchamia. "
+            "Z dowolnego miejsca: Ctrl+K, 'lr ' + szukane słowo.")
+        self.menu.addAction(self.a_znajdz_skrypt)
+        self.a_znajdz_skrypt.triggered.connect(
+            lambda: wyszukiwarka.otworz(self.iface))
+
         self.a_co_nowego = QAction(QIcon(None), "Co nowego?", self.iface.mainWindow())
         self.a_co_nowego.setToolTip(
             "Pokazuje listę zmian wprowadzonych w najnowszej wersji wtyczki.")
@@ -1339,6 +1359,9 @@ class LasR:
         self.toolbar.addAction(self.atl_auto)
         self.atl_auto.triggered.connect(self.atlasuj_automatycznie)
 
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.a_znajdz_skrypt)
+
         self.a_pokaz_lay = QAction(ico_pok_lay, "Pokaż Layout", self.iface.mainWindow())
         self.a_pokaz_lay.triggered.connect(self.pokaz_layout)
 
@@ -1353,6 +1376,7 @@ class LasR:
             self.rys_atl,
             self.num_atl,
             self.atl_auto,
+            self.a_znajdz_skrypt,
         ]
         # toolbar koniec ---------------------
 
@@ -1446,7 +1470,24 @@ class LasR:
         QgsProject.instance().cleared.connect(
             self.dockWarstwaOpisow.zresetuj_stan_projektu)
 
+        # wyszukiwarka skryptów (Ctrl+K, 'lr') i Ulubione - po zbudowaniu
+        # całego menu i pasków
+        self._ids_skryptow = spis_skryptow.nadaj_identyfikatory(self)
+        self._spis_skryptow = None
+        self.filtr_skryptow = wyszukiwarka.FiltrSkryptow(self.spis_skryptow)
+        self.iface.registerLocatorFilter(self.filtr_skryptow)
+        self.ulubione = ulubione.Ulubione(
+            self, self.m_ulubione, self.spis_skryptow)
+
         self._pokaz_changelog_jesli_nowy()
+
+    def spis_skryptow(self):
+        """Skrypty z menu i pasków (raz zebrane - menu po starcie się nie
+        zmienia)."""
+        if self._spis_skryptow is None:
+            self._spis_skryptow = spis_skryptow.zbierz(
+                self, self._ids_skryptow, pomin_menu=(self.m_ulubione,))
+        return self._spis_skryptow
 
     def _changelog_sc(self):
         sc = os.path.join(self.plugin_dir, 'CHANGELOG.txt')
@@ -1498,6 +1539,12 @@ class LasR:
         #         action)
         #     self.iface.removeToolBarIcon(action)
         # remove the toolbar
+        if getattr(self, 'filtr_skryptow', None) is not None:
+            self.iface.deregisterLocatorFilter(self.filtr_skryptow)
+            self.filtr_skryptow = None
+        if getattr(self, 'ulubione', None) is not None:
+            self.ulubione.sprzataj()
+            self.ulubione = None
         if self.menu is not None:
             self.iface.mainWindow().menuBar().removeAction(self.menu.menuAction())
         for a in self.akcje_toolbara:
