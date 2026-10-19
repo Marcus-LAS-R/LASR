@@ -15,7 +15,7 @@ Panel otwarty = baza podłączona:
 - edytowalne: "Opis wydzielenia" (F_SUBAREA, cechy F_AROD_STAND_PEC i TD =
   F_AROD_GOAL typ 'D' - jako osobne wiersze, jak w Taksatorze) i
   "Informacje różne" (SUBAREA_INFO); warstwy i gatunki (krok 3a: reguły,
-  sortowanie i plan zapisu w opis_warstwy.py); zabiegi tylko podgląd,
+  sortowanie i plan zapisu w opis_warstwy.py); zabiegi edytowalne (niżej),
 - pola kodów: rozwijana lista albo wpisanie kodu lub numeru jak w
   Taksatorze (SO albo 1, D-STAN albo 92) - numery ze słowników TEJ bazy
   (kolumny *_NR, dla gatunków BUL_SPECIES_NR; numery rodzaju powierzchni
@@ -42,7 +42,11 @@ Panel otwarty = baza podłączona:
   + opis po "Zapisz"; po zapisie adresu - schowek i niezgodność
   baza-warstwa w statusie panelu, dopóki adres nie trafi do ADR_LES,
 - opis wydzielenia: podpowiedź TD z TSL (opis_warstwy.TD_DLA_TSL, Enter
-  przyjmuje kolejne gatunki), ↓ w polu z listą otwiera listę.
+  przyjmuje kolejne gatunki), ↓ w polu z listą otwiera listę,
+- "Dodaj zabiegi" (+ "pozyskanie +X%"): generator jak "Dopisz/sprawdź
+  zabiegi" w trybie Dopisz (bez Janczulewicza) dla bieżącego wydzielenia,
+- wskazania gospodarcze edytowalne (kod czynności, pilność, % pow. <-> pow.,
+  % grub., ✕, nowy wiersz), zapis razem z opisem; masa liczona w TPU.
 """
 import copy
 import csv
@@ -53,7 +57,9 @@ from collections import Counter
 from datetime import datetime
 
 from PyQt5 import sip
-from PyQt5.QtCore import QEvent, QPoint, QRegExp, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import (
+    QEvent, QPoint, QRegExp, QSettings, Qt, QTimer, pyqtSignal,
+)
 from PyQt5.QtGui import (
     QBrush, QColor, QCursor, QDoubleValidator, QFont, QFontDatabase,
     QFontMetrics, QIntValidator, QKeySequence, QRegExpValidator,
@@ -63,7 +69,7 @@ from PyQt5.QtWidgets import (
     QCompleter, QDialog,
     QDialogButtonBox, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QShortcut,
+    QShortcut, QSpinBox,
     QStyledItemDelegate, QTableWidget, QTableWidgetItem, QToolButton,
     QVBoxLayout, QWidget,
 )
@@ -110,6 +116,7 @@ SLOWNIKI = {
     'DENSITY_CD': ('F_DENSITY_DIC', 'DENSITY_CD', 'DENSITY_NAME',
                    'DENSITY_NR'),
     'STOREY_CD': ('F_STOREY_DIC', 'STOREY_CD', 'STOREY_NAME', 'STOREY_NR'),
+    'MEASURE_CD': ('F_MEASURE', 'measure_cd', 'measure_name', 'measure_nr'),
 }
 
 # górny wiersz: (nagłówek, pole, typ, słownik)
@@ -149,14 +156,20 @@ KOLUMNY_GATUNKI = [
     ('Bonit.', 'SITE_CLASS_CD', 'kod', 'SITE_CLASS_CD', None, 54),
     ('Zasob.', 'VOLUME', 'liczba', None, 0, 55),
 ]
+# wskazania gospodarcze: (nagłówek, pole, typ, słownik, miejsca, szerokość);
+# typ: 'kod' (lista), 'calk', 'liczba', 'przelacz' (klik zmienia T/N),
+# 'tylko' (masa liczona w TPU - bez edycji)
 KOLUMNY_ZABIEGI = [
-    ('Grupa\nczynności', 'MEASURE_CD', None, 80, False),
-    ('Pilność\nzabiegu', 'URGENCY', 'bool', 55, False),
-    ('% pow.\nwydz.', 'PROC_AREA', 0, 50, False),
-    ('Pow.', 'CUTTING_AREA', 4, 60, False),
-    ('% grub.', 'LARGE_TIMBER_PERC', 0, 50, False),
-    ('m3 grub.', 'LARGE_TIMBER_VALUE', 0, 60, True),
+    ('Grupa\nczynności', 'MEASURE_CD', 'kod', 'MEASURE_CD', None, 80),
+    ('Pilność\nzabiegu', 'URGENCY', 'przelacz', None, 'bool', 55),
+    ('% pow.\nwydz.', 'PROC_AREA', 'calk', None, 0, 50),
+    ('Pow.', 'CUTTING_AREA', 'liczba', None, 4, 60),
+    ('% grub.', 'LARGE_TIMBER_PERC', 'calk', None, 0, 50),
+    ('m3 grub.', 'LARGE_TIMBER_VALUE', 'tylko', None, 0, 60),
 ]
+POLA_ZABIEGU = [k[1] for k in KOLUMNY_ZABIEGI]
+EDYTOWALNE_ZABIEGU = [i for i, k in enumerate(KOLUMNY_ZABIEGI)
+                      if k[2] in ('kod', 'calk', 'liczba')]
 
 
 NAZWA_KOPII = 'edycja_opisu'
@@ -314,6 +327,58 @@ def _float(v, miejsca=None):
         return None
     f = float(v)
     return round(f, miejsca) if miejsca is not None else f
+
+
+def _model_zabiegu(z):
+    """Zabieg z F_AROD_CUE jako słownik karty; '_BAZA' - kod w bazie (None
+    = nowy, dopisywany przy zapisie)."""
+    kod = _txt(z.get('MEASURE_CD'))
+    return {
+        'MEASURE_CD': kod,
+        'URGENCY': 'T' if _txt(z.get('URGENCY')).upper() == 'T' else 'N',
+        'PROC_AREA': _int(z.get('PROC_AREA')),
+        'CUTTING_AREA': _float(z.get('CUTTING_AREA'), 4),
+        'LARGE_TIMBER_PERC': _int(z.get('LARGE_TIMBER_PERC')),
+        'LARGE_TIMBER_VALUE': _int(z.get('LARGE_TIMBER_VALUE')),
+        '_BAZA': kod,
+    }
+
+
+def plan_zapisu_zabiegow(aid, stare, nowe):
+    """[(sql, parametry)] zmian F_AROD_CUE: najpierw usunięcia (usunięte
+    zabiegi i stare wiersze zabiegów ze zmienionym kodem - kody tymczasowe
+    łamią relację z F_MEASURE), potem pola i kolejność pozostałych
+    (CUE_RANK_ORDER = pozycja na liście), na końcu dopisania (nowe i ze
+    zmienionym kodem - zamiana A <-> B działa, bo usunięcia są wcześniej).
+    Masa (LARGE_TIMBER_VALUE) nie jest przeliczana - liczy ją TPU."""
+    plan = []
+    bez_zmian_kodu = {z['_BAZA'] for z in nowe
+                      if z['_BAZA'] and z['_BAZA'] == z['MEASURE_CD']}
+    for z in stare:
+        if z['_BAZA'] not in bez_zmian_kodu:
+            plan.append(('delete from F_AROD_CUE where ARODES_INT_NUM = ? '
+                         'and MEASURE_CD = ?', (aid, z['_BAZA'])))
+    for rank, z in enumerate(nowe, 1):
+        wart = (z['URGENCY'], z['CUTTING_AREA'], z['PROC_AREA'],
+                z['LARGE_TIMBER_PERC'])
+        if z['_BAZA'] in bez_zmian_kodu:
+            plan.append(('update F_AROD_CUE set URGENCY = ?, CUTTING_AREA = '
+                         '?, PROC_AREA = ?, LARGE_TIMBER_PERC = ?, '
+                         'CUE_RANK_ORDER = ? where ARODES_INT_NUM = ? and '
+                         'MEASURE_CD = ?',
+                         (*wart, rank, aid, z['MEASURE_CD'])))
+    for rank, z in enumerate(nowe, 1):
+        if z['_BAZA'] not in bez_zmian_kodu:
+            plan.append(('insert into F_AROD_CUE (ARODES_INT_NUM, '
+                         'MEASURE_CD, URGENCY, CUTTING_AREA, PROC_AREA, '
+                         'LARGE_TIMBER_PERC, LARGE_TIMBER_VALUE, '
+                         'CUE_RANK_ORDER, SITE_NR) values '
+                         '(?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                         (aid, z['MEASURE_CD'], z['URGENCY'],
+                          z['CUTTING_AREA'], z['PROC_AREA'],
+                          z['LARGE_TIMBER_PERC'], z['LARGE_TIMBER_VALUE'],
+                          rank)))
+    return plan
 
 
 def _model_warstw(warstwy, gatunki):
@@ -483,9 +548,9 @@ class _DelegatTabeli(QStyledItemDelegate):
 
     def eventFilter(self, editor, event):
         """Enter w edytorze: zatwierdź i przejdź dalej (po_enter); strzałki -
-        sąsiednia komórka (lista podpowiedzi tylko myszką; rozwinięta pełna
-        lista ▼/Alt+↓ - strzałki działają w liście); Esc - domyślnie:
-        porzuć edycję komórki."""
+        sąsiednia komórka (w otwartej liście podpowiedzi ↑↓ chodzą po
+        liście, ←/→ - komórki; rozwinięta pełna lista ▼/Alt+↓ - strzałki
+        działają w liście); Esc - domyślnie: porzuć edycję komórki."""
         if self.po_strzalce is not None and event.type() == QEvent.KeyPress \
                 and event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right) \
                 and not event.modifiers() & Qt.AltModifier:
@@ -493,6 +558,12 @@ class _DelegatTabeli(QStyledItemDelegate):
             if isinstance(ed, QComboBox) and ed.view().isVisible():
                 return super().eventFilter(editor, event)
             if ed is not editor and not isinstance(editor, QLineEdit):
+                # lista podpowiedzi po wpisaniu początku kodu (np. "I"):
+                # ↑↓ chodzą po liście (Enter wybiera podświetloną), ←/→
+                # zamykają ją i przechodzą między komórkami
+                if event.key() in (Qt.Key_Up, Qt.Key_Down) and \
+                        editor.isVisible():
+                    return False
                 editor.hide()  # zdarzenie z listy podpowiedzi
             if self.dol_otwiera_liste and event.key() == Qt.Key_Down and \
                     isinstance(ed, QComboBox) and ed.count() > 1:
@@ -1070,6 +1141,7 @@ class OknoOpisu(QWidget):
         self.adr = None          # ADR_LES zaznaczonego poligonu
         self.aint = None         # None przy nowym, jeszcze niezapisanym
         self.adres_bazy = None   # adres wydzielenia w F_ARODES
+        self.pow_wydz = 0.0      # F_SUBAREA.SUB_AREA (zabiegi: % <-> ha)
         self.prefiks = ''        # adres[:6] - stały w pasku adresu
         self._adresy_cache = None  # {ADRESS_FOREST: ARODES_TYP_CD}
         self._adr_krok = False   # pisanie w jednym oknie adresu = 1 krok
@@ -1143,6 +1215,9 @@ class OknoOpisu(QWidget):
         zabiegi = self._wiersze(
             'select * from F_AROD_CUE where ARODES_INT_NUM = ? '
             'order by CUE_RANK_ORDER', (aint,))
+        dane['ZABIEGI'] = [_model_zabiegu(z) for z in zabiegi]
+        # powierzchnia wydzielenia - % pow. <-> Pow. zabiegu (jak generator)
+        self.pow_wydz = _float(s.get('SUB_AREA')) or 0.0
         return dane, warstwy, gatunki, zabiegi
 
     # ----------------------------------------------------------------- UI
@@ -1276,9 +1351,48 @@ class OknoOpisu(QWidget):
         # --- wskazania + informacje różne
         dol = QHBoxLayout()
         lewa = QVBoxLayout()
-        lewa.addWidget(_sekcja('Wskazania gospodarcze'))
-        self.t_zab = _tabela([k[0] for k in KOLUMNY_ZABIEGI],
-                             [k[3] for k in KOLUMNY_ZABIEGI])
+        naglowek_zab = QHBoxLayout()
+        naglowek_zab.addWidget(_sekcja('Wskazania gospodarcze'))
+        naglowek_zab.addStretch(1)
+        # generator zabiegów jak "Dopisz/sprawdź zabiegi" (tryb Dopisz, bez
+        # Janczulewicza) dla bieżącego wydzielenia + modyfikator pozyskania
+        self.lbl_mod_trzeb = QLabel('pozyskanie +')
+        naglowek_zab.addWidget(self.lbl_mod_trzeb)
+        self.spin_mod_trzeb = QSpinBox()
+        self.spin_mod_trzeb.setRange(0, 30)
+        self.spin_mod_trzeb.setSuffix(' %')
+        self.spin_mod_trzeb.setToolTip(
+            'Zwiększenie % pozyskania w trzebieżach i czyszczeniach późnych '
+            '(TW, TP, CP-P) o podaną liczbę punktów procentowych - maks. 20% '
+            '(jak "modyfikator trzebieży" w Dopisz/sprawdź zabiegi)')
+        try:
+            self.spin_mod_trzeb.setValue(int(QSettings('LasR', 'LasR').value(
+                'opis_zabiegi_mod_trzeb', 0)))
+        except (TypeError, ValueError):
+            pass
+        self.spin_mod_trzeb.valueChanged.connect(
+            lambda v: QSettings('LasR', 'LasR').setValue(
+                'opis_zabiegi_mod_trzeb', v))
+        naglowek_zab.addWidget(self.spin_mod_trzeb)
+        self.btn_dodaj_zab = QPushButton('Dodaj zabiegi')
+        self.btn_dodaj_zab.setToolTip(
+            'Generuje i dopisuje zabiegi dla tego wydzielenia według logiki '
+            '"Dopisz/sprawdź zabiegi" (tryb Dopisz, bez trybu Janczulewicza): '
+            'brakujące zabiegi dopisuje, wpisanym poprawia powierzchnię, '
+            'uzupełnia uwagi. Działa na opisie zapisanym w bazie - '
+            'niezapisane zmiany najpierw trzeba zapisać. Przed zmianą kopia '
+            'bazy, stan zabiegów przed/po w dzienniku.')
+        self.btn_dodaj_zab.clicked.connect(self.dodaj_zabiegi)
+        naglowek_zab.addWidget(self.btn_dodaj_zab)
+        for w in (self.lbl_mod_trzeb, self.spin_mod_trzeb, self.btn_dodaj_zab):
+            w.setVisible(not self.tylko_odczyt)
+        lewa.addLayout(naglowek_zab)
+        self.t_zab = _tabela_edytowalna(
+            KOLUMNY_ZABIEGI + [KOLUMNA_USUN], self,
+            lambda r, c, t: self.ustaw_zabieg(r, KOLUMNY_ZABIEGI[c][1], t),
+            lambda r, c, e: self._enter_zabieg(r, c),
+            None, lambda r, c, k: self._strzalka_zabieg(r, c, k))
+        self.t_zab.cellClicked.connect(self._klik_zabiegu)
         lewa.addWidget(self.t_zab)
         lewa.addStretch(1)
         dol.addLayout(lewa)
@@ -1341,7 +1455,7 @@ class OknoOpisu(QWidget):
 
         szer_okna = max(
             self.t_opis.width(), SZEROKOSC_GRUPY,
-            sum(k[3] for k in KOLUMNY_ZABIEGI) + 260,
+            sum(k[5] for k in KOLUMNY_ZABIEGI) + KOLUMNA_USUN[5] + 260,
         ) + 12 + 20  # marginesy + ewentualny pasek przewijania
         self.setFixedWidth(szer_okna)
 
@@ -1469,11 +1583,7 @@ class OknoOpisu(QWidget):
         self._przelicz()
         self._odbuduj_grupy()
 
-        self.t_zab.setRowCount(len(zabiegi))
-        for r, z in enumerate(zabiegi):
-            for c, (_n, kol, m, _s, szara) in enumerate(KOLUMNY_ZABIEGI):
-                self.t_zab.setItem(r, c, _item(_fmt(z.get(kol), m), szara))
-        _dopasuj(self.t_zab)
+        self._wypelnij_zabiegi()
 
         self.info.blockSignals(True)
         self.info.setPlainText(dane['SUBAREA_INFO'])
@@ -2056,6 +2166,8 @@ class OknoOpisu(QWidget):
              'Cofa po kolei ostatnie zmiany') + ' (Ctrl+Z; ponów - Ctrl+Y)')
         self.btn_usun.setVisible(not self.tylko_odczyt)
         self.btn_usun.setEnabled(self.dane is not None and self.aint is not None)
+        self.btn_dodaj_zab.setEnabled(
+            self.dane is not None and self.aint is not None)
         if zm:
             self.lbl_status.setText('  zmiany niezapisane')
             self.lbl_status.setStyleSheet('color: #b36b00;')
@@ -2183,7 +2295,9 @@ class OknoOpisu(QWidget):
         pusty = {p: (None if p == 'DEAD_WOOD' else '') for p in POLA_SUBAREA}
         # stan wyjściowy z adresem startowym ("Cofnij wszystko" wraca do
         # niego); karta bez aint = nowe - zawsze do zapisu (_zmienione)
+        self.pow_wydz = 0.0
         pusty.update({'FOREST_PEC_CD': [], 'TD': [], 'WARSTWY': [],
+                      'ZABIEGI': [],
                       'ADRES_CZ': (cz['obreb'], oa.GRUPA_NOWEGO, cz['oddz'],
                                    '')})
         self._wypelnij(pusty, [], [], [])
@@ -2231,6 +2345,7 @@ class OknoOpisu(QWidget):
         self._licznik()
         self._adr_krok = False
         self._wypelnij_adres()
+        self._wypelnij_zabiegi()
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
 
@@ -2354,6 +2469,10 @@ class OknoOpisu(QWidget):
                         ('D', aint, kod, i))
             for sql, parametry in plan_warstw:
                 cur.execute(sql, parametry)
+            if d['ZABIEGI'] != o['ZABIEGI']:
+                for sql, parametry in plan_zapisu_zabiegow(
+                        aint, o['ZABIEGI'], d['ZABIEGI']):
+                    cur.execute(sql, parametry)
             self.baza.con.commit()
         except Exception as e:
             try:
@@ -2381,6 +2500,13 @@ class OknoOpisu(QWidget):
         elif zmiana_adr:
             wpisy.append((nowy_adr, 'ADRES', 'ADRESS_FOREST', stary_adr,
                           nowy_adr))
+        if d['ZABIEGI'] != o['ZABIEGI']:
+            def _bez_baza(lista):
+                return json.dumps([{k: v for k, v in z.items()
+                                    if k != '_BAZA'} for z in lista],
+                                  ensure_ascii=False, default=str)
+            wpisy.append((self.adres_bazy, 'ZMIANA', 'F_AROD_CUE',
+                          _bez_baza(o['ZABIEGI']), _bez_baza(d['ZABIEGI'])))
         self._do_dziennika(
             wpisy
             + [(self.adres_bazy, 'ZMIANA', p, o[p], d[p])
@@ -2466,6 +2592,276 @@ class OknoOpisu(QWidget):
         self._pokaz('wydzielenie usunięte z bazy (geometria bez zmian)')
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Usunięto z bazy: {adr}')
+
+    # ------------------------------------------- zabiegi (edycja ręczna)
+
+    def _wypelnij_zabiegi(self):
+        """Tabela wskazań gospodarczych z dane['ZABIEGI']; zmienione komórki
+        (względem bazy, po kodzie) na niebiesko; pod listą pusty wiersz do
+        dopisania (kod albo numer czynności); ✕ - usunięcie."""
+        t = self.t_zab
+        if self.dane is None:
+            t.setRowCount(0)
+            _dopasuj(t)
+            return
+        zab = self.dane.get('ZABIEGI', [])
+        org = {z['_BAZA']: z for z in (self.oryginal or {}).get('ZABIEGI', [])}
+        n = len(zab) + (0 if self.tylko_odczyt else 1)
+        t.setRowCount(n)
+        kol_usun = len(KOLUMNY_ZABIEGI)
+        for r in range(n):
+            z = zab[r] if r < len(zab) else None
+            stary = org.get(z['_BAZA']) if z and z['_BAZA'] else None
+            for c, (_n, pole, typ, slow, m, _s) in enumerate(KOLUMNY_ZABIEGI):
+                if z is None:
+                    it = QTableWidgetItem('')
+                    if c:
+                        it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                    else:
+                        it.setToolTip('Wpisz kod albo numer czynności, żeby '
+                                      'dodać zabieg')
+                else:
+                    zm = stary is None or stary[pole] != z[pole]
+                    if typ == 'tylko':
+                        it = _item(_fmt(z[pole], m), True)
+                        it.setToolTip('Masa liczona w TPU - po zmianie '
+                                      'zabiegu przelicz w Taksatorze')
+                    else:
+                        it = self.komorka(_fmt(z[pole], m), [], zm, slow,
+                                          z[pole])
+                        if typ == 'przelacz':
+                            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                            it.setTextAlignment(Qt.AlignCenter)
+                            if not self.tylko_odczyt:
+                                it.setToolTip('Kliknij - pilny / zwykły')
+                t.setItem(r, c, it)
+            it = QTableWidgetItem('✕' if z is not None and
+                                  not self.tylko_odczyt else '')
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            it.setTextAlignment(Qt.AlignCenter)
+            it.setForeground(QBrush(QColor(198, 40, 40)))
+            if z is not None:
+                it.setToolTip('Usuń zabieg (do bazy po "Zapisz"; Ctrl+Z - '
+                              'cofnij)')
+            t.setItem(r, kol_usun, it)
+        _dopasuj(t)
+
+    def ustaw_zabieg(self, r, pole, tekst):
+        if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt:
+            return
+        zab = self.dane['ZABIEGI']
+        tekst = (tekst or '').strip()
+        przed = copy.deepcopy(self.dane)
+        if pole == 'MEASURE_CD':
+            if not tekst:
+                if r < len(zab):
+                    return self._blad('Zabieg usuwa się przyciskiem ✕')
+                return
+            s = self.slowniki.get('MEASURE_CD')
+            kod = s.rozwiaz(tekst) if s else tekst.upper()
+            if kod is None:
+                return self._blad(f'Nieznana czynność: "{tekst}"')
+            if any(i != r and z['MEASURE_CD'] == kod
+                   for i, z in enumerate(zab)):
+                return self._blad(f'Zabieg {kod} już jest w wydzieleniu '
+                                  '(kod tylko raz na wydzielenie)')
+            if r >= len(zab):
+                # nowy zabieg na całej powierzchni (jak dopisywane przez
+                # generator), resztę poprawia się w wierszu
+                zab.append({'MEASURE_CD': kod, 'URGENCY': 'N',
+                            'PROC_AREA': 100,
+                            'CUTTING_AREA': round(self.pow_wydz, 4) or None,
+                            'LARGE_TIMBER_PERC': None,
+                            'LARGE_TIMBER_VALUE': None, '_BAZA': None})
+            else:
+                zab[r]['MEASURE_CD'] = kod
+        elif r < len(zab):
+            z = zab[r]
+            typ = next(k[2] for k in KOLUMNY_ZABIEGI if k[1] == pole)
+            if not tekst:
+                v = None
+            else:
+                try:
+                    v = float(tekst.replace(',', '.'))
+                except ValueError:
+                    return self._blad(f'"{tekst}" to nie liczba')
+                if v < 0:
+                    return self._blad('Wartość nie może być ujemna')
+                if typ == 'calk':
+                    if v > 100:
+                        return self._blad('Procent: 0-100')
+                    v = int(round(v))
+                else:
+                    v = round(v, 4)
+            z[pole] = v
+            # % pow. wydz. <-> Pow. (powierzchnia wydzielenia z F_SUBAREA)
+            if self.pow_wydz > 0 and v is not None:
+                if pole == 'PROC_AREA':
+                    z['CUTTING_AREA'] = round(self.pow_wydz * v / 100, 4)
+                elif pole == 'CUTTING_AREA':
+                    z['PROC_AREA'] = int(round(v * 100 / self.pow_wydz))
+            if pole == 'CUTTING_AREA' and v is not None and \
+                    self.pow_wydz > 0 and v > self.pow_wydz + 0.00005:
+                self._do_historii('zabiegi', przed)
+                self._wypelnij_zabiegi()
+                return self._blad(f'Uwaga: powierzchnia zabiegu {v} ha > '
+                                  f'powierzchni wydzielenia {self.pow_wydz}')
+        else:
+            return
+        self._do_historii('zabiegi', przed)
+        self._wypelnij_zabiegi()
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def usun_zabieg(self, r):
+        if self.dane is None or self.tylko_odczyt or \
+                r >= len(self.dane['ZABIEGI']):
+            return
+        przed = copy.deepcopy(self.dane)
+        kod = self.dane['ZABIEGI'][r]['MEASURE_CD']
+        del self.dane['ZABIEGI'][r]
+        self._do_historii(f'usunięcie zabiegu {kod}', przed)
+        self._wypelnij_zabiegi()
+        self._status(f'usunięto zabieg {kod} (do bazy po "Zapisz")')
+
+    def _klik_zabiegu(self, r, c):
+        if self.dane is None or self.tylko_odczyt or \
+                r >= len(self.dane['ZABIEGI']):
+            return
+        if c == len(KOLUMNY_ZABIEGI):
+            QTimer.singleShot(0, lambda: self.usun_zabieg(r))
+        elif KOLUMNY_ZABIEGI[c][2] == 'przelacz':
+            przed = copy.deepcopy(self.dane)
+            z = self.dane['ZABIEGI'][r]
+            z['URGENCY'] = 'N' if z['URGENCY'] == 'T' else 'T'
+            self._do_historii('pilność zabiegu', przed)
+            QTimer.singleShot(0, self._wypelnij_zabiegi)
+
+    def _enter_zabieg(self, r, c):
+        """Enter: następna edytowalna kolumna wiersza, po ostatniej - kod
+        w następnym wierszu (pusty wiersz - koniec)."""
+        if self.dane is None:
+            return
+        dalej = [i for i in EDYTOWALNE_ZABIEGU if i > c]
+        if r < len(self.dane['ZABIEGI']) and dalej:
+            idz_do_komorki(self.t_zab, r, dalej[0])
+        elif r < len(self.dane['ZABIEGI']):
+            idz_do_komorki(self.t_zab, r + 1, 0)
+
+    def _strzalka_zabieg(self, r, c, klawisz):
+        n = self.t_zab.rowCount()
+        if klawisz in (Qt.Key_Left, Qt.Key_Right):
+            krok = -1 if klawisz == Qt.Key_Left else 1
+            kand = [i for i in EDYTOWALNE_ZABIEGU
+                    if (i < c if krok < 0 else i > c)]
+            if kand and r < len(self.dane['ZABIEGI']):
+                idz_do_komorki(self.t_zab, r, kand[-1] if krok < 0
+                               else kand[0])
+        elif klawisz == Qt.Key_Up and r > 0:
+            idz_do_komorki(self.t_zab, r - 1, c if r - 1 < len(
+                self.dane['ZABIEGI']) else 0)
+        elif klawisz == Qt.Key_Down and r + 1 < n:
+            idz_do_komorki(self.t_zab, r + 1, c if r + 1 < len(
+                self.dane['ZABIEGI']) else 0)
+
+    # --------------------------------------------- zabiegi (generator)
+
+    def _wydzielenie_zabiegow(self, aid, mod_trzeb):
+        """Obiekt Wydzielenie z zabiegi/ wczytany z bazy i z wygenerowanymi
+        zabiegami - jak Zabiegi.przetworz_wydzielenie (bez Janczulewicza)."""
+        from .zabiegi.wydzielenie import Wydzielenie
+        w = Wydzielenie()
+        w.przygotuj_strukture(aid)
+        w.dodaj_mod_trzeb(mod_trzeb)
+        w.baza = self.baza
+        w.o_wiek_rebnosci(self.baza.pobierz_wiek_reb())
+        w.odczytaj_dane_z_bazy(self.baza.pobierz_do_zab(aid))
+        if not w.generuj_zabiegi():
+            raise RuntimeError('nie wygenerowano wskazówek')
+        return w
+
+    def dodaj_zabiegi(self):
+        """Generator zabiegów dla bieżącego wydzielenia - logika "Dopisz/
+        sprawdź zabiegi" w trybie Dopisz (bez trybu Janczulewicza):
+        dopisanie brakujących zabiegów, korekta powierzchni wpisanych,
+        uwagi w SUBAREA_INFO, potem kontrola jak w raporcie zabiegów.
+        Czyszczenie zadrzewienia w PRZES i masy w PODR/PODSZ/NAL (w skrypcie
+        globalne) - tylko dla tego wydzielenia."""
+        if self.tylko_odczyt or self.dane is None:
+            return
+        if self.aint is None:
+            return self._blad('Najpierw zapisz nowe wydzielenie w bazie')
+        if self._zmienione():
+            odp = QMessageBox.question(
+                self, 'Dodaj zabiegi',
+                'Generator czyta opis z bazy - niezapisane zmiany karty '
+                'trzeba najpierw zapisać.\n\nZapisać teraz i wygenerować '
+                'zabiegi?', QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes)
+            if odp != QMessageBox.Yes or not self.zapisz():
+                return
+        if not self.panel.kopia_sesji():
+            return self._blad('Nie udało się zrobić kopii bazy - nic nie '
+                              'zmieniono')
+        aid, adr = self.aint, self.adres_bazy or self.adr
+        mod = int(self.spin_mod_trzeb.value())
+        sql_cue = ('select * from F_AROD_CUE where ARODES_INT_NUM = ? '
+                   'order by CUE_RANK_ORDER')
+        przed = self._wiersze(sql_cue, (aid,))
+        info_przed = self.dane['SUBAREA_INFO']
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            # jak w trybie Dopisz (tam dla całej bazy) - tu tylko to wydz.
+            self.baza.wpisz(
+                'update F_AROD_STOREY set STANDDENSITY_INDEX = NULL where '
+                f"STOREY_CD = 'PRZES' and ARODES_INT_NUM = {int(aid)}")
+            self.baza.wpisz(
+                'update F_STOREY_SPECIES set VOLUME = NULL, VOLUME_TEMP = '
+                "NULL where STOREY_CD in ('PODSZ', 'PODR', 'NAL') and "
+                f'ARODES_INT_NUM = {int(aid)}')
+            w = self._wydzielenie_zabiegow(aid, mod)
+            w.modyfikuj_zabiegi('')
+            uwagi = list(w.uw_raport) + list(w.uw_baza)
+            dodano, zmieniono = w.dodano, w.zmodyfikowano
+            # odczyt po zapisie + kontrola (jak raport zabiegów)
+            w2 = self._wydzielenie_zabiegow(aid, mod)
+            w2.zbiorcze_sprawdzenie()
+            uwagi += [u for u in list(w2.uw_raport) + list(w2.uw_baza)
+                      if u not in uwagi]
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(
+                self, 'Dodaj zabiegi',
+                f'Generowanie zabiegów nie powiodło się:\n{e}\n\nZmiany '
+                'mogły zostać zapisane częściowo - kopia bazy jest w '
+                'Kopie_manipulacyjne.')
+            self._przeladuj_po_zabiegach(aid)
+            return
+        QApplication.restoreOverrideCursor()
+
+        po = self._wiersze(sql_cue, (aid,))
+        wpisy = []
+        if po != przed:
+            wpisy.append((adr, 'ZABIEGI', 'F_AROD_CUE',
+                          json.dumps(przed, ensure_ascii=False, default=str),
+                          json.dumps(po, ensure_ascii=False, default=str)))
+        self._przeladuj_po_zabiegach(aid)
+        if self.dane is not None and self.dane['SUBAREA_INFO'] != info_przed:
+            wpisy.append((adr, 'ZABIEGI', 'SUBAREA_INFO', info_przed,
+                          self.dane['SUBAREA_INFO']))
+        self._do_dziennika(wpisy)
+        tekst = f'zabiegi: dodano {dodano}, zmieniono {zmieniono}' + \
+            (f' (pozyskanie +{mod}%)' if mod else '')
+        self._status(tekst, '#107010')
+        if uwagi:
+            QMessageBox.information(
+                self, 'Dodaj zabiegi - uwagi',
+                tekst + '\n\n- ' + '\n- '.join(uwagi[:40])
+                + ('\n- ...' if len(uwagi) > 40 else ''))
+
+    def _przeladuj_po_zabiegach(self, aid):
+        wynik = self._wczytaj(aid)
+        if wynik:
+            self._wypelnij(*wynik)
 
     def _zapytaj_o_zmiany(self):
         """True - można przejść dalej (zapisane albo odrzucone)."""

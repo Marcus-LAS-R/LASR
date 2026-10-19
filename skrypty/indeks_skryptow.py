@@ -31,6 +31,9 @@ INDEKS = {
         'edytor opis taksacyjny karta wydzielenie taksator podgląd edycja '
         'klepanie wpisywanie warstwy gatunki masa zasobność zd zadrzewienie '
         'nowe wydzielenie przeadresowanie adres leśny F_SUBAREA'),
+    'a_przebieg_prac': _w('przebieg prac panel kroki proces kolejność '
+                          'przygotowanie rozliczenie aktualizacja UPUL '
+                          'postęp kreator'),
     'a_co_nowego': _w('changelog zmiany wersja nowości aktualizacja '
                       'historia zmian'),
 
@@ -40,7 +43,9 @@ INDEKS = {
     'kas_niels': _w('usuń działki bez Ls użytek leśny nieleśne baza '
                     'czyszczenie'),
     'spr_popraw_ls': _w('kontrola sprawdź Ls użytek leśny baza zapis '
-                        'popraw klasoużytki'),
+                        'popraw napraw klasoużytki duplikaty zerowe '
+                        'powierzchnie F_PARCEL_LAND_USE',
+                        dawne=['Kontroluj Ls']),
     'przyg_dzewid': _w('działki ewidencyjne DZKAT EGiB geoportal warstwa '
                        'przygotowanie ewidencja'),
     'przyg_ls': _w('Ls użytek leśny działki stara wersja'),
@@ -142,11 +147,14 @@ INDEKS = {
                              dawne=['Przygotuj stare wydzielenia do '
                                     'cięcia']),
     'a_warstwa_opisow': _w(
-        'edytor warstwy opisów Klon KLON.txt punkty grupy INNE WYL notatki '
-        'opis_pkt',
-        dawne=['Edytuj warstwy do opisów', 'Utwórz warstwy do opisów',
-               'Utwórz warstwę do opisów',
+        'edytor warstwy opisów opisy generyczne Klon KLON.txt punkty grupy '
+        'INNE WYL notatki opis_pkt',
+        dawne=['Edytor warstw do opisów', 'Edytuj warstwy do opisów',
+               'Utwórz warstwy do opisów', 'Utwórz warstwę do opisów',
                'Utwórz/edytuj warstwy do opisów']),
+    'a_warstwa_opisow_glowne': _w(
+        'edytor warstwy opisów opisy generyczne Klon KLON.txt punkty grupy '
+        'INNE WYL notatki opis_pkt twórz edytuj'),
     'a_sprawdz_polozenie_opisow': _w(
         'sprawdź cięcie starych WYDZ położenie opis_pkt opis_klon notatki '
         'adr_upul WYDZ_PKT_stare PNSW kontrola',

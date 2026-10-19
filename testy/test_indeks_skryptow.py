@@ -87,6 +87,22 @@ class TestIndeks(unittest.TestCase):
         a = [w.id for w, _d in ix.szukaj(self.wpisy, 'sciagnij')]
         self.assertEqual(a[0], 'a_pobierz_bdl')
 
+    def test_przebieg_prac_ma_istniejace_akcje(self):
+        """Identyfikatory w PROCESY (skrypty/przebieg_prac.py) to akcje
+        z las_r.py - literówka / zmiana atrybutu = martwy przycisk."""
+        with open(os.path.join(KATALOG, 'skrypty', 'przebieg_prac.py'),
+                  encoding='utf-8') as f:
+            drzewo = ast.parse(f.read())
+        procesy = next(n.value for n in drzewo.body
+                       if isinstance(n, ast.Assign) and
+                       getattr(n.targets[0], 'id', '') == 'PROCESY')
+        id_procesow = {e.elts[0].value for e in procesy.elts}
+        teksty = {n.value for n in ast.walk(procesy)
+                  if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                  and n.value.isidentifier() and n.value[0].islower()}
+        brak = sorted(teksty - id_procesow - set(self.akcje))
+        self.assertEqual(brak, [], 'kroki bez akcji w las_r.py')
+
     def test_wszystkie_slowa(self):
         self.assertEqual(ix.szukaj(self.wpisy, 'kasuj qwertyuiop'), [])
 

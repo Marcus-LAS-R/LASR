@@ -93,6 +93,9 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
 
         # tab z wpisanymi zabiegami przez taksatorow, brak kolejnosci zabiegow
         self.cue = {}
+        # PROC_AREA wpisanych zabiegów {kod: %} - korekta powierzchni
+        # poprawia też % pow. wydz. (wcześniej zostawał stary, np. 100)
+        self.cue_proc = {}
         self.zdublowane_cue = []  # lista podwojnych wskazowek w bazie
         # potrzebna jest zmiana str na KO bo podr+nalot>0.49
         self.zmien_na_ko = False
@@ -171,6 +174,7 @@ class Wydzielenie(ZabiegiSlownik, Wpisz, Generuj, Sprawdz):
             else:
                 # typ_zab: pow zab
                 self.cue[t[1]] = t[2]
+                self.cue_proc[t[1]] = t[4]
 
             if self.max_cue < t[3]:
                 self.max_cue = t[3]

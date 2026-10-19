@@ -114,6 +114,7 @@ from .skrypty import (
     spis_skryptow,
     wyszukiwarka,
     ulubione,
+    przebieg_prac,
 )
 
 from .skrypty import aktualizacja_upul
@@ -327,6 +328,17 @@ class LasR:
         self.menu.addMenu(self.m_kontrola_sulmn)
         self.menu.addMenu(self.m_narzedzia)
         self.menu.addMenu(self.m_raporty)
+        self.menu.addSeparator()
+
+        self.a_przebieg_prac = QAction(
+            QIcon(None), "Przebieg prac", self.iface.mainWindow())
+        self.a_przebieg_prac.setToolTip(
+            "Panel z kolejnymi krokami procesów (Przygotowanie danych, "
+            "Rozliczenie powierzchni, Aktualizacja UPUL) - przycisk "
+            "uruchamia skrypt, ptaszek pokazuje, co już było puszczone "
+            "(stan zapisywany w projekcie QGIS).")
+        self.menu.addAction(self.a_przebieg_prac)
+        self.a_przebieg_prac.triggered.connect(self.pokaz_przebieg_prac)
 
         self.a_opis_taks = QAction(
             QIcon(None), "Podgląd/Edycja opisu taksacyjnego",
@@ -362,7 +374,7 @@ class LasR:
         self.kas_niels.triggered.connect(self.kasuj_dzialki_bez_ls)
 
         self.spr_popraw_ls = QAction(
-            QIcon(None), "Kontroluj Ls", self.iface.mainWindow()
+            QIcon(None), "Kontroluj i popraw LS w bazie", self.iface.mainWindow()
         )
         self.spr_popraw_ls.setToolTip(
             "Sprawdza poprawność zapisu użytku leśnego (Ls) w bazie danych.")
@@ -399,7 +411,7 @@ class LasR:
         self.przyg_ls_wydz.setToolTip(
             "Jak 'Przygotuj Lsy', ale dla gotowej geometrii wydzieleń bez opisu "
             "użytku (np. surowego importu z EGiB).")
-        self.m_przyg_danych.addAction(self.przyg_ls_wydz)
+        # w menu na samym dole (dodawane po "Przygotuj bazę z EWID")
         self.przyg_ls_wydz.triggered.connect(self.przygotuj_ls_z_wydzielen)
 
         # Ukryty i wyłączony - zastąpiony przez "Przysnapuj do działek (nowy)" (patrz niżej)
@@ -467,6 +479,8 @@ class LasR:
         self.m_przyg_danych.addAction(self.a_przygotuj_baze_ewid)
         self.a_przygotuj_baze_ewid.triggered.connect(self.przygotuj_baze_ewid)
 
+        self.m_przyg_danych.addAction(self.przyg_ls_wydz)
+
         self.a_utworz_baze_gml = QAction(
             QIcon(None), "Utwórz bazę z GML", self.iface.mainWindow()
         )
@@ -474,7 +488,10 @@ class LasR:
             "Tworzy nowe bazy (kopia wzoru pustej bazy) z plików GML EGiB - "
             "działki, klasoużytki i właściciele; baza w każdym folderze z GML "
             "albo jedna wspólna _CALOSC.")
-        self.m_przyg_danych.addAction(self.a_utworz_baze_gml)
+        # pierwszy krok przygotowania danych - na samej górze submenu
+        pierwsza = self.m_przyg_danych.actions()[0]
+        self.m_przyg_danych.insertAction(pierwsza, self.a_utworz_baze_gml)
+        self.m_przyg_danych.insertSeparator(pierwsza)
         self.a_utworz_baze_gml.triggered.connect(self.utworz_baze_gml)
 
         # -----------------------------------------
@@ -712,7 +729,10 @@ class LasR:
             "Rekurencyjnie eksportuje wybrane warstwy EGiB (działki, "
             "kontury klasyfikacyjne, ...) z plików GML do SHP w EPSG:2180, "
             "z opcjonalnym scaleniem wyników ze wszystkich folderów.")
-        self.m_testowe.addAction(self.a_eksport_shp_gml)
+        # Przygotowanie danych - przed "Przygotuj działki ewidencyjne" (krok
+        # po kontroli LS w bazie)
+        self.m_przyg_danych.insertAction(self.przyg_dzewid,
+                                         self.a_eksport_shp_gml)
         self.a_eksport_shp_gml.triggered.connect(self.eksportuj_shp_z_gml)
 
         self.a_rozdziel_wg_baz = QAction(
@@ -760,16 +780,28 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_przyg_stare_wydz)
         self.a_przyg_stare_wydz.triggered.connect(self.przygotuj_stare_wydz)
 
-        self.a_warstwa_opisow = QAction(
-            QIcon(None), "Edytor warstw do opisów", self.iface.mainWindow()
-        )
-        self.a_warstwa_opisow.setToolTip(
+        tip_warstwa_opisow = (
             "Tworzy warstwę Klon (do KLON.txt), warstwę punktową do "
             "szybkiego oznaczania grup (INNE WYL, L ENERG, SUKCESJA, "
             "DROGI L, LZ-Ł, ZRĄB, TURYST, RETENCJA) i warstwę notatek pod "
             "generyczne opisy taksacyjne.")
+        self.a_warstwa_opisow = QAction(
+            QIcon(None), "Twórz/edytuj opisy generyczne",
+            self.iface.mainWindow()
+        )
+        self.a_warstwa_opisow.setToolTip(tip_warstwa_opisow)
         self.m_aktualizacja_upul.addAction(self.a_warstwa_opisow)
         self.a_warstwa_opisow.triggered.connect(self.pokaz_warstwa_opisow)
+
+        # to samo narzędzie w menu głównym, pod Edytorem opisu taksacyjnego
+        # (w tej chwili ostatnia pozycja menu głównego)
+        self.a_warstwa_opisow_glowne = QAction(
+            QIcon(None), "Edytor warstw do opisów", self.iface.mainWindow()
+        )
+        self.a_warstwa_opisow_glowne.setToolTip(tip_warstwa_opisow)
+        self.menu.addAction(self.a_warstwa_opisow_glowne)
+        self.a_warstwa_opisow_glowne.triggered.connect(
+            self.pokaz_warstwa_opisow)
 
         self.a_sprawdz_polozenie_opisow = QAction(
             QIcon(None), "Sprawdź cięcie starych WYDZ",
@@ -1479,7 +1511,18 @@ class LasR:
         self.ulubione = ulubione.Ulubione(
             self, self.m_ulubione, self.spis_skryptow)
 
+        # panel Przebieg prac (po prawej) - akcje skryptów po identyfikatorze
+        self.dockPrzebieg = przebieg_prac.PanelPrzebiegu(
+            self.iface, lambda: {n: getattr(self, n)
+                                 for n in self._ids_skryptow})
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockPrzebieg)
+        self.dockPrzebieg.hide()
+
         self._pokaz_changelog_jesli_nowy()
+
+    def pokaz_przebieg_prac(self):
+        self.dockPrzebieg.show()
+        self.dockPrzebieg.raise_()
 
     def spis_skryptow(self):
         """Skrypty z menu i pasków (raz zebrane - menu po starcie się nie
@@ -1545,6 +1588,12 @@ class LasR:
         if getattr(self, 'ulubione', None) is not None:
             self.ulubione.sprzataj()
             self.ulubione = None
+        if getattr(self, 'dockPrzebieg', None) is not None:
+            self.dockPrzebieg.sprzataj()
+            self.dockPrzebieg.close()
+            self.iface.removeDockWidget(self.dockPrzebieg)
+            self.dockPrzebieg.deleteLater()
+            self.dockPrzebieg = None
         if self.menu is not None:
             self.iface.mainWindow().menuBar().removeAction(self.menu.menuAction())
         for a in self.akcje_toolbara:

@@ -92,7 +92,8 @@ class Wpisz:
             if zab[0] not in self.cue:
                 brak.append(f'{zab[0]} {zab[1]} ha')
                 continue
-            if zab[1] != self.cue[zab[0]]:
+            if zab[1] != self.cue[zab[0]] or \
+                    self._proc_niezgodny(zab[0], zab[1]):
                 if not self._zmodyfikuj_powierzchnie(zab):
                     self.uw_baza.append(
                         'Nie udało się zmodyfikować powierzchni zabiegu: '
@@ -126,7 +127,9 @@ class Wpisz:
         zab_mlode = ['TP', 'TW', 'CP-P', 'CP', 'CW']
         # zabieg już jest wpisany do bazy
         if zab[0] in self.cue:
-            if zab[1] != self.cue[zab[0]]:  # i ma inna powierzchnie
+            # inna powierzchnia albo % pow. wydz. niezgodny z powierzchnią
+            if zab[1] != self.cue[zab[0]] or \
+                    self._proc_niezgodny(zab[0], zab[1]):
                 return self._zmodyfikuj_powierzchnie(zab)
             else:
                 return True  # jest i ma taka sama powierzchnie -> ok
@@ -264,14 +267,39 @@ class Wpisz:
         self.dodano += 1
         return True
 
+    def _proc_area(self, pow_zab):
+        """% powierzchni wydzielenia dla powierzchni zabiegu (None, gdy
+        powierzchnia wydzielenia nieznana)."""
+        if not self.pow_wydz or pow_zab is None:
+            return None
+        return int(round(float(pow_zab) * 100 / self.pow_wydz, 0))
+
+    def _proc_niezgodny(self, kod, pow_zab) -> bool:
+        """PROC_AREA wpisanego zabiegu nie odpowiada jego powierzchni."""
+        proc = self._proc_area(pow_zab)
+        if proc is None or kod not in getattr(self, 'cue_proc', {}):
+            return False
+        wpisany = self.cue_proc[kod]
+        return wpisany is None or int(round(float(wpisany), 0)) != proc
+
     def _zmodyfikuj_powierzchnie(self, zab: list) -> bool:
-        """Zmodyfikuj pow zabiegu lub rebni
+        """Zmodyfikuj pow zabiegu lub rebni - razem z % pow. wydz.
+        (PROC_AREA = pow. zabiegu / pow. wydzielenia; wcześniej zostawał
+        stary, np. 100% przy AGROT/PIEL skorygowanych do połowy wydz.)
             zab = [zabieg, powierzchnia]
         """
-        sql = f'''
-            update f_arod_cue set cutting_area={zab[1]} where
-            arodes_int_num={self.aid} and measure_cd='{zab[0]}';'''
-        if not self.baza.wpisz(sql):
+        proc = self._proc_area(zab[1])
+        if proc is None:
+            ok = self.baza.wpisz_tab([
+                'update f_arod_cue set cutting_area = ? where '
+                'arodes_int_num = ? and measure_cd = ?',
+                (zab[1], self.aid, zab[0])])
+        else:
+            ok = self.baza.wpisz_tab([
+                'update f_arod_cue set cutting_area = ?, proc_area = ? '
+                'where arodes_int_num = ? and measure_cd = ?',
+                (zab[1], proc, self.aid, zab[0])])
+        if not ok:
             return False
         self.zmodyfikowano += 1
         return True
