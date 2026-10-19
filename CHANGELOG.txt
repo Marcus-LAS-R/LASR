@@ -1,6 +1,46 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0t — 2026-10-19
+------------------------------------------------
+
+1. NOWOŚĆ: wyszukiwarka skryptów - Ctrl+K (pole wyszukiwania w lewym
+   dolnym rogu QGIS), wpisz "lasr" i nazwę, dawną nazwę albo słowo
+   kluczowe (np. "lasr zaadresuj"); Enter uruchamia skrypt. Także
+   "Znajdź skrypt..." w menu i lupa na pasku LAS-R.
+2. NOWOŚĆ: Ulubione na górze menu LAS-R - prawy przycisk myszy na
+   skrypcie w menu: "Dodaj do ulubionych"; "Zarządzaj ulubionymi..." -
+   kolejność przeciąganiem, separatory. Lista zostaje po aktualizacji
+   wtyczki.
+3. NOWOŚĆ: panel "Przebieg prac" (menu LAS-R) - kroki Przygotowania
+   danych, Rozliczenia powierzchni i Aktualizacji UPUL po kolei;
+   przycisk uruchamia skrypt, ptaszek pokazuje, co już było puszczone
+   (zapisywane w projekcie QGIS), "Wyczyść postęp".
+4. NOWOŚĆ: Edytor opisu - pasek adresu w karcie: obręb, grupa, oddział
+   i wydzielenie do zmiany (przeadresowanie przy "Zapisz"), adres leśny
+   do skopiowania; "Dodaj nowe wydzielenie" w panelu (grupa 10, następna
+   wolna litera); niezgodności baza-warstwa w statusie panelu.
+5. NOWOŚĆ: Edytor opisu - zabiegi: edycja w karcie (czynność, pilność,
+   % pow. <-> powierzchnia, % grubizny, usuwanie, nowe) oraz przycisk
+   "Dodaj zabiegi" (jak "Dopisz/sprawdź zabiegi" dla jednego
+   wydzielenia) z opcją "pozyskanie +X%". Masę przelicz w TPU.
+6. NOWOŚĆ: Edytor opisu - po wpisaniu TSL podpowiedź TD (Enter przyjmuje
+   kolejne gatunki).
+7. ZMIANA: Edytor opisu - wygoda wpisywania: strzałka w dół otwiera
+   listę w opisie wydzielenia, strzałki chodzą po liście podpowiedzi,
+   jeden Enter w podszycie, drewno martwe bez miejsc po przecinku,
+   udziały bez powtórzonego numeru ("9" zamiast "9 | 9"); baza bez
+   tablicy mas liczy masę/Zd z tablicy dołączonej do wtyczki.
+8. ZMIANA: menu - "Utwórz bazę z GML" na górze Przygotowania danych,
+   "Wyeksportuj SHP z GML" przeniesione z Testowe do Przygotowania
+   danych, "Kontroluj Ls" -> "Kontroluj i popraw LS w bazie", "Edytor
+   warstw do opisów" -> "Twórz/edytuj opisy generyczne" (pod dawną
+   nazwą także w menu głównym).
+9. POPRAWKA: "Dopisz/sprawdź zabiegi" - przy korekcie powierzchni
+   (np. AGROT/PIEL do 50% przy zadrzewieniu 0,5) poprawiany jest też
+   % powierzchni wydzielenia (wcześniej zostawało 100%). Ponowne
+   uruchomienie prostuje już wpisane zabiegi.
+
 Wersja 2.0s — 2026-10-16
 ------------------------------------------------
 
