@@ -1,7 +1,9 @@
 """Podmień kwerendy w bazach.
 
-W każdej bazie .mdb bezpośrednio we wskazanym folderze (bez *_BDO i bez
-samej bazy źródłowej) usuwa wszystkie kwerendy poza siedmioma chronionymi
+W każdej bazie .mdb bezpośrednio we wskazanym folderze - opcjonalnie
+także w jego podfolderach, jeden poziom niżej (pomijane jak w Połącz bazy:
+Archiwum, Kopie_manipulacyjne, foldery od '_') - bez *_BDO i bez samej
+bazy źródłowej, usuwa wszystkie kwerendy poza siedmioma chronionymi
 (baza_wrapper.KWERENDY_CHRONIONE - zostają nietknięte, brakujące nie są
 dogrywane) i wgrywa kwerendy z bazy źródłowej (też bez chronionych).
 Tabele F_TABLICA i F_TABLICA_ROZSZERZONA są kopiowane ze źródła (w bazie
@@ -23,13 +25,13 @@ import shutil
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QDialogButtonBox, QFileDialog, QGridLayout,
-    QLabel, QLineEdit, QMessageBox, QPushButton,
+    QApplication, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
+    QGridLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
 )
 from qgis.core import Qgis, QgsMessageLog
 
 from .baza_wrapper import KWERENDY_CHRONIONE, baza_zajeta, pokaz_blokade_bazy
-from .baza_polacz_wyszukaj import czy_bdo
+from .baza_polacz_wyszukaj import czy_bdo, pomin_folder
 from .kopie_manipulacyjne import zrob_kopie_manipulacyjna
 from .pw import PasekPostepu
 from .waypointy import katalog_raportow
@@ -182,34 +184,40 @@ class _Dialog(QDialog):
         self.setWindowTitle(_TYTUL)
         self.setMinimumWidth(620)
         lay = QGridLayout(self)
-        lay.addWidget(QLabel(
-            'Folder z bazami docelowymi (tylko bazy bezpośrednio w folderze, '
-            'bez *_BDO):'), 0, 0, 1, 2)
+        lay.addWidget(QLabel('Folder z bazami docelowymi (bez *_BDO):'),
+                      0, 0, 1, 2)
         self.le_folder = QLineEdit()
         lay.addWidget(self.le_folder, 1, 0)
         b = QPushButton('Przeglądaj...')
         b.clicked.connect(self._folder)
         lay.addWidget(b, 1, 1)
+        self.cb_podfoldery = QCheckBox(
+            'Także bazy w podfolderach (jeden poziom niżej, np. folder '
+            'obrębu/gminy)')
+        self.cb_podfoldery.setToolTip(
+            'Pomijane foldery: Archiwum, Kopie_manipulacyjne, kopie, '
+            'zaczynające się od "_" (jak w Połącz bazy TPU).')
+        lay.addWidget(self.cb_podfoldery, 2, 0, 1, 2)
         lay.addWidget(QLabel(
             'Baza źródłowa kwerend (oraz F_TABLICA, F_TABLICA_ROZSZERZONA):'),
-            2, 0, 1, 2)
+            3, 0, 1, 2)
         self.le_zrodlo = QLineEdit()
-        lay.addWidget(self.le_zrodlo, 3, 0)
+        lay.addWidget(self.le_zrodlo, 4, 0)
         b = QPushButton('Przeglądaj...')
         b.clicked.connect(self._zrodlo)
-        lay.addWidget(b, 3, 1)
+        lay.addWidget(b, 4, 1)
         uw = QLabel(
             'Kwerendy chronione (' + ', '.join(sorted(KWERENDY_CHRONIONE)) +
             ') pozostają w bazach nietknięte.')
         uw.setWordWrap(True)
-        lay.addWidget(uw, 4, 0, 1, 2)
+        lay.addWidget(uw, 5, 0, 1, 2)
         self.przyciski = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.przyciski.button(QDialogButtonBox.Ok).setText('Dalej')
         self.przyciski.button(QDialogButtonBox.Cancel).setText('Anuluj')
         self.przyciski.accepted.connect(self.accept)
         self.przyciski.rejected.connect(self.reject)
-        lay.addWidget(self.przyciski, 5, 0, 1, 2)
+        lay.addWidget(self.przyciski, 6, 0, 1, 2)
         self.le_folder.textChanged.connect(self._ok)
         self.le_zrodlo.textChanged.connect(self._ok)
         self._ok()
@@ -237,6 +245,9 @@ class _Dialog(QDialog):
     def zrodlo(self):
         return self.le_zrodlo.text().strip().strip('"')
 
+    def podfoldery(self):
+        return self.cb_podfoldery.isChecked()
+
 
 def _blad(iface, tekst):
     iface.messageBar().clearWidgets()
@@ -251,6 +262,19 @@ def _ta_sama(a, b):
             os.path.normcase(os.path.abspath(b))
 
 
+def bazy_do_podmiany(folder, zrodlo, podfoldery=False):
+    """Bazy .mdb w folderze (i w podfolderach jeden poziom niżej, poza
+    pomijanymi), bez *_BDO i bez bazy źródłowej."""
+    katalogi = [folder]
+    if podfoldery:
+        katalogi += sorted(
+            os.path.join(folder, n) for n in os.listdir(folder)
+            if os.path.isdir(os.path.join(folder, n)) and not pomin_folder(n))
+    return [sc for k in katalogi
+            for sc in sorted(glob.glob(os.path.join(k, '*.mdb')))
+            if not czy_bdo(sc) and not _ta_sama(sc, zrodlo)]
+
+
 def uruchom(iface):
     dlg = _Dialog(iface)
     if dlg.exec_() != QDialog.Accepted:
@@ -261,11 +285,12 @@ def uruchom(iface):
     if not os.path.isfile(zrodlo):
         return _blad(iface, 'Baza źródłowa nie istnieje: ' + zrodlo)
 
-    bazy = sorted(sc for sc in glob.glob(os.path.join(folder, '*.mdb'))
-                  if not czy_bdo(sc) and not _ta_sama(sc, zrodlo))
+    bazy = bazy_do_podmiany(folder, zrodlo, dlg.podfoldery())
     if not bazy:
-        return _blad(iface, 'W folderze nie ma baz do podmiany (pomijane '
-                            '*_BDO i baza źródłowa).')
+        return _blad(iface, 'W folderze%s nie ma baz do podmiany (pomijane '
+                            '*_BDO i baza źródłowa).' % (
+                                ' ani w podfolderach' if dlg.podfoldery()
+                                else ''))
     for sc in [zrodlo] + bazy:
         if baza_zajeta(sc):
             pokaz_blokade_bazy(sc)
@@ -294,7 +319,7 @@ def uruchom(iface):
                       QMessageBox.Yes | QMessageBox.No, iface.mainWindow())
     msg.setDefaultButton(QMessageBox.No)
     msg.setDetailedText('Bazy (kwerend do usunięcia):\n' + '\n'.join(
-        '  %s (%d)' % (os.path.basename(sc), n)
+        '  %s (%d)' % (os.path.relpath(sc, folder), n)
         for sc, n in do_usuniecia.items()))
     if msg.exec_() != QMessageBox.Yes:
         return

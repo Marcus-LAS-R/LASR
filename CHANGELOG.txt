@@ -26,6 +26,9 @@ Wersja 2.0u — 2026-10-20
 6. ZMIANA: Dopasuj style - warstwa WYDZ dostaje styl WYDZ (kolory wg
    litery wydzielenia, etykieta oddział-wydzielenie), EWID - styl działek
    na niebiesko z numerem działki.
+7. ZMIANA: Podmień kwerendy w bazach - opcja "Także bazy w podfolderach"
+   (jeden poziom niżej, np. foldery obrębów/gmin); Archiwum i
+   Kopie_manipulacyjne są pomijane.
 
 Wersja 2.0t — 2026-10-19
 ------------------------------------------------
