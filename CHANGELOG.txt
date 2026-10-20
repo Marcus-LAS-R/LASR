@@ -29,6 +29,10 @@ Wersja 2.0u — 2026-10-20
 7. ZMIANA: Podmień kwerendy w bazach - opcja "Także bazy w podfolderach"
    (jeden poziom niżej, np. foldery obrębów/gmin); Archiwum i
    Kopie_manipulacyjne są pomijane.
+8. POPRAWKA: Podmień kwerendy w bazach - na komputerach z aktualnym
+   Office 365 kopiowanie tabel F_TABLICA i F_TABLICA_ROZSZERZONA
+   kończyło się błędem "Operacja nie jest obsługiwana dla tego typu
+   obiektu" i żadna baza nie była zmieniana.
 
 Wersja 2.0t — 2026-10-19
 ------------------------------------------------
