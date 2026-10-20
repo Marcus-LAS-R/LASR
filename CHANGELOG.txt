@@ -1,6 +1,32 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0u — 2026-10-20
+------------------------------------------------
+
+1. NOWOŚĆ: Edytor opisu - PNSW (powierzchnie nie tworzące wydzielenia)
+   w karcie, pod zabiegami: rodzaj i położenie (kod albo numer),
+   powierzchnia, gatunki z wiekiem - każdy gatunek w osobnym wierszu
+   pod PNSW; ostatni pusty wiersz - nowy PNSW, ✕ - usunięcie. Numery
+   PNSW się nie przesuwają (zgodność z warstwą PNSW). Braki (pow.,
+   położenie, gatunek w kępie/dolesionej luce, wiek) tylko ostrzegają.
+2. NOWOŚĆ: Edytor opisu - obok numeru obrębu jego nazwa (do
+   skopiowania, bez zapisu do bazy); w tytule okna powierzchnia
+   wydzielenia albo "Nierozliczona"; komunikaty (np. wynik zabiegów)
+   na dole, między "Cofnij wszystko" a "Zapisz".
+3. POPRAWKA: Edytor opisu - zasobność zapisywana też do pola, z którego
+   czyta ją Taksator (VOLUME_TEMP); wcześniej zmiana masy w edytorze
+   nie była widoczna w TPU.
+4. POPRAWKA: Dopisz/sprawdź zabiegi i "Dodaj zabiegi" w Edytorze -
+   wydzielenie z powierzchnią 0 (nierozliczone): zabiegi dopisują się
+   z wypełnionym % pow. wydz., hektary uzupełnia TPU w obliczeniach
+   końcowych (wcześniej zabiegi nie były dopisywane).
+5. ZMIANA: Anonimizuj bazy TPU - czyści też tabelę udziałów właścicieli
+   (V_ARODES_PARTICIPATION_AREA_SUB_OWNER).
+6. ZMIANA: Dopasuj style - warstwa WYDZ dostaje styl WYDZ (kolory wg
+   litery wydzielenia, etykieta oddział-wydzielenie), EWID - styl działek
+   na niebiesko z numerem działki.
+
 Wersja 2.0t — 2026-10-19
 ------------------------------------------------
 
