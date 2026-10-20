@@ -8,6 +8,9 @@ bazy źródłowej, usuwa wszystkie kwerendy poza siedmioma chronionymi
 dogrywane) i wgrywa kwerendy z bazy źródłowej (też bez chronionych).
 Tabele F_TABLICA i F_TABLICA_ROZSZERZONA są kopiowane ze źródła (w bazie
 docelowej zastępowane); gdy źródło ich nie ma - w docelowej bez zmian.
+Kopiowane przez DAO (struktura + wiersze), nie przez SELECT INTO ... IN
+'źródło' - Office od aktualizacji 12.2025 domyślnie blokuje w zapytaniach
+odwołania do innych baz (AllowQueryRemoteTables, błąd 3251).
 
 Kwerendy tymczasowe Accessa (nazwy od '~', np. źródła formularzy) są
 pomijane po obu stronach. Kwerendy odwołujące się do innych kwerend -
@@ -56,17 +59,101 @@ def _tabele(db):
     return {t.Name.upper(): t.Name for t in db.TableDefs}
 
 
+# typy DAO z rozmiarem i AllowZeroLength (dbText, dbMemo)
+_DB_TEXT, _DB_MEMO = 10, 12
+# atrybuty pola, które da się ustawić przy tworzeniu (dbFixedField,
+# dbAutoIncrField)
+_ATR_POLA = 0x01 | 0x10
+
+
+def _odczytaj_tabele(db, nazwa):
+    """Struktura i wiersze tabeli źródłowej - do odtworzenia w bazie docelowej
+    bez odwołań między bazami (IN '...'), które Office od aktualizacji
+    12.2025 domyślnie blokuje (AllowQueryRemoteTables, błąd 3251)."""
+    td = db.TableDefs(nazwa)
+    pola = [{'nazwa': f.Name, 'typ': f.Type, 'rozmiar': f.Size,
+             'atrybuty': f.Attributes & _ATR_POLA, 'wymagane': f.Required,
+             'pusty_tekst': f.AllowZeroLength, 'domyslna': f.DefaultValue}
+            for f in td.Fields]
+    indeksy = [{'nazwa': i.Name, 'glowny': i.Primary, 'unikalny': i.Unique,
+                'bez_null': i.IgnoreNulls, 'wymagany': i.Required,
+                'pola': [(f.Name, f.Attributes) for f in i.Fields]}
+               for i in td.Indexes if not i.Foreign]
+    wiersze = []
+    rs = db.OpenRecordset(nazwa, 4)  # dbOpenSnapshot
+    try:
+        while not rs.EOF:
+            kolumny = rs.GetRows(5000)  # krotka kolumn, nie wierszy
+            wiersze.extend(zip(*kolumny))
+    finally:
+        rs.Close()
+    return {'nazwa': td.Name, 'pola': pola, 'indeksy': indeksy,
+            'wiersze': wiersze}
+
+
 def odczytaj_zrodlo(sc):
-    """([(nazwa, sql)] kwerend do wgrania, [nazwy tabel z TABELE_ZE_ZRODLA
-    obecnych w źródle])."""
+    """([(nazwa, sql)] kwerend do wgrania, [tabele z TABELE_ZE_ZRODLA
+    obecne w źródle - słowniki z _odczytaj_tabele])."""
     db = _dao().OpenDatabase(sc, False, True)  # tylko odczyt
     try:
         kwerendy = [(q.Name, q.SQL) for q in db.QueryDefs
                     if _do_podmiany(q.Name)]
-        tabele = _tabele(db)
-        return kwerendy, [t for t in TABELE_ZE_ZRODLA if t.upper() in tabele]
+        w_zrodle = _tabele(db)
+        return kwerendy, [_odczytaj_tabele(db, w_zrodle[t.upper()])
+                          for t in TABELE_ZE_ZRODLA if t.upper() in w_zrodle]
     finally:
         db.Close()
+
+
+def _wgraj_tabele(dao, db, tab):
+    """Tworzy tabelę wg struktury ze źródła i przepisuje wiersze (jedna
+    transakcja na wiersze - inaczej każdy AddNew to osobny zapis)."""
+    td = db.CreateTableDef(tab['nazwa'])
+    for p in tab['pola']:
+        if p['typ'] in (_DB_TEXT, _DB_MEMO):
+            f = td.CreateField(p['nazwa'], p['typ'], p['rozmiar'])
+            f.AllowZeroLength = p['pusty_tekst']
+        else:
+            f = td.CreateField(p['nazwa'], p['typ'])
+        if p['atrybuty']:
+            f.Attributes = p['atrybuty']
+        f.Required = p['wymagane']
+        if p['domyslna']:
+            f.DefaultValue = p['domyslna']
+        td.Fields.Append(f)
+    for i in tab['indeksy']:
+        idx = td.CreateIndex(i['nazwa'])
+        idx.Primary = i['glowny']
+        idx.Unique = i['unikalny']
+        idx.IgnoreNulls = i['bez_null']
+        idx.Required = i['wymagany']
+        for nazwa, atr in i['pola']:
+            f = idx.CreateField(nazwa)
+            f.Attributes = atr  # dbDescending
+            idx.Fields.Append(f)
+        td.Indexes.Append(idx)
+    db.TableDefs.Append(td)
+
+    if not tab['wiersze']:
+        return
+    ws = dao.Workspaces(0)
+    ws.BeginTrans()
+    try:
+        rs = db.OpenRecordset(tab['nazwa'], 1, 8)  # dbOpenTable, dbAppendOnly
+        try:
+            pola = [rs.Fields(p['nazwa']) for p in tab['pola']]
+            for wiersz in tab['wiersze']:
+                rs.AddNew()
+                for f, v in zip(pola, wiersz):
+                    if v is not None:
+                        f.Value = v
+                rs.Update()
+        finally:
+            rs.Close()
+        ws.CommitTrans()
+    except Exception:
+        ws.Rollback()
+        raise
 
 
 def policz_kwerendy(sc):
@@ -88,20 +175,20 @@ def podmien(sc, sc_zrodla, kwerendy, tabele):
     niepowodzeniu wraca stara wersja."""
     wynik = {'usuniete': 0, 'wgrane': 0, 'tabele': [], 'bledy': [],
              'uwagi': []}
-    db = _dao().OpenDatabase(sc)
+    dao = _dao()
+    db = dao.OpenDatabase(sc)
     try:
         # tabele najpierw - kwerendy mogą z nich korzystać
         istniejace = _tabele(db)
-        zrodlo_sql = sc_zrodla.replace("'", "''")
-        for t in tabele:
+        for tab in tabele:
+            t = tab['nazwa']
             try:
                 if t.upper() in istniejace:
                     db.Execute('DROP TABLE [%s]' % istniejace[t.upper()])
-                db.Execute("SELECT * INTO [%s] FROM [%s] IN '%s'" % (
-                    t, t, zrodlo_sql))
+                _wgraj_tabele(dao, db, tab)
                 wynik['tabele'].append(t)
             except Exception as e:
-                wynik['bledy'].append('tabela %s: %s' % (t, e))
+                wynik['bledy'].append('tabela %s: %s' % (t, _opis_bledu(e)))
         if wynik['bledy']:
             return wynik
 
@@ -314,7 +401,8 @@ def uruchom(iface):
         'Przed zmianą każda baza zostanie skopiowana do '
         'Kopie_manipulacyjne.\n\nKontynuować?' % (
             len(bazy), folder, sum(do_usuniecia.values()), len(kwerendy),
-            ', '.join(tabele) or 'brak w źródle - bez zmian'))
+            ', '.join('%s (%d wierszy)' % (t['nazwa'], len(t['wiersze']))
+                      for t in tabele) or 'brak w źródle - bez zmian'))
     msg = QMessageBox(QMessageBox.Warning, _TYTUL, tekst,
                       QMessageBox.Yes | QMessageBox.No, iface.mainWindow())
     msg.setDefaultButton(QMessageBox.No)
@@ -371,7 +459,9 @@ def _raport(folder, zrodlo, kwerendy, tabele, wyniki):
     w = ['---- ' + _TYTUL.upper() + ' ----', '',
          'Folder: ' + folder, 'Baza źródłowa: ' + zrodlo,
          'Kwerend ze źródła: %d' % len(kwerendy),
-         'Tabele ze źródła: ' + (', '.join(tabele) or 'brak'),
+         'Tabele ze źródła: ' + (', '.join(
+             '%s (%d wierszy)' % (t['nazwa'], len(t['wiersze']))
+             for t in tabele) or 'brak'),
          'Chronione (nietknięte): ' + ', '.join(sorted(KWERENDY_CHRONIONE)),
          '']
     for baza, wyn, uwaga in wyniki:
