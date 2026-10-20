@@ -1,5 +1,5 @@
 from qgis.core import Qgis, QgsProject, QgsVectorLayer, QgsLayerTreeGroup, \
-    QgsLayerTreeLayer
+    QgsLayerTreeLayer, QgsVectorLayerSimpleLabeling
 from PyQt5.QtWidgets import QInputDialog
 import os
 
@@ -8,13 +8,16 @@ _KLU_POLA = ['AU', 'G5OFU', 'OFU']
 
 # Dopasuj style: fragment nazwy warstwy w TOC (bez rozróżniania wielkości
 # liter) -> plik .qml z folderu qml/. Dopasowanie po "zawiera się w nazwie",
-# np. klucz 'WYDZ' dopasuje też warstwy 'WYDZ_POL_3_KOLORY' czy 'kopia_WYDZ'.
+# np. klucz 'WYDZ' dopasuje też 'kopia_WYDZ'. Wygrywa pierwszy pasujący
+# klucz - dłuższe (WYDZ_POL) przed krótszymi (WYDZ).
 # TODO: uzupełnić wg rzeczywistych nazw warstw używanych w projektach.
 DOPASOWANIE_STYLI = {
     'UZYTKI': 'KLU.qml',
     'KLU': 'KLU.qml',
-    'WYDZ': 'WYDZ_POL.qml',
+    'WYDZ_POL': 'WYDZ_POL.qml',
+    'WYDZ': 'WYDZ.qml',
     'DZKAT': 'DZKAT.qml',
+    'EWID': 'EWID.qml',  # jak DZKAT, na niebiesko
     'F_OCHRONY': 'FOP.qml',
     'FOP': 'FOP.qml',
     'OBR': 'OBR.qml',
@@ -23,6 +26,26 @@ DOPASOWANIE_STYLI = {
     'LS': 'LS.qml',
     '99': '99.qml',
 }
+# numer działki bywa w różnych kolumnach (DZKAT - PARCELNR, EWID - NUMER)
+_POLA_NR_DZIALKI = ['NUMER', 'PARCELNR']
+
+
+def _dopasuj_pole_etykiety(lyr):
+    """Etykieta stylu z kolumny, której warstwa nie ma -> pierwsza
+    istniejąca kolumna numeru działki (DZKAT.qml/EWID.qml na danych
+    z innym nazewnictwem)."""
+    lab = lyr.labeling() if isinstance(lyr, QgsVectorLayer) else None
+    if not isinstance(lab, QgsVectorLayerSimpleLabeling):
+        return
+    ust = lab.settings()
+    pola = [f.name() for f in lyr.fields()]
+    if ust.isExpression or ust.fieldName in pola or \
+            ust.fieldName not in _POLA_NR_DZIALKI:
+        return
+    zastepcze = next((p for p in _POLA_NR_DZIALKI if p in pola), None)
+    if zastepcze:
+        ust.fieldName = zastepcze
+        lyr.setLabeling(QgsVectorLayerSimpleLabeling(ust))
 
 
 def rysuj(iface, co):
@@ -136,6 +159,7 @@ def dopasuj_style(iface):
         sciezka = os.path.join(plugin_dir, '..', 'qml', DOPASOWANIE_STYLI[klucz])
         try:
             lyr.loadNamedStyle(sciezka)
+            _dopasuj_pole_etykiety(lyr)
             lyr.triggerRepaint()
             dopasowane.append(lyr.name())
         except Exception as e:

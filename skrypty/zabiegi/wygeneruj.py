@@ -4,14 +4,16 @@ from typing import Union, Tuple
 class Generuj:
     def generuj_zabiegi(self):
         """ Metoda generuje zabiegi w tablicy zab dla danego
-        wydzelenia w tablicy w postaci: [['ZABIEG', POW],...]
+        wydzelenia w tablicy w postaci: [['ZABIEG', POW, % POW. WYDZ.],...]
+        (% podawany wprost - przy pow. wydz. 0 nie da się go wyliczyć z POW,
+        a ha uzupełnia TPU w obliczeniach końcowych)
 
         kolejność wpisanych zabiegów wpisanych do bazy będzie taka jak w
         tabeli, numeracja będie kontynuowana od największego wpisanego do
         bazy zabiegu, o ile taki istnieje. Jak nie to zanie od zera
         """
         if self.przes:
-            self.zabiegi.append(['PRZEST', self.pow_wydz])
+            self.zabiegi.append(['PRZEST', self.pow_wydz, 100])
 
         if self.typ in ['PŁAZ', 'ZRĄB', 'HAL']:
             self.zab_plaz()
@@ -23,9 +25,12 @@ class Generuj:
                 if 0.4 < self.zadrzew < 0.9:
                     if self.luki > 0:
                         powluk = round(self.luki, 4)
-                        self.zabiegi.append(['ODN-LUK', powluk])
-                        self.zabiegi.append(['PIEL', powluk])
-                        self.zabiegi.append(['AGROT', powluk])
+                        # luki w ha - % tylko przy znanej pow. wydz.
+                        proc_luk = round(powluk * 100 / self.pow_wydz, 0) \
+                            if self.pow_wydz else None
+                        self.zabiegi.append(['ODN-LUK', powluk, proc_luk])
+                        self.zabiegi.append(['PIEL', powluk, proc_luk])
+                        self.zabiegi.append(['AGROT', powluk, proc_luk])
 
         return True
 
@@ -115,15 +120,15 @@ class Generuj:
 
     def zab_plaz(self):
         if self.typ == 'PŁAZ':
-            self.zabiegi.append(['PŁAZ', self.pow_wydz])
-            self.zabiegi.append(['ODN-ZRB', self.pow_wydz])
+            self.zabiegi.append(['PŁAZ', self.pow_wydz, 100])
+            self.zabiegi.append(['ODN-ZRB', self.pow_wydz, 100])
         if self.typ == 'HAL':
-            self.zabiegi.append(['ODN-HAL', self.pow_wydz])
+            self.zabiegi.append(['ODN-HAL', self.pow_wydz, 100])
         if self.typ == 'ZRĄB':
-            self.zabiegi.append(['ODN-ZRB', self.pow_wydz])
+            self.zabiegi.append(['ODN-ZRB', self.pow_wydz, 100])
 
-        self.zabiegi.append(['AGROT', self.pow_wydz])
-        self.zabiegi.append(['PIEL', self.pow_wydz])
+        self.zabiegi.append(['AGROT', self.pow_wydz, 100])
+        self.zabiegi.append(['PIEL', self.pow_wydz, 100])
 
     def zab_dstan_cp(self):
         # CP mogło już zostać dodane razem z CW (janczulewicz, wiek 4-9) -
@@ -131,22 +136,22 @@ class Generuj:
         jest_cp = any(z[0] == 'CP' for z in self.zabiegi)
         if self.gat_gl_vol == 0:
             if not jest_cp:
-                self.zabiegi.append(['CP', self.pow_wydz])
+                self.zabiegi.append(['CP', self.pow_wydz, 100])
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd < 10:
             if self.gat_gl[:2] in ['TP', 'BR', 'WB', 'OS']:
-                self.zabiegi.append(['TW', self.pow_wydz])
+                self.zabiegi.append(['TW', self.pow_wydz, 100])
                 self.trzebiez = True
             elif not jest_cp:
-                self.zabiegi.append(['CP', self.pow_wydz])
+                self.zabiegi.append(['CP', self.pow_wydz, 100])
         elif self.gat_gl_vol > 0 and self.gat_gl_bhd > 9.9999:
-            self.zabiegi.append(['TW', self.pow_wydz])
+            self.zabiegi.append(['TW', self.pow_wydz, 100])
             self.trzebiez = True
 
     def zab_dstan_trz(self):
         if self.gat_gl_bhd < 20:
-            self.zabiegi.append(['TW', self.pow_wydz])
+            self.zabiegi.append(['TW', self.pow_wydz, 100])
         else:
-            self.zabiegi.append(['TP', self.pow_wydz])
+            self.zabiegi.append(['TP', self.pow_wydz, 100])
         self.trzebiez = True
 
     def generuj_zab_dstan(self):
@@ -168,17 +173,16 @@ class Generuj:
 
         if self.gat_gl_wiek < 22:
             if 0.4 < self.zadrzew < 0.8:
-                self.zabiegi.append([
-                    'POPR', round((1-self.zadrzew)*self.pow_wydz, 4)])
-                self.zabiegi.append([
-                    'AGROT', round((1-self.zadrzew)*self.pow_wydz, 4)])
-                self.zabiegi.append([
-                    'PIEL', round((1-self.zadrzew)*self.pow_wydz, 4)])
+                pow_popr = round((1-self.zadrzew)*self.pow_wydz, 4)
+                proc_popr = round((1-self.zadrzew)*100, 0)
+                self.zabiegi.append(['POPR', pow_popr, proc_popr])
+                self.zabiegi.append(['AGROT', pow_popr, proc_popr])
+                self.zabiegi.append(['PIEL', pow_popr, proc_popr])
 
         if self.gat_gl_wiek < 10:
-            self.zabiegi.append(['CW', self.pow_wydz])
+            self.zabiegi.append(['CW', self.pow_wydz, 100])
             if self.janczulewicz:
-                self.zabiegi.append(['CP', self.pow_wydz])
+                self.zabiegi.append(['CP', self.pow_wydz, 100])
             if self.gat_gl_wiek < 4:
                 return
 
@@ -198,7 +202,7 @@ class Generuj:
             self.gen_reb = ''
             self.gen_proc_reb = 0
             if self.reb == '':
-                self.zabiegi.append(['TP', self.pow_wydz])
+                self.zabiegi.append(['TP', self.pow_wydz, 100])
                 self.trzebiez = True
 
         genr = self.generuj_rebnie()  # normalne rebnie
@@ -282,9 +286,9 @@ class Generuj:
 
         # rebnie zupełne
         if rr in ['IA', 'IB', 'IC']:
-            self.zabiegi.append(['ODN-ZRB', rr_pow])
-            self.zabiegi.append(['PIEL', rr_pow])
-            self.zabiegi.append(['AGROT', rr_pow])
+            self.zabiegi.append(['ODN-ZRB', rr_pow, rr_proc])
+            self.zabiegi.append(['PIEL', rr_pow, rr_proc])
+            self.zabiegi.append(['AGROT', rr_pow, rr_proc])
             return
 
         # inne rebnie cześciowe
@@ -298,9 +302,10 @@ class Generuj:
             pow_odn = round(
                 (rr_proc/100)*self.pow_wydz*(1-odn_cz), 4
             )
-            self.zabiegi.append(['ODN-ZŁOŻ', pow_odn])
-            self.zabiegi.append(['PIEL', pow_odn])
-            self.zabiegi.append(['AGROT', pow_odn])
+            proc_odn = round(rr_proc*(1-odn_cz), 0)
+            self.zabiegi.append(['ODN-ZŁOŻ', pow_odn, proc_odn])
+            self.zabiegi.append(['PIEL', pow_odn, proc_odn])
+            self.zabiegi.append(['AGROT', pow_odn, proc_odn])
 
     def czy_wpisana_reb_jest_poprawna(self) -> bool:
         """Użytkownik wpisał już rębnie do bazy, sprawdź czy jest ona poprawna,

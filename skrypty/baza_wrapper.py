@@ -1026,6 +1026,20 @@ class Baza(object):
         self.con.commit()
         return usuniete
 
+    def wyczysc_tabele(self, nazwy) -> list:
+        """Usuwa wszystkie rekordy z podanych tabel (struktura zostaje),
+        jeśli tabele istnieją. Zwraca listę faktycznie wyczyszczonych.
+        """
+        wyczyszczone = []
+        for nazwa in nazwy:
+            try:
+                self.cur.execute('DELETE FROM ' + nazwa + ';')
+            except (pyodbc.Error, sqlite3.Error):
+                continue
+            wyczyszczone.append(nazwa)
+        self.con.commit()
+        return wyczyszczone
+
     def usun_kwerendy(self) -> list:
         """Usuwa wszystkie kwerendy z bazy MDB z wyjątkiem whitelisty.
         Zwraca listę nazw usuniętych kwerend.

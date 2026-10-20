@@ -46,7 +46,11 @@ Panel otwarty = baza podłączona:
 - "Dodaj zabiegi" (+ "pozyskanie +X%"): generator jak "Dopisz/sprawdź
   zabiegi" w trybie Dopisz (bez Janczulewicza) dla bieżącego wydzielenia,
 - wskazania gospodarcze edytowalne (kod czynności, pilność, % pow. <-> pow.,
-  % grub., ✕, nowy wiersz), zapis razem z opisem; masa liczona w TPU.
+  % grub., ✕, nowy wiersz), zapis razem z opisem; masa liczona w TPU,
+- PNSW (F_AROD_SPEC_AREA + gatunki F_SPECIES_SPAREA, opis_pnsw.py): rodzaj,
+  położenie, pow. wpisywana ręcznie, gatunki z wiekiem w osobnych wierszach
+  pod PNSW (jak cechy/TD), ✕ usuwa PNSW; numery stałe (dziury po
+  usuniętych, nowy = max + 1); kontrole tylko ostrzegają.
 """
 import copy
 import csv
@@ -82,6 +86,7 @@ from PyQt5.QtCore import QVariant
 
 from . import kopie_manipulacyjne
 from . import opis_adres as oa
+from . import opis_pnsw as opn
 from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 
@@ -117,6 +122,10 @@ SLOWNIKI = {
                    'DENSITY_NR'),
     'STOREY_CD': ('F_STOREY_DIC', 'STOREY_CD', 'STOREY_NAME', 'STOREY_NR'),
     'MEASURE_CD': ('F_MEASURE', 'measure_cd', 'measure_name', 'measure_nr'),
+    'SPECIAL_AREA_CD': ('F_SPECIALAREA_DIC', 'SPECIAL_AREA_CD',
+                        'SPECIAL_AREA_NAME', 'SPECIAL_AREA_NR'),
+    'LOCATION_CD': ('F_LOCATION_DIC', 'LOCATION_CD', 'LOCATION_NAME',
+                    'LOCATION_NR'),
 }
 
 # górny wiersz: (nagłówek, pole, typ, słownik)
@@ -170,6 +179,16 @@ KOLUMNY_ZABIEGI = [
 POLA_ZABIEGU = [k[1] for k in KOLUMNY_ZABIEGI]
 EDYTOWALNE_ZABIEGU = [i for i, k in enumerate(KOLUMNY_ZABIEGI)
                       if k[2] in ('kod', 'calk', 'liczba')]
+# PNSW: (nagłówek, pole, typ, słownik, miejsca, szerokość); pierwszy wiersz
+# PNSW - jego pola i pierwszy gatunek, kolejne gatunki w wierszach pod nim
+KOLUMNY_PNSW = [
+    ('Nr', 'NR', 'tylko', None, 0, 28),
+    ('Rodzaj', 'SPECIAL_AREA_CD', 'kod', 'SPECIAL_AREA_CD', None, 80),
+    ('Położ.', 'LOCATION_CD', 'kod', 'LOCATION_CD', None, 52),
+    ('Pow.', 'SPECIAL_AREA', 'liczba', None, 4, 60),
+    ('Gatunek', 'SPECIES_CD', 'kod', 'SPECIES_CD', None, 72),
+    ('Wiek', 'SP_AGE', 'calk', None, 0, 42),
+]
 
 
 NAZWA_KOPII = 'edycja_opisu'
@@ -1144,11 +1163,16 @@ class OknoOpisu(QWidget):
         self.pow_wydz = 0.0      # F_SUBAREA.SUB_AREA (zabiegi: % <-> ha)
         self.prefiks = ''        # adres[:6] - stały w pasku adresu
         self._adresy_cache = None  # {ADRESS_FOREST: ARODES_TYP_CD}
+        self._nazwy_obr_cache = None  # {adres[:10]: COMMUNITY_NAME}
         self._adr_krok = False   # pisanie w jednym oknie adresu = 1 krok
         self.dane = None
         self.oryginal = None
         self.grupy = []
         self.walidacja = {}
+        self.walidacja_pnsw = {}
+        # wiersze tabeli PNSW: [(indeks PNSW, indeks gatunku)], (None, None)
+        # - pusty wiersz nowego PNSW
+        self._wiersze_pnsw = []
         # historia zmian karty (Cofnij / Ctrl+Z, Ponów / Ctrl+Y):
         # [(opis kroku, stan danych sprzed kroku)]
         self._historia = []
@@ -1164,12 +1188,14 @@ class OknoOpisu(QWidget):
         self.zmiana_zaznaczenia()
 
     def _ustaw_tytul(self):
+        # adres (obręb/grupa/oddział/wydz.) jest w pasku adresu karty -
+        # w tytule tylko powierzchnia wydzielenia
+        czesci = ['Opis taksacyjny']
         if self.dane is not None and self.aint is None:
-            czesci = ['NOWE WYDZIELENIE']
-        else:
-            adr = self.adres_bazy or self.adr
-            czesci = [adr, rozbij_adres(adr)] if adr else []
-        czesci.append('Opis taksacyjny')
+            czesci.append('NOWE WYDZIELENIE')
+        elif self.dane is not None:
+            czesci.append(f'pow. {_fmt(self.pow_wydz, 4)} ha'
+                          if self.pow_wydz > 0 else 'Nierozliczona')
         if self.tylko_odczyt:
             czesci.append('[TYLKO PODGLĄD]')
         self.setWindowTitle('   '.join(czesci))
@@ -1216,6 +1242,11 @@ class OknoOpisu(QWidget):
             'select * from F_AROD_CUE where ARODES_INT_NUM = ? '
             'order by CUE_RANK_ORDER', (aint,))
         dane['ZABIEGI'] = [_model_zabiegu(z) for z in zabiegi]
+        dane['PNSW'] = opn.model(
+            self._wiersze('select * from F_AROD_SPEC_AREA where '
+                          'ARODES_INT_NUM = ?', (aint,)),
+            self._wiersze('select * from F_SPECIES_SPAREA where '
+                          'ARODES_INT_NUM = ?', (aint,)))
         # powierzchnia wydzielenia - % pow. <-> Pow. zabiegu (jak generator)
         self.pow_wydz = _float(s.get('SUB_AREA')) or 0.0
         return dane, warstwy, gatunki, zabiegi
@@ -1275,6 +1306,17 @@ class OknoOpisu(QWidget):
                 lambda c=czesc: self._koniec_adresu(c))
             self.pola_adr[czesc] = e
             gora.addWidget(e)
+            if czesc == 'obreb':
+                # nazwa obrębu z F_COMMUNITY - tylko do odczytu (zaznacz
+                # i Ctrl+C), nic z tego okna nie trafia do bazy
+                self.ed_nazwa_obr = QLineEdit()
+                self.ed_nazwa_obr.setReadOnly(True)
+                self.ed_nazwa_obr.setFont(f)
+                self.ed_nazwa_obr.setFocusPolicy(Qt.ClickFocus)
+                self.ed_nazwa_obr.setToolTip(
+                    'Nazwa obrębu (F_COMMUNITY) - zaznacz i skopiuj (Ctrl+C); '
+                    'tylko podgląd, bez zapisu do bazy')
+                gora.addWidget(self.ed_nazwa_obr)
         gora.addSpacing(8)
         self.ed_adres = QLineEdit()
         self.ed_adres.setReadOnly(True)
@@ -1291,8 +1333,7 @@ class OknoOpisu(QWidget):
         btn_kopiuj.setToolTip('Kopiuj adres leśny do schowka')
         btn_kopiuj.clicked.connect(self._kopiuj_adres)
         gora.addWidget(btn_kopiuj)
-        self.lbl_status = QLabel()
-        gora.addWidget(self.lbl_status, 1)
+        gora.addStretch(1)
         self.lbl_walidacja = QLabel()
         gora.addWidget(self.lbl_walidacja)
         glowny.addWidget(self.pasek_adr)
@@ -1394,6 +1435,14 @@ class OknoOpisu(QWidget):
             None, lambda r, c, k: self._strzalka_zabieg(r, c, k))
         self.t_zab.cellClicked.connect(self._klik_zabiegu)
         lewa.addWidget(self.t_zab)
+        lewa.addWidget(_sekcja('Powierzchnie nie tworzące wydzielenia (PNSW)'))
+        self.t_pnsw = _tabela_edytowalna(
+            KOLUMNY_PNSW + [KOLUMNA_USUN], self,
+            lambda r, c, t: self.ustaw_pnsw(r, KOLUMNY_PNSW[c][1], t),
+            lambda r, c, e: self._enter_pnsw(r, c),
+            None, lambda r, c, k: self._strzalka_pnsw(r, c, k))
+        self.t_pnsw.cellClicked.connect(self._klik_pnsw)
+        lewa.addWidget(self.t_pnsw)
         lewa.addStretch(1)
         dol.addLayout(lewa)
         prawa = QVBoxLayout()
@@ -1437,7 +1486,11 @@ class OknoOpisu(QWidget):
             'zmiany). Można to odwrócić przyciskiem "Cofnij" / Ctrl+Z.')
         self.btn_cofnij.clicked.connect(self._cofnij)
         self.pasek.addWidget(self.btn_cofnij)  # obok "Cofnij", na środku
-        self.pasek.addStretch(1)
+        # status (wynik zabiegów, zapisu, błędy) między Cofnij a Zapisz
+        self.lbl_status = QLabel()
+        self.lbl_status.setWordWrap(True)
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.pasek.addWidget(self.lbl_status, 1)
         self.btn_zapisz = QPushButton('Zapisz')
         self.btn_zapisz.setToolTip(
             'Zapisuje zmiany wydzielenia w bazie (jedna transakcja; przed '
@@ -1472,6 +1525,8 @@ class OknoOpisu(QWidget):
         self._wyczysc_warstwy()
         self.t_zab.setRowCount(0)
         _dopasuj(self.t_zab)
+        self.walidacja_pnsw = {}
+        self._wypelnij_pnsw()
         self.info.blockSignals(True)
         self.info.setPlainText('')
         self.info.blockSignals(False)
@@ -1515,7 +1570,9 @@ class OknoOpisu(QWidget):
     def _przelicz(self):
         self.walidacja = ow.waliduj(self.dane['WARSTWY'],
                                     self.dane['AREA_TYPE_CD'])
+        self.walidacja_pnsw = opn.waliduj(self.dane['PNSW'], self.pow_wydz)
         _b, ostrz = ow.policz(self.walidacja)
+        ostrz += opn.liczba_ostrzezen(self.walidacja_pnsw)
         bledy = len(ow.lista_bledow(self.walidacja, self.dane['WARSTWY']))
         tekst = []
         if bledy:
@@ -1584,6 +1641,7 @@ class OknoOpisu(QWidget):
         self._odbuduj_grupy()
 
         self._wypelnij_zabiegi()
+        self._wypelnij_pnsw()
 
         self.info.blockSignals(True)
         self.info.setPlainText(dane['SUBAREA_INFO'])
@@ -2169,11 +2227,11 @@ class OknoOpisu(QWidget):
         self.btn_dodaj_zab.setEnabled(
             self.dane is not None and self.aint is not None)
         if zm:
-            self.lbl_status.setText('  zmiany niezapisane')
-            self.lbl_status.setStyleSheet('color: #b36b00;')
+            self._status('zmiany niezapisane', '#b36b00')
 
     def _status(self, tekst, kolor='#555'):
-        self.lbl_status.setText('  ' + tekst if tekst else '')
+        self.lbl_status.setText(tekst or '')
+        self.lbl_status.setToolTip(tekst or '')
         self.lbl_status.setStyleSheet(f'color: {kolor};')
 
     def _blad(self, tekst):
@@ -2225,6 +2283,7 @@ class OknoOpisu(QWidget):
                 czesc, cz.get(czesc, '')) != org.get(czesc)
             e.setStyleSheet('QLineEdit { background: #d6eaff; color: #141414; }'
                             if zmienione else '')
+        self._wypelnij_nazwe_obrebu(cz.get('obreb', ''))
         self.ed_adres.setText(adr or '')
         if blad:
             self.ed_adres.setStyleSheet(
@@ -2240,6 +2299,36 @@ class OknoOpisu(QWidget):
                 + (f'\nw bazie: {self.adres_bazy}' if zmieniony and
                    self.adres_bazy else ''))
         return blad
+
+    def _nazwy_obrebow(self):
+        """{DISTRICT+MUNICIP+COMMUNITY (= adres[1:10]): nazwa} z
+        F_COMMUNITY. Bez COUNTY_CD - w adresie województwo jest literą
+        (W), w F_COMMUNITY kodem (14); w bazie jest jedno województwo."""
+        if self._nazwy_obr_cache is None:
+            try:
+                self._nazwy_obr_cache = {
+                    ''.join(_txt(w[k]) for k in (
+                        'DISTRICT_CD', 'MUNICIPALITY_CD', 'COMMUNITY_CD')):
+                    _txt(w['COMMUNITY_NAME'])
+                    for w in self._wiersze(
+                        'select DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, '
+                        'COMMUNITY_NAME from F_COMMUNITY', ())}
+            except Exception:
+                self._nazwy_obr_cache = {}  # brak tabeli - pole puste
+        return self._nazwy_obr_cache
+
+    def _wypelnij_nazwe_obrebu(self, obreb):
+        # bez karty (brak opisu) prefiks z poprzedniego wydzielenia jest
+        # nieaktualny - gmina z ADR_LES zaznaczonego poligonu
+        prefiks = self.prefiks if self.dane is not None else \
+            (self.adr or '')[:6]
+        nazwa = self._nazwy_obrebow().get(prefiks[1:] + obreb, '') \
+            if len(prefiks) == 6 and len(obreb) == 4 else ''
+        e = self.ed_nazwa_obr
+        e.setText(nazwa)
+        e.setCursorPosition(0)
+        e.setFixedWidth(max(QFontMetrics(e.font()).width(nazwa or 'W' * 8),
+                            60) + 14)
 
     def _zmiana_adresu(self, czesc, tekst):
         if self.dane is None or self.tylko_odczyt or \
@@ -2297,7 +2386,7 @@ class OknoOpisu(QWidget):
         # niego); karta bez aint = nowe - zawsze do zapisu (_zmienione)
         self.pow_wydz = 0.0
         pusty.update({'FOREST_PEC_CD': [], 'TD': [], 'WARSTWY': [],
-                      'ZABIEGI': [],
+                      'ZABIEGI': [], 'PNSW': [],
                       'ADRES_CZ': (cz['obreb'], oa.GRUPA_NOWEGO, cz['oddz'],
                                    '')})
         self._wypelnij(pusty, [], [], [])
@@ -2346,6 +2435,7 @@ class OknoOpisu(QWidget):
         self._adr_krok = False
         self._wypelnij_adres()
         self._wypelnij_zabiegi()
+        self._wypelnij_pnsw()
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
 
@@ -2473,6 +2563,10 @@ class OknoOpisu(QWidget):
                 for sql, parametry in plan_zapisu_zabiegow(
                         aint, o['ZABIEGI'], d['ZABIEGI']):
                     cur.execute(sql, parametry)
+            if d['PNSW'] != o['PNSW']:
+                for sql, parametry in opn.plan_zapisu(aint, o['PNSW'],
+                                                     d['PNSW']):
+                    cur.execute(sql, parametry)
             self.baza.con.commit()
         except Exception as e:
             try:
@@ -2507,6 +2601,10 @@ class OknoOpisu(QWidget):
                                   ensure_ascii=False, default=str)
             wpisy.append((self.adres_bazy, 'ZMIANA', 'F_AROD_CUE',
                           _bez_baza(o['ZABIEGI']), _bez_baza(d['ZABIEGI'])))
+        if d['PNSW'] != o['PNSW']:
+            wpisy.append((self.adres_bazy, 'ZMIANA', 'F_AROD_SPEC_AREA',
+                          opn.do_dziennika(o['PNSW']),
+                          opn.do_dziennika(d['PNSW'])))
         self._do_dziennika(
             wpisy
             + [(self.adres_bazy, 'ZMIANA', p, o[p], d[p])
@@ -2762,6 +2860,206 @@ class OknoOpisu(QWidget):
         elif klawisz == Qt.Key_Down and r + 1 < n:
             idz_do_komorki(self.t_zab, r + 1, c if r + 1 < len(
                 self.dane['ZABIEGI']) else 0)
+
+    # ------------------------------------------------------------ PNSW
+
+    def _wypelnij_pnsw(self):
+        """Tabela PNSW z dane['PNSW']: pierwszy wiersz PNSW - nr, rodzaj,
+        położenie, pow. i pierwszy gatunek; kolejne gatunki w wierszach pod
+        nim, pod ostatnim pusty wiersz do dopisania gatunku (jak cechy/TD
+        w opisie wydzielenia); na końcu pusty wiersz nowego PNSW (rodzaj -
+        kod albo numer); ✕ - usunięcie PNSW z gatunkami."""
+        t = self.t_pnsw
+        if self.dane is None:
+            self._wiersze_pnsw = []
+            t.setRowCount(0)
+            _dopasuj(t)
+            return
+        edycja = not self.tylko_odczyt
+        pnsw = self.dane.get('PNSW', [])
+        org = {p['NR']: p for p in (self.oryginal or {}).get('PNSW', [])}
+        mapa = []
+        for pi, p in enumerate(pnsw):
+            for gi in range(max(1, len(p['gatunki']) + (1 if edycja else 0))):
+                mapa.append((pi, gi))
+        if edycja:
+            mapa.append((None, None))
+        self._wiersze_pnsw = mapa
+        t.setRowCount(len(mapa))
+        kol_usun = len(KOLUMNY_PNSW)
+        for r, (pi, gi) in enumerate(mapa):
+            p = pnsw[pi] if pi is not None else None
+            stary = org.get(p['NR']) if p and p['_BAZA'] else None
+            for c, (_n, pole, _typ, slow, m, _s) in enumerate(KOLUMNY_PNSW):
+                t.setItem(r, c, self._komorka_pnsw(p, stary, pi, gi, pole,
+                                                   slow, m))
+            it = QTableWidgetItem('✕' if p is not None and gi == 0 and
+                                  edycja else '')
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            it.setTextAlignment(Qt.AlignCenter)
+            it.setForeground(QBrush(QColor(198, 40, 40)))
+            if it.text():
+                it.setToolTip(f'Usuń PNSW {p["NR"]} z gatunkami (do bazy po '
+                              '"Zapisz"; Ctrl+Z - cofnij)')
+            t.setItem(r, kol_usun, it)
+        _dopasuj(t)
+
+    def _komorka_pnsw(self, p, stary, pi, gi, pole, slow, m):
+        def pusta(tip=''):
+            it = QTableWidgetItem('')
+            if tip and not self.tylko_odczyt:
+                it.setToolTip(tip)
+            else:
+                it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            return it
+
+        if p is None:  # wiersz nowego PNSW
+            return pusta('Wpisz rodzaj (kod albo numer), żeby dodać PNSW'
+                         if pole == 'SPECIAL_AREA_CD' else '')
+        if pole == 'NR':
+            if gi:
+                return pusta()
+            it = _item(str(p['NR']), True)
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            it.setTextAlignment(Qt.AlignCenter)
+            it.setToolTip('Nr PNSW w wydzieleniu (stały - po usunięciu PNSW '
+                          'numery się nie przesuwają)')
+            return it
+        if pole in opn.POLA_PNSW:
+            if gi:
+                return pusta()
+            zm = stary is None or stary[pole] != p[pole]
+            return self.komorka(_fmt(p[pole], m),
+                                self.walidacja_pnsw.get((pi, pole)), zm,
+                                slow, p[pole])
+        gat = p['gatunki']
+        kom = self.walidacja_pnsw.get((pi, (pole, gi)))
+        if gi >= len(gat):  # wiersz dopisania gatunku
+            it = self.komorka('', kom, False)
+            if pole != 'SPECIES_CD':
+                it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            elif not self.tylko_odczyt:
+                it.setToolTip('\n'.join(filter(None, [
+                    it.toolTip(), 'Wpisz kod albo numer gatunku, żeby dodać '
+                    'gatunek PNSW'])))
+            return it
+        g = gat[gi]
+        sg = stary['gatunki'][gi] if stary and gi < len(stary['gatunki']) \
+            else None
+        zm = sg is None or sg[pole] != g[pole]
+        return self.komorka(_fmt(g[pole], m), kom, zm, slow, g[pole])
+
+    def ustaw_pnsw(self, r, pole, tekst):
+        if sip.isdeleted(self) or self.dane is None or self.tylko_odczyt or \
+                r >= len(self._wiersze_pnsw):
+            return
+        pi, gi = self._wiersze_pnsw[r]
+        pnsw = self.dane['PNSW']
+        _n, _p, typ, slow, _m, _s = next(k for k in KOLUMNY_PNSW
+                                         if k[1] == pole)
+        przed = copy.deepcopy(self.dane)
+        if pi is None:
+            if pole != 'SPECIAL_AREA_CD' or not (tekst or '').strip():
+                return
+            ok, kod = self._wartosc('kod', slow, tekst)
+            if not ok:
+                return
+            nr = opn.nastepny_nr(pnsw, self.oryginal['PNSW'])
+            pnsw.append({'NR': nr, 'SPECIAL_AREA_CD': kod, 'LOCATION_CD': '',
+                         'SPECIAL_AREA': None, 'gatunki': [], '_BAZA': False})
+            opis = f'nowy PNSW {nr}'
+        else:
+            p = pnsw[pi]
+            opis = f'PNSW {p["NR"]}'
+            gat = p['gatunki']
+            if pole == 'SPECIAL_AREA_CD' and not (tekst or '').strip():
+                return self._blad('PNSW usuwa się przyciskiem ✕')
+            ok, v = self._wartosc(typ, slow, tekst)
+            if not ok:
+                return
+            if pole in opn.POLA_PNSW:
+                p[pole] = round(v, 4) if pole == 'SPECIAL_AREA' and \
+                    v is not None else v
+            elif pole == 'SPECIES_CD':
+                if not v:
+                    if gi >= len(gat):
+                        return
+                    del gat[gi]  # pusta komórka = usunięcie gatunku
+                elif any(i != gi and g['SPECIES_CD'] == v
+                         for i, g in enumerate(gat)):
+                    return self._blad(f'Gatunek {v} już jest w PNSW '
+                                      f'{p["NR"]}')
+                elif gi < len(gat):
+                    gat[gi]['SPECIES_CD'] = v
+                else:
+                    gat.append({'SPECIES_CD': v, 'SP_AGE': None})
+            else:  # SP_AGE
+                if gi >= len(gat):
+                    return
+                if v is not None and v > opn.MAX_WIEK:
+                    return self._blad(f'Wiek: 0-{opn.MAX_WIEK}')
+                gat[gi]['SP_AGE'] = v
+        self._do_historii(opis, przed)
+        self._przelicz()
+        self._wypelnij_pnsw()
+        self._status('')
+        self._odswiez_przyciski()
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def usun_pnsw(self, r):
+        if self.dane is None or self.tylko_odczyt or \
+                r >= len(self._wiersze_pnsw):
+            return
+        pi, gi = self._wiersze_pnsw[r]
+        if pi is None or gi:
+            return
+        przed = copy.deepcopy(self.dane)
+        nr = self.dane['PNSW'][pi]['NR']
+        del self.dane['PNSW'][pi]
+        self._do_historii(f'usunięcie PNSW {nr}', przed)
+        self._przelicz()
+        self._wypelnij_pnsw()
+        self._status(f'usunięto PNSW {nr} (do bazy po "Zapisz")')
+        QTimer.singleShot(0, self._dopasuj_okno)
+
+    def _klik_pnsw(self, r, c):
+        if c == len(KOLUMNY_PNSW):
+            QTimer.singleShot(0, lambda: self.usun_pnsw(r))
+
+    def _edytowalne_pnsw(self):
+        """[(wiersz, kolumna)] edytowalnych komórek PNSW wierszami."""
+        t = self.t_pnsw
+        return [(r, c) for r in range(t.rowCount())
+                for c in range(len(KOLUMNY_PNSW))
+                if t.item(r, c) is not None and
+                t.item(r, c).flags() & Qt.ItemIsEditable]
+
+    def _enter_pnsw(self, r, c):
+        """Enter: następna edytowalna komórka (wierszami) - rodzaj ->
+        położenie -> pow. -> gatunek -> wiek -> gatunek w wierszu niżej;
+        Enter w pustym wierszu gatunku - następny PNSW / nowy PNSW."""
+        if self.dane is None:
+            return
+        dalej = [k for k in self._edytowalne_pnsw() if k > (r, c)]
+        if dalej:
+            idz_do_komorki(self.t_pnsw, *dalej[0])
+
+    def _strzalka_pnsw(self, r, c, klawisz):
+        kom = self._edytowalne_pnsw()
+        if klawisz in (Qt.Key_Left, Qt.Key_Right):
+            w_wierszu = [k for k in kom if k[0] == r and
+                         (k[1] < c if klawisz == Qt.Key_Left else k[1] > c)]
+            if w_wierszu:
+                idz_do_komorki(self.t_pnsw, *(w_wierszu[-1]
+                               if klawisz == Qt.Key_Left else w_wierszu[0]))
+            return
+        wiersze = sorted({k[0] for k in kom if (k[0] < r if klawisz ==
+                          Qt.Key_Up else k[0] > r)})
+        if not wiersze:
+            return
+        rr = wiersze[-1] if klawisz == Qt.Key_Up else wiersze[0]
+        cc = min((k[1] for k in kom if k[0] == rr), key=lambda x: abs(x - c))
+        idz_do_komorki(self.t_pnsw, rr, cc)
 
     # --------------------------------------------- zabiegi (generator)
 

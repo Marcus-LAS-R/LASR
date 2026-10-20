@@ -39,6 +39,9 @@ KOLEJNOSC_SPECJALNA = {'IP': 0.1, 'IIP': 0.2}
 POLA_WARSTWY = ['MIXTURE_CD', 'DENSITY_CD', 'STANDDENSITY_INDEX']
 POLA_GATUNKU = ['SPECIES_CD', 'PART_CD', 'SPECIES_AGE', 'BHD', 'HEIGHT',
                 'SITE_CLASS_CD', 'VOLUME']
+# TPU czyta zasobność z VOLUME_TEMP - zapisywana zawsze ta sama wartość
+# co VOLUME (jak w F1-F3 Aktualizacji UPUL)
+POLA_ZAPISU_GATUNKU = POLA_GATUNKU + ['VOLUME_TEMP']
 LIMITY = [('SPECIES_AGE', 200, 'GAT26', 'Wiek przekracza 200'),
           ('BHD', 200, 'GAT27', 'Pierśnica przekracza 200'),
           ('HEIGHT', 60, 'GAT28', 'Wysokość przekracza 60'),
@@ -494,17 +497,19 @@ def plan_zapisu(aint, stare, nowe):
         k = w['STOREY_CD']
         for r, g in enumerate(w['gatunki'], 1):
             wart = [None if pusty(g[p]) else g[p] for p in POLA_GATUNKU]
+            wart.append(wart[POLA_GATUNKU.index('VOLUME')])  # VOLUME_TEMP
             if g['SPEC_STOR_INT_NUM'] is None:
                 ops.append(('insert into F_STOREY_SPECIES (ARODES_INT_NUM, '
                             'STOREY_CD, SPECIES_RANK_ORDER, ' +
-                            ', '.join(POLA_GATUNKU) + ') values (?, ?, ?, ' +
-                            ', '.join('?' * len(POLA_GATUNKU)) + ')',
+                            ', '.join(POLA_ZAPISU_GATUNKU) +
+                            ') values (?, ?, ?, ' +
+                            ', '.join('?' * len(POLA_ZAPISU_GATUNKU)) + ')',
                             (aint, k, r, *wart)))
                 dziennik.append(('GATUNEK_DODANY', f"{k}/{g['SPECIES_CD']}",
                                  '', _opis_gatunku(g)))
             else:
                 ops.append(('update F_STOREY_SPECIES set SPECIES_RANK_ORDER = ?, ' +
-                            ', '.join(f'{p} = ?' for p in POLA_GATUNKU) +
+                            ', '.join(f'{p} = ?' for p in POLA_ZAPISU_GATUNKU) +
                             ' where SPEC_STOR_INT_NUM = ?',
                             (r, *wart, g['SPEC_STOR_INT_NUM'])))
                 przed = stare_g.get(g['SPEC_STOR_INT_NUM'])

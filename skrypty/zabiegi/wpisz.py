@@ -93,7 +93,7 @@ class Wpisz:
                 brak.append(f'{zab[0]} {zab[1]} ha')
                 continue
             if zab[1] != self.cue[zab[0]] or \
-                    self._proc_niezgodny(zab[0], zab[1]):
+                    self._proc_niezgodny(zab):
                 if not self._zmodyfikuj_powierzchnie(zab):
                     self.uw_baza.append(
                         'Nie udało się zmodyfikować powierzchni zabiegu: '
@@ -129,7 +129,7 @@ class Wpisz:
         if zab[0] in self.cue:
             # inna powierzchnia albo % pow. wydz. niezgodny z powierzchnią
             if zab[1] != self.cue[zab[0]] or \
-                    self._proc_niezgodny(zab[0], zab[1]):
+                    self._proc_niezgodny(zab):
                 return self._zmodyfikuj_powierzchnie(zab)
             else:
                 return True  # jest i ma taka sama powierzchnie -> ok
@@ -199,7 +199,7 @@ class Wpisz:
                   zab[1],
                   ciecie[0],
                   self.max_cue,
-                  round(zab[1]*100/self.pow_wydz, 0),
+                  self._proc_zab(zab),
                   ciecie[1]
                   )
         ])
@@ -226,7 +226,7 @@ class Wpisz:
                                           zab[0],
                                           zab[1],
                                           self.max_cue,
-                                          round((zab[1]*100)/self.pow_wydz, 0)
+                                          self._proc_zab(zab)
                                           )
                                     ])
         if wpis:
@@ -255,7 +255,7 @@ class Wpisz:
                                           zab[0],
                                           zab[1],
                                           self.max_cue,
-                                          round((zab[1]*100)/self.pow_wydz, 0),
+                                          self._proc_zab(zab),
                                           round(grub, 0)
                                           )
                                     ])
@@ -267,16 +267,24 @@ class Wpisz:
         self.dodano += 1
         return True
 
-    def _proc_area(self, pow_zab):
-        """% powierzchni wydzielenia dla powierzchni zabiegu (None, gdy
-        powierzchnia wydzielenia nieznana)."""
-        if not self.pow_wydz or pow_zab is None:
+    def _proc_area(self, pow_zab, proc_gen=None):
+        """% powierzchni wydzielenia dla powierzchni zabiegu. Przy pow.
+        wydz. 0 (ha uzupełnia TPU w obliczeniach końcowych) - % podany
+        przez generator (None, gdy go nie ma)."""
+        if not self.pow_wydz:
+            return None if proc_gen is None else int(round(proc_gen, 0))
+        if pow_zab is None:
             return None
         return int(round(float(pow_zab) * 100 / self.pow_wydz, 0))
 
-    def _proc_niezgodny(self, kod, pow_zab) -> bool:
+    def _proc_zab(self, zab):
+        """% pow. wydz. wygenerowanego zabiegu [kod, pow, %]."""
+        return self._proc_area(zab[1], zab[2] if len(zab) > 2 else None)
+
+    def _proc_niezgodny(self, zab) -> bool:
         """PROC_AREA wpisanego zabiegu nie odpowiada jego powierzchni."""
-        proc = self._proc_area(pow_zab)
+        kod = zab[0]
+        proc = self._proc_zab(zab)
         if proc is None or kod not in getattr(self, 'cue_proc', {}):
             return False
         wpisany = self.cue_proc[kod]
@@ -286,9 +294,9 @@ class Wpisz:
         """Zmodyfikuj pow zabiegu lub rebni - razem z % pow. wydz.
         (PROC_AREA = pow. zabiegu / pow. wydzielenia; wcześniej zostawał
         stary, np. 100% przy AGROT/PIEL skorygowanych do połowy wydz.)
-            zab = [zabieg, powierzchnia]
+            zab = [zabieg, powierzchnia(, % pow. wydz. z generatora)]
         """
-        proc = self._proc_area(zab[1])
+        proc = self._proc_zab(zab)
         if proc is None:
             ok = self.baza.wpisz_tab([
                 'update f_arod_cue set cutting_area = ? where '

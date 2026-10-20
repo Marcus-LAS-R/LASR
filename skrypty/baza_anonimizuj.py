@@ -87,6 +87,9 @@ def Anonimizuj(iface):
 
         baza.anonimizuj_vaddress()
         baza.usun_tabele(['V_ADDRESS_second'])
+        # udziały właścicieli w wydzieleniach (tabela pomocnicza TPU) -
+        # rekordy usuwane, pusta tabela zostaje jak w czystej bazie
+        baza.wyczysc_tabele(['V_ARODES_PARTICIPATION_AREA_SUB_OWNER'])
         if usun_kwerendy:
             baza.usun_kwerendy()
         ile_ok += 1
