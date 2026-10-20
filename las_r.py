@@ -1919,7 +1919,7 @@ class LasR:
         p = baza_przeliterkuj.Przeliterkuj(self.iface)
         if not p.sprawdz_warstwe():
             return
-        if not p.dopisz_oddzialy():
+        if not p.sprawdz_oddzialy():
             return
         p.przygotuj_literkacje()
         p.zaliterkuj()
