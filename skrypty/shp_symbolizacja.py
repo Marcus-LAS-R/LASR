@@ -8,14 +8,13 @@ _KLU_POLA = ['AU', 'G5OFU', 'OFU']
 
 # Dopasuj style: fragment nazwy warstwy w TOC (bez rozróżniania wielkości
 # liter) -> plik .qml z folderu qml/. Dopasowanie po "zawiera się w nazwie",
-# np. klucz 'WYDZ' dopasuje też 'kopia_WYDZ'. Wygrywa pierwszy pasujący
-# klucz - dłuższe (WYDZ_POL) przed krótszymi (WYDZ).
+# np. klucz 'WYDZ' dopasuje też 'WYDZ_POL' czy 'WYDZ_DOPISANE'. Wygrywa
+# pierwszy pasujący klucz.
 # TODO: uzupełnić wg rzeczywistych nazw warstw używanych w projektach.
 DOPASOWANIE_STYLI = {
     'UZYTKI': 'KLU.qml',
     'KLU': 'KLU.qml',
-    'WYDZ_POL': 'WYDZ_POL.qml',
-    'WYDZ': 'WYDZ.qml',
+    'WYDZ': 'WYDZ_POL.qml',
     'DZKAT': 'DZKAT.qml',
     'EWID': 'EWID.qml',  # jak DZKAT, na niebiesko
     'F_OCHRONY': 'FOP.qml',
@@ -25,6 +24,12 @@ DOPASOWANIE_STYLI = {
     'ODDZ': 'OBR.qml',
     'LS': 'LS.qml',
     '99': '99.qml',
+}
+# Warstwy dopasowywane po pełnej nazwie (sprawdzane przed DOPASOWANIE_STYLI)
+# - sama WYDZ ma własny styl, pozostałe WYDZ_* (WYDZ_POL, WYDZ_DOPISANE...)
+# zostają przy WYDZ_POL.qml
+DOPASOWANIE_STYLI_DOKLADNE = {
+    'WYDZ': 'WYDZ.qml',
 }
 # numer działki bywa w różnych kolumnach (DZKAT - PARCELNR, EWID - NUMER)
 _POLA_NR_DZIALKI = ['NUMER', 'PARCELNR']
@@ -149,14 +154,18 @@ def dopasuj_style(iface):
 
     for lyr in QgsProject.instance().mapLayers().values():
         nazwa = lyr.name().upper()
-        klucz = next(
-            (k for k in DOPASOWANIE_STYLI if k.upper() in nazwa), None
+        plik = next(
+            (q for k, q in DOPASOWANIE_STYLI_DOKLADNE.items()
+             if k.upper() == nazwa.strip()), None
+        ) or next(
+            (q for k, q in DOPASOWANIE_STYLI.items() if k.upper() in nazwa),
+            None
         )
-        if klucz is None:
+        if plik is None:
             niedopasowane.append(lyr.name())
             continue
 
-        sciezka = os.path.join(plugin_dir, '..', 'qml', DOPASOWANIE_STYLI[klucz])
+        sciezka = os.path.join(plugin_dir, '..', 'qml', plik)
         try:
             lyr.loadNamedStyle(sciezka)
             _dopasuj_pole_etykiety(lyr)

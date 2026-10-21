@@ -1,20 +1,27 @@
 """Dialog konwersji shapefile'i ze starego standardu na nowy (patrz
 `core/shp_standard.py`).
 
+Układ okna w kolejności pracy: folder źródłowy -> tabela warstw ->
+folder docelowy.
+
 Domyślnie lista warstw do konwersji wypełniana jest warstwami wektorowymi
-obecnymi w bieżącym projekcie (TOC). Przycisk "Dodaj warstwę z pliku…"
-pozwala dorzucić dowolne pliki SHP spoza projektu, bez dodawania ich do
-TOC. Folder wyjściowy (wspólny dla wszystkich konwertowanych w tym
-uruchomieniu warstw) wybiera użytkownik przyciskiem "Wybierz…" - okno
-otwiera się domyślnie jeden poziom wyżej niż folder z warstwami
-wejściowymi. Folder nie jest tworzony automatycznie - jeśli wskazany nie
-istnieje, dialog pyta o potwierdzenie przed utworzeniem. Oryginały nie są
-zmieniane.
+obecnymi w bieżącym projekcie (TOC). Wskazanie folderu źródłowego
+zastępuje listę wszystkimi plikami SHP z tego folderu (bez podfolderów).
+Przycisk "Dodaj warstwę z pliku…" pozwala dorzucić dowolne pliki SHP spoza
+projektu, bez dodawania ich do TOC. Folder docelowy (wspólny dla
+wszystkich konwertowanych w tym uruchomieniu warstw) wybiera użytkownik
+przyciskiem "Wybierz…" - okno otwiera się domyślnie jeden poziom wyżej niż
+folder z warstwami źródłowymi. Folder nie jest tworzony automatycznie -
+jeśli wskazany nie istnieje, dialog pyta o potwierdzenie przed
+utworzeniem. Oryginały nie są zmieniane.
 
 Kodowanie źródła: pliki wyjściowe są zawsze zapisywane jako UTF-8, ale to
 nie gwarantuje poprawności polskich znaków, jeśli ODCZYT starego pliku był
-błędny. Sprawdzone na próbce z materialy/shp_stary_standard: pliki .cpg w
-tym zestawie danych deklarują "UTF-8", ale surowe bajty w DBF wcale nie są
+błędny. Kodowanie odczytu jest zgadywane i ustawiane dla KAŻDEJ warstwy
+osobno (kolumna "Kodowanie") - w jednym zestawie bywają pliki w różnych
+kodowaniach (Kruszwica: DZKAT w UTF-8, OBREBY_AFT z PRG w CP1250).
+Sprawdzone na próbce z materialy/shp_stary_standard: pliki .cpg w tym
+zestawie danych deklarują "UTF-8", ale surowe bajty w DBF wcale nie są
 poprawnym UTF-8 - są Windows-1250 (np. "OPIS" w PNSW.dbf: bajt 0xEA to w
 CP1250 "ę" - stąd domyślne, jawne wymuszenie CP1250 w tym dialogu zamiast
 ufania (błędnemu) .cpg.
@@ -60,11 +67,10 @@ class KonwersjaShpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Konwersja SHP do nowego standardu")
-        self.setMinimumSize(760, 420)
+        self.setMinimumSize(900, 420)
         self.warstwy = []  # rownolegle do wierszy tabeli
         self._build_ui()
         self._wczytaj_z_toc()
-        self._zgadnij_kodowanie(cicho=True)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -73,29 +79,54 @@ class KonwersjaShpDialog(QDialog):
             "Oryginały nie są zmieniane."
         ))
 
-        folder_row = QHBoxLayout()
-        folder_row.addWidget(QLabel("Folder wyjściowy:"))
-        self.edit_folder = QLineEdit()
-        self.edit_folder.setPlaceholderText(
-            "Wskaż folder, do którego mają trafić przekonwertowane warstwy…")
-        folder_row.addWidget(self.edit_folder, 1)
-        folder_btn = QPushButton("Wybierz…")
-        folder_btn.clicked.connect(self._wybierz_folder)
-        folder_row.addWidget(folder_btn)
-        layout.addLayout(folder_row)
+        wej_row = QHBoxLayout()
+        wej_row.addWidget(QLabel("Folder źródłowy:"))
+        self.edit_folder_wej = QLineEdit()
+        self.edit_folder_wej.setPlaceholderText(
+            "Opcjonalnie: folder ze starymi SHP (zastępuje warstwy z "
+            "projektu)…")
+        self.edit_folder_wej.setToolTip(
+            "Po wskazaniu folderu (Wybierz… albo wpisanie ścieżki i Enter) "
+            "lista warstw jest zastępowana wszystkimi plikami SHP z tego "
+            "folderu (bez podfolderów).")
+        self.edit_folder_wej.returnPressed.connect(
+            lambda: self._wczytaj_folder(self.edit_folder_wej.text().strip()))
+        wej_row.addWidget(self.edit_folder_wej, 1)
+        wej_btn = QPushButton("Wybierz…")
+        wej_btn.clicked.connect(self._wybierz_folder_wej)
+        wej_row.addWidget(wej_btn)
+        layout.addLayout(wej_row)
+
+        self.tabela = QTableWidget(0, 5)
+        self.tabela.setHorizontalHeaderLabels(
+            ["Konwertuj", "Nazwa warstwy", "Typ docelowy", "Kodowanie",
+             "Ścieżka"])
+        self.tabela.horizontalHeader().setStretchLastSection(True)
+        self.tabela.setColumnWidth(0, 70)
+        self.tabela.setColumnWidth(1, 200)
+        self.tabela.setColumnWidth(2, 110)
+        self.tabela.setColumnWidth(3, 150)
+        layout.addWidget(self.tabela)
 
         kodowanie_row = QHBoxLayout()
         kodowanie_row.addWidget(QLabel(
-            "Kodowanie odczytu źródłowych SHP (zapis wyniku zawsze UTF-8):"))
+            "Kodowanie odczytu (zapis wyniku zawsze UTF-8):"))
         self.combo_kodowanie = QComboBox()
         self.combo_kodowanie.addItems(list(KODOWANIA.keys()))
         kodowanie_row.addWidget(self.combo_kodowanie, 1)
+        wszystkim_btn = QPushButton("Ustaw wszystkim")
+        wszystkim_btn.setToolTip(
+            "Ustawia wybrane kodowanie w kolumnie \"Kodowanie\" "
+            "zaznaczonym warstwom (a jeśli żadna nie jest zaznaczona - "
+            "wszystkim).")
+        wszystkim_btn.clicked.connect(self._ustaw_wszystkim)
+        kodowanie_row.addWidget(wszystkim_btn)
         zgadnij_btn = QPushButton("Zgadnij kodowanie")
         zgadnij_btn.setToolTip(
-            "Sprawdza próbkę wartości tekstowych z zaznaczonych warstw "
-            "(a jeśli żadna nie jest zaznaczona - ze wszystkich) i wybiera "
-            "kodowanie dające najbardziej sensowny polski tekst.")
-        zgadnij_btn.clicked.connect(lambda _checked: self._zgadnij_kodowanie())
+            "Dla każdej zaznaczonej warstwy (a jeśli żadna nie jest "
+            "zaznaczona - dla wszystkich) osobno sprawdza wartości tekstowe "
+            "i wybiera kodowanie dające poprawny polski tekst.")
+        zgadnij_btn.clicked.connect(self._zgadnij_kodowanie)
         kodowanie_row.addWidget(zgadnij_btn)
         probka_btn = QPushButton("Zobacz próbkę")
         probka_btn.setToolTip(
@@ -106,18 +137,24 @@ class KonwersjaShpDialog(QDialog):
         kodowanie_row.addWidget(probka_btn)
         layout.addLayout(kodowanie_row)
 
-        self.tabela = QTableWidget(0, 4)
-        self.tabela.setHorizontalHeaderLabels(
-            ["Konwertuj", "Nazwa warstwy", "Typ docelowy", "Ścieżka"])
-        self.tabela.horizontalHeader().setStretchLastSection(True)
-        self.tabela.setColumnWidth(0, 70)
-        self.tabela.setColumnWidth(1, 220)
-        self.tabela.setColumnWidth(2, 110)
-        layout.addWidget(self.tabela)
-
         dodaj_btn = QPushButton("Dodaj warstwę z pliku…")
         dodaj_btn.clicked.connect(self._dodaj_z_pliku)
-        layout.addWidget(dodaj_btn)
+        dodaj_row = QHBoxLayout()
+        dodaj_row.addWidget(dodaj_btn)
+        dodaj_row.addStretch(1)
+        layout.addLayout(dodaj_row)
+
+
+        folder_row = QHBoxLayout()
+        folder_row.addWidget(QLabel("Folder docelowy:"))
+        self.edit_folder = QLineEdit()
+        self.edit_folder.setPlaceholderText(
+            "Wskaż folder, do którego mają trafić przekonwertowane warstwy…")
+        folder_row.addWidget(self.edit_folder, 1)
+        folder_btn = QPushButton("Wybierz…")
+        folder_btn.clicked.connect(self._wybierz_folder)
+        folder_row.addWidget(folder_btn)
+        layout.addLayout(folder_row)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Ok).setText("Konwertuj")
@@ -126,16 +163,47 @@ class KonwersjaShpDialog(QDialog):
         layout.addWidget(buttons)
 
     def _wybierz_folder(self):
-        """Standardowe (natywne) okno wyboru folderu wyjściowego. Domyślnie
-        otwiera się jeden poziom wyżej niż folder z warstwami wejściowymi -
+        """Standardowe (natywne) okno wyboru folderu docelowego. Domyślnie
+        otwiera się jeden poziom wyżej niż folder z warstwami źródłowymi -
         użytkownik stamtąd wybiera albo tworzy właściwy folder."""
         start = self.edit_folder.text().strip()
         if not start:
             start = shp_standard.folder_startowy_dla_wyboru(self.warstwy)
         folder = QFileDialog.getExistingDirectory(
-            self, "Wybierz folder wyjściowy", start)
+            self, "Wybierz folder docelowy", start)
         if folder:
             self.edit_folder.setText(folder)
+
+    def _wybierz_folder_wej(self):
+        start = self.edit_folder_wej.text().strip()
+        if not start:
+            start = shp_standard.folder_startowy_dla_wyboru(self.warstwy)
+        folder = QFileDialog.getExistingDirectory(
+            self, "Wybierz folder źródłowy", start)
+        if folder:
+            self.edit_folder_wej.setText(folder)
+            self._wczytaj_folder(folder)
+
+    def _wczytaj_folder(self, folder):
+        """Zastępuje listę warstw wszystkimi SHP z folderu (bez
+        podfolderów)."""
+        if not folder:
+            return
+        if not os.path.isdir(folder):
+            QMessageBox.warning(
+                self, "Błąd", f'Folder "{folder}" nie istnieje.')
+            return
+        sciezki = sorted(
+            os.path.join(folder, n) for n in os.listdir(folder)
+            if n.lower().endswith(".shp"))
+        if not sciezki:
+            QMessageBox.information(
+                self, "Folder źródłowy",
+                f'W folderze "{folder}" nie ma plików SHP.')
+            return
+        self.tabela.setRowCount(0)
+        self.warstwy = []
+        self._dodaj_pliki(sciezki)
 
     def _wczytaj_z_toc(self):
         for lyr in QgsProject.instance().mapLayers().values():
@@ -144,10 +212,16 @@ class KonwersjaShpDialog(QDialog):
 
     def _dodaj_z_pliku(self):
         sciezki, _ = QFileDialog.getOpenFileNames(
-            self, "Wybierz warstwy SHP", "", "ESRI shp (*.shp)")
+            self, "Wybierz warstwy SHP", self.edit_folder_wej.text().strip(),
+            "ESRI shp (*.shp)")
+        self._dodaj_pliki(sciezki)
+
+    def _dodaj_pliki(self, sciezki):
         for sc in sciezki:
             juz_jest = any(
-                w.dataProvider().dataSourceUri().split("|")[0] == sc
+                os.path.normcase(os.path.normpath(
+                    w.dataProvider().dataSourceUri().split("|")[0]))
+                == os.path.normcase(os.path.normpath(sc))
                 for w in self.warstwy
             )
             if juz_jest:
@@ -159,7 +233,6 @@ class KonwersjaShpDialog(QDialog):
                     self, "Błąd", f"Nie udało się wczytać warstwy:\n{sc}")
                 continue
             self._dodaj_wiersz(lyr)
-        self._zgadnij_kodowanie(cicho=True)
 
     def _dodaj_wiersz(self, lyr):
         row = self.tabela.rowCount()
@@ -187,6 +260,12 @@ class KonwersjaShpDialog(QDialog):
             combo.setCurrentText(zgadywany)
         self.tabela.setCellWidget(row, 2, combo)
 
+        combo_kod = QComboBox()
+        combo_kod.addItems(list(KODOWANIA.keys()))
+        self._ustaw_kodowanie_wiersza(
+            combo_kod, shp_standard.zgadnij_kodowanie_warstwy(lyr))
+        self.tabela.setCellWidget(row, 3, combo_kod)
+
         try:
             sciezka = lyr.dataProvider().dataSourceUri().split("|")[0]
         except Exception:  # nopep8
@@ -194,7 +273,7 @@ class KonwersjaShpDialog(QDialog):
         sciezka_item = QTableWidgetItem(sciezka)
         sciezka_item.setFlags(sciezka_item.flags() & ~Qt.ItemIsEditable)
         sciezka_item.setForeground(QColor("gray"))
-        self.tabela.setItem(row, 3, sciezka_item)
+        self.tabela.setItem(row, 4, sciezka_item)
 
     def _zaznaczone_lub_wszystkie_warstwy(self):
         """Zwraca zaznaczone (checkbox "Konwertuj") warstwy, a jesli zadna
@@ -206,37 +285,52 @@ class KonwersjaShpDialog(QDialog):
         ]
         return zaznaczone or list(self.warstwy)
 
-    def _zgadnij_kodowanie(self, cicho=False):
-        """Probkuje wartosci tekstowe zaznaczonych warstw (a jesli zadna
-        nie jest zaznaczona - wszystkich) i ustawia combo_kodowanie na
-        wynik. `cicho=True` - bez okienek informacyjnych (uzywane przy
-        automatycznym uruchomieniu po otwarciu dialogu / dodaniu plikow)."""
-        warstwy = self._zaznaczone_lub_wszystkie_warstwy()
-        if not warstwy:
-            if not cicho:
-                QMessageBox.information(
-                    self, "Zgadnij kodowanie", "Brak warstw do analizy.")
-            return
+    @staticmethod
+    def _ustaw_kodowanie_wiersza(combo, kod):
+        """kod None (warstwa bez znaków spoza ASCII) -> UTF-8, kodowanie
+        nie ma wtedy znaczenia."""
+        kod = kod or "UTF-8"
+        for etykieta, k in KODOWANIA.items():
+            if k == kod:
+                combo.setCurrentText(etykieta)
+                return
 
-        wynik = shp_standard.zgadnij_kodowanie(warstwy)
-        if wynik is None:
-            if not cicho:
-                QMessageBox.information(
-                    self, "Zgadnij kodowanie",
-                    "Nie udało się zebrać próbki tekstu (brak pól "
-                    "tekstowych albo obiektów w zaznaczonych warstwach).")
-            return
+    def _zaznaczone_lub_wszystkie_wiersze(self):
+        wiersze = [
+            row for row in range(self.tabela.rowCount())
+            if self.tabela.cellWidget(row, 0).findChild(QCheckBox).isChecked()
+        ]
+        return wiersze or list(range(self.tabela.rowCount()))
 
-        for etykieta, kod in KODOWANIA.items():
-            if kod == wynik:
-                self.combo_kodowanie.setCurrentText(etykieta)
-                break
+    def _ustaw_wszystkim(self):
+        etykieta = self.combo_kodowanie.currentText()
+        for row in self._zaznaczone_lub_wszystkie_wiersze():
+            self.tabela.cellWidget(row, 3).setCurrentText(etykieta)
 
-        if not cicho:
+    def _zgadnij_kodowanie(self):
+        """Zgaduje kodowanie każdej zaznaczonej warstwy (a jeśli żadna nie
+        jest zaznaczona - wszystkich) osobno i ustawia je w kolumnie
+        "Kodowanie"."""
+        wiersze = self._zaznaczone_lub_wszystkie_wiersze()
+        if not wiersze:
             QMessageBox.information(
-                self, "Zgadnij kodowanie",
-                f"Wykryte kodowanie: {wynik}\n\n"
-                "Sprawdź wynik i popraw ręcznie, jeśli to konieczne.")
+                self, "Zgadnij kodowanie", "Brak warstw do analizy.")
+            return
+
+        linie = []
+        for row in wiersze:
+            lyr = self.warstwy[row]
+            kod = shp_standard.zgadnij_kodowanie_warstwy(lyr)
+            self._ustaw_kodowanie_wiersza(self.tabela.cellWidget(row, 3), kod)
+            linie.append(
+                f"{lyr.name()}: {kod}" if kod else
+                f"{lyr.name()}: bez polskich znaków (UTF-8)")
+
+        QMessageBox.information(
+            self, "Zgadnij kodowanie",
+            "Wykryte kodowania:\n\n" + "\n".join(linie) +
+            "\n\nSprawdź wynik (\"Zobacz próbkę\") i popraw ręcznie, "
+            "jeśli to konieczne.")
 
     def _pokaz_probke(self):
         """Pokazuje tabelę porównawczą: te same surowe wartości tekstowe
@@ -289,8 +383,9 @@ class KonwersjaShpDialog(QDialog):
             chk = self.tabela.cellWidget(row, 0).findChild(QCheckBox)
             combo = self.tabela.cellWidget(row, 2)
             typ = combo.currentText()
+            kod = KODOWANIA[self.tabela.cellWidget(row, 3).currentText()]
             if chk.isChecked() and typ != TYPY[0]:
-                do_konwersji.append((self.warstwy[row], typ))
+                do_konwersji.append((self.warstwy[row], typ, kod))
 
         if not do_konwersji:
             QMessageBox.information(
@@ -301,7 +396,7 @@ class KonwersjaShpDialog(QDialog):
         folder_wyjsciowy = self.edit_folder.text().strip()
         if not folder_wyjsciowy:
             QMessageBox.warning(
-                self, "Brak folderu wyjściowego",
+                self, "Brak folderu docelowego",
                 "Wskaż folder, do którego mają trafić przekonwertowane "
                 "warstwy.")
             return
@@ -328,7 +423,7 @@ class KonwersjaShpDialog(QDialog):
         # JEDNEGO wspolnego folderu, wiec dwie rozne warstwy o tej samej
         # nazwie pliku nadpisalyby sie nawzajem
         nazwy_plikow = {}
-        for lyr, _typ in do_konwersji:
+        for lyr, _typ, _kod in do_konwersji:
             try:
                 sc = lyr.dataProvider().dataSourceUri().split("|")[0]
             except Exception:  # nopep8
@@ -343,19 +438,18 @@ class KonwersjaShpDialog(QDialog):
             odp = QMessageBox.question(
                 self, "Zduplikowane nazwy plików",
                 "Kilka zaznaczonych warstw zapisze się pod tą samą nazwą "
-                "we wspólnym folderze wyjściowym - kolejna nadpisze "
+                "we wspólnym folderze docelowym - kolejna nadpisze "
                 "poprzednią:\n\n" + opis + "\n\nKontynuować mimo to?",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if odp != QMessageBox.Yes:
                 return
 
-        kodowanie = KODOWANIA[self.combo_kodowanie.currentText()]
-        if kodowanie:
-            for lyr, _typ in do_konwersji:
-                lyr.dataProvider().setEncoding(kodowanie)
+        for lyr, _typ, kod in do_konwersji:
+            if kod:
+                lyr.dataProvider().setEncoding(kod)
 
         raporty = []
-        for lyr, typ in do_konwersji:
+        for lyr, typ, _kod in do_konwersji:
             try:
                 raporty.append(shp_standard.konwertuj_warstwe(
                     lyr, typ, folder_wyjsciowy))
@@ -363,6 +457,7 @@ class KonwersjaShpDialog(QDialog):
                 raporty.append({
                     "nazwa": lyr.name(), "typ": typ, "sciezka": None,
                     "obiekty": 0, "pola_zmapowane": [], "pola_brakujace": [],
+                    "naprawione": [], "liczba_naprawionych": 0,
                     "bledy": [f"Konwersja przerwana błędem: {e}"],
                 })
 
@@ -390,6 +485,14 @@ class KonwersjaShpDialog(QDialog):
                     "uzupełnienia inną metodą, np. z bazy taksatora):")
                 for p in r["pola_brakujace"]:
                     linie.append(f"    {p}")
+
+            if r.get("liczba_naprawionych"):
+                linie.append(
+                    "  Naprawione polskie znaki (podwójne kodowanie w "
+                    "źródle, np. LZ-Ĺ\\x81 -> LZ-Ł): "
+                    f"{r['liczba_naprawionych']}")
+                for n in r["naprawione"]:
+                    linie.append(f"    {n}")
 
             if r["bledy"]:
                 linie.append(f"  Błędy / ostrzeżenia ({len(r['bledy'])}):")

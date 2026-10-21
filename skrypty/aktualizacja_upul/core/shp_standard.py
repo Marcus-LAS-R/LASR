@@ -23,6 +23,7 @@ zgłasza je w raporcie jako brak źródła, zamiast zgadywać wartość.
 """
 
 import os
+import re
 
 from PyQt5.QtCore import QVariant
 from qgis.core import (
@@ -298,6 +299,12 @@ FIELD_MAP = {
         "AU": ["G5OZU", "G5OFU", "OFU", "AU"],
         "SQ": ["G5OZK", "SQ"],
     },
+    # obreby z PRG (GUGiK) zamiast EGiB: jpt_kod_je = "040708_2.0019"
+    # (jak G5NRO), jpt_nazwa_ = nazwa obrebu
+    "OBR": {
+        "G5NRO": ["G5NRO", "JPT_KOD_JE"],
+        "G5NAZ": ["G5NAZ", "JPT_NAZWA_"],
+    },
     "UZYTKI": {
         "AU": ["G5OFU", "G5OZU", "OFU", "AU"],
         # stare pliki (UZYTKI_92) maja ten identyfikator pod nazwa G5IDT
@@ -407,19 +414,35 @@ def _wyjsciowa_sciezka(lyr, folder_wyjsciowy):
     return os.path.join(folder_wyjsciowy, nazwa_pliku)
 
 
+# teksty, ktore stare narzedzia wpisywaly do DBF zamiast pustej wartosci
+# (str(None) w Pythonie, str(NULL) w PyQGIS) - Kruszwica: STAND_STRU='None'
+_TEKSTY_PUSTE = {"", "NONE", "NULL"}
+
+
+def _pusta(wartosc):
+    """None, QGIS NULL (pusty QVariant - tak OGR oddaje puste pola SHP),
+    pusty/bialy string albo literalne "None"/"NULL"."""
+    if wartosc is None:
+        return True
+    if isinstance(wartosc, QVariant):
+        return wartosc.isNull()
+    return isinstance(wartosc, str) and \
+        wartosc.strip().upper() in _TEKSTY_PUSTE
+
+
 def _tekst(wartosc):
     """Zamienia wartosc pola (w tym QGIS/Python NULL) na string do
     dalszych operacji tekstowych - NULL/None -> pusty string, NIE
-    literalne "None" (str(None) w Pythonie daje wlasnie "None", co bez
-    tej funkcji trafialoby wprost do PARCELID/MUNICIP/COUNTY_L przy
-    nieuzupelnionych polach zrodlowych)."""
-    return "" if wartosc is None else str(wartosc).strip()
+    literalne "None"/"NULL" (str() na NULL-u daje wlasnie te napisy, ktore
+    bez tej funkcji trafialy wprost do PARCELID/MUNICIP/COUNTY - Kruszwica:
+    COUNTY='NU', PARCELID='NUNUNULNULL.NULL')."""
+    return "" if _pusta(wartosc) else str(wartosc).strip()
 
 
 def _rzutuj(wartosc, typ_pola):
     """Rzutuje surowa wartosc ze starej warstwy na typ pola docelowego.
     Zwraca (wartosc, blad albo None)."""
-    tekst = "" if wartosc is None else str(wartosc).strip()
+    tekst = _tekst(wartosc)
 
     if typ_pola == "Double":
         if tekst == "":
@@ -440,34 +463,61 @@ def _rzutuj(wartosc, typ_pola):
     return tekst, None
 
 
+# znaki, ktore pojawiaja sie, gdy tekst UTF-8 odczytano jako Windows-1250
+# i zapisano ponownie jako UTF-8 (np. "Ł" = C5 81 -> "Ĺ" + U+0081) -
+# pierwsze bajty sekwencji UTF-8 polskich liter/ó w CP1250 plus znaki C1
+_ZNACZNIKI_MOJIBAKE = set("ĹÄĂÂ") | {chr(c) for c in range(0x80, 0xA0)}
+
+
+def _napraw_mojibake(tekst):
+    """Odwraca podwojne kodowanie (UTF-8 przeczytane jako CP1250 i
+    zapisane znow w UTF-8): "LZ-Ĺ\\x81" -> "LZ-Ł". Zwraca tekst bez zmian,
+    gdy nie wyglada na zepsuty albo odwrocenie nie daje poprawnego UTF-8
+    (np. prawdziwe "Ĺ" w tekscie - po zakodowaniu w CP1250 samotny bajt
+    C5 nie jest poprawnym UTF-8)."""
+    if not tekst or not (_ZNACZNIKI_MOJIBAKE & set(tekst)):
+        return tekst
+    bajty = bytearray()
+    for ch in tekst:
+        try:
+            bajty += ch.encode("cp1250")
+        except UnicodeEncodeError:
+            # bajty niezdefiniowane w CP1250 (0x81, 0x83, 0x88, 0x90, 0x98)
+            # przeszly przez Windows 1:1 jako U+0081 itd.
+            if ord(ch) < 0x100:
+                bajty.append(ord(ch))
+            else:
+                return tekst
+    try:
+        naprawiony = bytes(bajty).decode("utf-8")
+    except UnicodeDecodeError:
+        return tekst
+    return naprawiony
+
+
 def _zbuduj_mapowanie(typ, src_fields_upper):
     """src_fields_upper: {NAZWA_WIELKIMI: oryginalna_nazwa}
 
-    Dla kazdego pola docelowego probuje po kolei: znane stare warianty
-    nazwy (FIELD_MAP), a na koncu ZAWSZE takze dokladnie te sama nazwe co
-    docelowa - dzieki temu zrodlo, ktore juz ma czesc kolumn w nowym
-    standardzie (albo plik wczesniej juz skonwertowany), zostaje
-    przepisane 1:1 zamiast trafic do "brakujacych".
+    Dla kazdego pola docelowego zbiera WSZYSTKIE istniejace w zrodle
+    kolumny-kandydatow (znane stare warianty nazwy z FIELD_MAP, a na koncu
+    ZAWSZE takze dokladnie ta sama nazwa co docelowa), w kolejnosci
+    priorytetu. Wartosc bierze sie per obiekt z pierwszej NIEPUSTEJ -
+    stare DZKAT bywaja zlaczeniem EGiB z pustymi kolumnami LS (Kruszwica:
+    PARCEL_NR puste, numer w NUMER).
+
+    Zwraca {nowe: [stare, ...]} (pusta lista = brak kolumny w zrodle).
     """
     mapa = FIELD_MAP.get(typ, {})
     mapowanie = {}
-    zmapowane = []
-    brakujace = []
-
     for nazwa, _t, _dl, _pr in SCHEMAS[typ]:
         kandydaci = mapa.get(nazwa, []) + [nazwa]
-        znaleziono = None
+        istniejace = []
         for k in kandydaci:
-            if k.upper() in src_fields_upper:
-                znaleziono = src_fields_upper[k.upper()]
-                break
-        mapowanie[nazwa] = znaleziono
-        if znaleziono:
-            zmapowane.append((nazwa, znaleziono))
-        else:
-            brakujace.append(nazwa)
-
-    return mapowanie, zmapowane, brakujace
+            oryg = src_fields_upper.get(k.upper())
+            if oryg and oryg not in istniejace:
+                istniejace.append(oryg)
+        mapowanie[nazwa] = istniejace
+    return mapowanie
 
 
 def _dz_lacznik(county, district, municip, community, ark, parcelnr):
@@ -477,13 +527,103 @@ def _dz_lacznik(county, district, municip, community, ark, parcelnr):
     return county + district + municip + community + "." + parcelnr
 
 
+# identyfikator dzialki EGiB: WWPPGG_R.OOOO[.ARKUSZ].NUMER, np.
+# 040706_5.0006.384 albo 160908_5.0127.AR_1.217/17
+_WZORZEC_G5IDD = re.compile(
+    r"^(\d{2})(\d{2})(\d{2})_(\d)\.(\d{4})\.(?:(.+)\.)?([^.]+)$")
+
+
+def rozbij_g5idd(g5idd):
+    """Zwraca dict COUNTY/DISTRICT/MUNICIP/COMMUNITY/ARK/PARCELNR z
+    identyfikatora dzialki EGiB albo None, gdy nie pasuje do wzorca."""
+    m = _WZORZEC_G5IDD.match(_tekst(g5idd))
+    if not m:
+        return None
+    return {
+        "COUNTY": m.group(1),
+        "DISTRICT": m.group(2),
+        "MUNICIP": m.group(3) + m.group(4),
+        "COMMUNITY": m.group(5),
+        "ARK": m.group(6) or "",
+        "PARCELNR": m.group(7),
+    }
+
+
+# kolumny z identyfikatorem dzialki EGiB w roznych formach danych
+# (SWDE/EGiB: G5IDD, eksport z GML: idDzialki, stare SHP: IDENTYFIKA)
+_KANDYDACI_G5IDD = ["G5IDD", "IDDZIALKI", "ID_DZIALKI", "IDENTYFIKA"]
+# kolumny z adresem lesnym (WYDZ/WYDZ_POL i zlaczenia z nimi)
+_KANDYDACI_ADR_LES = ["ADR_LES", "ADRES_LES", "ADR_LESNY", "ADRES_LESN"]
+# powierzchnia ewidencyjna dzialki (EGiB) - w m2 albo ha, patrz
+# _pow_ewid_ha
+_KANDYDACI_POW_EWID = ["G5PEW", "POW_EWID", "POW_EW"]
+
+_SL_WOJ_ODWR = {litera: kod for kod, litera in SL_WOJ.items()}
+
+# adres lesny: litera wojewodztwa + powiat(2) + gmina z rodzajem(3) +
+# obreb(4) + "-..." np. "C070640006-051   -b   -00"
+_WZORZEC_ADR_LES = re.compile(r"^([A-Z])(\d{2})(\d{3})(\d{4})-")
+
+
+def rozbij_adr_les(adr_les):
+    """Zwraca dict COUNTY/DISTRICT/MUNICIP/COMMUNITY z adresu lesnego albo
+    None, gdy nie pasuje do wzorca albo litera wojewodztwa jest nieznana."""
+    m = _WZORZEC_ADR_LES.match(_tekst(adr_les).upper())
+    if not m or m.group(1) not in _SL_WOJ_ODWR:
+        return None
+    return {
+        "COUNTY": _SL_WOJ_ODWR[m.group(1)],
+        "DISTRICT": m.group(2),
+        "MUNICIP": m.group(3),
+        "COMMUNITY": m.group(4),
+    }
+
+
+def _pow_ewid_ha(wartosc, geometria):
+    """Powierzchnia ewidencyjna w ha z wartosci w m2 albo ha. Jednostke
+    rozpoznaje po porownaniu z powierzchnia geometrii (SWDE: G5PEW w m2,
+    ale bywaja eksporty w ha): blizej geometrii po podzieleniu przez
+    10000 -> m2. None, gdy wartosc pusta/0 albo zadna jednostka nie pasuje
+    (rozjazd > 2x - wtedy lepiej nie wpisywac niz wpisac zle)."""
+    try:
+        pew = float(_tekst(wartosc).replace(",", "."))
+    except ValueError:
+        return None
+    if pew <= 0:
+        return None
+    geom_ha = geometria.area() / 10000 if geometria else 0
+    if geom_ha <= 0:
+        return None
+    for kandydat in (pew / 10000, pew):
+        if 0.5 <= kandydat / geom_ha <= 2:
+            return round(kandydat, 4)
+    return None
+
+
+def _ustaw(nf, typ, nazwa, wartosc, obiekt, raport):
+    """Wpisuje wartosc do pola docelowego z rzutowaniem i przycieciem do
+    dlugosci (z wpisem w raporcie)."""
+    typ_pola, dlugosc = _typ_pola(typ, nazwa)
+    wartosc, blad = _rzutuj(wartosc, typ_pola)
+    if blad and len(raport["bledy"]) < 50:
+        raport["bledy"].append(f"obiekt {obiekt}: {nazwa} ({blad})")
+    if typ_pola == "String" and dlugosc and len(wartosc) > dlugosc:
+        if len(raport["bledy"]) < 50:
+            raport["bledy"].append(
+                f"obiekt {obiekt}: {nazwa} przycięte do {dlugosc} znaków "
+                f"(było: {wartosc!r})")
+        wartosc = wartosc[:dlugosc]
+    nf[nazwa] = wartosc
+
+
 def konwertuj_warstwe(lyr, typ, folder_wyjsciowy):  # noqa
     """Konwertuje pojedyncza warstwe na nowy standard `typ`, zapisujac
     wynik do `folder_wyjsciowy` (wybrany przez uzytkownika w dialogu).
 
     Zwraca dict raportu: nazwa, typ, sciezka, obiekty, pola_zmapowane
-    (lista par (nowe, stare)), pola_brakujace (lista nazw), bledy (lista
-    opisow).
+    (lista par (nowe, opis zrodla)), pola_brakujace (lista opisow),
+    naprawione (lista opisow naprawionych polskich znakow, max 50),
+    liczba_naprawionych, bledy (lista opisow).
     """
     raport = {
         "nazwa": lyr.name(),
@@ -492,6 +632,8 @@ def konwertuj_warstwe(lyr, typ, folder_wyjsciowy):  # noqa
         "obiekty": 0,
         "pola_zmapowane": [],
         "pola_brakujace": [],
+        "naprawione": [],
+        "liczba_naprawionych": 0,
         "bledy": [],
     }
 
@@ -510,6 +652,8 @@ def konwertuj_warstwe(lyr, typ, folder_wyjsciowy):  # noqa
 
     src_fields_upper = {f.name().upper(): f.name() for f in lyr.fields()}
     qf = _stworz_pola(typ)
+    pola_docelowe = [n for n, _t, _d, _p in SCHEMAS[typ]]
+    pola_liczbowe = [n for n, t, _d, _p in SCHEMAS[typ] if t != "String"]
 
     writer = QgsVectorFileWriter(
         sciezka_wy, "UTF-8", qf, lyr.wkbType(), lyr.crs(), "ESRI Shapefile")
@@ -520,188 +664,203 @@ def konwertuj_warstwe(lyr, typ, folder_wyjsciowy):  # noqa
         )
         return raport
 
-    mapowanie, zmapowane, brakujace = _zbuduj_mapowanie(typ, src_fields_upper)
-    raport["pola_zmapowane"] = zmapowane
-    raport["pola_brakujace"] = brakujace
+    mapowanie = _zbuduj_mapowanie(typ, src_fields_upper)
+    # pole docelowe -> {opis zrodla: liczba obiektow}; z tego na koncu
+    # raport zmapowanych/brakujacych (brak = zadne zrodlo nic nie dalo)
+    uzyte = {n: {} for n in pola_docelowe}
 
-    # ODDZ: MUNICIP/COMMUNITY moga byc juz wprost w zrodle (nowy standard,
-    # albo stary plik "ODDZ" ktory zwykle ma pole ODDZ wprost) - wtedy
-    # zalatwia to _zbuduj_mapowanie powyzej. Jesli nie ma ich wprost,
-    # sprobuj wyliczyc z "golego" kodu TERYT obrebu (idobrebu/jpt_kod_je/
-    # g5nro), tak jak robi to shp_przygCiecie.py. Samo ODDZ nigdy nie da
-    # sie wyliczyc z danych obrebu - zawsze wymaga uzupelnienia (np.
-    # "Zanumeruj oddziały").
+    def licz(nazwa, zrodlo):
+        uzyte[nazwa][zrodlo] = uzyte[nazwa].get(zrodlo, 0) + 1
+
+    # ODDZ: MUNICIP/COMMUNITY z "golego" kodu TERYT obrebu (idobrebu/
+    # jpt_kod_je/g5nro), gdy nie ma ich wprost - tak jak robi to
+    # shp_przygCiecie.py. Samo ODDZ nigdy nie da sie wyliczyc z danych
+    # obrebu - zawsze wymaga uzupelnienia (np. "Zanumeruj oddziały").
     kandydat_teryt = None
-    uzyj_teryt_municip = False
-    uzyj_teryt_community = False
     if typ == "ODDZ":
-        for k in OBR_TERYT_KANDYDACI:
-            if k in src_fields_upper:
-                kandydat_teryt = src_fields_upper[k]
-                break
+        kandydat_teryt = next(
+            (src_fields_upper[k] for k in OBR_TERYT_KANDYDACI
+             if k in src_fields_upper), None)
 
-    if kandydat_teryt:
-        uzyj_teryt_municip = mapowanie.get("MUNICIP") is None
-        uzyj_teryt_community = mapowanie.get("COMMUNITY") is None
-        if uzyj_teryt_municip:
-            raport["pola_brakujace"] = [
-                x for x in raport["pola_brakujace"] if x != "MUNICIP"]
-            raport["pola_zmapowane"].append(
-                ("MUNICIP", f"{kandydat_teryt} (kod TERYT, wyliczone)"))
-        if uzyj_teryt_community:
-            raport["pola_brakujace"] = [
-                x for x in raport["pola_brakujace"] if x != "COMMUNITY"]
-            raport["pola_zmapowane"].append(
-                ("COMMUNITY", f"{kandydat_teryt} (kod TERYT, wyliczone)"))
+    def pierwsza_kolumna(kandydaci):
+        return next((src_fields_upper[k] for k in kandydaci
+                     if k in src_fields_upper), None)
 
-    czy_parcelid = typ in ("DZKAT", "LS") and mapowanie.get("PARCELID") is None
-
-    # DZKAT: 1 obiekt = 1 cała działka, więc PARCEL_POW da się bezpiecznie
-    # policzyć wprost z geometrii (tak jak w przygotuj_dzkat.py). W LS
-    # geometria pojedynczego obiektu to tylko fragment użytku, więc tak
-    # liczymy co najwyżej LAND_POW (powierzchnia tego fragmentu), nie
-    # PARCEL_POW (powierzchnia całej działki).
-    czy_parcel_pow_z_geom = (
-        typ == "DZKAT" and mapowanie.get("PARCEL_POW") is None)
-    czy_land_pow_z_geom = typ == "LS" and mapowanie.get("LAND_POW") is None
-    czy_county_l_z_tabeli = (
-        typ in ("WYDZ", "WYDZ_POL") and mapowanie.get("COUNTY_L") is None
-        and mapowanie.get("COUNTY"))
-    # KLU = zlozenie AU+SQ (jak dopisuje przygotuj_ls.py), tylko gdy zrodlo
-    # nie ma juz gotowej kolumny KLU
-    czy_klu_z_au_sq = typ == "KLU" and mapowanie.get("KLU") is None
+    # DZKAT/LS: skladowe adresu dzialki z G5IDD, gdy kolumny COUNTY_CD
+    # itp. sa puste albo ich nie ma
+    pole_g5idd = (
+        pierwsza_kolumna(_KANDYDACI_G5IDD) if typ in ("DZKAT", "LS")
+        else None)
+    pola_z_g5idd = (
+        "COUNTY", "DISTRICT", "MUNICIP", "COMMUNITY", "ARK", "PARCELNR")
+    # dalej puste skladowe adresu administracyjnego -> z adresu lesnego
+    # (Kruszwica, WYDZ_POL: COUNTY_CD itp. puste, adres w ADR_LES)
+    pole_adr_les = pierwsza_kolumna(_KANDYDACI_ADR_LES)
+    pola_z_adr_les = [
+        n for n in ("COUNTY", "DISTRICT", "MUNICIP", "COMMUNITY")
+        if n in pola_docelowe]
+    if not pola_z_adr_les:
+        pole_adr_les = None
+    # DZKAT: PARCEL_AR z powierzchni ewidencyjnej (G5PEW), gdy puste. Nie
+    # dla LS - tam G5PEW to powierzchnia konturu uzytku, nie dzialki
+    pole_pow_ewid = (
+        pierwsza_kolumna(_KANDYDACI_POW_EWID) if typ == "DZKAT" else None)
 
     for feat in lyr.getFeatures():
         nf = QgsFeature(qf)
         nf.setGeometry(feat.geometry())
+        obiekt = feat.id()
 
-        for nowe, stare in mapowanie.items():
-            if not stare:
-                continue
-            typ_pola, dlugosc = _typ_pola(typ, nowe)
-            wartosc, blad = _rzutuj(feat[stare], typ_pola)
-            if blad and len(raport["bledy"]) < 50:
-                raport["bledy"].append(
-                    f"obiekt {feat.id()}: {stare} -> {nowe} ({blad})")
-            if typ_pola == "String" and dlugosc and len(str(wartosc)) > dlugosc:
-                if len(raport["bledy"]) < 50:
-                    raport["bledy"].append(
-                        f"obiekt {feat.id()}: {nowe} przycięte do "
-                        f"{dlugosc} znaków (było: {wartosc!r})"
-                    )
-                wartosc = str(wartosc)[:dlugosc]
-            nf[nowe] = wartosc
+        # liczby bez zrodla = 0, nie NULL (NULL w DBF to "*****")
+        for n in pola_liczbowe:
+            nf[n] = 0
 
-        # dolicz WYDZ/WYDZ_POL: COUNTY_L z tabeli wojewodztw na podstawie
-        # COUNTY, ale tylko gdy zrodlo nie mialo juz wprost kolumny COUNTY_L
-        if czy_county_l_z_tabeli:
-            nf["COUNTY_L"] = SL_WOJ.get(_tekst(nf["COUNTY"]), "")
+        for nowe, stare_lista in mapowanie.items():
+            for stare in stare_lista:
+                wartosc = feat[stare]
+                # 0 w kolumnie liczbowej traktowane jak brak - SHP nie ma
+                # pustych liczb, stare narzedzia wpisywaly 0 (Kruszwica:
+                # PARCEL_ARE=0 w 508 dzialkach); wynik i tak domyslnie 0
+                if _pusta(wartosc) or (
+                        isinstance(wartosc, (int, float))
+                        and not isinstance(wartosc, bool) and wartosc == 0):
+                    continue
+                if isinstance(wartosc, str):
+                    naprawiony = _napraw_mojibake(wartosc)
+                    if naprawiony != wartosc:
+                        raport["liczba_naprawionych"] += 1
+                        if len(raport["naprawione"]) < 50:
+                            raport["naprawione"].append(
+                                f"obiekt {obiekt}: {stare}: {wartosc!r} -> "
+                                f"{naprawiony!r}")
+                        wartosc = naprawiony
+                _ustaw(nf, typ, nowe, wartosc, obiekt, raport)
+                licz(nowe, stare)
+                break
 
-        # MUNICIP/COMMUNITY wyliczone z "golego" kodu TERYT obrebu, gdy
-        # nie bylo ich wprost w zrodle
-        if uzyj_teryt_municip or uzyj_teryt_community:
-            try:
-                val = _tekst(feat[kandydat_teryt])
-                if uzyj_teryt_municip:
+        if pole_g5idd:
+            czesci = rozbij_g5idd(feat[pole_g5idd])
+            if czesci:
+                for n in pola_z_g5idd:
+                    if not _tekst(nf[n]) and czesci[n]:
+                        _ustaw(nf, typ, n, czesci[n], obiekt, raport)
+                        licz(n, f"{pole_g5idd} (rozbite)")
+
+        if pole_adr_les and any(not _tekst(nf[n]) for n in pola_z_adr_les):
+            czesci = rozbij_adr_les(feat[pole_adr_les])
+            if czesci:
+                for n in pola_z_adr_les:
+                    if not _tekst(nf[n]):
+                        _ustaw(nf, typ, n, czesci[n], obiekt, raport)
+                        licz(n, f"{pole_adr_les} (rozbite)")
+
+        if pole_pow_ewid and not nf["PARCEL_AR"]:
+            pow_ha = _pow_ewid_ha(feat[pole_pow_ewid], feat.geometry())
+            if pow_ha:
+                nf["PARCEL_AR"] = pow_ha
+                licz("PARCEL_AR", f"{pole_pow_ewid} (pow. ewid., w ha)")
+
+        if kandydat_teryt:
+            val = _tekst(feat[kandydat_teryt])
+            if val:
+                if not _tekst(nf["MUNICIP"]):
                     nf["MUNICIP"] = val[4:8].replace("_", "")
-                if uzyj_teryt_community:
+                    licz("MUNICIP", f"{kandydat_teryt} (kod TERYT, wyliczone)")
+                if not _tekst(nf["COMMUNITY"]):
                     nf["COMMUNITY"] = val[-4:]
-            except Exception as e:  # nopep8
-                if len(raport["bledy"]) < 50:
-                    raport["bledy"].append(
-                        f"obiekt {feat.id()}: nie udało się rozbić "
-                        f"kodu TERYT: {e}"
-                    )
+                    licz("COMMUNITY",
+                         f"{kandydat_teryt} (kod TERYT, wyliczone)")
 
-        if czy_parcel_pow_z_geom:
-            nf["PARCEL_POW"] = round(feat.geometry().area() / 10000, 4)
-        if czy_land_pow_z_geom:
-            nf["LAND_POW"] = round(feat.geometry().area() / 10000, 4)
+        # WYDZ/WYDZ_POL: COUNTY_L z tabeli wojewodztw na podstawie COUNTY
+        if "COUNTY_L" in pola_docelowe and not _tekst(nf["COUNTY_L"]):
+            litera = SL_WOJ.get(_tekst(nf["COUNTY"]), "")
+            if litera:
+                nf["COUNTY_L"] = litera
+                licz("COUNTY_L", "(wyliczone z COUNTY wg tabeli województw)")
 
-        # KLU = AU+SQ, gdy zrodlo nie mialo juz gotowej kolumny KLU
-        if czy_klu_z_au_sq:
-            nf["KLU"] = (_tekst(nf["AU"]) + _tekst(nf["SQ"]))[:15]
+        # DZKAT: 1 obiekt = 1 cała działka, więc PARCEL_POW da się bezpiecznie
+        # policzyć wprost z geometrii (tak jak w przygotuj_dzkat.py). W LS
+        # geometria pojedynczego obiektu to tylko fragment użytku, więc tak
+        # liczymy co najwyżej LAND_POW (powierzchnia tego fragmentu), nie
+        # PARCEL_POW (powierzchnia całej działki).
+        pole_pow = {"DZKAT": "PARCEL_POW", "LS": "LAND_POW"}.get(typ)
+        if pole_pow and not nf[pole_pow]:
+            nf[pole_pow] = round(feat.geometry().area() / 10000, 4)
+            licz(pole_pow, "(wyliczone z geometrii)")
 
-        # dolicz PARCELID gdy brak w zrodle, ze skladowych identycznie jak
-        # w przygotuj_dzkat.py / przygotuj_ls.py
-        if czy_parcelid:
-            try:
-                lacznik = _dz_lacznik(
-                    _tekst(nf["COUNTY"]),
-                    _tekst(nf["DISTRICT"]),
-                    _tekst(nf["MUNICIP"]),
-                    _tekst(nf["COMMUNITY"]),
-                    _tekst(nf["ARK"]),
-                    _tekst(nf["PARCELNR"]),
-                )
-                nf["PARCELID"] = lacznik[:50]
-            except Exception:  # nopep8
-                pass
+        # KLU = AU+SQ (jak dopisuje przygotuj_ls.py), gdy brak gotowego KLU
+        if typ == "KLU" and not _tekst(nf["KLU"]):
+            klu = (_tekst(nf["AU"]) + _tekst(nf["SQ"]))[:15]
+            if klu:
+                nf["KLU"] = klu
+                licz("KLU", "(wyliczone z AU+SQ)")
+
+        # PARCELID ze skladowych identycznie jak w przygotuj_dzkat.py /
+        # przygotuj_ls.py, gdy pusty w zrodle
+        if typ in ("DZKAT", "LS") and not _tekst(nf["PARCELID"]) \
+                and _tekst(nf["PARCELNR"]):
+            nf["PARCELID"] = _dz_lacznik(
+                _tekst(nf["COUNTY"]),
+                _tekst(nf["DISTRICT"]),
+                _tekst(nf["MUNICIP"]),
+                _tekst(nf["COMMUNITY"]),
+                _tekst(nf["ARK"]),
+                _tekst(nf["PARCELNR"]),
+            )[:50]
+            licz("PARCELID", "(wyliczone z COUNTY+DISTRICT+MUNICIP+"
+                             "COMMUNITY+ARK+PARCELNR)")
 
         writer.addFeature(nf)
         raport["obiekty"] += 1
 
     del writer
 
-    if czy_parcelid:
-        # PARCELID jednak zostal wyliczony (nie jest to "brak zrodla" tylko
-        # pole dorobione automatycznie) - zaznacz to w raporcie
-        raport["pola_brakujace"] = [
-            x for x in raport["pola_brakujace"] if x != "PARCELID"]
-        raport["pola_zmapowane"].append(
-            ("PARCELID", "(wyliczone z COUNTY+DISTRICT+MUNICIP+"
-                          "COMMUNITY+ARK+PARCELNR)"))
-
-    if czy_parcel_pow_z_geom:
-        raport["pola_brakujace"] = [
-            x for x in raport["pola_brakujace"] if x != "PARCEL_POW"]
-        raport["pola_zmapowane"].append(
-            ("PARCEL_POW", "(wyliczone z geometrii)"))
-
-    if czy_land_pow_z_geom:
-        raport["pola_brakujace"] = [
-            x for x in raport["pola_brakujace"] if x != "LAND_POW"]
-        raport["pola_zmapowane"].append(
-            ("LAND_POW", "(wyliczone z geometrii)"))
-
-    if czy_county_l_z_tabeli:
-        raport["pola_brakujace"] = [
-            x for x in raport["pola_brakujace"] if x != "COUNTY_L"]
-        raport["pola_zmapowane"].append(
-            ("COUNTY_L", "(wyliczone z COUNTY wg tabeli województw)"))
-
-    if czy_klu_z_au_sq:
-        raport["pola_brakujace"] = [
-            x for x in raport["pola_brakujace"] if x != "KLU"]
-        raport["pola_zmapowane"].append(("KLU", "(wyliczone z AU+SQ)"))
+    for nazwa in pola_docelowe:
+        zrodla = uzyte[nazwa]
+        if not zrodla:
+            puste = mapowanie[nazwa]
+            raport["pola_brakujace"].append(
+                nazwa + (f" (kolumna {', '.join(puste)} pusta we wszystkich "
+                         "obiektach)" if puste else ""))
+        elif len(zrodla) == 1:
+            raport["pola_zmapowane"].append((nazwa, next(iter(zrodla))))
+        else:
+            raport["pola_zmapowane"].append((nazwa, " / ".join(
+                f"{z} ({ile} ob.)" for z, ile in zrodla.items())))
 
     raport["sciezka"] = sciezka_wy
     return raport
 
 
-# --- automatyczne zgadywanie kodowania odczytu grupy warstw ---------------
+# --- automatyczne zgadywanie kodowania odczytu warstwy ---------------------
 #
 # Pliki .cpg starych shapefile'i bywaja bledne (potwierdzone na probce
 # materialy/shp_stary_standard - .cpg deklaruje "UTF-8", a surowe bajty w
 # DBF sa w rzeczywistosci Windows-1250), wiec zamiast im ufac probkujemy
 # realne wartosci tekstowe i sprawdzamy, ktore z typowych dla polskich
-# danych kodowan daje sensowny tekst.
+# danych kodowan daje sensowny tekst. Zgadujemy dla KAZDEJ warstwy osobno -
+# w jednym zestawie bywaja pliki w roznych kodowaniach (Kruszwica: DZKAT/
+# ODDZ w UTF-8, OBREBY_AFT z PRG w CP1250; wspolne zgadywanie wybieralo
+# ISO-8859-2, jedyne, ktore "nie wywalalo sie" na zadnym pliku).
 
 KANDYDACI_KODOWAN = ["CP1250", "UTF-8", "ISO-8859-2", "CP852"]
 
 _POLSKIE_ZNAKI = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
-# znaki sterujace (poza tab/lf/cr) i znak zastepczy - ich obecnosc po
-# dekodowaniu oznacza prawie na pewno zle dobrane kodowanie
+# znaki sterujace (C0 poza tab/lf/cr oraz C1 0x80-0x9F) i znak zastepczy -
+# ich obecnosc po dekodowaniu oznacza prawie na pewno zle dobrane
+# kodowanie (np. UTF-8 albo CP1250 czytane jako ISO-8859-2)
 _ZNAKI_SMIECIOWE = {chr(c) for c in range(32) if c not in (9, 10, 13)}
+_ZNAKI_SMIECIOWE |= {chr(c) for c in range(0x80, 0xA0)}
 _ZNAKI_SMIECIOWE.add("�")
 
 
-def _probka_wartosci(lyr, ile_obiektow=200):
+def _probka_wartosci(lyr, ile_obiektow=5000):
     """Zwraca liste stringow z pol tekstowych warstwy, odczytanych tak,
     zeby zachowac oryginalne bajty (kodowanie ISO-8859-1 mapuje kazdy
     bajt 1:1 na znak, wiec `wartosc.encode('ISO-8859-1')` odtwarza
     dokladnie to, co bylo w pliku, niezaleznie od prawdziwego kodowania)
-    - do testowania kandydujacych kodowan."""
+    - do testowania kandydujacych kodowan. Tylko wartosci z bajtami
+    >= 0x80 - czysty ASCII wyglada tak samo w kazdym kodowaniu."""
     poprzednie = lyr.dataProvider().encoding()
     lyr.dataProvider().setEncoding("ISO-8859-1")
 
@@ -713,8 +872,11 @@ def _probka_wartosci(lyr, ile_obiektow=200):
                 break
             for p in pola_tekstowe:
                 w = feat[p]
-                if w:
-                    wartosci.append(str(w))
+                if _pusta(w):
+                    continue
+                w = str(w)
+                if any(ord(ch) >= 0x80 for ch in w):
+                    wartosci.append(w)
 
     lyr.dataProvider().setEncoding(poprzednie)
     return wartosci
@@ -722,9 +884,9 @@ def _probka_wartosci(lyr, ile_obiektow=200):
 
 def _ocen_kodowanie(wartosci, kodowanie):
     """Probuje zdekodowac probke (stringi z `_probka_wartosci`) danym
-    kodowaniem. Zwraca (czy_bez_bledow, liczba_polskich_znakow,
+    kodowaniem. Zwraca (liczba_bledow_dekodowania, liczba_polskich_znakow,
     liczba_smieciowych_znakow)."""
-    bez_bledow = True
+    bledy = 0
     polskie = 0
     smieci = 0
     for w in wartosci:
@@ -732,36 +894,42 @@ def _ocen_kodowanie(wartosci, kodowanie):
         try:
             dekodowane = raw.decode(kodowanie, errors="strict")
         except (UnicodeDecodeError, LookupError):
-            bez_bledow = False
+            bledy += 1
             continue
         polskie += sum(1 for ch in dekodowane if ch in _POLSKIE_ZNAKI)
         smieci += sum(1 for ch in dekodowane if ch in _ZNAKI_SMIECIOWE)
-    return bez_bledow, polskie, smieci
+    return bledy, polskie, smieci
+
+
+def zgadnij_kodowanie_warstwy(lyr):
+    """Zgaduje kodowanie jednej warstwy. Zwraca nazwe z
+    `KANDYDACI_KODOWAN` albo None, gdy warstwa nie ma zadnych znakow
+    spoza ASCII (wtedy kodowanie nie ma znaczenia).
+
+    1. Cala probka poprawnym UTF-8 -> UTF-8: przypadkowy tekst w CP1250
+       praktycznie nigdy nie jest poprawnym UTF-8 (polska litera w CP1250
+       to pojedynczy bajt >= 0x80, ktory w UTF-8 musi miec bajt
+       kontynuacji 0x80-0xBF zaraz po sobie).
+    2. W przeciwnym razie: najmniej bledow dekodowania > najmniej znakow
+       smieciowych (C0/C1) > najwiecej polskich znakow > kolejnosc w
+       KANDYDACI_KODOWAN (przy remisie CP1250)."""
+    wartosci = _probka_wartosci(lyr)
+    if not wartosci:
+        return None
+    if _ocen_kodowanie(wartosci, "UTF-8")[0] == 0:
+        return "UTF-8"
+    wyniki = [
+        (kandydat,) + _ocen_kodowanie(wartosci, kandydat)
+        for kandydat in KANDYDACI_KODOWAN
+    ]
+    wyniki.sort(key=lambda w: (w[1], w[3], -w[2]))
+    return wyniki[0][0]
 
 
 def zgadnij_kodowanie(warstwy):
-    """Zgaduje wspolne kodowanie dla grupy warstw (np. wszystkich
-    zaznaczonych w dialogu konwersji) na podstawie probki wartosci
-    tekstowych. Zwraca nazwe kodowania z `KANDYDACI_KODOWAN`, albo None,
-    jesli nie udalo sie zebrac zadnej probki (np. same pola numeryczne
-    albo warstwy bez obiektow)."""
-    wszystkie_wartosci = []
-    for lyr in warstwy:
-        wszystkie_wartosci += _probka_wartosci(lyr)
-
-    if not wszystkie_wartosci:
-        return None
-
-    wyniki = [
-        (kandydat,) + _ocen_kodowanie(wszystkie_wartosci, kandydat)
-        for kandydat in KANDYDACI_KODOWAN
-    ]
-    # priorytet: brak bledow dekodowania > najwiecej polskich znakow >
-    # najmniej smieciowych znakow > kolejnosc w KANDYDACI_KODOWAN (stabilne
-    # sortowanie - przy remisie wygrywa CP1250, historyczny domyslny
-    # standard tego zestawu danych)
-    wyniki.sort(key=lambda w: (not w[1], -w[2], w[3]))
-    return wyniki[0][0]
+    """Zgaduje kodowanie dla kazdej warstwy z listy osobno. Zwraca liste
+    wynikow `zgadnij_kodowanie_warstwy` (rownolegla do `warstwy`)."""
+    return [zgadnij_kodowanie_warstwy(lyr) for lyr in warstwy]
 
 
 def probka_do_podgladu(warstwy, ile=30):
