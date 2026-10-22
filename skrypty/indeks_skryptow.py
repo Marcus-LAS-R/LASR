@@ -257,6 +257,9 @@ INDEKS = {
     'eksp_kml': _w('eksport KML google earth wyeksportuj warstwa'),
     'a_reproj': _w('reprojekcja odwzorowanie układ współrzędnych CRS 1992 '
                    'przelicz warstwy', dawne=['Reprojekcja warstw']),
+    'a_polacz_shp': _w('połącz scal złącz warstwy SHP gminy obręby '
+                       'DZKAT LS EWID WYDZ ODDZ PNSW duplikaty nakładanie '
+                       'SHP_razem 2180'),
     'a_uzup_uszkodzen': _w('uzupełnij uszkodzenia D-STAN CAUSE_CD '
                            'DAMAGE_DEGREE przyczyna stopień baza'),
     'a_dop_adm': _w('dodaj uzupełnij MUNICIP COMMUNITY gmina obręb kody '

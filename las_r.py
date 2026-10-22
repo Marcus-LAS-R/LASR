@@ -126,6 +126,7 @@ from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
 from .skrypty import rozdziel_upul_isl
 from .skrypty import zabiegi_podmien
+from .skrypty import shp_polacz_warstwy
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1164,6 +1165,8 @@ class LasR:
         self.m_narzedzia.addAction(self.a_podmien_kw)
         self.a_podmien_kw.triggered.connect(self.podmien_kwerendy)
 
+        self.m_narzedzia.addSeparator()
+
         self.a_copy = QAction(QIcon(None), "Połącz bazy TPU", self.iface.mainWindow())
         self.a_copy.setToolTip(
             "Scala dane z kilku baz TPU (np. od różnych taksatorów) w jedną "
@@ -1172,6 +1175,19 @@ class LasR:
             "w folderze Baza_polaczona, opcjonalnie też wersja BDO.")
         self.m_narzedzia.addAction(self.a_copy)
         self.a_copy.triggered.connect(self.lacz_bazy)
+
+        self.a_polacz_shp = QAction(
+            QIcon(None), "Połącz warstwy SHP", self.iface.mainWindow()
+        )
+        self.a_polacz_shp.setToolTip(
+            "Łączy warstwy o tych samych nazwach (DZKAT, LS, WYDZ...) z "
+            "podfolderów SHP wybranych folderów gmin/obrębów w jedną warstwę "
+            "w EPSG:2180 (folder SHP_razem). Identyczne geometrie tylko raz, "
+            "nakładania na warstwach pamięci <NAZWA>_nakładanie.")
+        self.m_narzedzia.addAction(self.a_polacz_shp)
+        self.a_polacz_shp.triggered.connect(self.polacz_warstwy_shp)
+
+        self.m_narzedzia.addSeparator()
 
         self.a_wydziel_wlasc = QAction(
             QIcon(None), "Wydziel właścicieli do nowej bazy", self.iface.mainWindow()
@@ -2223,6 +2239,9 @@ class LasR:
         rep = shp_konwertuj.KonwertujWarstwy()
         rep.ustaw_dialog()
         rep.show()
+
+    def polacz_warstwy_shp(self):
+        shp_polacz_warstwy.uruchom(self.iface)
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DodajIUzupelnijAdm()
