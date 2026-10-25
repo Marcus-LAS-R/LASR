@@ -281,6 +281,16 @@ INDEKS = {
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
+    'a_ntg_warstwy': _w('NTG narada techniczno-gospodarcza przygotuj '
+                        'warstwy baza połączone obiekt'),
+    'a_ntg_mapy': _w('NTG narada techniczno-gospodarcza mapy mapa ogólna '
+                     'prezentacja layout gminy obręby nadleśnictwa PNG '
+                     'TSL siedliska zabiegi formy ochrony przyrody FOP '
+                     'atlas'),
+    'a_ntg_protokol': _w('NTG narada techniczno-gospodarcza protokół DOCX '
+                         'Word'),
+    'a_ntg_prezentacja': _w('NTG narada techniczno-gospodarcza prezentacja '
+                            'PowerPoint PPTX slajdy'),
 
     # --- pasek LAS-R
     'dop_meta': _w('dopisz metadane wydzielenia', dawne=['dopisz metadane']),

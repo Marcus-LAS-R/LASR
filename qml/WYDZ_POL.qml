@@ -2350,7 +2350,7 @@
               <prop v="0" k="angle"/>
               <prop v="L" k="chr"/>
               <prop v="0,0,0,255" k="color"/>
-              <prop v="Arial [Mono]" k="font"/>
+              <prop v="Arial" k="font"/>
               <prop v="Normal" k="font_style"/>
               <prop v="1" k="horizontal_anchor_point"/>
               <prop v="miter" k="joinstyle"/>

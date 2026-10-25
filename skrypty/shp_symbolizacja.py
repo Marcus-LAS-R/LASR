@@ -132,6 +132,19 @@ def _rysuj_klu(iface, lyr):
     iface.mapCanvas().refreshAllLayers()
 
 
+def plik_stylu(nazwa_warstwy):
+    """Nazwa pliku .qml z folderu qml/ dla warstwy (wg DOPASOWANIE_STYLI*)
+    albo None."""
+    nazwa = nazwa_warstwy.upper()
+    return next(
+        (q for k, q in DOPASOWANIE_STYLI_DOKLADNE.items()
+         if k.upper() == nazwa.strip()), None
+    ) or next(
+        (q for k, q in DOPASOWANIE_STYLI.items() if k.upper() in nazwa),
+        None
+    )
+
+
 def dopasuj_style(iface):
     """Dla każdej warstwy w projekcie (TOC) sprawdza, czy jej nazwa zawiera
     któryś z kluczy z DOPASOWANIE_STYLI (bez rozróżniania wielkości liter)
@@ -153,14 +166,7 @@ def dopasuj_style(iface):
     niedopasowane = []
 
     for lyr in QgsProject.instance().mapLayers().values():
-        nazwa = lyr.name().upper()
-        plik = next(
-            (q for k, q in DOPASOWANIE_STYLI_DOKLADNE.items()
-             if k.upper() == nazwa.strip()), None
-        ) or next(
-            (q for k, q in DOPASOWANIE_STYLI.items() if k.upper() in nazwa),
-            None
-        )
+        plik = plik_stylu(lyr.name())
         if plik is None:
             niedopasowane.append(lyr.name())
             continue

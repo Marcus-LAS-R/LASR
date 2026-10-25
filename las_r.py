@@ -120,6 +120,7 @@ from .skrypty import (
 from .skrypty import aktualizacja_upul
 from .skrypty import konwersja_pul_upul
 from .skrypty import kontrola_terenowa
+from .skrypty import protokol_ntg
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
@@ -1357,6 +1358,43 @@ class LasR:
         self.a_kontrola_terenowa.triggered.connect(
             self.materialy_do_kontroli_terenowej)
 
+        self.m_raporty.addSeparator()
+        self.m_ntg = QMenu("NTG materiały", self.m_raporty)
+        self.m_raporty.addMenu(self.m_ntg)
+
+        self.a_ntg_warstwy = QAction(
+            QIcon(None), "Przygotuj warstwy i bazę", self.iface.mainWindow())
+        self.a_ntg_warstwy.setToolTip(
+            "NTG: łączy WYDZ, ODDZ, OBR, GMIN, LS i bazy TPU z folderów "
+            "obiektu, zostawia gminy/obręby z wydzieleniami i nadleśnictwa "
+            "wokół obiektu, tworzy WYDZ_DOPISANE (wynik: SHP, baza, raporty).")
+        self.m_ntg.addAction(self.a_ntg_warstwy)
+        self.a_ntg_warstwy.triggered.connect(self.ntg_przygotuj_warstwy)
+
+        self.a_ntg_mapy = QAction(
+            QIcon(None), "Generuj mapy", self.iface.mainWindow())
+        self.a_ntg_mapy.setToolTip(
+            "NTG: mapy do prezentacji (A4 poziomo) - mapa ogólna obiektu "
+            "oraz dla każdej gminy TSL, zabiegi i formy ochrony przyrody "
+            "(atlas po gminach); layouty + PNG.")
+        self.m_ntg.addAction(self.a_ntg_mapy)
+        self.a_ntg_mapy.triggered.connect(self.ntg_generuj_mapy)
+
+        self.a_ntg_protokol = QAction(
+            QIcon(None), "Przygotuj protokół NTG", self.iface.mainWindow())
+        self.a_ntg_protokol.setToolTip(
+            "NTG: protokół narady techniczno-gospodarczej (DOCX) "
+            "(w przygotowaniu).")
+        self.a_ntg_protokol.setEnabled(False)
+        self.m_ntg.addAction(self.a_ntg_protokol)
+
+        self.a_ntg_prezentacja = QAction(
+            QIcon(None), "Stwórz prezentację", self.iface.mainWindow())
+        self.a_ntg_prezentacja.setToolTip(
+            "NTG: prezentacja na naradę (PPTX) (w przygotowaniu).")
+        self.a_ntg_prezentacja.setEnabled(False)
+        self.m_ntg.addAction(self.a_ntg_prezentacja)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(
             ico_wydz_dopisz, "Dopisz metadane", self.iface.mainWindow()
@@ -1976,6 +2014,12 @@ class LasR:
 
     def materialy_do_kontroli_terenowej(self):
         kontrola_terenowa.uruchom(self.iface)
+
+    def ntg_przygotuj_warstwy(self):
+        protokol_ntg.przygotuj_warstwy(self.iface)
+
+    def ntg_generuj_mapy(self):
+        protokol_ntg.generuj_mapy(self.iface)
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)
