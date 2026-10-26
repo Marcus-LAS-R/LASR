@@ -289,7 +289,8 @@ INDEKS = {
                      'TSL siedliska zabiegi formy ochrony przyrody FOP '
                      'atlas'),
     'a_ntg_protokol': _w('NTG narada techniczno-gospodarcza protokół DOCX '
-                         'Word'),
+                         'Word szablon statystyki rozliczenie powierzchni '
+                         'etaty TSL zabiegi rozbieżności'),
     'a_ntg_prezentacja': _w('NTG narada techniczno-gospodarcza prezentacja '
                             'PowerPoint PPTX slajdy'),
 

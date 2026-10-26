@@ -15,10 +15,13 @@ Przebieg (gui/przygotuj_dialog.py woła kolejne kroki):
    ma wydzielenia (obreby_z_bazy - kody TERYT, nie geometria),
    nadleśnictwa - tylko przecinające zasięg gmin obiektu (z zapasem
    ZAPAS_NADL, żeby na mapie były też sąsiednie);
+   Połączona baza od razu anonimizowana (baza_anonimizuj.anonimizuj_baze,
+   kwerendy zostają) - stąd nazwa Baza_NTG_polaczona_BDO.mdb; bazy
+   źródłowe nietknięte;
 5. dopisz_metadane: WYDZ_DOPISANE jak "Dopisz metadane"
    (shp_dopisz_kody.DopiszKody) z połączonej bazy.
-Wynik: <eksport>\\SHP, <eksport>\\UPUL.mdb, <eksport>\\Raporty - bez
-projektu QGIS (mapy robi "Generuj mapy" w bieżącym projekcie).
+Wynik: <eksport>\\SHP, <eksport>\\Baza_NTG_polaczona_BDO.mdb,
+<eksport>\\Raporty - bez projektu QGIS (mapy robi "Generuj mapy" w bieżącym projekcie).
 """
 import os
 import shutil
@@ -42,7 +45,8 @@ EPSG = "EPSG:2180"
 FOLDER_EKSPORTU = "_NTG"          # '_' -> pomijany przy szukaniu danych
 FOLDER_SHP = "SHP"
 FOLDER_ROBOCZY = "_robocze"
-NAZWA_BAZY = "UPUL.mdb"
+NAZWA_BAZY = "Baza_NTG_polaczona_BDO.mdb"   # zanonimizowana, kwerendy zostają
+NAZWA_BAZY_STARA = "UPUL.mdb"     # wcześniejsze wersje - bez anonimizacji
 NAZWA_NADL = "NADL"
 
 WARSTWY_LACZONE = ("WYDZ", "ODDZ", "LS")      # wprost do SHP
@@ -288,11 +292,11 @@ def dopisz_metadane(iface, wydz_sc, baza_sc):
 
 # ---------------------------------------------------------------- raport
 
-def zapisz_raport(eksport, linie):
+def zapisz_raport(eksport, linie, nazwa="przygotuj"):
     kat = os.path.join(eksport, "Raporty")
     os.makedirs(kat, exist_ok=True)
-    sc = os.path.join(kat, "raport_przygotuj_NTG_%s.txt"
-                      % datetime.now().strftime("%Y%m%dT%H%M%S"))
+    sc = os.path.join(kat, "raport_%s_NTG_%s.txt"
+                      % (nazwa, datetime.now().strftime("%Y%m%dT%H%M%S")))
     with open(sc, "w", encoding="utf-8") as f:
         f.write("\n".join(linie))
     return sc

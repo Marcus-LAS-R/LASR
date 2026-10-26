@@ -13,6 +13,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import QgsVectorLayer
 
+from ...baza_anonimizuj import anonimizuj_baze
 from ...baza_polacz_wyszukaj import (
     WyborBazyWFolderzeDialog, sciezka_wzgledna, znajdz_bazy)
 from ..core import przygotuj as core
@@ -163,11 +164,17 @@ class PrzygotujDialog(QDialog):
         istn = [p for p in (os.path.join(eksport, core.FOLDER_SHP),
                             os.path.join(eksport, core.NAZWA_BAZY))
                 if os.path.exists(p)]
-        tekst += "\nWynik: %s" % eksport
+        stara = os.path.join(eksport, core.NAZWA_BAZY_STARA)
+        tekst += "\nWynik: %s (baza zanonimizowana, kwerendy zostają)" \
+            % eksport
         if istn:
             tekst += ("\n\n!!! W folderze eksportu są już: %s - zostaną "
                       "NADPISANE." % ", ".join(os.path.basename(p)
                                                for p in istn))
+        if os.path.exists(stara):
+            tekst += ("\n\n!!! %s (z wcześniejszej wersji, bez anonimizacji) "
+                      "zostanie USUNIĘTA." % core.NAZWA_BAZY_STARA)
+            istn.append(stara)
         tekst += "\n\nKontynuować?"
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Warning if istn else QMessageBox.Question)
@@ -286,6 +293,19 @@ class PrzygotujDialog(QDialog):
                 QMessageBox.critical(okno, TYTUL, "Łączenie baz przerwane: "
                                      "%s\n\nRaport: %s" % (kom, rap))
                 return
+
+            if not krok("Anonimizacja bazy...", 65):
+                return self._przerwano(pd)
+            if not anonimizuj_baze(baza_sc, usun_kwerendy=False):
+                raise RuntimeError("Nie udało się zanonimizować bazy " +
+                                   baza_sc)
+            raport.append("Baza zanonimizowana (kwerendy zostawione): " +
+                          core.NAZWA_BAZY)
+            stara = os.path.join(eksport, core.NAZWA_BAZY_STARA)
+            if os.path.exists(stara):
+                os.remove(stara)
+                raport.append("Usunięto %s z wcześniejszej wersji (bez "
+                              "anonimizacji)" % core.NAZWA_BAZY_STARA)
 
             if not krok("Wybór gmin i obrębów z wydzieleniami w bazie...",
                         70):

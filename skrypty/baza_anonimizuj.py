@@ -38,6 +38,31 @@ class _Dialog(QDialog):
         return self.ui.checkBox_kwerendy.isChecked()
 
 
+def anonimizuj_baze(sc, usun_kwerendy=False):
+    """Anonimizuje bazę W MIEJSCU (bez kopii) - V_ADDRESS, usunięta
+    V_ADDRESS_second, wyczyszczone udziały SUB_OWNER, opcjonalnie usunięte
+    kwerendy. Zwraca True, gdy udało się połączyć z bazą."""
+    baza = Baza(sc)
+    if not baza.polacz():
+        QgsMessageLog.logMessage('Nie mogłem połączyć się z bazą: ' + sc,
+                                 'Las-R')
+        return False
+    QgsMessageLog.logMessage('\n' + 20*'-' + '\nPrzetwarzam bazę: ' + sc,
+                             'Las-R', Qgis.Info)
+    try:
+        baza.anonimizuj_vaddress()
+        baza.usun_tabele(['V_ADDRESS_second'])
+        # udziały właścicieli w wydzieleniach (tabela pomocnicza TPU) -
+        # rekordy usuwane, pusta tabela zostaje jak w czystej bazie
+        baza.wyczysc_tabele(['V_ARODES_PARTICIPATION_AREA_SUB_OWNER'])
+        if usun_kwerendy:
+            baza.usun_kwerendy()
+    finally:
+        baza.zamknij()
+    QgsMessageLog.logMessage('\n' + 20*'-', 'Las-R', Qgis.Info)
+    return True
+
+
 def Anonimizuj(iface):
     dlg = _Dialog(iface)
     if dlg.exec_() != QDialog.Accepted:
@@ -71,30 +96,8 @@ def Anonimizuj(iface):
         sc_bdo = os.path.join(os.path.dirname(sc), nazwa + '_BDO.mdb')
 
         shutil.copy2(sc, sc_bdo)
-
-        baza = Baza(sc_bdo)
-        if not baza.polacz():
-            QgsMessageLog.logMessage(
-                'Nie mogłem połączyć się z bazą: ' + sc_bdo,
-                'Las-R'
-            )
-            continue
-
-        QgsMessageLog.logMessage(
-            '\n' + 20*'-' + '\nPrzetwarzam bazę: ' + sc_bdo,
-            'Las-R', Qgis.Info
-        )
-
-        baza.anonimizuj_vaddress()
-        baza.usun_tabele(['V_ADDRESS_second'])
-        # udziały właścicieli w wydzieleniach (tabela pomocnicza TPU) -
-        # rekordy usuwane, pusta tabela zostaje jak w czystej bazie
-        baza.wyczysc_tabele(['V_ARODES_PARTICIPATION_AREA_SUB_OWNER'])
-        if usun_kwerendy:
-            baza.usun_kwerendy()
-        ile_ok += 1
-
-        QgsMessageLog.logMessage('\n' + 20*'-', 'Las-R', Qgis.Info)
+        if anonimizuj_baze(sc_bdo, usun_kwerendy):
+            ile_ok += 1
 
     iface.messageBar().pushMessage(
         'OK',

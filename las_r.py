@@ -1383,10 +1383,11 @@ class LasR:
         self.a_ntg_protokol = QAction(
             QIcon(None), "Przygotuj protokół NTG", self.iface.mainWindow())
         self.a_ntg_protokol.setToolTip(
-            "NTG: protokół narady techniczno-gospodarczej (DOCX) "
-            "(w przygotowaniu).")
-        self.a_ntg_protokol.setEnabled(False)
+            "NTG: protokół narady techniczno-gospodarczej (DOCX) z bazy "
+            "i warstw z folderu NTG - rozliczenie powierzchni, TSL, zabiegi, "
+            "FOP, statystyki, rozbieżności, etaty.")
         self.m_ntg.addAction(self.a_ntg_protokol)
+        self.a_ntg_protokol.triggered.connect(self.ntg_protokol)
 
         self.a_ntg_prezentacja = QAction(
             QIcon(None), "Stwórz prezentację", self.iface.mainWindow())
@@ -2020,6 +2021,9 @@ class LasR:
 
     def ntg_generuj_mapy(self):
         protokol_ntg.generuj_mapy(self.iface)
+
+    def ntg_protokol(self):
+        protokol_ntg.przygotuj_protokol(self.iface)
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)
