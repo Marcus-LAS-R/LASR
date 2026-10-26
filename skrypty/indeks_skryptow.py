@@ -65,8 +65,9 @@ INDEKS = {
     'a_przyg_dla_taksatora': _w('spakuj zip archiwum taksator teren paczka '
                                 'wysyłka dane'),
     'dop_dzkat': _w('kontrola DZKAT działki katastralne baza porównanie '
-                    'rozbieżności F_PARCEL',
-                    dawne=['Kontrla DZKAT z bazką']),
+                    'rozbieżności F_PARCEL EGiB ULDK TERYT',
+                    dawne=['Kontrla DZKAT z bazką',
+                           'Kontrola DZKAT z bazką']),
     'spr_kontr_ls': _w('kontrola Ls użytek leśny baza porównanie '
                        'rozbieżności nawigator'),
     'a_przygotuj_baze_ewid': _w('nowa baza utwórz EWID ewidencja działki '

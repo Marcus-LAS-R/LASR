@@ -35,6 +35,7 @@ class KontrolaDzKat(object):
         self.iatr = {}
         self.ile_dzkat = 0  # liczba wszystkich dz w shp
         self.tylko_op = []  # lista dz z kodem OP w shp
+        self.przekonwertowane = []  # PARCELID przekonwertowane z EGiB/ULDK
 
         self.kolumny = [
             QgsField("COUNTY", QVariant.String, len=2),
@@ -168,7 +169,7 @@ class KontrolaDzKat(object):
         nr = ''
         powgraf = round(dz.geometry().area()/10000, 4)
 
-        dzp = str(dz['PARCELID'])
+        dzp = self._normalizuj_parcelid(str(dz['PARCELID']))
         if len(dzp.split('.')) == 3:
             ark = dzp.split('.')[1]
 
@@ -185,9 +186,29 @@ class KontrolaDzKat(object):
             PARCELNR=nr,
             ARK=ark,
             PARCEL_POW=powgraf,
+            # działki spoza bazy też dostają PARCELID (dawniej ' ', czyli
+            # kasowało się to, co było w warstwie)
+            PARCELID=dzp,
         )
 
         return uzup
+
+    def _normalizuj_parcelid(self, dzp):
+        """PARCELID skopiowany z EGiB/ULDK (identyfikator TERYT działki)
+        zamienia na format bazy, np.:
+            300202_2.0020.431       -> 30020220020.431
+            160906_2.0105.AR_1.403  -> 16090620105.AR_1.403
+        Gmina (6 cyfr) + rodzaj gminy dają COUNTY+DISTRICT+MUNICIP, obręb
+        to COMMUNITY. Arkusz w bazie (REG_SHEET_NR2) też jest zapisany jako
+        AR_x, więc reszta identyfikatora zostaje bez zmian. Inne formaty
+        zwraca bez zmian."""
+        dzp = dzp.strip()
+        m = re.match(r'^(\d{6})_(\d)\.(\d{4})\.(.+)$', dzp)
+        if not m:
+            return dzp
+        nowy = m.group(1) + m.group(2) + m.group(3) + '.' + m.group(4)
+        self.przekonwertowane.append([dzp, nowy])
+        return nowy
 
     def dz_lacznik(self, uzup):
         # stworz lacznik do danych z bazy
@@ -385,6 +406,10 @@ class KontrolaDzKat(object):
             raport += 'Działek z brakiem opisu w bazie: ' + \
                 str(len(self.dzkat_brak)) + '\n'
 
+        if len(self.przekonwertowane) > 0:
+            raport += 'PARCELID przekonwertowane z formatu EGiB/ULDK: ' + \
+                str(len(self.przekonwertowane)) + '\n'
+
         # wypisz do logu podstawowy raport
         QgsMessageLog.logMessage(raport, 'Las-R')
 
@@ -480,6 +505,18 @@ class KontrolaDzKat(object):
 
             raport += '\n'.join([x + '\t' + str(len(sl_temp[x])) + " dzkat"
                                  for x in sorted(list(sl_temp.keys()))])
+            raport += '\n' + 45 * '-' + '\n\n\n'
+
+        if len(self.przekonwertowane) > 0:
+            raport += "---PARCELID PRZEKONWERTOWANE (EGiB/ULDK)------\n"
+            raport += "Przekonwertowane PARCELID: " + \
+                str(len(self.przekonwertowane)) + '\n\n'
+            raport += "PARCELID w warstwie\tPARCELID po konwersji\n"
+            if len(self.przekonwertowane) < 200:
+                raport += '\n'.join(['\t'.join(x)
+                                     for x in self.przekonwertowane])
+            else:
+                raport += 'Liste dzialek pominieto'
             raport += '\n' + 45 * '-' + '\n\n\n'
 
         raport += "---KONIEC RAPORTU----------------------------------"

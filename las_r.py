@@ -453,7 +453,7 @@ class LasR:
         self.m_przyg_danych.addSeparator()
 
         self.dop_dzkat = QAction(
-            QIcon(None), "Kontrola DZKAT z bazką", self.iface.mainWindow()
+            QIcon(None), "Kontrola DZKAT z bazą", self.iface.mainWindow()
         )
         self.dop_dzkat.setToolTip(
             "Porównuje warstwę działek katastralnych (DZKAT) z danymi w bazie "
