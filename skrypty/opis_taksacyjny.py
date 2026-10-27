@@ -44,7 +44,8 @@ Panel otwarty = baza podłączona:
 - opis wydzielenia: podpowiedź TD z TSL (opis_warstwy.TD_DLA_TSL, Enter
   przyjmuje kolejne gatunki), ↓ w polu z listą otwiera listę,
 - "Dodaj zabiegi" (+ "pozyskanie +X%"): generator jak "Dopisz/sprawdź
-  zabiegi" w trybie Dopisz (bez Janczulewicza) dla bieżącego wydzielenia,
+  zabiegi" w trybie Dopisz (bez Janczulewicza) na stanie karty
+  (opis_zabiegi.py): zabiegi karty planowane od nowa, do bazy po "Zapisz",
 - wskazania gospodarcze edytowalne (kod czynności, pilność, % pow. <-> pow.,
   % grub., ✕, nowy wiersz), zapis razem z opisem; masa liczona w TPU,
 - PNSW (F_AROD_SPEC_AREA + gatunki F_SPECIES_SPAREA, opis_pnsw.py): rodzaj,
@@ -82,6 +83,7 @@ from qgis.core import (
     QgsField, QgsFillSymbol, QgsGeometry, QgsProject, QgsRectangle,
     QgsVectorLayer, QgsWkbTypes,
 )
+from qgis.gui import QgsMapTool
 from PyQt5.QtCore import QVariant
 
 from . import kopie_manipulacyjne
@@ -413,7 +415,10 @@ def _model_warstw(warstwy, gatunki):
             'BHD': _int(g.get('BHD')),
             'HEIGHT': _int(g.get('HEIGHT')),
             'SITE_CLASS_CD': _txt(g.get('SITE_CLASS_CD')),
-            'VOLUME': _float(g.get('VOLUME')),
+            # pusta VOLUME, masa tylko w VOLUME_TEMP (czyta ją TPU i
+            # generator zabiegów) - karta pokazuje VOLUME_TEMP
+            'VOLUME': _float(g.get('VOLUME')) if not _pusty(g.get('VOLUME'))
+            else _float(g.get('VOLUME_TEMP')),
         } for g in gatunki if _txt(g.get('STOREY_CD')) == k]
         wyn.append({
             'STOREY_CD': k,
@@ -1142,6 +1147,26 @@ def _sekcja(tytul):
 
 # --------------------------------------------------------------- okno karty
 
+class _WskazWydzielenie(QgsMapTool):
+    """Narzędzie mapy "Skopiuj opis z...": LPM - wskazanie wydzielenia
+    (punkt ekranu do callbacku), Esc - anulowanie. PPM zabiera podgląd
+    (filtr zdarzeń panelu), więc tu nie dociera."""
+
+    def __init__(self, kanwa, po_kliknieciu, po_anulowaniu):
+        super().__init__(kanwa)
+        self._klik = po_kliknieciu
+        self._anuluj = po_anulowaniu
+        self.setCursor(QCursor(Qt.CrossCursor))
+
+    def canvasReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self._klik(e.pos())
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self._anuluj()
+
+
 class OknoOpisu(QWidget):
     """Karta opisu - korzysta z połączenia panelu (PanelOpisu), sama nie
     łączy się z bazą i nie śledzi zaznaczenia (robi to panel)."""
@@ -1182,6 +1207,13 @@ class OknoOpisu(QWidget):
         self._timer_info.setSingleShot(True)
         self._timer_info.setInterval(1000)
         self._timer_info.timeout.connect(self._zamknij_krok_info)
+        # "Skopiuj opis z...": narzędzie wskazywania, narzędzie mapy sprzed
+        # niego, stan podglądu PPM sprzed kopiowania (None - nic do
+        # przywrócenia) i skopiowany, jeszcze niezapisany opis
+        self._narzedzie = None
+        self._narzedzie_przed = None
+        self._podglad_przed = None
+        self._kopia_czeka = False
 
         self._ustaw_tytul()
         self._zbuduj()
@@ -1417,12 +1449,11 @@ class OknoOpisu(QWidget):
         naglowek_zab.addWidget(self.spin_mod_trzeb)
         self.btn_dodaj_zab = QPushButton('Dodaj zabiegi')
         self.btn_dodaj_zab.setToolTip(
-            'Generuje i dopisuje zabiegi dla tego wydzielenia według logiki '
-            '"Dopisz/sprawdź zabiegi" (tryb Dopisz, bez trybu Janczulewicza): '
-            'brakujące zabiegi dopisuje, wpisanym poprawia powierzchnię, '
-            'uzupełnia uwagi. Działa na opisie zapisanym w bazie - '
-            'niezapisane zmiany najpierw trzeba zapisać. Przed zmianą kopia '
-            'bazy, stan zabiegów przed/po w dzienniku.')
+            'Czyści zabiegi na karcie i planuje je od nowa dla aktualnego '
+            'stanu karty według logiki "Dopisz/sprawdź zabiegi" (tryb '
+            'Dopisz, bez trybu Janczulewicza), uzupełnia uwagi. Zmiany '
+            'trafiają do bazy dopiero po "Zapisz" (jedna transakcja); '
+            'Ctrl+Z cofa całe generowanie.')
         self.btn_dodaj_zab.clicked.connect(self.dodaj_zabiegi)
         naglowek_zab.addWidget(self.btn_dodaj_zab)
         for w in (self.lbl_mod_trzeb, self.spin_mod_trzeb, self.btn_dodaj_zab):
@@ -1462,9 +1493,23 @@ class OknoOpisu(QWidget):
         self.lay_tresc.addLayout(dol)
         self.lay_tresc.addStretch(1)
 
-        # --- przyciski na dole okna (z dala od zamykania okna); usuwanie
-        # po przeciwnej stronie niż Zapisz
+        # --- przyciski na dole okna (z dala od zamykania okna), cztery
+        # grupy oddzielone kreskami: Usuń | Cofnij, Cofnij wszystko |
+        # Skopiuj opis z... | status + Zapisz (usuwanie po przeciwnej
+        # stronie niż Zapisz)
         self.pasek = QHBoxLayout()
+        self.pasek.setSpacing(4)
+        self._sep_paska = []
+
+        def oddziel():
+            linia = QFrame()
+            linia.setFrameShape(QFrame.VLine)
+            linia.setFrameShadow(QFrame.Sunken)
+            self._sep_paska.append(linia)
+            self.pasek.addSpacing(6)
+            self.pasek.addWidget(linia)
+            self.pasek.addSpacing(6)
+
         self.btn_usun = QPushButton('Usuń wydzielenie')
         self.btn_usun.setToolTip(
             'Usuwa z bazy wydzielenie z całym opisem - warstwy, gatunki, '
@@ -1476,7 +1521,7 @@ class OknoOpisu(QWidget):
             'QPushButton:disabled { background: #e8b4b4; }')
         self.btn_usun.clicked.connect(self.usun_wydzielenie)
         self.pasek.addWidget(self.btn_usun)
-        self.pasek.addStretch(1)
+        oddziel()
         self.btn_cofnij_krok = QPushButton('Cofnij')
         self.btn_cofnij_krok.clicked.connect(self.cofnij_krok)
         self.pasek.addWidget(self.btn_cofnij_krok)
@@ -1485,8 +1530,25 @@ class OknoOpisu(QWidget):
             'Przywraca stan wydzielenia z bazy (odrzuca wszystkie niezapisane '
             'zmiany). Można to odwrócić przyciskiem "Cofnij" / Ctrl+Z.')
         self.btn_cofnij.clicked.connect(self._cofnij)
-        self.pasek.addWidget(self.btn_cofnij)  # obok "Cofnij", na środku
-        # status (wynik zabiegów, zapisu, błędy) między Cofnij a Zapisz
+        self.pasek.addWidget(self.btn_cofnij)
+        oddziel()
+        self.btn_skopiuj = QPushButton('Skopiuj opis z...')
+        self.btn_skopiuj.setCheckable(True)
+        self.btn_skopiuj.setToolTip(
+            'Wskaż LPM na mapie wydzielenie, z którego opis zastąpi opis na '
+            'karcie (warstwy, gatunki, TD, cechy, zabiegi - pow. zabiegów '
+            'przeliczona do pow. wydzielenia, masa do przeliczenia w TPU; '
+            'adres i PNSW bez zmian). Podgląd PPM włącza się na czas '
+            'kopiowania i wraca do poprzedniego ustawienia po "Zapisz". '
+            'Esc - anuluj, Ctrl+Z - cofnij kopię.')
+        self.btn_skopiuj.setStyleSheet(
+            'QPushButton:checked { background: #1565c0; color: white; '
+            'font-weight: bold; border: 1px solid #0d47a1; }')
+        self.btn_skopiuj.toggled.connect(self._przelacz_kopiowanie)
+        self.pasek.addWidget(self.btn_skopiuj)
+        oddziel()
+        # status (wynik zabiegów, zapisu, błędy) - wolne miejsce przed
+        # Zapisz, który zostaje dociśnięty do prawej
         self.lbl_status = QLabel()
         self.lbl_status.setWordWrap(True)
         self.lbl_status.setAlignment(Qt.AlignCenter)
@@ -1534,6 +1596,7 @@ class OknoOpisu(QWidget):
         self.adres_bazy = None
         self._wypelnij_adres()
         self._status(tekst_statusu)
+        self._koniec_kopii()
         self._odswiez_przyciski()
         self._dopasuj_okno()
 
@@ -1650,6 +1713,9 @@ class OknoOpisu(QWidget):
         self._adr_krok = False
         self._wypelnij_adres()
         self._status('')
+        # świeży stan z bazy (po "Zapisz" albo inne wydzielenie) - koniec
+        # kopiowania opisu
+        self._koniec_kopii()
         self._odswiez_przyciski()
         # rozmiary widgetów są wiarygodne dopiero po wyświetleniu/polerowaniu
         QTimer.singleShot(0, self._uloz_grupy)
@@ -2224,8 +2290,11 @@ class OknoOpisu(QWidget):
              'Cofa po kolei ostatnie zmiany') + ' (Ctrl+Z; ponów - Ctrl+Y)')
         self.btn_usun.setVisible(not self.tylko_odczyt)
         self.btn_usun.setEnabled(self.dane is not None and self.aint is not None)
-        self.btn_dodaj_zab.setEnabled(
-            self.dane is not None and self.aint is not None)
+        self.btn_dodaj_zab.setEnabled(self.dane is not None)
+        self.btn_skopiuj.setVisible(not self.tylko_odczyt)
+        for linia in self._sep_paska:   # bez przycisków - same kreski
+            linia.setVisible(not self.tylko_odczyt)
+        self.btn_skopiuj.setEnabled(self.dane is not None)
         if zm:
             self._status('zmiany niezapisane', '#b36b00')
 
@@ -3063,92 +3132,62 @@ class OknoOpisu(QWidget):
 
     # --------------------------------------------- zabiegi (generator)
 
-    def _wydzielenie_zabiegow(self, aid, mod_trzeb):
-        """Obiekt Wydzielenie z zabiegi/ wczytany z bazy i z wygenerowanymi
-        zabiegami - jak Zabiegi.przetworz_wydzielenie (bez Janczulewicza)."""
-        from .zabiegi.wydzielenie import Wydzielenie
-        w = Wydzielenie()
-        w.przygotuj_strukture(aid)
-        w.dodaj_mod_trzeb(mod_trzeb)
-        w.baza = self.baza
-        w.o_wiek_rebnosci(self.baza.pobierz_wiek_reb())
-        w.odczytaj_dane_z_bazy(self.baza.pobierz_do_zab(aid))
-        if not w.generuj_zabiegi():
-            raise RuntimeError('nie wygenerowano wskazówek')
-        return w
-
     def dodaj_zabiegi(self):
-        """Generator zabiegów dla bieżącego wydzielenia - logika "Dopisz/
-        sprawdź zabiegi" w trybie Dopisz (bez trybu Janczulewicza):
-        dopisanie brakujących zabiegów, korekta powierzchni wpisanych,
-        uwagi w SUBAREA_INFO, potem kontrola jak w raporcie zabiegów.
-        Czyszczenie zadrzewienia w PRZES i masy w PODR/PODSZ/NAL (w skrypcie
-        globalne) - tylko dla tego wydzielenia."""
+        """Generator zabiegów na stanie KARTY (opis_zabiegi.py - logika
+        "Dopisz/sprawdź zabiegi" w trybie Dopisz, bez Janczulewicza):
+        zabiegi karty są czyszczone i planowane od nowa dla aktualnego
+        opisu, uwagi trafiają do Informacji różnych, zadrzewienie PRZES
+        i masy PODR/PODSZ/NAL są czyszczone - wszystko jako niezapisane
+        zmiany karty (do bazy po "Zapisz" w jednej transakcji, Ctrl+Z
+        cofa całość). Działa też dla nowego, niezapisanego wydzielenia."""
         if self.tylko_odczyt or self.dane is None:
             return
-        if self.aint is None:
-            return self._blad('Najpierw zapisz nowe wydzielenie w bazie')
-        if self._zmienione():
-            odp = QMessageBox.question(
-                self, 'Dodaj zabiegi',
-                'Generator czyta opis z bazy - niezapisane zmiany karty '
-                'trzeba najpierw zapisać.\n\nZapisać teraz i wygenerować '
-                'zabiegi?', QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes)
-            if odp != QMessageBox.Yes or not self.zapisz():
-                return
-        if not self.panel.kopia_sesji():
-            return self._blad('Nie udało się zrobić kopii bazy - nic nie '
-                              'zmieniono')
-        aid, adr = self.aint, self.adres_bazy or self.adr
+        from . import opis_zabiegi as oz
+        self._przelicz()
+        ile_dzkat, cele_inne = 0, 0
+        if self.aint is not None:
+            ile_dzkat = self.baza.cur.execute(
+                'select count(PARCEL_INT_NUM) from F_AROD_LAND_USE where '
+                'ARODES_INT_NUM = ?', (self.aint,)).fetchone()[0] or 0
+            cele_inne = self.baza.cur.execute(
+                "select count(GOAL_TYPE_FL) from F_AROD_GOAL where "
+                "ARODES_INT_NUM = ? and GOAL_TYPE_FL <> 'D'",
+                (self.aint,)).fetchone()[0] or 0
         mod = int(self.spin_mod_trzeb.value())
-        sql_cue = ('select * from F_AROD_CUE where ARODES_INT_NUM = ? '
-                   'order by CUE_RANK_ORDER')
-        przed = self._wiersze(sql_cue, (aid,))
-        info_przed = self.dane['SUBAREA_INFO']
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            # jak w trybie Dopisz (tam dla całej bazy) - tu tylko to wydz.
-            self.baza.wpisz(
-                'update F_AROD_STOREY set STANDDENSITY_INDEX = NULL where '
-                f"STOREY_CD = 'PRZES' and ARODES_INT_NUM = {int(aid)}")
-            self.baza.wpisz(
-                'update F_STOREY_SPECIES set VOLUME = NULL, VOLUME_TEMP = '
-                "NULL where STOREY_CD in ('PODSZ', 'PODR', 'NAL') and "
-                f'ARODES_INT_NUM = {int(aid)}')
-            w = self._wydzielenie_zabiegow(aid, mod)
-            w.modyfikuj_zabiegi('')
-            uwagi = list(w.uw_raport) + list(w.uw_baza)
-            dodano, zmieniono = w.dodano, w.zmodyfikowano
-            # odczyt po zapisie + kontrola (jak raport zabiegów)
-            w2 = self._wydzielenie_zabiegow(aid, mod)
-            w2.zbiorcze_sprawdzenie()
-            uwagi += [u for u in list(w2.uw_raport) + list(w2.uw_baza)
-                      if u not in uwagi]
+            wiersze, info, uwagi, dodano, zmieniono = oz.generuj(
+                self.dane, self.pow_wydz, self._nr_warstw(), ile_dzkat,
+                cele_inne, self.baza.pobierz_wiek_reb(), mod)
         except Exception as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.critical(
                 self, 'Dodaj zabiegi',
-                f'Generowanie zabiegów nie powiodło się:\n{e}\n\nZmiany '
-                'mogły zostać zapisane częściowo - kopia bazy jest w '
-                'Kopie_manipulacyjne.')
-            self._przeladuj_po_zabiegach(aid)
+                f'Generowanie zabiegów nie powiodło się:\n{e}\n\nKarta bez '
+                'zmian.')
             return
         QApplication.restoreOverrideCursor()
 
-        po = self._wiersze(sql_cue, (aid,))
-        wpisy = []
-        if po != przed:
-            wpisy.append((adr, 'ZABIEGI', 'F_AROD_CUE',
-                          json.dumps(przed, ensure_ascii=False, default=str),
-                          json.dumps(po, ensure_ascii=False, default=str)))
-        self._przeladuj_po_zabiegach(aid)
-        if self.dane is not None and self.dane['SUBAREA_INFO'] != info_przed:
-            wpisy.append((adr, 'ZABIEGI', 'SUBAREA_INFO', info_przed,
-                          self.dane['SUBAREA_INFO']))
-        self._do_dziennika(wpisy)
-        tekst = f'zabiegi: dodano {dodano}, zmieniono {zmieniono}' + \
-            (f' (pozyskanie +{mod}%)' if mod else '')
+        przed = copy.deepcopy(self.dane)
+        nowe = copy.deepcopy(self.dane)
+        oz.wyczysc_opis(nowe)
+        # kod obecny w bazie - wiersz aktualizowany (porównanie z bazą
+        # i kolor zmian po kodzie), pozostałe dopisywane przy "Zapisz"
+        w_bazie = {z['_BAZA'] for z in (self.oryginal or {}).get(
+            'ZABIEGI', []) if z['_BAZA']}
+        nowe['ZABIEGI'] = []
+        for w in wiersze:
+            z = _model_zabiegu(w)
+            z['_BAZA'] = z['MEASURE_CD'] if z['MEASURE_CD'] in w_bazie \
+                else None
+            nowe['ZABIEGI'].append(z)
+        if info is not None:
+            nowe['SUBAREA_INFO'] = info
+        self._do_historii('Dodaj zabiegi', przed)
+        self._odtworz(nowe)
+        tekst = f'zabiegi: wygenerowano {dodano + zmieniono}' + \
+            (f' (pozyskanie +{mod}%)' if mod else '') + \
+            ' - do bazy po "Zapisz" (Ctrl+Z - cofnij)'
         self._status(tekst, '#107010')
         if uwagi:
             QMessageBox.information(
@@ -3156,10 +3195,134 @@ class OknoOpisu(QWidget):
                 tekst + '\n\n- ' + '\n- '.join(uwagi[:40])
                 + ('\n- ...' if len(uwagi) > 40 else ''))
 
-    def _przeladuj_po_zabiegach(self, aid):
-        wynik = self._wczytaj(aid)
-        if wynik:
-            self._wypelnij(*wynik)
+    # ------------------------------------------ "Skopiuj opis z..." (LPM)
+
+    def _przelacz_kopiowanie(self, wlaczony):
+        if wlaczony:
+            self._zacznij_wskazywanie()
+        else:
+            self._zakoncz_wskazywanie()
+
+    def _zacznij_wskazywanie(self):
+        kanwa = self.panel._kanwa()
+        if kanwa is None or self.dane is None or self.tylko_odczyt:
+            self.btn_skopiuj.setChecked(False)
+            return
+        # podgląd PPM do wybierania źródła; stan sprzed pierwszej kopii
+        # wraca po "Zapisz"
+        if self._podglad_przed is None:
+            self._podglad_przed = self.panel.btn_podglad.isChecked()
+        self.panel.btn_podglad.setChecked(True)
+        self._narzedzie_przed = kanwa.mapTool()
+        self._narzedzie = _WskazWydzielenie(
+            kanwa, self._wskazano, lambda: self.btn_skopiuj.setChecked(False))
+        # inne narzędzie wybrane w QGIS - koniec wskazywania
+        self._narzedzie.deactivated.connect(
+            lambda: self.btn_skopiuj.setChecked(False))
+        kanwa.setMapTool(self._narzedzie)
+        self._status('wskaż LPM wydzielenie, z którego skopiować opis '
+                     '(PPM - podgląd, Esc - anuluj)', '#1565c0')
+
+    def _zakoncz_wskazywanie(self):
+        narz, self._narzedzie = self._narzedzie, None
+        if narz is None:
+            return
+        kanwa = narz.canvas()
+        if kanwa is not None and kanwa.mapTool() is narz:
+            przed = self._narzedzie_przed
+            if przed is not None and not sip.isdeleted(przed):
+                kanwa.setMapTool(przed)
+            else:
+                kanwa.unsetMapTool(narz)
+        self._narzedzie_przed = None
+        narz.deleteLater()
+        if not self._kopia_czeka:
+            # anulowane bez kopiowania
+            self._przywroc_podglad()
+        if self.lbl_status.text().startswith('wskaż LPM'):
+            self._status('')
+
+    def _przywroc_podglad(self):
+        przed, self._podglad_przed = self._podglad_przed, None
+        if przed is None:
+            return
+        btn = self.panel.btn_podglad
+        if not sip.isdeleted(btn) and btn.isEnabled():
+            btn.setChecked(przed)
+
+    def _koniec_kopii(self):
+        """Zapisane / porzucone (inne wydzielenie, zamknięcie karty) -
+        narzędzie wskazywania wyłączone, podgląd PPM jak przed kopiowaniem."""
+        self._kopia_czeka = False
+        if self.btn_skopiuj.isChecked():
+            self.btn_skopiuj.setChecked(False)
+        self._przywroc_podglad()
+
+    def _wskazano(self, pos):
+        adr = self.panel._wydzielenie_pod(pos)
+        if not adr:
+            self._blad('w tym miejscu nie ma wydzielenia z ADR_LES - wskaż '
+                       'inne (Esc - anuluj)')
+            return
+        aint = self.wydz.get(adr)
+        if aint is None:
+            self._blad(f'brak opisu {adr} w bazie - wskaż inne wydzielenie')
+            return
+        if self.aint is not None and aint == self.aint:
+            self._blad('to wydzielenie jest otwarte w karcie - wskaż inne')
+            return
+        if self.skopiuj_opis(adr, aint):
+            self.btn_skopiuj.setChecked(False)
+
+    def skopiuj_opis(self, adr, aint):
+        """Opis wydzielenia `aint` zastępuje opis na karcie (jeden krok
+        historii, do bazy po "Zapisz"). Zostają: adres, powierzchnia
+        i PNSW wydzielenia z karty. Zabiegi jak w "Klonuj opisy": pow.
+        przeliczona proporcjonalnie do pow. wydzieleń, masa czyszczona
+        (TPU), wszystkie dopisywane od nowa."""
+        # _wczytaj ustawia stan karty (adres, prefiks, pow.) - odtwarzany
+        stan = (self.adres_bazy, self.prefiks, self.pow_wydz)
+        try:
+            wynik = self._wczytaj(aint)
+            pow_zr = self.pow_wydz
+        except Exception as e:
+            return self._blad(f'nie udało się odczytać opisu {adr}: {e}')
+        finally:
+            self.adres_bazy, self.prefiks, self.pow_wydz = stan
+        if wynik is None:
+            return self._blad(f'brak rekordu F_SUBAREA wydzielenia {adr}')
+        zr = wynik[0]
+
+        przed = copy.deepcopy(self.dane)
+        nowe = copy.deepcopy(self.dane)
+        # także puste SUBAREA_INFO źródła
+        for p in POLA_SUBAREA + ['FOREST_PEC_CD', 'TD']:
+            nowe[p] = zr[p]
+        # gatunki jako nowe rekordy - numery SPEC_STOR_INT_NUM należą do
+        # źródła, gatunki z karty usuwa plan zapisu
+        for w in zr['WARSTWY']:
+            for g in w['gatunki']:
+                g['SPEC_STOR_INT_NUM'] = None
+        nowe['WARSTWY'] = zr['WARSTWY']
+        skala = self.pow_wydz / pow_zr \
+            if self.pow_wydz > 0 and pow_zr > 0 else 1.0
+        for z in zr['ZABIEGI']:
+            if z['CUTTING_AREA'] is not None:
+                z['CUTTING_AREA'] = round(z['CUTTING_AREA'] * skala, 4)
+            z['LARGE_TIMBER_VALUE'] = None
+            z['_BAZA'] = None
+        nowe['ZABIEGI'] = zr['ZABIEGI']
+
+        if nowe == przed:
+            self._status(f'opis {adr} jest taki sam jak na karcie')
+            return True
+        # karta jeszcze bez zmian (dane == przed) - krok wymuszony
+        self._do_historii(f'Skopiuj opis z {adr}', przed, wymus=True)
+        self._odtworz(nowe)
+        self._kopia_czeka = True
+        self._status(f'skopiowano opis z {rozbij_adres(adr) or adr} - do '
+                     'bazy po "Zapisz" (Ctrl+Z - cofnij)', '#107010')
+        return True
 
     def _zapytaj_o_zmiany(self):
         """True - można przejść dalej (zapisane albo odrzucone)."""
@@ -3229,6 +3392,7 @@ class OknoOpisu(QWidget):
         if not self._zapytaj_o_zmiany():
             event.ignore()
             return
+        self._koniec_kopii()
         event.accept()
 
 
@@ -3714,8 +3878,19 @@ class PanelOpisu(QDockWidget):
             return naglowek + '<br><i>brak opisu w bazie</i>'
         aint = self.wydz[adr]
         cur = self.baza.cur
-        sub = cur.execute('select AREA_TYPE_CD, SITE_TYPE_CD from F_SUBAREA '
-                          'where ARODES_INT_NUM = ?', (aint,)).fetchone()
+        sub = cur.execute('select AREA_TYPE_CD, SITE_TYPE_CD, SUB_AREA from '
+                          'F_SUBAREA where ARODES_INT_NUM = ?',
+                          (aint,)).fetchone()
+        if sub and sub[2] is not None:
+            # powierzchnia w tej samej linii co adres, dosunięta do prawej
+            # (tabela na całą szerokość - okienko się nie poszerza)
+            pow_ha = f'{float(sub[2]):.2f}'.replace('.', ',')
+            naglowek = (
+                '<table width="100%" cellspacing="0" cellpadding="0"><tr>'
+                f'<td>{naglowek}</td><td align="right">&nbsp;&nbsp;'
+                f'<b>{pow_ha} ha</b></td></tr></table>')
+        else:
+            naglowek += '<br>'
         warstwy = [(_txt(r[0]), r[1], r[2]) for r in cur.execute(
             'select STOREY_CD, DENSITY_CD, STANDDENSITY_INDEX from '
             'F_AROD_STOREY where ARODES_INT_NUM = ? order by '
@@ -3731,7 +3906,7 @@ class PanelOpisu(QDockWidget):
         glowna = 'DRZEW' if 'DRZEW' in kody else \
             'ZADRZEW' if 'ZADRZEW' in kody else None
 
-        linie = [naglowek]
+        linie = []
         if sub:
             linie.append(f'Rodz. pow.: <b>{_txt(sub[0])}</b> &nbsp; '
                          f'TSL: <b>{_txt(sub[1])}</b>')
@@ -3798,7 +3973,7 @@ class PanelOpisu(QDockWidget):
         if inne:
             inne = ('<table cellspacing="0" cellpadding="1" '
                     'style="margin-top:4px">' + inne + '</table>')
-        return '<br>'.join(linie) + tabela + inne
+        return naglowek + '<br>'.join(linie) + tabela + inne
 
     def _pokaz_podglad(self, pos):
         adr = self._wydzielenie_pod(pos)
