@@ -82,7 +82,11 @@ class ProtokolDialog(QDialog):
         form = QFormLayout()
         dzis = QDate.currentDate()
         self.e_miejsc = QLineEdit(ust.value(KLUCZ_P + "miejscowosc", ""))
-        self.d_narady = QDateEdit(dzis)
+        # data narady pamiętana (wspólna z drugim oknem NTG) - protokół i
+        # prezentacja powstają zwykle na tę samą naradę
+        d_nar = QDate.fromString(ust.value(KLUCZ_P + "data_narady", ""),
+                                 Qt.ISODate)
+        self.d_narady = QDateEdit(d_nar if d_nar.isValid() else dzis)
         self.d_narady.setCalendarPopup(True)
         rz = QHBoxLayout()
         rz.addWidget(self.e_miejsc)
@@ -214,6 +218,8 @@ class ProtokolDialog(QDialog):
         ust.setValue(KLUCZ_P + "wzor", self.e_wzor.text().strip())
         ust.setValue(KLUCZ_P + "folder", self.e_folder.text().strip())
         ust.setValue(KLUCZ_P + "miejscowosc", self.e_miejsc.text().strip())
+        ust.setValue(KLUCZ_P + "data_narady",
+                     self.d_narady.date().toString(Qt.ISODate))
         ust.setValue(KLUCZ_P + "tytul", self.e_tytul.toPlainText().strip())
         ust.setValue(KLUCZ_P + "nr_umowy", self.e_umowa.text().strip())
         ust.setValue(KLUCZ_P + "data_umowy",

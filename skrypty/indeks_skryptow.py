@@ -292,7 +292,9 @@ INDEKS = {
                          'Word szablon statystyki rozliczenie powierzchni '
                          'etaty TSL zabiegi rozbieżności'),
     'a_ntg_prezentacja': _w('NTG narada techniczno-gospodarcza prezentacja '
-                            'PowerPoint PPTX slajdy'),
+                            'PowerPoint PPTX slajdy wzór znaczniki tabele '
+                            'mapy TSL TD wieki rębności grunty '
+                            'niezalesione'),
 
     # --- pasek LAS-R
     'dop_meta': _w('dopisz metadane wydzielenia', dawne=['dopisz metadane']),

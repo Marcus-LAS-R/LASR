@@ -1392,9 +1392,11 @@ class LasR:
         self.a_ntg_prezentacja = QAction(
             QIcon(None), "Stwórz prezentację", self.iface.mainWindow())
         self.a_ntg_prezentacja.setToolTip(
-            "NTG: prezentacja na naradę (PPTX) (w przygotowaniu).")
-        self.a_ntg_prezentacja.setEnabled(False)
+            "NTG: prezentacja na naradę (PPTX) ze wzoru ze znacznikami - "
+            "tabele z bazy dla każdej gminy, mapy PNG z \"Generuj mapy\"; "
+            "slajdy stałe i miejsca na zdjęcia bez zmian.")
         self.m_ntg.addAction(self.a_ntg_prezentacja)
+        self.a_ntg_prezentacja.triggered.connect(self.ntg_prezentacja)
 
         # toolbar -----------------------------
         self.dop_meta = QAction(
@@ -2024,6 +2026,9 @@ class LasR:
 
     def ntg_protokol(self):
         protokol_ntg.przygotuj_protokol(self.iface)
+
+    def ntg_prezentacja(self):
+        protokol_ntg.przygotuj_prezentacje(self.iface)
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)

@@ -33,6 +33,9 @@ HODOWLANE = {
 }
 MASA_TW_TP = {"TP", "TW"}
 BEZ_TSL = "Bez określenia"
+# grunty leśne niezalesione i związane z gospodarką leśną (prezentacja) -
+# F_AREA_TYPE_DIC.supergr_cat_name
+NIEZALESIONE = ("grunty leśne niezalesione", "związ.z gosp.leśną")
 
 # RDLP: miasto (lista w oknie) -> miejscownik ("Regionalnej Dyrekcji Lasów
 # Państwowych w ...")
@@ -101,6 +104,7 @@ class DaneProtokolu:
         self.baza_sc = baza_sc
         self.ostrzezenia = []
         self.tabele = {}
+        self._filtr = None   # gmina (c, d, m) - tabele tylko dla niej
 
     # ------------------------------------------------------------ odczyt
 
@@ -164,6 +168,25 @@ class DaneProtokolu:
                 baza, "select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, "
                 "ETAT_OKW, ETAT_POKW, ETAT_WSK, ETAT_POZ from F_ETAT;",
                 "F_ETAT")
+            self.td = {}
+            for a, gat in self._pobierz(
+                    baza, "select ARODES_INT_NUM, SPECIES_CD from F_AROD_GOAL "
+                    "where GOAL_TYPE_FL = 'D' order by ARODES_INT_NUM, "
+                    "GOAL_RANK_ORDER;", "F_AROD_GOAL"):
+                self.td.setdefault(a, []).append(_s(gat))
+            self.rodzaje_pow = {
+                _s(k): (_s(n), _s(g)) for k, n, g in self._pobierz(
+                    baza, "select area_type_cd, area_type_name, "
+                    "supergr_cat_name from F_AREA_TYPE_DIC;",
+                    "F_AREA_TYPE_DIC")}
+            self.wiek_rebn = {
+                _s(k): (n or 0, w) for k, n, w in self._pobierz(
+                    baza, "select SPECIES_CD, SPECIES_NUM, AVG_CUT_AGE from "
+                    "F_TREE_SPECIES where SHRUBTREE_FL = 'D' and AVG_CUT_AGE "
+                    "is not null;", "F_TREE_SPECIES")}
+            self.gatunki = self._pobierz(
+                baza, "select distinct ARODES_INT_NUM, SPECIES_CD from "
+                "F_STOREY_SPECIES;", "gatunki wydzieleń")
         finally:
             baza.zamknij()
 
@@ -193,8 +216,10 @@ class DaneProtokolu:
         return self.gminy.get(gm) or "gm. %s" % "".join(gm)
 
     def lista_gmin(self):
-        """Gminy z wydzieleniami (kolejność kodów)."""
-        return sorted({o[:3] for o in self.obr_wydz.values()})
+        """Gminy z wydzieleniami (kolejność kodów); przy filtrze tylko ta
+        jedna."""
+        return sorted({o[:3] for o in self.obr_wydz.values()
+                       if self._filtr is None or o[:3] == self._filtr})
 
     def _tab_admin(self):
         # sumy per obręb: Ls, inne użytki dodane do wydzieleń, Lz
@@ -220,6 +245,8 @@ class DaneProtokolu:
                     naz, obr[3], self.obreby.get(obr, ""), ls, nie, lz))
             wiersze.append(self._w_admin("Razem:", "", "", *razem,
                                          razem_=True))
+            if self._filtr is not None:   # jedna gmina - bez Ogółem
+                return wiersze
             wiersze.append({k: "" for k in wiersze[-1]} | {"razem": False})
             ogolem = [x + y for x, y in zip(ogolem, razem)]
         wiersze.append(self._w_admin("Ogółem:", "", "", *ogolem,
@@ -277,7 +304,7 @@ class DaneProtokolu:
     def _tab_ochr(self):
         wydz = {}
         for a, ozn, naz, powg in self.fop:
-            if a not in self.obr_wydz:
+            if a not in self.obr_wydz or not self._w_filtrze(a):
                 continue
             k = (_s(ozn), _s(naz), _f(powg), self.obr_wydz[a][:3])
             wydz.setdefault(k, set()).add(a)
@@ -362,11 +389,14 @@ class DaneProtokolu:
         et = {}
         for c, d, m, *wart in self.etaty:
             gm = (_s(c), _s(d), _s(m))
+            if self._filtr is not None and gm != self._filtr:
+                continue
             s = et.setdefault(gm, [0.0] * 5)
             for i, v in enumerate(wart):
                 s[i] += _f(v)
         for a, zab, _pw, masa in self.zabiegi:
-            if _s(zab) in MASA_TW_TP and a in self.obr_wydz:
+            if _s(zab) in MASA_TW_TP and a in self.obr_wydz and \
+                    self._w_filtrze(a):
                 gm = self.obr_wydz[a][:3]
                 et.setdefault(gm, [0.0] * 5)[4] += _f(masa)
         wiersze, razem = [], [0.0] * 5
@@ -385,13 +415,59 @@ class DaneProtokolu:
                 "e4": liczba(s[3], calk=True), "e5": liczba(s[4], calk=True),
                 "razem": razem_}
 
-    def policz(self):
-        self._wczytaj()
-        if not self.wydz_dz:
-            raise RuntimeError("W bazie nie ma wydzieleń z działkami "
-                               "(F_AROD_LAND_USE/F_PARCEL)")
-        self._przypisz_obreby()
-        self.tabele = {
+    def _w_filtrze(self, a):
+        return self._filtr is None or self.obr_wydz[a][:3] == self._filtr
+
+    def _tab_td(self):
+        """Typy drzewostanu (F_AROD_GOAL 'D', gatunki w kolejności) na TSL:
+        powierzchnia wydzieleń (SUB_AREA)."""
+        wart = {}
+        for a, gat in self.td.items():
+            if a not in self.obr_wydz or not self._w_filtrze(a):
+                continue
+            pw, tsl, _typ = self.subarea.get(a, [0.0, "", ""])
+            k = (self.obr_wydz[a][:3], tsl or BEZ_TSL, "-".join(gat))
+            wart[k] = wart.get(k, 0.0) + pw
+        wiersze = [{"gm": self.nazwa_gminy(g), "tsl": t, "td": td,
+                    "pow": liczba(p), "razem": False,
+                    "_s": (g, t == BEZ_TSL, klucz_pl(t), -p)}
+                   for (g, t, td), p in wart.items() if round(p, 4) > 0]
+        wiersze.sort(key=lambda w: w["_s"])
+        for w in wiersze:
+            del w["_s"]
+        return wiersze
+
+    def _tab_niezal(self):
+        """Grunty leśne niezalesione i związane z gospodarką leśną
+        (rodzaje powierzchni wg supergrupy F_AREA_TYPE_DIC)."""
+        wart = {}
+        for (a, _t, _ad, _dz, _sh, pw, *_r) in self.wydz_dz:
+            typ = self.subarea.get(a, [0, "", ""])[2]
+            if self.rodzaje_pow.get(typ, ("", ""))[1] not in NIEZALESIONE \
+                    or not self._w_filtrze(a):
+                continue
+            k = (self.obr_wydz[a][:3], typ)
+            wart[k] = wart.get(k, 0.0) + _f(pw)
+        wart = {k: v for k, v in wart.items() if round(v, 4) > 0}
+        wiersze, razem = self._suma_gmina_klucz(wart)
+        return ([{"gm": self.nazwa_gminy(g), "rodz": k,
+                  "naz": self.rodzaje_pow[k][0], "pow": liczba(p),
+                  "razem": False} for g, k, p in wiersze] +
+                [{"gm": "Razem", "rodz": k, "naz": self.rodzaje_pow[k][0],
+                  "pow": liczba(p), "razem": True} for k, p in razem])
+
+    def _tab_wiek(self):
+        """Wieki rębności (F_TREE_SPECIES.AVG_CUT_AGE) gatunków drzew
+        występujących w wydzieleniach - kolejność słownika gatunków."""
+        gat = {_s(g) for a, g in self.gatunki
+               if a in self.obr_wydz and self._w_filtrze(a)}
+        return [{"gat": g, "wiek": liczba(self.wiek_rebn[g][1], calk=True),
+                 "razem": False}
+                for g in sorted(gat & set(self.wiek_rebn),
+                                key=lambda g: (self.wiek_rebn[g][0], g))]
+
+    def _tabele(self):
+        return {
             "tab_admin": self._tab_admin(),
             "tab_tsl": self._tab_tsl(),
             "tab_reb": self._tab_zabiegi(hodowlane=False),
@@ -400,7 +476,30 @@ class DaneProtokolu:
             "tab_stat": self._tab_stat(),
             "tab_roz": self._tab_roz(),
             "tab_etaty": self._tab_etaty(),
+            "tab_td": self._tab_td(),
+            "tab_niezal": self._tab_niezal(),
+            "tab_wiek": self._tab_wiek(),
         }
+
+    def policz_gminy(self):
+        """Po policz(): {gmina (c, d, m): tabele tylko tej gminy} -
+        kolejność kodów gmin."""
+        wyn = {}
+        try:
+            for gm in self.lista_gmin():
+                self._filtr = gm
+                wyn[gm] = self._tabele()
+        finally:
+            self._filtr = None
+        return wyn
+
+    def policz(self):
+        self._wczytaj()
+        if not self.wydz_dz:
+            raise RuntimeError("W bazie nie ma wydzieleń z działkami "
+                               "(F_AROD_LAND_USE/F_PARCEL)")
+        self._przypisz_obreby()
+        self.tabele = self._tabele()
         return self.tabele
 
 
