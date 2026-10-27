@@ -57,13 +57,33 @@ def wolna_litera(litery, adresy_wydz, prefiks, obreb, oddz, pomin=None):
     return next((x for x in litery if x not in zajete), None)
 
 
-def docelowy(prefiks, czesci, litery, adresy, adres_bazy=None):
+def pola_warstwy(adr, kod_woj):
+    """Atrybuty poligonu WYDZ z adresu leśnego (wpisywane razem z ADR_LES
+    przy nowym wydzieleniu); kod_woj - COUNTY (2 cyfry) dla litery
+    województwa adresu albo ''."""
+    c = skladowe(adr)
+    return {'COUNTY': kod_woj, 'COUNTY_L': adr[0], 'DISTRICT': adr[1:3],
+            'MUNICIP': adr[3:6], 'COMMUNITY': c['obreb'], 'GRP': c['grp'],
+            'ODDZ': c['oddz'], 'WYDZ': c['wydz'], 'ADR_LES': adr}
+
+
+def prefiks_obrebu(adresy, municip, obreb):
+    """Prefiks gminy [0:6] adresu z F_ARODES dla gminy (MUNICIP, 3 znaki) i
+    obrębu warstwy ODDZ - litera województwa i powiat są tylko w bazie.
+    None, gdy takiego obrębu w bazie nie ma."""
+    klucz = municip + obreb
+    return next((a[:6] for a in adresy if a[3:10] == klucz), None)
+
+
+def docelowy(prefiks, czesci, litery, adresy, adres_bazy=None,
+             zajete_warstwa=()):
     """(adres, błąd, litera_auto) z okien paska adresu.
 
     czesci - {'obreb', 'grp', 'oddz', 'wydz'} (pusty 'wydz' = następna
     wolna litera), adresy - {ADRESS_FOREST: ARODES_TYP_CD} z F_ARODES,
-    adres_bazy - obecny adres wydzielenia (None - nowe). Błąd = tekst dla
-    użytkownika (adres wtedy None)."""
+    adres_bazy - obecny adres wydzielenia (None - nowe), zajete_warstwa -
+    ADR_LES z warstwy wydzieleń, których litery też są zajęte (poligony z
+    adresem spoza bazy). Błąd = tekst dla użytkownika (adres wtedy None)."""
     c = {k: normalizuj(k, czesci.get(k, '')) for k in CZESCI}
     if not re.fullmatch(r'\d{4}', c['obreb']):
         return None, 'obręb: 4 cyfry', None
@@ -77,7 +97,8 @@ def docelowy(prefiks, czesci, litery, adresy, adres_bazy=None):
         return None, f'obręb {c["obreb"]} nie istnieje w bazie', None
     auto = None
     if not c['wydz']:
-        wydz_bazy = [a for a, t in adresy.items() if t == 'WYDZIEL']
+        wydz_bazy = [a for a, t in adresy.items() if t == 'WYDZIEL'] + \
+            list(zajete_warstwa)
         auto = wolna_litera(litery, wydz_bazy, prefiks, c['obreb'],
                             c['oddz'], pomin=adres_bazy)
         if auto is None:

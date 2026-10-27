@@ -37,10 +37,14 @@ Panel otwarty = baza podłączona:
   wydzielenie -> adres leśny na żywo (do skopiowania); zmiana =
   przeadresowanie w F_ARODES przy "Zapisz" (w tej samej transakcji,
   brakujący ODDZ dopisywany, pusty stary ODDZ/L-CTWO usuwany),
-- "Dodaj nowe wydzielenie" (panel): karta nowego wydzielenia w oddziale
-  bieżącego (grupa 10, następna wolna litera), zapis F_ARODES + F_SUBAREA
-  + opis po "Zapisz"; po zapisie adresu - schowek i niezgodność
-  baza-warstwa w statusie panelu, dopóki adres nie trafi do ADR_LES,
+- "Dodaj nowe wydzielenie" (panel): karta nowego wydzielenia dla
+  zaznaczonego poligonu - gmina/obręb/oddział z położenia na warstwie ODDZ
+  (>= 99% pow.), grupa z dotychczasowego adresu poligonu albo 10, następna
+  wolna litera (pomija też litery z ADR_LES innych poligonów); poligon z
+  adresem - pytanie Nadpisać?; zapis F_ARODES + F_SUBAREA + opis po
+  "Zapisz", potem adres (ADR_LES + pola składowe) do poligonu w buforze
+  edycji warstwy (bez zapisu warstwy); adres już na innym poligonie -
+  ostrzeżenie; przeadresowanie - schowek jak dotąd (poligon bez zmian),
 - opis wydzielenia: podpowiedź TD z TSL (opis_warstwy.TD_DLA_TSL, Enter
   przyjmuje kolejne gatunki), ↓ w polu z listą otwiera listę,
 - "Dodaj zabiegi" (+ "pozyskanie +X%"): generator jak "Dopisz/sprawdź
@@ -57,6 +61,7 @@ import copy
 import csv
 import json
 import os
+import re
 import shutil
 from collections import Counter
 from datetime import datetime
@@ -196,6 +201,9 @@ KOLUMNY_PNSW = [
 NAZWA_KOPII = 'edycja_opisu'
 ILE_KOPII = 5  # tyle ostatnich pakietów kopii Edytora zostaje na dysku
 NAZWA_BEZ_OPISU = 'WYDZ bez opisu w bazie'
+# nowe wydzielenie: część poligonu w jednym oddziale warstwy ODDZ (jak
+# baza_przeliterkuj.PROG_W_ODDZ)
+PROG_W_ODDZ = 0.99
 # tabele z rekordami wydzielenia (V_TABLE_FIELD_KEY_RELATION) - do migawki
 # w dzienniku przed usunięciem
 TABELE_WYDZIELENIA = [
@@ -1214,6 +1222,10 @@ class OknoOpisu(QWidget):
         self._narzedzie_przed = None
         self._podglad_przed = None
         self._kopia_czeka = False
+        # nowe wydzielenie: fid poligonu, do którego po "Zapisz" trafi
+        # adres, i ADR_LES pozostałych poligonów warstwy
+        self._poligon = None
+        self._adr_warstwy = set()
 
         self._ustaw_tytul()
         self._zbuduj()
@@ -1594,6 +1606,7 @@ class OknoOpisu(QWidget):
         self.info.blockSignals(False)
         self.lbl_licznik.setText('')
         self.adres_bazy = None
+        self._poligon, self._adr_warstwy = None, set()
         self._wypelnij_adres()
         self._status(tekst_statusu)
         self._koniec_kopii()
@@ -2328,7 +2341,8 @@ class OknoOpisu(QWidget):
         from .shp_literkuj import LITERY
         return oa.docelowy(self.prefiks, dict(zip(oa.CZESCI,
                                                   self.dane['ADRES_CZ'])),
-                           LITERY, self._adresy(), self.adres_bazy)
+                           LITERY, self._adresy(), self.adres_bazy,
+                           self._adr_warstwy)
 
     def _wypelnij_adres(self, pola=True):
         """Okna paska adresu z danych karty (pola=False - bez nadpisywania
@@ -2432,37 +2446,105 @@ class OknoOpisu(QWidget):
             QApplication.clipboard().setText(adr)
             self._status(f'skopiowano: {adr}')
 
+    def _oddzial_poligonu(self, f):
+        """(obiekt warstwy ODDZ, w którym leży poligon, błąd). Oddział -
+        ten, w którym jest co najmniej PROG_W_ODDZ powierzchni poligonu
+        (jak w Przeliterkuj - inaczej poligon przecina granicę)."""
+        oddz = self.panel.warstwa_oddz()
+        if oddz is None:
+            return None, 'brak warstwy ODDZ w projekcie (oddział nowego ' \
+                'wydzielenia jest brany z położenia poligonu)'
+        brak = [p for p in ('MUNICIP', 'COMMUNITY', 'ODDZ')
+                if oddz.fields().indexOf(p) == -1]
+        if brak:
+            return None, f'warstwa {oddz.name()} nie ma pól: ' + \
+                ', '.join(brak)
+        if not f.hasGeometry() or f.geometry().area() <= 0:
+            return None, 'zaznaczony poligon nie ma geometrii'
+        g = QgsGeometry(f.geometry())
+        if oddz.crs() != self.lyr.crs():
+            g.transform(QgsCoordinateTransform(
+                self.lyr.crs(), oddz.crs(), QgsProject.instance()))
+        pow_g = g.area()
+        czesci = []
+        for fo in oddz.getFeatures(
+                QgsFeatureRequest().setFilterRect(g.boundingBox())):
+            if not fo.hasGeometry() or not g.intersects(fo.geometry()):
+                continue
+            frac = g.intersection(fo.geometry()).area() / pow_g
+            if frac >= PROG_W_ODDZ:
+                return fo, ''
+            if frac > 0.01:
+                czesci.append(f'{_txt(fo["COMMUNITY"])}/{_txt(fo["ODDZ"])} '
+                              f'{frac:.0%}')
+        if czesci:
+            return None, 'poligon przecina granicę oddziałów: ' + \
+                ', '.join(czesci)
+        return None, f'poligon leży poza oddziałami warstwy {oddz.name()}'
+
     def nowe_wydzielenie(self):
-        """Pusta karta nowego wydzielenia (zapis do bazy dopiero po
-        "Zapisz"): obręb i oddział z bieżącego wydzielenia, grupa 10,
-        następna wolna litera."""
+        """Pusta karta nowego wydzielenia dla zaznaczonego poligonu (zapis
+        do bazy dopiero po "Zapisz", wtedy też adres do poligonu): gmina,
+        obręb i oddział z położenia poligonu na warstwie ODDZ, grupa z
+        dotychczasowego adresu poligonu (np. po podziale) albo 10, następna
+        wolna litera."""
         if self.tylko_odczyt:
             return self._blad('Baza tylko do podglądu')
-        zrodlo = self.adres_bazy if self.aint is not None else self.adr
-        cz = oa.skladowe(zrodlo)
-        if not cz:
-            return self._blad('Zaznacz wydzielenie, w którego oddziale '
-                              'dodać nowe')
+        ids = self.lyr.selectedFeatureIds()
+        if len(ids) != 1:
+            return self._blad('Zaznacz na warstwie jeden poligon nowego '
+                              'wydzielenia')
+        f = self.lyr.getFeature(ids[0])
+        fo, blad = self._oddzial_poligonu(f)
+        if fo is None:
+            QMessageBox.warning(self, 'Dodaj nowe wydzielenie',
+                                blad[0].upper() + blad[1:] + '.')
+            return self._blad(blad)
+        obreb = oa.normalizuj('obreb', _txt(fo['COMMUNITY']))
+        oddz = oa.normalizuj('oddz', _txt(fo['ODDZ']))
+        prefiks = oa.prefiks_obrebu(self._adresy(odswiez=True),
+                                    _txt(fo['MUNICIP']).zfill(3), obreb)
+        if prefiks is None:
+            return self._blad(f'obręb {_txt(fo["MUNICIP"])}/{obreb} z '
+                              'warstwy ODDZ nie istnieje w bazie')
+        adr_pol = _txt(f['ADR_LES'])
+        if adr_pol and QMessageBox.question(
+                self, 'Dodaj nowe wydzielenie',
+                f'Poligon ma już adres leśny:\n{adr_pol}\n\nNadpisać?',
+                QMessageBox.Yes | QMessageBox.Abort,
+                QMessageBox.Abort) != QMessageBox.Yes:
+            return False
         if not self._zapytaj_o_zmiany():
             return False
-        self.prefiks = zrodlo[:6]
+        cz_pol = oa.skladowe(adr_pol) or {}
+        grp = cz_pol.get('grp') if re.fullmatch(
+            r'\d{2}', cz_pol.get('grp') or '') else oa.GRUPA_NOWEGO
+        cz = {'obreb': obreb, 'oddz': oddz}
+        self.prefiks = prefiks
         self.adr = None
         self.aint = None
         self.adres_bazy = None
-        self._adresy_cache = None
+        # poligon, do którego po "Zapisz" trafi adres, i adresy innych
+        # poligonów warstwy (ich litery też zajęte - bez dwóch poligonów z
+        # tym samym adresem)
+        self._poligon = f.id()
+        self._adr_warstwy = {
+            _txt(x['ADR_LES']) for x in self.lyr.getFeatures(
+                QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+                .setSubsetOfAttributes(['ADR_LES'], self.lyr.fields()))
+            if x.id() != f.id() and _txt(x['ADR_LES'])}
         pusty = {p: (None if p == 'DEAD_WOOD' else '') for p in POLA_SUBAREA}
         # stan wyjściowy z adresem startowym ("Cofnij wszystko" wraca do
         # niego); karta bez aint = nowe - zawsze do zapisu (_zmienione)
         self.pow_wydz = 0.0
         pusty.update({'FOREST_PEC_CD': [], 'TD': [], 'WARSTWY': [],
                       'ZABIEGI': [], 'PNSW': [],
-                      'ADRES_CZ': (cz['obreb'], oa.GRUPA_NOWEGO, cz['oddz'],
-                                   '')})
+                      'ADRES_CZ': (cz['obreb'], grp, cz['oddz'], '')})
         self._wypelnij(pusty, [], [], [])
         self._ustaw_tytul()
         self._odswiez_przyciski()
-        self._status('nowe wydzielenie - do bazy trafi po "Zapisz"',
-                     '#b36b00')
+        self._status('nowe wydzielenie - do bazy i do poligonu trafi po '
+                     '"Zapisz"', '#b36b00')
         QTimer.singleShot(0, self._dopasuj_okno)
         return True
 
@@ -2548,6 +2630,21 @@ class OknoOpisu(QWidget):
                 'Popraw błędy (czerwone komórki) i zapisz ponownie:\n\n- ' +
                 '\n- '.join(bledy[:20]) + ('\n- ...' if len(bledy) > 20 else ''))
             return False
+        poligon = self._poligon_nowego() if self.aint is None else None
+        if poligon is not None:
+            inne = [x.id() for x in self.lyr.getFeatures(
+                QgsFeatureRequest(QgsExpression(
+                    '"ADR_LES" = ' + QgsExpression.quotedValue(nowy_adr)))
+                .setFlags(QgsFeatureRequest.NoGeometry))
+                if x.id() != poligon]
+            if inne and QMessageBox.warning(
+                    self, 'Adres na innym poligonie',
+                    f'Adres {nowy_adr} ma już {len(inne)} inny(ch) '
+                    f'poligon(ów) na warstwie {self.lyr.name()} - po zapisie '
+                    'będą dwa poligony z tym samym adresem.\n\n'
+                    'Zapisać mimo to?', QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No) != QMessageBox.Yes:
+                return False
 
         if not self.panel.kopia_sesji():
             return self._blad('Nie udało się zrobić kopii bazy - nie zapisano')
@@ -2684,6 +2781,22 @@ class OknoOpisu(QWidget):
         if wynik:
             self._wypelnij(*wynik)
         self._ustaw_tytul()
+        self._poligon, self._adr_warstwy = None, set()
+        if poligon is not None:
+            blad_pol = self._wpisz_do_poligonu(poligon, nowy_adr)
+            if not blad_pol:
+                self.adr = nowy_adr
+                self.panel.przelicz_zgodnosc()
+                self._status(f'dodano wydzielenie {nowy_adr} - adres wpisany '
+                             'do poligonu (zapisz warstwę)', '#107010')
+                self.iface.messageBar().pushSuccess(
+                    'Opis taksacyjny',
+                    f'Dodano wydzielenie {nowy_adr} - adres wpisany do '
+                    f'poligonu warstwy {self.lyr.name()} (warstwa w trybie '
+                    'edycji, zapisz ją, gdy zechcesz).')
+                return True
+            self.iface.messageBar().pushWarning(
+                'Opis taksacyjny', f'Adres nie trafił do poligonu: {blad_pol}')
         if zmiana_adr:
             # baza ma adres, którego nie ma (jeszcze) na warstwie - status
             # zgodności w panelu i "Sprawdź zgodność" pokażą różnicę
@@ -2704,6 +2817,35 @@ class OknoOpisu(QWidget):
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Zapisano zmiany: {self.adres_bazy}')
         return True
+
+    def _poligon_nowego(self):
+        """fid poligonu nowego wydzielenia, jeśli nadal jest na warstwie
+        (np. zapis warstwy zmienia fid poligonu dorysowanego w edycji)."""
+        if self._poligon is None or sip.isdeleted(self.lyr):
+            return None
+        return self._poligon if self.lyr.getFeature(
+            self._poligon).isValid() else None
+
+    def _wpisz_do_poligonu(self, fid, adr):
+        """Adres nowego wydzielenia (ADR_LES + składowe, które warstwa
+        ma) do poligonu - w buforze edycji warstwy, zapis warstwy należy
+        do użytkownika. Zwraca błąd albo ''."""
+        from .aktualizacja_upul.core.shp_standard import SL_WOJ
+        kod_woj = next((k for k, x in SL_WOJ.items() if x == adr[0]), '')
+        pola = {self.lyr.fields().indexOf(p): w
+                for p, w in oa.pola_warstwy(adr, kod_woj).items()
+                if self.lyr.fields().indexOf(p) != -1}
+        if not self.lyr.isEditable() and not self.lyr.startEditing():
+            return f'nie da się włączyć edycji warstwy {self.lyr.name()}'
+        self.lyr.beginEditCommand(f'Edytor opisu: adres {adr}')
+        ok = all(self.lyr.changeAttributeValue(fid, i, w)
+                 for i, w in pola.items())
+        if not ok:
+            self.lyr.destroyEditCommand()
+            return 'warstwa odrzuciła zmianę atrybutów'
+        self.lyr.endEditCommand()
+        self.lyr.triggerRepaint()
+        return ''
 
     def _do_dziennika(self, wiersze):
         if wiersze and not dopisz_do_dziennika(self.baza_sc, wiersze):
@@ -3367,9 +3509,11 @@ class OknoOpisu(QWidget):
             return
         self.adr = adr
         self._adresy_cache = None
+        self._poligon, self._adr_warstwy = None, set()
         if adr not in self.wydz:
             self._pokaz('brak opisu tego wydzielenia w bazie' if adr else
-                        'poligon z pustym ADR_LES')
+                        'poligon z pustym ADR_LES - "Dodaj nowe wydzielenie" '
+                        'w panelu utworzy dla niego opis')
             self._ustaw_tytul()
             return
         self.aint = self.wydz[adr]
@@ -3431,6 +3575,7 @@ class PanelOpisu(QDockWidget):
         self._szczegoly = ''
         self._liczniki = []
         self._warstwy = []
+        self._oddz = None  # warstwa ODDZ wybrana przy nowym wydzieleniu
         # przeliczenie zgodności po zmianach na warstwie - z opóźnieniem,
         # żeby seryjne kasowanie poligonów nie liczyło jej przy każdym
         self._timer_zgodnosci = QTimer(self)
@@ -3476,10 +3621,13 @@ class PanelOpisu(QDockWidget):
 
         self.btn_nowe = QPushButton('Dodaj nowe wydzielenie')
         self.btn_nowe.setToolTip(
-            'Karta nowego, pustego wydzielenia w oddziale wydzielenia '
-            'otwartego w karcie: grupa 10, następna wolna litera (adres do '
-            'zmiany w pasku adresu karty). Do bazy trafia po "Zapisz", adres '
-            'kopiowany do schowka - wklej go do ADR_LES poligonu.')
+            'Karta nowego, pustego wydzielenia dla zaznaczonego poligonu: '
+            'gmina, obręb i oddział z położenia na warstwie ODDZ, grupa z '
+            'dotychczasowego adresu poligonu albo 10, następna wolna litera '
+            '(adres do zmiany w pasku adresu karty). Po "Zapisz" opis trafia '
+            'do bazy, a adres do poligonu (ADR_LES i pola adresu, w trybie '
+            'edycji warstwy - zapis warstwy należy do Ciebie). Poligon z '
+            'adresem - pytanie o nadpisanie.')
         self.btn_nowe.clicked.connect(self.nowe_wydzielenie)
         lay.addWidget(self.btn_nowe)
 
@@ -4035,6 +4183,7 @@ class PanelOpisu(QDockWidget):
         if self.baza_sc:
             zwolnij_baze(self.baza_sc)
         self.lyr = None
+        self._oddz = None
         self.baza = None
         self.baza_sc = ''
         self.tylko_odczyt = False
@@ -4081,12 +4230,27 @@ class PanelOpisu(QDockWidget):
         if not self._karta_otwarta():
             QMessageBox.information(
                 self, 'Dodaj nowe wydzielenie',
-                'Zaznacz na warstwie wydzielenie, w którego oddziale dodać '
-                'nowe - otworzy się karta, potem kliknij ponownie.')
+                'Zaznacz na warstwie poligon nowego wydzielenia - otworzy '
+                'się karta, potem kliknij ponownie.')
             return
         self.karta.raise_()
         self.karta.activateWindow()
         self.karta.nowe_wydzielenie()
+
+    def warstwa_oddz(self):
+        """Warstwa oddziałów z TOC (nazwa zaczyna się od ODDZ; przy kilku -
+        wybór, pamiętany do rozłączenia) albo None."""
+        prj = QgsProject.instance()
+        if self._oddz is not None and not sip.isdeleted(self._oddz) and                 prj.mapLayer(self._oddz.id()) is not None:
+            return self._oddz
+        from .funkcje import wybierz_warstwe_z_kandydatow
+        kandydaci = [x for x in prj.mapLayers().values()
+                     if isinstance(x, QgsVectorLayer)
+                     and x.geometryType() == QgsWkbTypes.PolygonGeometry
+                     and x.name()[:4].upper() == 'ODDZ' and x is not self.lyr]
+        self._oddz = wybierz_warstwe_z_kandydatow(self.iface, kandydaci,
+                                                  'ODDZ')
+        return self._oddz
 
     def _pokaz_szczegoly(self):
         """Przeliczenie zgodności (i warstwy "WYDZ bez opisu") na żądanie."""
