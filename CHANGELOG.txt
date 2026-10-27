@@ -1,6 +1,60 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0v — 2026-10-27
+------------------------------------------------
+
+1. NOWOŚĆ: Edytor opisu - przycisk "Skopiuj opis z..." w karcie: wskaż
+   lewym przyciskiem myszy wydzielenie na mapie, a jego opis zastąpi
+   opis na karcie (warstwy, gatunki, TD, cechy, informacje różne,
+   zabiegi - powierzchnia zabiegów przeliczona do powierzchni
+   wydzielenia, masę przelicz w TPU). Adres, powierzchnia i PNSW
+   zostają. Na czas kopiowania włącza się podgląd pod PPM (wraca do
+   poprzedniego ustawienia po "Zapisz"); Esc - anuluj, Ctrl+Z - cofnij.
+   Do bazy trafia dopiero po "Zapisz".
+2. ZMIANA: Edytor opisu - dolny pasek karty w czterech grupach: Usuń
+   wydzielenie | Cofnij, Cofnij wszystko | Skopiuj opis z... | Zapisz.
+3. ZMIANA: Edytor opisu - "Dodaj zabiegi" planuje zabiegi dla tego, co
+   jest aktualnie na karcie (także nowego, niezapisanego wydzielenia),
+   bez zapisu do bazy - zabiegi, uwagi w Informacjach różnych i
+   wyczyszczone masy są niezapisanymi zmianami; do bazy po "Zapisz".
+4. NOWOŚĆ: Edytor opisu - powierzchnia wydzielenia w podglądzie pod PPM
+   (górna linia, obok adresu).
+5. POPRAWKA: Edytor opisu - gdy w bazie jest tylko masa dla Taksatora
+   (VOLUME_TEMP), karta ją pokazuje i "Dodaj zabiegi" liczy z niej
+   pozyskanie (wcześniej masa pusta, a pozyskanie z zasobności 0).
+6. NOWOŚĆ: Generuj -> NTG materiały (narada techniczno-gospodarcza):
+   - "Przygotuj warstwy i bazę" - łączy warstwy (WYDZ, ODDZ, LS, OBR,
+     GMIN) i bazy z folderów obiektu, zostawia gminy i obręby, w których
+     baza ma wydzielenia, dodaje nadleśnictwa, tworzy WYDZ_DOPISANE;
+     połączona baza jest od razu anonimizowana
+     (Baza_NTG_polaczona_BDO.mdb);
+   - "Generuj mapy" - mapa ogólna oraz mapy TSL, zabiegów i form ochrony
+     przyrody dla każdej gminy (atlasy, PNG 300 dpi), podkład
+     topograficzny GUGiK do wyboru;
+   - "Przygotuj protokół NTG" - protokół DOCX ze wzoru wskazanego
+     w oknie, zestawienia liczone we wtyczce (średnie ważone);
+   - "Stwórz prezentację" - w przygotowaniu.
+7. NOWOŚĆ: Narzędziowe -> Połącz warstwy SHP - łączy warstwy o tej
+   samej nazwie z wielu folderów (EPSG:2180), usuwa duplikaty geometrii,
+   opcjonalnie wskazuje nakładania między obiektami; raport TXT.
+8. ZMIANA: Konwersja SHP do nowego standardu - folder źródłowy u góry
+   okna, kodowanie zgadywane dla każdej warstwy osobno (kolumna
+   "Kodowanie", "Ustaw wszystkim"), uzupełnianie adresu z G5IDD
+   i ADR_LES, PARCEL_AR z G5PEW, naprawa "LZ-Ĺ" -> "LZ-Ł", obręby z PRG;
+   puste pola nie są już zapisywane jako tekst "NULL".
+9. ZMIANA: Przeliterkuj wydzielenia - oddziały brane z położenia
+   wydzieleń na warstwie ODDZ: przy różnicach okno z podsumowaniem
+   (Kontynuuj/Porzuć), wydzielenia przecinające granice oddziałów
+   przerywają skrypt (warstwa do poprawy), brakujące oddziały dopisywane
+   do bazy, raport wydzieleń bez poligonu.
+10. ZMIANA: Kontrola DZKAT z bazą - rozpoznaje identyfikatory działek
+    skopiowane z EGiB/ULDK (np. 300202_2.0020.431, także z arkuszem);
+    działkom spoza bazy nie kasuje już PARCELID.
+11. POPRAWKA: Dopasuj style - WYDZ_POL i WYDZ_DOPISANE znowu dostają
+    styl WYDZ_POL (w 2.0u dostawały styl WYDZ); usunięte ostrzeżenie
+    o czcionce "Arial [Mono]".
+
 Wersja 2.0u — 2026-10-20
 ------------------------------------------------
 
