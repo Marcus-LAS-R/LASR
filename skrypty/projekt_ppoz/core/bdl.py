@@ -101,8 +101,10 @@ def napraw(geom):
         geom = geom.makeValid()
         if QgsWkbTypes.flatType(geom.wkbType()) == \
                 QgsWkbTypes.GeometryCollection:
-            geom = geom.convertGeometryCollectionToSubclass(
-                QgsWkbTypes.PolygonGeometry)
+            # zmienia geometrię w miejscu, zwraca bool (nie przypisywać!)
+            if not geom.convertGeometryCollectionToSubclass(
+                    QgsWkbTypes.PolygonGeometry):
+                return None
     if geom.isNull() or geom.isEmpty() or \
             geom.type() != QgsWkbTypes.PolygonGeometry:
         return None
