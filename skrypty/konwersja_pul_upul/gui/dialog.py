@@ -81,7 +81,7 @@ class KonwersjaPulUpulDialog(QDialog):
     def _dodaj_wiersz(self, grid, wiersz, etykieta, pole, slot_przegladaj):
         grid.addWidget(QLabel(etykieta), wiersz, 0)
         grid.addWidget(pole, wiersz, 1)
-        przycisk = QPushButton('Przeglądaj…')
+        przycisk = QPushButton('Wskaż...')
         przycisk.clicked.connect(slot_przegladaj)
         grid.addWidget(przycisk, wiersz, 2)
         return wiersz + 1

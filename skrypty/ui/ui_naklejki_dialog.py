@@ -8,6 +8,7 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from ..przyciski import QDialogButtonBox  # polskie napisy
 
 
 class Ui_DialogNaklejki(object):
@@ -16,7 +17,7 @@ class Ui_DialogNaklejki(object):
         DialogNaklejki.resize(460, 460)
         DialogNaklejki.setMinimumSize(QtCore.QSize(460, 460))
         DialogNaklejki.setMaximumSize(QtCore.QSize(450, 460))
-        self.buttonBox = QtWidgets.QDialogButtonBox(DialogNaklejki)
+        self.buttonBox = QDialogButtonBox(DialogNaklejki)
         self.buttonBox.setGeometry(QtCore.QRect(350, 100, 81, 81))
         self.buttonBox.setMaximumSize(QtCore.QSize(81, 241))
         self.buttonBox.setOrientation(QtCore.Qt.Vertical)
@@ -185,7 +186,7 @@ class Ui_DialogNaklejki(object):
     def retranslateUi(self, DialogNaklejki):
         _translate = QtCore.QCoreApplication.translate
         DialogNaklejki.setWindowTitle(_translate("DialogNaklejki", "Podaj informacje do generowania naklejek"))
-        self.pushButton_wybierz.setText(_translate("DialogNaklejki", "Wybierz"))
+        self.pushButton_wybierz.setText(_translate("DialogNaklejki", "Wskaż..."))
         self.label.setText(_translate("DialogNaklejki", "Katalog z bazami taksatora:"))
         self.label_2.setText(_translate("DialogNaklejki", "Stan na:"))
         self.lineEdit_od.setText(_translate("DialogNaklejki", "DD.MM.RRRR"))
@@ -206,7 +207,7 @@ class Ui_DialogNaklejki(object):
         self.label_7.setText(_translate("DialogNaklejki", "herb:"))
         self.label_8.setText(_translate("DialogNaklejki", "PGLLP:"))
         self.label_9.setText(_translate("DialogNaklejki", "NFOŚiGW:"))
-        self.pushButton_herb.setText(_translate("DialogNaklejki", "Wybierz"))
+        self.pushButton_herb.setText(_translate("DialogNaklejki", "Wskaż..."))
         self.comboBox_nfosigw.setItemText(0, _translate("DialogNaklejki", "(Brak)"))
         self.comboBox_nfosigw.setItemText(1, _translate("DialogNaklejki", "Białystok (Podlaskie)"))
         self.comboBox_nfosigw.setItemText(2, _translate("DialogNaklejki", "Gdańsk (Pomorskie)"))

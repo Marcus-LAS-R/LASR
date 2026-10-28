@@ -37,9 +37,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -47,7 +44,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(290, 124, 250, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -59,8 +55,8 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(_translate(
             "Dialog", "Doliterkuj wydzielenia (Aktualizacja UPUL)"))
         self.label_warstwa.setText(_translate("Dialog", "Warstwa wydzieleń:"))
-        self.pushButton_warstwa.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_warstwa.setText(_translate("Dialog", "Wskaż..."))
         self.checkBox_lz.setText(_translate(
             "Dialog", "Dopisz Lz na podstawie opis_pkt"))
-        self.pushButton_ok.setText(_translate("Dialog", "Wykonaj"))
-        self.pushButton_cancel.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_ok.setText(_translate("Dialog", "Uruchom"))
+        self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))

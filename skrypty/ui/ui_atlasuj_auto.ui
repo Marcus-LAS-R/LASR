@@ -136,9 +136,6 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>14</pointsize>
-     <weight>75</weight>
-     <bold>true</bold>
     </font>
    </property>
    <property name="text">
@@ -155,7 +152,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
   <widget class="QGroupBox" name="groupBox">

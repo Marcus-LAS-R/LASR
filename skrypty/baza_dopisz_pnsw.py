@@ -1,5 +1,6 @@
 import os
-from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QDialog
+from .przyciski import QMessageBox
 from qgis.core import QgsVectorLayer, QgsProject, Qgis, QgsSpatialIndex, \
     QgsMessageLog
 
@@ -164,7 +165,7 @@ class DopiszPnsw(SprawdzWydzielenia):
             message.setWindowTitle('Błędy')
             message.setText(
                 'Czy chcesz kontynuować pomimo odnalezionych błędów? \n')
-            message.addButton("Porzuć", QMessageBox.ActionRole)
+            message.addButton("Przerwij", QMessageBox.ActionRole)
             message.addButton("Kontynuuj", QMessageBox.ActionRole)
             kont = message.exec_()
 

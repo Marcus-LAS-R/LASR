@@ -10,7 +10,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtXml import QDomDocument
 from PyQt5.QtCore import QVariant, QSize, QFile, QIODevice
-from PyQt5.QtWidgets import QInputDialog
+from .przyciski import QInputDialog
 
 
 def poprawna_topo(poly, prog_szer=0.15):
@@ -248,6 +248,23 @@ def zapisz_shp_utf8(warstwa, sciezka_shp):
     return True, ''
 
 
+def aktywna_warstwa_wektorowa(iface, lyr=None):
+    """Aktywna warstwa (albo podana `lyr`), jeśli to poprawna warstwa
+    wektorowa - inaczej komunikat na pasku i None. Brak zaznaczenia, raster
+    czy grupa w TOC kończyły się w skryptach wyjątkiem Pythona."""
+    if lyr is None or lyr is False:
+        lyr = iface.activeLayer()
+    if isinstance(lyr, QgsVectorLayer) and lyr.isValid():
+        return lyr
+    iface.messageBar().pushMessage(
+        'BRAK WARSTWY',
+        'Zaznacz w TOC poprawną warstwę wektorową' if lyr is None else
+        'Zaznaczona warstwa "%s" nie jest poprawną warstwą wektorową'
+        % lyr.name(),
+        Qgis.Critical, 10)
+    return None
+
+
 def ustaw_utf8(iface):
     # metoda ustawia kodowanie utf aktywnej warstwy
     try:
@@ -272,6 +289,8 @@ def oblicz_pow_graf(iface):
     Powierzchnia obliczana jest na podstawie układu wspł z ramki.
     """
 
+    if aktywna_warstwa_wektorowa(iface) is None:
+        return False
     if iface.activeLayer().wkbType() not in [3, 6]:
         iface.messageBar().pushMessage(
             'BŁĄD',

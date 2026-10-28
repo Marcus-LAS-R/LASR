@@ -2,7 +2,8 @@ import os
 import glob
 import platform
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 
 from qgis.core import (
     Qgis, QgsVectorLayer, QgsField, QgsMessageLog, QgsProject,

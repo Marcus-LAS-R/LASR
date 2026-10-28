@@ -9,10 +9,10 @@ import shutil
 from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
-    QApplication, QCheckBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFileDialog, QGridLayout, QLabel, QLineEdit, QMessageBox,
-    QProgressDialog, QPushButton, QVBoxLayout,
+    QApplication, QCheckBox, QDialog, QDoubleSpinBox, QFileDialog, QGridLayout,
+    QLabel, QLineEdit, QProgressDialog, QPushButton, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
     QgsCategorizedSymbolRenderer, QgsFillSymbol, QgsProject,
     QgsRendererCategory, QgsVectorLayer,

@@ -76,7 +76,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wykonaj</string>
+    <string>Uruchom</string>
    </property>
   </widget>
   <widget class="QLineEdit" name="lineEdit_wydz">
@@ -114,7 +114,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_klu">
@@ -132,7 +132,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_porzuc">
@@ -150,7 +150,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
  </widget>

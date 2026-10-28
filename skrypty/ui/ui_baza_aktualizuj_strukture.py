@@ -107,9 +107,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 348, 300, 34))
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -117,7 +114,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(340, 348, 200, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -131,7 +127,7 @@ class Ui_Dialog(object):
             "Dialog", "Wskaż stare bazy i sposób ich aktualizacji:"))
         self.label_katalog.setText(_translate(
             "Dialog", "Katalog ze starymi bazami (.mdb/.sqlite):"))
-        self.pushButton_przegladaj_katalog.setText(_translate("Dialog", "Przeglądaj..."))
+        self.pushButton_przegladaj_katalog.setText(_translate("Dialog", "Wskaż..."))
         self.label_status_katalog.setText(_translate("Dialog", ""))
         self.radioButton_polacz.setText(_translate(
             "Dialog", "Połącz wszystkie stare bazy w jedną (na podstawie szablonu)"))
@@ -139,10 +135,10 @@ class Ui_Dialog(object):
             "Dialog", "Zaktualizuj każdą osobno (kopia szablonu na każdą starą bazę)"))
         self.label_szablon.setText(_translate(
             "Dialog", "Szablon bazy (kopiowany do folderu eksportu, oryginał nie jest zmieniany):"))
-        self.pushButton_przegladaj_szablon.setText(_translate("Dialog", "Przeglądaj..."))
+        self.pushButton_przegladaj_szablon.setText(_translate("Dialog", "Wskaż..."))
         self.label_folder_wyjsciowy.setText(_translate(
             "Dialog", "Folder eksportu (gdzie zapisać zaktualizowane bazy):"))
-        self.pushButton_przegladaj_folder.setText(_translate("Dialog", "Przeglądaj..."))
+        self.pushButton_przegladaj_folder.setText(_translate("Dialog", "Wskaż..."))
         self.label_info.setText(_translate("Dialog", ""))
         self.pushButton_ok.setText(_translate("Dialog", "Dalej"))
         self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))

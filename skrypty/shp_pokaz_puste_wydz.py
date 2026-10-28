@@ -24,9 +24,10 @@ from datetime import datetime
 from PyQt5 import sip
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import (
-    QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QVBoxLayout,
+    QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
     Qgis, QgsFeature, QgsField, QgsFillSymbol, QgsGeometry, QgsMapLayerProxyModel,
     QgsProject, QgsVectorLayer,

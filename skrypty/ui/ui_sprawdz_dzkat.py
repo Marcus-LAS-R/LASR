@@ -113,9 +113,9 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
+        Dialog.setWindowTitle(_translate("Dialog", "Przygotuj działki ewidencyjne"))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_cancel.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))
         self.label.setText(_translate("Dialog", "Warstwa wejściowa:"))
         self.label_2.setText(_translate("Dialog", "Katalog z bazami:"))
         self.label_3.setText(_translate("Dialog", "Własność:"))
@@ -132,8 +132,8 @@ class Ui_Dialog(object):
         self.label_6.setText(_translate("Dialog", "Kolumna z kodem obrębu:"))
         self.label_7.setText(_translate("Dialog", "Kolumna z numerem działki:"))
         self.label_8.setText(_translate("Dialog", "Kolumna z kodem arkusza:"))
-        self.pushButton_bazy.setText(_translate("Dialog", "Wybierz"))
-        self.pushButton_warstwa.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_bazy.setText(_translate("Dialog", "Wskaż..."))
+        self.pushButton_warstwa.setText(_translate("Dialog", "Wskaż..."))
         self.label_9.setText(_translate("Dialog", "Podaj powyżej albo do analizy pobrana zostanie aktualnie zaznaczona z TOC"))
 
 

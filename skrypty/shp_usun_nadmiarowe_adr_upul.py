@@ -11,7 +11,7 @@ from qgis.core import (
     QgsProject, QgsSpatialIndex, QgsVectorDataProvider, QgsVectorLayer,
     QgsWkbTypes,
 )
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 
 from .funkcje import wybierz_warstwe_z_kandydatow
 from . import kopie_manipulacyjne

@@ -1,5 +1,5 @@
 from qgis.core import QgsProject, Qgis
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 

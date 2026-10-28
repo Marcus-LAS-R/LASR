@@ -166,9 +166,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 510, 300, 34))
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -176,7 +173,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(340, 510, 300, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 

@@ -3,9 +3,10 @@ import glob
 
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
+    QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox, QMessageBox
 
 from .baza_wrapper import Baza
 from . import kopie_manipulacyjne
@@ -54,7 +55,7 @@ class _WyborDialog(QDialog):
         baza_row.addWidget(QLabel('Baza Taksatora:'))
         self.edit_baza = QLineEdit()
         baza_row.addWidget(self.edit_baza, 1)
-        przegladaj_btn = QPushButton('Wybierz…')
+        przegladaj_btn = QPushButton('Wskaż...')
         przegladaj_btn.clicked.connect(self._wybierz_baze)
         baza_row.addWidget(przegladaj_btn)
         layout.addLayout(baza_row)

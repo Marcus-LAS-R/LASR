@@ -1,6 +1,7 @@
 import os
 import platform
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
+from .przyciski import QMessageBox
 from datetime import datetime
 from shutil import copyfile
 from qgis.core import Qgis, QgsMessageLog

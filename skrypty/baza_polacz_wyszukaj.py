@@ -16,9 +16,10 @@ import os
 import platform
 
 from PyQt5.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QGroupBox,
-    QLabel, QRadioButton, QScrollArea, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QGridLayout, QGroupBox, QLabel,
+    QRadioButton, QScrollArea, QVBoxLayout, QWidget,
 )
+from .przyciski import QDialogButtonBox
 
 from .baza_wybor_katalogu_dialog import WybierzKatalogDialog
 

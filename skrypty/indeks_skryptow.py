@@ -273,7 +273,9 @@ INDEKS = {
     'a_puste_wydz': _w('pokaż puste wydzielenia bez opisu baza waypointy '
                        'nawigator'),
     'a_nawigator': _w('nawigator błędów raporty przeskakuj błędy mapa '
-                      'waypointy kontrola'),
+                      'waypointy kontrola kangur kangurek kangurki '
+                      'kangurkuj kangurkowanie skakanie skacz po błędach',
+                      dawne=['Kangurkuj'], dawne_id=['a_kangurkuj']),
 
     # --- Generuj
     'nakl': _w('naklejki etykiety wydruk teczki akta adresowe generuj'),

@@ -2,7 +2,8 @@ import os
 import re
 import platform
 from datetime import date, datetime
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog
+from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
 from . import waypointy

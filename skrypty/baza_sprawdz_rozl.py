@@ -1,7 +1,7 @@
 import os
 import platform
 from qgis.core import Qgis
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 
 from .baza_rozlicz_pow_wydz import SprawdzRozliczenie
 from .baza_wrapper import Baza, znajdz_baze_do_wydz

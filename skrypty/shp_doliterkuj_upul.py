@@ -23,7 +23,8 @@ import datetime
 import processing
 from operator import itemgetter
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 from qgis.core import (
     Qgis, QgsMessageLog, QgsSpatialIndex, QgsVectorLayer, QgsProject,
 )
@@ -33,6 +34,7 @@ from .ui.ui_shp_doliterkuj_upul import Ui_Dialog
 from . import kopie_manipulacyjne
 from . import warstwa_opisow_dock as opis
 from .funkcje import wyczysc_katalog_temp
+from .funkcje import aktywna_warstwa_wektorowa
 
 GRUPA_LZ = 'LZ-Ł'
 
@@ -251,8 +253,9 @@ def Doliterkuj(iface, lyr=False, wykryj_lz=True):  # noqa
     niezaliterowanym wydzieleniu, ktore ma juz wypelnione ADR_LES
     (niespojny stan - adres zbudowany bez litery), operacja jest
     przerywana z komunikatem bledu zamiast cichego nadpisania. """
-    if lyr is False:
-        lyr = iface.activeLayer()
+    lyr = aktywna_warstwa_wektorowa(iface, lyr)
+    if lyr is None:
+        return False
 
     QgsMessageLog.logMessage(
         '------ DOLITERUJ WYDZIELENIA (UPUL) --------- ',

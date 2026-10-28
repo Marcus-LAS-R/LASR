@@ -76,13 +76,12 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox,
-    QCompleter, QDialog,
-    QDialogButtonBox, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QShortcut, QSpinBox,
-    QStyledItemDelegate, QTableWidget, QTableWidgetItem, QToolButton,
-    QVBoxLayout, QWidget,
+    QCompleter, QDialog, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout,
+    QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea,
+    QShortcut, QSpinBox, QStyledItemDelegate, QTableWidget, QTableWidgetItem,
+    QToolButton, QVBoxLayout, QWidget,
 )
+from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
     QgsCoordinateTransform, QgsExpression, QgsFeature, QgsFeatureRequest,
     QgsField, QgsFillSymbol, QgsGeometry, QgsProject, QgsRectangle,

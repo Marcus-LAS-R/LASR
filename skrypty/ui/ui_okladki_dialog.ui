@@ -62,7 +62,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLineEdit" name="lineEdit_sciezka">
@@ -337,7 +337,7 @@
      </font>
     </property>
     <property name="text">
-     <string>Wybierz</string>
+     <string>Wskaż...</string>
     </property>
    </widget>
    <widget class="QCheckBox" name="checkBox_pgllp">

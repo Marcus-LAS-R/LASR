@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Przygotuj w teren - wskaż warstwy</string>
   </property>
   <widget class="QLabel" name="label">
    <property name="geometry">
@@ -73,7 +73,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLabel" name="label_2">
@@ -124,7 +124,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLabel" name="label_3">
@@ -184,9 +184,6 @@
    <property name="font">
     <font>
      <family>Arial</family>
-     <pointsize>13</pointsize>
-     <weight>75</weight>
-     <bold>true</bold>
     </font>
    </property>
    <property name="text">
@@ -281,7 +278,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
  </widget>

@@ -13,8 +13,9 @@ from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction, QApplication, QButtonGroup, QCheckBox, QComboBox, QDockWidget,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QRadioButton, QSizePolicy, QVBoxLayout, QWidget,
+    QPushButton, QRadioButton, QSizePolicy, QVBoxLayout, QWidget,
 )
+from .przyciski import QMessageBox
 from qgis.core import (
     Qgis, QgsFeatureRequest, QgsMapLayerProxyModel, QgsRectangle,
 )

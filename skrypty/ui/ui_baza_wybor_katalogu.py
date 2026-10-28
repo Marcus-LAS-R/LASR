@@ -39,9 +39,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 100, 300, 34))
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -49,7 +46,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(340, 100, 160, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -61,7 +57,7 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(_translate("Dialog", "Katalog z bazami danych"))
         self.label_naglowek.setText(_translate(
             "Dialog", "Wskaż katalog z bazami danych:"))
-        self.pushButton_przegladaj.setText(_translate("Dialog", "Przeglądaj..."))
+        self.pushButton_przegladaj.setText(_translate("Dialog", "Wskaż..."))
         self.label_podpowiedz.setText(_translate(
             "Dialog", "Możesz wkleić ścieżkę bezpośrednio w pole powyżej (Ctrl+V)."))
         self.pushButton_ok.setText(_translate("Dialog", "Dalej"))

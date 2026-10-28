@@ -72,9 +72,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(40, 270, 321, 34))
         font = QtGui.QFont()
         font.setFamily("Arial")
-        font.setPointSize(13)
-        font.setBold(True)
-        font.setWeight(75)
         self.pushButton_ok.setFont(font)
         self.pushButton_ok.setObjectName("pushButton_ok")
         self.pushButton_anuluj = QtWidgets.QPushButton(Dialog)
@@ -116,16 +113,16 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
+        Dialog.setWindowTitle(_translate("Dialog", "Przygotuj w teren - wskaż warstwy"))
         self.label.setText(_translate("Dialog", "Warstwa LS:"))
-        self.pushButton_ls.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_ls.setText(_translate("Dialog", "Wskaż..."))
         self.label_2.setText(_translate("Dialog", "Warstwa ODDZ z PGL LP (przycięta do obiektu):"))
-        self.pushButton_oddz.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_oddz.setText(_translate("Dialog", "Wskaż..."))
         self.label_3.setText(_translate("Dialog", "Odległość do innego LSa:  [m]"))
         self.lineEdit_odl.setText(_translate("Dialog", "15"))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
         self.pushButton_anuluj.setText(_translate("Dialog", "Anuluj"))
         self.label_4.setText(_translate("Dialog", "Warstwa użytków:"))
-        self.pushButton_uz.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_uz.setText(_translate("Dialog", "Wskaż..."))
 
 

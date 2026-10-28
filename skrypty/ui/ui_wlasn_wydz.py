@@ -66,9 +66,9 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(_translate("Dialog", "Własności w wydzieleniach"))
         self.label.setText(_translate("Dialog", "Wydzielenia:"))
         self.label_2.setText(_translate("Dialog", "Klasoużytki:"))
-        self.pushButton_ok.setText(_translate("Dialog", "Wykonaj"))
-        self.pushButton_wydz.setText(_translate("Dialog", "Wybierz"))
-        self.pushButton_klu.setText(_translate("Dialog", "Wybierz"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_ok.setText(_translate("Dialog", "Uruchom"))
+        self.pushButton_wydz.setText(_translate("Dialog", "Wskaż..."))
+        self.pushButton_klu.setText(_translate("Dialog", "Wskaż..."))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))
 
 

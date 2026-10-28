@@ -1,5 +1,5 @@
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QInputDialog
+from .przyciski import QInputDialog
 from qgis.utils import iface
 from qgis.core import QgsField, QgsFeatureRequest
 

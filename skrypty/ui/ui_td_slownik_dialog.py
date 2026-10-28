@@ -41,8 +41,6 @@ class Ui_Dialog(object):
         self.pushButton_zapisz.setGeometry(QtCore.QRect(20, 500, 150, 34))
         font_zapisz = QtGui.QFont()
         font_zapisz.setFamily("Arial")
-        font_zapisz.setBold(True)
-        font_zapisz.setWeight(75)
         self.pushButton_zapisz.setFont(font_zapisz)
         self.pushButton_zapisz.setObjectName("pushButton_zapisz")
 

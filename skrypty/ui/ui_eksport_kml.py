@@ -58,9 +58,9 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Wybierz warstwy do przełożenia na KML"))
         self.ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
-        self.pushButton_ls.setText(_translate("Dialog", "Wybierz"))
-        self.pushButton_dz.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))
+        self.pushButton_ls.setText(_translate("Dialog", "Wskaż..."))
+        self.pushButton_dz.setText(_translate("Dialog", "Wskaż..."))
         self.label.setText(_translate("Dialog", "Warstwa Ls"))
         self.label_2.setText(_translate("Dialog", "Warstwa DZKAT"))
 

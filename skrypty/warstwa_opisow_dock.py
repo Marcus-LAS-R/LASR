@@ -39,10 +39,10 @@ from PyQt5.QtGui import (
     QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygon,
 )
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QDockWidget, QGroupBox,
-    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QComboBox, QDialog, QDockWidget, QGroupBox, QGridLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
+from .przyciski import QDialogButtonBox, QInputDialog, QMessageBox
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsEditFormConfig, QgsFeature, QgsField,
     QgsGeometry, QgsProject, QgsVectorFileWriter, QgsVectorLayer,

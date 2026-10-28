@@ -5,8 +5,8 @@ from qgis.core import (
     QgsProject, QgsVectorLayer, QgsMessageLog, QgsProcessingOutputLayerDefinition
 )
 from qgis.PyQt.uic import loadUiType
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, \
-    QTableWidgetItem
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
+from .przyciski import QMessageBox
 from qgis.PyQt.QtCore import Qt
 import processing
 from qgis.utils import iface

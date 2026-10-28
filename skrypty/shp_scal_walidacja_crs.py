@@ -34,9 +34,8 @@ from qgis.core import (
 )
 from qgis.PyQt.uic import loadUiType
 from qgis.PyQt.QtCore import QVariant
-from qgis.PyQt.QtWidgets import (
-    QDialog, QFileDialog, QMessageBox, QTableWidgetItem,
-)
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
+from .przyciski import QMessageBox
 
 from .funkcje import rozbij_adres_gmina_obreb
 

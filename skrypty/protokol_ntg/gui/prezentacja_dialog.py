@@ -9,10 +9,11 @@ from datetime import date
 
 from qgis.PyQt.QtCore import QDate, QSettings, Qt
 from qgis.PyQt.QtWidgets import (
-    QApplication, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
-    QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout,
+    QApplication, QDateEdit, QDialog, QFileDialog, QFormLayout, QGridLayout,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
+    QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 
 from ..core import protokol as core
 from ..core import przygotuj

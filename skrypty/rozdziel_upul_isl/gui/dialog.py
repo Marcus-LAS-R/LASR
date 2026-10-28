@@ -7,10 +7,11 @@ import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QBrush, QColor
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox,
-    QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QRadioButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QFileDialog,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton,
+    QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox
 from qgis.core import QgsProject
 
 from ...baza_wrapper import Baza
@@ -66,7 +67,7 @@ class RozdzielUpulIslDialog(QDialog):
         self.le_baza = QLineEdit()
         self.le_baza.setReadOnly(True)
         rz.addWidget(self.le_baza, 1)
-        btn = QPushButton('Wskaż…')
+        btn = QPushButton('Wskaż...')
         btn.clicked.connect(self._wybierz_baze)
         rz.addWidget(btn)
         layout.addLayout(rz)
@@ -110,7 +111,7 @@ class RozdzielUpulIslDialog(QDialog):
         rs.addWidget(QLabel('    Folder SHP:'))
         self.le_shp = QLineEdit()
         rs.addWidget(self.le_shp, 1)
-        self.btn_shp = QPushButton('Wskaż…')
+        self.btn_shp = QPushButton('Wskaż...')
         self.btn_shp.clicked.connect(self._wybierz_shp)
         rs.addWidget(self.btn_shp)
         layout.addLayout(rs)

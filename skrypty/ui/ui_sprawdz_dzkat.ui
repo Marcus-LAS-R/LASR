@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Przygotuj działki ewidencyjne</string>
   </property>
   <widget class="QPushButton" name="pushButton_ok">
    <property name="enabled">
@@ -39,7 +39,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
   <widget class="QLabel" name="label">
@@ -311,7 +311,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_warstwa">
@@ -324,7 +324,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLabel" name="label_9">

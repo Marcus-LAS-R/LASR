@@ -1,7 +1,9 @@
 import os
-from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox, QDockWidget, \
-    QAction, QAbstractItemView, QDialogButtonBox, QLabel, QTableWidget, \
-    QTableWidgetItem, QVBoxLayout
+from PyQt5.QtWidgets import (
+    QFileDialog, QDialog, QDockWidget, QAction, QAbstractItemView, QLabel,
+    QTableWidget, QTableWidgetItem, QVBoxLayout,
+)
+from .przyciski import QMessageBox, QDialogButtonBox
 from qgis.core import Qgis, QgsMessageLog, QgsRectangle, QgsFeatureRequest
 from qgis.gui import QgsMapToolEmitPoint
 

@@ -219,7 +219,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_dzkat">
@@ -237,7 +237,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_bazy">
@@ -255,7 +255,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLabel" name="label_5">
@@ -456,7 +456,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
  </widget>

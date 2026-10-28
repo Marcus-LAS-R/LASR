@@ -7,10 +7,10 @@ import shutil
 
 from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtWidgets import (
-    QApplication, QDialog, QDialogButtonBox, QFileDialog, QGridLayout,
-    QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton,
-    QVBoxLayout,
+    QApplication, QDialog, QFileDialog, QGridLayout, QLabel, QLineEdit,
+    QProgressDialog, QPushButton, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsVectorLayer
 
 from ...baza_anonimizuj import anonimizuj_baze

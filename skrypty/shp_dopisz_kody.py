@@ -7,6 +7,7 @@ from PyQt5.QtCore import QVariant
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .funkcje import zapisz_shp_utf8
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 class recursivedefaultdict(defaultdict):
@@ -29,7 +30,9 @@ class DopiszKody(SprawdzWydzielenia):
         """Metoda pobiera i sprwdza poprawność wskazanej warstwy oraz
         komplementarnej bazy"""
 
-        self.wydz = self.iface.activeLayer()
+        self.wydz = aktywna_warstwa_wektorowa(self.iface)
+        if self.wydz is None:
+            return False
         self.wydz_path = \
             self.wydz.dataProvider().dataSourceUri().split("|")[0]
         self.kat = os.path.dirname(self.wydz_path)

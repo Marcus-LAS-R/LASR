@@ -27,10 +27,11 @@ from __future__ import annotations
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
+    QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget,
+    QVBoxLayout, QWidget,
 )
+from ...przyciski import QMessageBox
 
 
 # Nazwy kolumn w trzech tabelach — single source of truth dla nagłówków i

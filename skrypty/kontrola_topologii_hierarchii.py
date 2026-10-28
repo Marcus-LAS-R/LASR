@@ -24,9 +24,10 @@ from qgis.core import (
 )
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import (
-    QDialog, QFileDialog, QMessageBox, QFormLayout, QHBoxLayout,
-    QVBoxLayout, QLineEdit, QPushButton, QLabel, QDialogButtonBox,
+    QDialog, QFileDialog, QFormLayout, QHBoxLayout, QVBoxLayout, QLineEdit,
+    QPushButton, QLabel,
 )
+from .przyciski import QMessageBox, QDialogButtonBox
 
 from .sprawdzenia_topo import SprawdzTopo
 from .napraw_topologie_hierarchii import kontrola_miedzywarstwowa, NAZWY_WARSTW

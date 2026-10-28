@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Przysnapuj do działek</string>
   </property>
   <widget class="QPushButton" name="pushButton_snap">
    <property name="geometry">
@@ -40,7 +40,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_dz">
@@ -58,7 +58,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_ok">
@@ -73,9 +73,6 @@
    <property name="font">
     <font>
      <family>Arial</family>
-     <pointsize>14</pointsize>
-     <weight>75</weight>
-     <bold>true</bold>
     </font>
    </property>
    <property name="text">
@@ -97,7 +94,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
   <widget class="QLabel" name="label">

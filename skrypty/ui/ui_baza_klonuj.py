@@ -20,16 +20,12 @@ class Ui_Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(70, 110, 251, 34))
         font = QtGui.QFont()
         font.setFamily("Arial")
-        font.setPointSize(11)
-        font.setBold(True)
-        font.setWeight(75)
         self.pushButton_ok.setFont(font)
         self.pushButton_ok.setObjectName("pushButton_ok")
         self.pushButton_cancel = QtWidgets.QPushButton(Ui_Dialog)
         self.pushButton_cancel.setGeometry(QtCore.QRect(380, 110, 181, 34))
         font = QtGui.QFont()
         font.setFamily("Arial")
-        font.setPointSize(8)
         self.pushButton_cancel.setFont(font)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
         self.lineEdit_wydz = QtWidgets.QLineEdit(Ui_Dialog)
@@ -75,11 +71,11 @@ class Ui_Ui_Dialog(object):
     def retranslateUi(self, Ui_Dialog):
         _translate = QtCore.QCoreApplication.translate
         Ui_Dialog.setWindowTitle(_translate("Ui_Dialog", "Klonuj wydzielenia"))
-        self.pushButton_ok.setText(_translate("Ui_Dialog", "Wykonaj"))
-        self.pushButton_cancel.setText(_translate("Ui_Dialog", "Porzuć"))
+        self.pushButton_ok.setText(_translate("Ui_Dialog", "Uruchom"))
+        self.pushButton_cancel.setText(_translate("Ui_Dialog", "Anuluj"))
         self.label.setText(_translate("Ui_Dialog", "Plik tekstowy:"))
         self.label_2.setText(_translate("Ui_Dialog", "Baza Taksatora:"))
-        self.pushButton_wydz.setText(_translate("Ui_Dialog", "Wybierz"))
-        self.pushButton_baza.setText(_translate("Ui_Dialog", "Wybierz"))
+        self.pushButton_wydz.setText(_translate("Ui_Dialog", "Wskaż..."))
+        self.pushButton_baza.setText(_translate("Ui_Dialog", "Wskaż..."))
 
 

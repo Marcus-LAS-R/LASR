@@ -25,8 +25,10 @@ from datetime import datetime
 from PyQt5.QtCore import Qt, QVariant
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
-    QPushButton, QListWidget, QListWidgetItem, QDialogButtonBox,
-    QFileDialog, QMessageBox, QProgressDialog, QApplication, QCheckBox)
+    QPushButton, QListWidget, QListWidgetItem, QFileDialog, QProgressDialog,
+    QApplication, QCheckBox,
+)
+from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
     Qgis, QgsProject, QgsVectorLayer, QgsFeature, QgsField, QgsFields,
     QgsGeometry, QgsPointXY, QgsWkbTypes, QgsCoordinateReferenceSystem,

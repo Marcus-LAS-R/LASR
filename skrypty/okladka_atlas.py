@@ -6,7 +6,8 @@ from qgis.core import QgsMessageLog, Qgis, QgsFillSymbol, QgsProject, \
     QgsPrintLayout, QgsLayoutSize, QgsLayoutItemShape, QgsLayoutItemLabel, \
     QgsUnitTypes, QgsLayoutPoint, QgsLayoutItem, QgsLayoutItemPicture, \
     QgsLayoutItemPage
-from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
+from .przyciski import QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 

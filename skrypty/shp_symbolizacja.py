@@ -1,7 +1,8 @@
 from qgis.core import Qgis, QgsProject, QgsVectorLayer, QgsLayerTreeGroup, \
     QgsLayerTreeLayer, QgsVectorLayerSimpleLabeling
-from PyQt5.QtWidgets import QInputDialog
+from .przyciski import QInputDialog
 import os
+from .funkcje import aktywna_warstwa_wektorowa
 
 # kolumny z klasą użytku gruntowego, w zależności od wersji/źródła danych
 _KLU_POLA = ['AU', 'G5OFU', 'OFU']
@@ -54,14 +55,9 @@ def _dopasuj_pole_etykiety(lyr):
 
 
 def rysuj(iface, co):
-    lyr = iface.activeLayer()
-    if not lyr.isValid():
-        iface.messageBar().pushMessage(
-            'Brak warstwy',
-            'Czy napewno zaznaczyłeś/aś warstwę?',
-            Qgis.Critical,
-            10
-        )
+    lyr = aktywna_warstwa_wektorowa(iface)
+    if lyr is None:
+        return
 
     if co == 'ls':
         _rysuj_klu(iface, lyr)

@@ -4,8 +4,8 @@ import datetime
 import processing
 from operator import itemgetter
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QLineEdit, \
-    QMessageBox, QTableWidgetItem
+from PyQt5.QtWidgets import QDialog, QFileDialog, QLineEdit, QTableWidgetItem
+from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer, QgsProject
 
 from .shp_literkuj import LITERY
@@ -13,6 +13,7 @@ from .baza_wrapper import Baza
 from .ui.ui_shp_doliterkuj import Ui_Dialog
 from . import kopie_manipulacyjne
 from .funkcje import wyczysc_katalog_temp
+from .funkcje import aktywna_warstwa_wektorowa
 
 _Y_BAZA_ROW = 100
 _ROW_H = 32
@@ -404,8 +405,9 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
     przygotowanej tak samo jak do Literkuj (te same kolumny), na poczatku
     robi backup do temp/ (przed jakakolwiek modyfikacja warstwy), a na
     koniec dissolve (scala fragmenty 'Lz'). """
-    if lyr is False:
-        lyr = iface.activeLayer()
+    lyr = aktywna_warstwa_wektorowa(iface, lyr)
+    if lyr is None:
+        return False
 
     QgsMessageLog.logMessage(
         '------ DOLITERUJ WYDZIELENIA --------- ',

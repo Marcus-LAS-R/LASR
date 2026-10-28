@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QFileDialog
 from .baza_wrapper import Baza
 from .funkcje import wybierz_warstwe_z_kandydatow
 from .aktualizacja_upul.core.utworz_klon_txt import zapisz_plik
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 class SprawdzCiecie:
@@ -42,9 +43,13 @@ class SprawdzCiecie:
         self.kat = os.path.dirname(self.wydz.dataProvider().dataSourceUri(
             ).split("|")[0])
 
-        self.akt = self.iface.activeLayer()
-        ftype = next(self.akt.getFeatures()).geometry().wkbType()
-        if ftype not in [QgsWkbTypes.Point, QgsWkbTypes.MultiPoint]:
+        self.akt = aktywna_warstwa_wektorowa(self.iface)
+        if self.akt is None:
+            return False
+        # typ z warstwy, nie z pierwszego obiektu - pusta warstwa
+        # punktowa nie konczy sie wyjatkiem
+        if QgsWkbTypes.geometryType(self.akt.wkbType()) != \
+                QgsWkbTypes.PointGeometry:
             self.iface.messageBar().pushWarning(
                 'Aktywna warstwa', 'Zaznacz warstwę punktową z nr kart')
             return False

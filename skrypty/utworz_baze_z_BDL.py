@@ -5,7 +5,8 @@ import datetime
 import openpyxl
 
 from PyQt5.QtCore import Qt, QVariant
-from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem
+from .przyciski import QMessageBox
 from qgis.core import (
     Qgis,
     QgsMessageLog,

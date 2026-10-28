@@ -25,13 +25,10 @@
    <property name="font">
     <font>
      <family>Arial</family>
-     <pointsize>11</pointsize>
-     <weight>75</weight>
-     <bold>true</bold>
     </font>
    </property>
    <property name="text">
-    <string>Wykonaj</string>
+    <string>Uruchom</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_cancel">
@@ -46,11 +43,10 @@
    <property name="font">
     <font>
      <family>Arial</family>
-     <pointsize>8</pointsize>
     </font>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
   <widget class="QLineEdit" name="lineEdit_wydz">
@@ -167,7 +163,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_baza">
@@ -185,7 +181,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_fochr">
@@ -203,7 +199,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
  </widget>

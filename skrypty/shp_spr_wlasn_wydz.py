@@ -1,7 +1,8 @@
 import os
 from qgis.core import QgsVectorLayer, Qgis, QgsSpatialIndex, \
     QgsProject, QgsFeature, QgsField, QgsFields
-from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QDialog
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 
 from .ui.ui_wlasn_wydz import Ui_Dialog

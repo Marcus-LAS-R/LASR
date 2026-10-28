@@ -12,7 +12,7 @@ def uruchom(iface):
     try:
         config = Config.load(plugin_dir)
     except Exception as e:
-        from PyQt5.QtWidgets import QMessageBox
+        from ..przyciski import QMessageBox
         QMessageBox.critical(
             iface.mainWindow(),
             "Błąd konfiguracji",

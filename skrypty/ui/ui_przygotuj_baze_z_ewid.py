@@ -84,9 +84,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -94,7 +91,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(420, 494, 380, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -107,10 +103,10 @@ class Ui_Dialog(object):
         self.label_shp.setText(_translate(
             "Dialog",
             "Warstwa SHP działek ewidencyjnych (z geoportalu, np. EWID.shp):"))
-        self.pushButton_shp.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_shp.setText(_translate("Dialog", "Wskaż..."))
         self.label_baza.setText(_translate(
             "Dialog", "Baza docelowa (pusta, wcześniej skopiowana, .mdb):"))
-        self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_baza.setText(_translate("Dialog", "Wskaż..."))
         self.label_obreby.setText(_translate(
             "Dialog",
             "Obręby znalezione w warstwie (numery grup G1, G2… przydzielane "

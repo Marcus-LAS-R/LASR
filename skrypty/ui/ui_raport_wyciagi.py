@@ -145,7 +145,7 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Generuj wyciągi dla właścicieli"))
         self.label.setText(_translate("Dialog", "Baza:"))
-        self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_baza.setText(_translate("Dialog", "Wskaż..."))
         self.groupBox.setTitle(_translate("Dialog", "Pozycja adresu starostwa"))
         self.label_2.setText(_translate("Dialog", "od lewej [mm]"))
         self.label_3.setText(_translate("Dialog", "od góry [mm]"))
@@ -168,4 +168,4 @@ class Ui_Dialog(object):
         self.label_9.setText(_translate("Dialog", "od:"))
         self.label_10.setText(_translate("Dialog", "do:"))
         self.pushButton_ok.setText(_translate("Dialog", "Generuj"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))

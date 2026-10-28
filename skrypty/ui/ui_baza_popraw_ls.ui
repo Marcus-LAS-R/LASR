@@ -104,7 +104,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
  </widget>

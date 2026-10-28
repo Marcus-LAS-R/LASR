@@ -7,6 +7,7 @@
 # WARNING! All changes made in this file will be lost!
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from ..przyciski import QDialogButtonBox  # polskie napisy
 
 class Ui_DialogTomy(object):
     def setupUi(self, DialogTomy):
@@ -31,7 +32,7 @@ class Ui_DialogTomy(object):
         self.horizontalLayout.setObjectName("horizontalLayout")
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacerItem)
-        self.buttonBox = QtWidgets.QDialogButtonBox(DialogTomy)
+        self.buttonBox = QDialogButtonBox(DialogTomy)
         self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
         self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
         self.buttonBox.setObjectName("buttonBox")

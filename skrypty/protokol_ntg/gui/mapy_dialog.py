@@ -11,10 +11,10 @@ import os
 
 from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QVBoxLayout,
+    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import mapa_ogolna, mapy_gmin

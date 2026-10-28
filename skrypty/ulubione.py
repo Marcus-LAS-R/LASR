@@ -11,10 +11,11 @@
 - domyślnie pusta (podpowiedź w submenu)."""
 from PyQt5.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-    QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+    QAbstractItemView, QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem,
+    QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox
 from qgis.core import QgsApplication, QgsSettings
 
 from . import indeks_skryptow as ix

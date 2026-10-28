@@ -1,8 +1,8 @@
 import os
 import platform
 
-from qgis.PyQt.QtWidgets import QFileDialog,  QDialog,  QMessageBox, \
-    QApplication
+from qgis.PyQt.QtWidgets import QFileDialog, QDialog, QApplication
+from ..przyciski import QMessageBox
 from ..ui.ui_baza_zabiegi2 import Ui_Dialog
 from qgis.utils import iface
 from qgis.core import Qgis, QgsMessageLog

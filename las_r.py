@@ -24,8 +24,8 @@
 """
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QAction, QMenu, QToolButton, QPushButton, \
-    QInputDialog
+from PyQt5.QtWidgets import QAction, QMenu, QToolButton, QPushButton
+from .skrypty.przyciski import QInputDialog
 import configparser
 
 # Initialize Qt resources from file resources.py
@@ -957,6 +957,34 @@ class LasR:
         self.a_buduj_oddzialy.triggered.connect(self.buduj_oddzialy_z_wydzielen)
         # ----------------------------------------
 
+        self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
+        self.spr_topo.setToolTip(
+            "Sprawdza błędy topologiczne warstwy (luki, nakładanie się, "
+            "przecięcia).")
+        self.m_kontrola_danych.addAction(self.spr_topo)
+        self.spr_topo.triggered.connect(self.sprawdz_topologie)
+
+        self.spr_wydz = QAction(
+            ico_wydz_spr, "Sprawdź wydzielenia", self.iface.mainWindow()
+        )
+        self.spr_wydz.setToolTip(
+            "Ogólna kontrola poprawności danych i geometrii wydzieleń.")
+        self.m_kontrola_danych.addAction(self.spr_wydz)
+        self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
+
+        self.spr_rozlicz_wydz = QAction(
+            QIcon(None),
+            "Sprawdź rozliczenie powierzchni wydz.",
+            self.iface.mainWindow(),
+        )
+        self.spr_rozlicz_wydz.setToolTip(
+            "Sprawdza, czy suma powierzchni wydzieleń zgadza się z "
+            "powierzchnią oddziału/obrębu.")
+        self.m_kontrola_danych.addAction(self.spr_rozlicz_wydz)
+        self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
+
+        self.m_kontrola_danych.addSeparator()
+
         self.spr_odl_wydz = QAction(
             QIcon(None), "Sprawdź odległości w wydzieleniach", self.iface.mainWindow()
         )
@@ -983,34 +1011,6 @@ class LasR:
             "oddziałów.")
         self.m_kontrola_danych.addAction(self.spr_w_o)
         self.spr_w_o.triggered.connect(self.sprawdz_wydz_w_oddz)
-
-        self.m_kontrola_danych.addSeparator()
-
-        self.spr_rozlicz_wydz = QAction(
-            QIcon(None),
-            "Sprawdź rozliczenie powierzchni wydz.",
-            self.iface.mainWindow(),
-        )
-        self.spr_rozlicz_wydz.setToolTip(
-            "Sprawdza, czy suma powierzchni wydzieleń zgadza się z "
-            "powierzchnią oddziału/obrębu.")
-        self.m_kontrola_danych.addAction(self.spr_rozlicz_wydz)
-        self.spr_rozlicz_wydz.triggered.connect(self.sprawdz_pow_wydzielen)
-
-        self.spr_wydz = QAction(
-            ico_wydz_spr, "Sprawdź wydzielenia", self.iface.mainWindow()
-        )
-        self.spr_wydz.setToolTip(
-            "Ogólna kontrola poprawności danych i geometrii wydzieleń.")
-        self.m_kontrola_danych.addAction(self.spr_wydz)
-        self.spr_wydz.triggered.connect(self.sprawdzenie_wydzielen)
-
-        self.spr_topo = QAction(ico_topo, "Sprawdź topologię", self.iface.mainWindow())
-        self.spr_topo.setToolTip(
-            "Sprawdza błędy topologiczne warstwy (luki, nakładanie się, "
-            "przecięcia).")
-        self.m_kontrola_danych.addAction(self.spr_topo)
-        self.spr_topo.triggered.connect(self.sprawdz_topologie)
 
         self.a_napraw_topo_hier = QAction(
             QIcon(None), "Napraw topologię hierarchii warstw (dzew-uzyt-wydz-oddz)",
@@ -1867,6 +1867,8 @@ class LasR:
         g.wyswietl_info(ile)
 
     def sprawdz_topologie(self):
+        if funkcje.aktywna_warstwa_wektorowa(self.iface) is None:
+            return
         b = sprawdzenia_topo.SprawdzTopo(self.iface)
         b.pobierz_feat()
         b.spr_wstepne()
@@ -1910,6 +1912,8 @@ class LasR:
         )
 
     def sprawdzenie_wydzielen(self):
+        if funkcje.aktywna_warstwa_wektorowa(self.iface) is None:
+            return
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
         if not k.wczytaj_baze():
             return
@@ -1919,12 +1923,16 @@ class LasR:
                 k.kontrola_powierzchni()
             except Exception:
                 pass
+            k.spr_puste()
             k.spr_oddz()
             k.spr_pnsw()
             k.spr_line()
         k.zapisz_raport()
+        self.wczytaj_do_nawigatora(k.waypointy_sc)
 
     def sprawdzenie_odl_w_wydz(self):
+        if funkcje.aktywna_warstwa_wektorowa(self.iface) is None:
+            return
         k = spr_wydzielen.KontrolaWydzielen(self.iface)
         if k.wczytaj_wydz():
             k.kontrola_odl()

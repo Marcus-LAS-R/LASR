@@ -4,7 +4,7 @@ from collections import Counter
 from qgis.core import Qgis, QgsField, QgsFeatureRequest, QgsMessageLog, \
     QgsProject, QgsSpatialIndex, QgsVectorLayer, QgsFeature
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .baza_wrapper import Baza, znajdz_baze_do_wydz
@@ -252,7 +252,7 @@ class Przeliterkuj(SprawdzWydzielenia):
             'Nadpisać oddziały wg położenia geometrycznego i przeliterować?'
             .format(len(zmiany), self.wydz.name(), oddz.name(),
                     '\n'.join(wiersze)))
-        message.addButton('Porzuć', QMessageBox.RejectRole)
+        message.addButton('Przerwij', QMessageBox.RejectRole)
         kont = message.addButton('Kontynuuj', QMessageBox.AcceptRole)
         message.exec_()
         return message.clickedButton() == kont

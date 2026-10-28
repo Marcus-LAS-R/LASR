@@ -1,11 +1,13 @@
 import os
 
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QVBoxLayout,
+    QComboBox, QDialog, QHBoxLayout, QLabel, QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox
 from qgis.core import (
     NULL, Qgis, QgsFeatureRequest, QgsMessageLog, QgsProject, QgsVectorLayer,
 )
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 def zbuduj_adres(county_l, district, municip, community, grp, oddz, wydz):
@@ -79,8 +81,9 @@ def _zgloszenie_duplikatow_adresu(iface, nazwa_funkcji, lyr, duplikaty_fid):
 
 
 def Zaadresuj(iface, lyr=False):
-    if lyr is False:
-        lyr = iface.activeLayer()
+    lyr = aktywna_warstwa_wektorowa(iface, lyr)
+    if lyr is None:
+        return False
 
     QgsMessageLog.logMessage(
         '------ DOPISANIE ARESU LEŚNEGO --------- ',

@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Karty wylesień na działkach</string>
   </property>
   <widget class="QLabel" name="label">
    <property name="geometry">
@@ -145,7 +145,7 @@ p, li { white-space: pre-wrap; }
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
  </widget>

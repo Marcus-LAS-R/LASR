@@ -1,5 +1,48 @@
-from qgis.core import Qgis, QgsMessageLog
+import re
 from operator import itemgetter
+
+from qgis.core import Qgis, QgsMessageLog
+
+from . import kopie_manipulacyjne
+from .przyciski import QMessageBox
+
+TYTUL = 'Zanumeruj oddziały'
+
+
+def _pusty(v):
+    return v is None or str(v).strip() in ('', 'NULL')
+
+
+def _numer(v):
+    """Liczba z początku numeru oddziału ('12', '12a' -> 12) albo None."""
+    m = re.match(r'\s*(\d+)', str(v)) if not _pusty(v) else None
+    return int(m.group(1)) if m else None
+
+
+def _koniec():
+    QgsMessageLog.logMessage('------ KONIEC -------- \n', 'Las-R', Qgis.Info)
+
+
+def _zapytaj(iface, lyr, znumerowane, wszystkie):
+    """'calosc' / 'dodaj' albo None (Anuluj)."""
+    monit = QMessageBox(iface.mainWindow())
+    monit.setIcon(QMessageBox.Question)
+    monit.setWindowTitle(TYTUL)
+    monit.setText(
+        'W warstwie {} są już zanumerowane oddziały: {} z {}.\n\n'
+        'Przenumeruj całość - nowe numery dla wszystkich oddziałów '
+        '(kopia warstwy przed zmianą).\n'
+        'Dodaj numerację - numery tylko dla oddziałów bez numeru, kolejne '
+        'po najwyższym numerze w obrębie.'.format(
+            lyr.name(), znumerowane, wszystkie))
+    anuluj = monit.addButton('Anuluj', QMessageBox.RejectRole)
+    calosc = monit.addButton('Przenumeruj całość',
+                             QMessageBox.DestructiveRole)
+    dodaj = monit.addButton('Dodaj numerację', QMessageBox.AcceptRole)
+    monit.setDefaultButton(anuluj)
+    monit.setEscapeButton(anuluj)
+    monit.exec_()
+    return {calosc: 'calosc', dodaj: 'dodaj'}.get(monit.clickedButton())
 
 
 def Numeruj(iface):  # noqa
@@ -11,17 +54,12 @@ def Numeruj(iface):  # noqa
         Qgis.Info
     )
 
-    if not lyr.isValid():
-        QgsMessageLog.logMessage(
-            'Brak zaznaczonej poprawnej warstwy',
-            'Las-R',
-            Qgis.Critical
-        )
-        QgsMessageLog.logMessage(
-            '------ KONIEC -------- \n',
-            'Las-R',
-            Qgis.Info
-        )
+    if lyr is None or not lyr.isValid() or not hasattr(lyr, 'fields'):
+        iface.messageBar().pushMessage(
+            'BŁĄD', 'Zaznacz w TOC poprawną warstwę oddziałów',
+            Qgis.Critical, 10)
+        _koniec()
+        return False
 
     # zdefiniuj nizbedne pola w warstwie
     pola = [
@@ -40,6 +78,7 @@ def Numeruj(iface):  # noqa
             'Brakuje kolumn w zaznaczonej warstwie: '+', '.join(braki),
             Qgis.Critical,
             10)
+        _koniec()
         return False
 
     fnm = lyr.dataProvider().fieldNameMap()  # slownik kolejnosci nazw w shp
@@ -53,30 +92,52 @@ def Numeruj(iface):  # noqa
             f['ODDZ'],
         ])
 
+    # kolejnosc: gmina, obreb, w obrebie od polnocy
     tab = sorted(tab, key=itemgetter(1), reverse=True)
     tab = sorted(tab, key=itemgetter(4))
     tab = sorted(tab, key=itemgetter(3))
 
+    znumerowane = sum(1 for t in tab if not _pusty(t[5]))
+    tryb = 'dodaj'
+    if znumerowane > 0:
+        tryb = _zapytaj(iface, lyr, znumerowane, len(tab))
+        if tryb is None:
+            QgsMessageLog.logMessage('Anulowano', 'Las-R', Qgis.Info)
+            _koniec()
+            return False
+        if tryb == 'calosc' and kopie_manipulacyjne.zrob_kopie_manipulacyjna(
+                None, [lyr], 'przenumeruj_oddzialy') is None:
+            iface.messageBar().pushMessage(
+                'BŁĄD', 'Nie udało się zrobić kopii warstwy - przerwano, '
+                'numery bez zmian', Qgis.Critical, 10)
+            _koniec()
+            return False
+
+    # najwyzszy istniejacy numer w obrebie - "Dodaj numerację" zaczyna od
+    # kolejnego (wczesniej numeracja zaczynala sie od 1 i dublowala numery)
+    najwyzszy = {}
+    if tryb == 'dodaj':
+        for t in tab:
+            nr = _numer(t[5])
+            klucz = (str(t[3]), str(t[4]))
+            if nr is not None and nr > najwyzszy.get(klucz, 0):
+                najwyzszy[klucz] = nr
+
     # ponumeruj oddz
-    gmi = ""
-    obr = ""
+    gmi = None
+    obr = None
     oddz = 1
     puste = 0
-    znumerowane = 0
     for t in tab:
         if 'NULL' in [str(t[3]), str(t[4])]:
             puste += 1
 
         if str(t[3]) != gmi or str(t[4]) != obr:
-            gmi = t[3]
-            obr = t[4]
-            oddz = 1
+            gmi = str(t[3])
+            obr = str(t[4])
+            oddz = najwyzszy.get((gmi, obr), 0) + 1
 
-        # if t[5] not in ['NULL', '']:
-        try:
-            if t[5][0]:
-                znumerowane += 1
-        except:  # noqa
+        if tryb == 'calosc' or _pusty(t[5]):
             sl[t[0]] = {fnm['ODDZ']: str(oddz)}
             oddz += 1
 
@@ -85,30 +146,27 @@ def Numeruj(iface):  # noqa
         lyr.dataProvider().changeAttributeValues({key: val})
     lyr.commitChanges()
 
+    opis = ('przenumerowano: ' if tryb == 'calosc' else 'zanumerowano: ') + \
+        str(len(sl)) + ' oddziałów'
     if puste == 0:
         iface.messageBar().pushMessage(
             'OK',
-            'Warstwa zanumerowana bez problemów, zanumerowano: ' +
-            str(len(sl))+' oddziałów',
+            'Warstwa zanumerowana bez problemów, ' + opis,
             Qgis.Success,
             10)
     else:
         iface.messageBar().pushMessage(
             'PUSTE WIERSZE',
             'Zidentyfikowano puste wiersze, proszę sprawdzić poprawność '
-            'warstwy! Zanumerowano: ' + str(len(sl))+' oddziałów',
+            'warstwy! ' + opis[0].upper() + opis[1:],
             Qgis.Warning,
             10)
 
-    if znumerowane > 0:
+    if tryb == 'dodaj' and znumerowane > 0:
         QgsMessageLog.logMessage(
             'Pominięto zanumerowanych oddziałów: ' + str(znumerowane),
             'Las-R',
             Qgis.Info
         )
 
-    QgsMessageLog.logMessage(
-        '------ KONIEC -------- \n',
-        'Las-R',
-        Qgis.Info
-    )
+    _koniec()

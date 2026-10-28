@@ -46,7 +46,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QGroupBox" name="groupBox">
@@ -477,7 +477,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
  </widget>

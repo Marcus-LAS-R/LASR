@@ -61,11 +61,11 @@ from collections import Counter, OrderedDict
 from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QRadioButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout,
+    QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog,
+    QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
+    QRadioButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 
 from . import teryt_obreby
@@ -882,14 +882,14 @@ class _DialogGlowny(QDialog):
         siatka = QGridLayout()
 
         self.pole_folder = QLineEdit(ust.value(_USTAWIENIA + 'folder', ''))
-        przycisk_folder = QPushButton('Przeglądaj...')
+        przycisk_folder = QPushButton('Wskaż...')
         przycisk_folder.clicked.connect(self._wybierz_folder)
         siatka.addWidget(QLabel('Folder startowy (z GML):'), 0, 0)
         siatka.addWidget(self.pole_folder, 0, 1)
         siatka.addWidget(przycisk_folder, 0, 2)
 
         self.pole_wzor = QLineEdit(ust.value(_USTAWIENIA + 'wzor', ''))
-        przycisk_wzor = QPushButton('Przeglądaj...')
+        przycisk_wzor = QPushButton('Wskaż...')
         przycisk_wzor.clicked.connect(self._wybierz_wzor)
         siatka.addWidget(QLabel('Wzór pustej bazy:'), 1, 0)
         siatka.addWidget(self.pole_wzor, 1, 1)

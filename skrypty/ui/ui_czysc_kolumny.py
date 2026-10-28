@@ -52,7 +52,7 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Czyszczenie kolumn w zaznaczonej warstwie"))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))
         self.checkBox_adrles.setText(_translate("Dialog", "ADR_LES"))
         self.label.setText(_translate("Dialog", "Wyczyść kolumny w zaznaczonej warstwie"))
         self.checkBox_oddz.setText(_translate("Dialog", "ODDZ"))

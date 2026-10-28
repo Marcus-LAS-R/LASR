@@ -75,7 +75,8 @@ def komunikat_bazy_zajetej(sc):
 
 
 def pokaz_blokade_bazy(sc):
-    from PyQt5.QtWidgets import QApplication, QMessageBox
+    from PyQt5.QtWidgets import QApplication
+    from .przyciski import QMessageBox
     QgsMessageLog.logMessage(
         f'Zablokowano połączenie z bazą podłączoną do Edytora opisu: {sc}',
         'Las-R', Qgis.Critical)

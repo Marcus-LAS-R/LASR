@@ -4,6 +4,7 @@ from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
 from PyQt5.QtCore import QVariant
 
 from .funkcje import wybierz_warstwe_z_kandydatow
+from .funkcje import aktywna_warstwa_wektorowa
 
 _PUSTE_WARTOSCI = ('', ' ', 'NULL', None)
 
@@ -47,7 +48,11 @@ def dopOddzWydz(iface, oddz=False):  # noqa
             10)
         return
 
-    if iface.activeLayer().name()[:4] == 'ODDZ':
+    wydz = aktywna_warstwa_wektorowa(iface)
+    if wydz is None:
+        return
+
+    if wydz.name()[:4] == 'ODDZ':
         QgsMessageLog.logMessage(
             'Aktywną warstwą powinny być wydzielenia',
             'Las-R',
@@ -60,7 +65,6 @@ def dopOddzWydz(iface, oddz=False):  # noqa
             10)
         return
 
-    wydz = iface.activeLayer()
     pola_w = [x.name() for x in wydz.fields()]
     pola_o = [x.name() for x in oddz.fields()]
     brak_pola = [[], []]

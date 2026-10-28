@@ -6,15 +6,16 @@ from qgis.core import QgsVectorLayer, QgsMessageLog, QgsProject, Qgis, \
     QgsFeatureRequest
 # import processing  # import przeniesiony do metody - ulatwienie testowania
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QMessageBox, QFileDialog, QDialog
+from PyQt5.QtWidgets import QComboBox, QFileDialog, QDialog
+from .przyciski import QMessageBox
 from collections import defaultdict
 
 from .sprawdzenia_warstw import SprawdzWydzielenia
-from .baza_wrapper import Baza, znajdz_baze_do_wydz
+from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
 from . import raporty
-from .funkcje import wyczysc_katalog_temp, wybierz_warstwe_z_kandydatow
+from .funkcje import wyczysc_katalog_temp
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
 
@@ -89,35 +90,9 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         """Metoda sprawdza czy w TOC znajdują się niezbędne warstwy, oraz czy
         są łatwo identyfikowalne, jeżeli tak zwraca True
         """
-        # znajdz w TOC warstwy z LS i WYDZ - jesli jest ich wiecej niz
-        # jedna dla ktorejs z ról, uzytkownik musi wskazac wlasciwa
-        lyrs = [x for x in QgsProject.instance().mapLayers().values()]
-        ls_kandydaci = [x for x in lyrs if x.name()[:2].upper() == 'LS']
-        wydz_kandydaci = [x for x in lyrs if x.name()[:4].upper() == 'WYDZ']
-
-        self.ls = wybierz_warstwe_z_kandydatow(self.iface, ls_kandydaci, 'LS')
-        try:
-            self.ls.dataProvider().setEncoding('UTF-8')
-            ls_sc = self.ls.dataProvider().dataSourceUri().split("|")[0]
-        except Exception:
-            ls_sc = False
-
-        self.wydz = wybierz_warstwe_z_kandydatow(
-            self.iface, wydz_kandydaci, 'WYDZ')
-        try:
-            # self.wydz.dataProvider().setEncoding('UTF-8')
-            wydz_sc = self.wydz.dataProvider().dataSourceUri().split("|")[0]
-
-            # znajdz bazę do danych jeżeli wydzielenia są ok
-            # baza_sc = znajdz_baze_do_wydz(self.iface, wydzlyr=self.wydz)
-            baza_sc = znajdz_baze_do_wydz(
-                self.iface, self.wydz, poz=1, wskaz=True
-            )
-        except Exception:
-            wydz_sc = False
-            baza_sc = False
-
-        self.pobierz_dane = PobierzDane(wydz_sc, ls_sc, baza_sc)
+        # od razu okno z danymi - podpowiedzi (WYDZ z TOC, LS z folderu WYDZ,
+        # baza katalog wyżej) liczy samo okno
+        self.pobierz_dane = PobierzDane(parent=self.iface.mainWindow())
         self.pobierz_dane.exec_()
 
         if self.pobierz_dane.porzucone:
@@ -1037,9 +1012,49 @@ class SprawdzRozliczenie():
         return self.wypis
 
 
+def _sciezka_warstwy(lyr):
+    return os.path.normpath(lyr.dataProvider().dataSourceUri().split("|")[0])
+
+
+def warstwy_plikowe_toc():
+    """Warstwy wektorowe z plików w TOC (provider ogr) - bez WMS/WMTS,
+    warstw tymczasowych i usług; [(nazwa, ścieżka)] wg nazwy."""
+    wyn = []
+    for lyr in QgsProject.instance().mapLayers().values():
+        if not isinstance(lyr, QgsVectorLayer) or not lyr.isValid() or \
+                lyr.providerType() != 'ogr':
+            continue
+        sc = _sciezka_warstwy(lyr)
+        if os.path.isfile(sc):
+            wyn.append((lyr.name(), sc))
+    return sorted(wyn, key=lambda x: (x[0].lower(), x[1].lower()))
+
+
+def domyslna_ls(wydz_sc):
+    """LS.shp z folderu warstwy WYDZ (wielkość liter bez znaczenia)."""
+    kat = os.path.dirname(wydz_sc)
+    for p in glob.glob(os.path.join(kat, '*.shp')):
+        if os.path.basename(p).lower() == 'ls.shp':
+            return os.path.normpath(p)
+    return ''
+
+
+def bazy_folder_wyzej(wydz_sc):
+    """Bazy .mdb z folderu nad folderem warstwy WYDZ."""
+    kat = os.path.dirname(os.path.dirname(os.path.abspath(wydz_sc)))
+    return sorted(os.path.normpath(p)
+                  for p in glob.glob(os.path.join(kat, '*.mdb')))
+
+
 class PobierzDane(QDialog):
-    def __init__(self, wydz=False, ls=False, baza=False):
-        super(PobierzDane, self).__init__()
+    """Okno "Rozlicz powierzchnię wydzieleń - podaj dane". WYDZ i Ls -
+    listy warstw z TOC (pliki wektorowe) + "Wskaż..." z dysku; podpowiedzi:
+    WYDZ = warstwa TOC o nazwie dokładnie WYDZ, Ls = LS.shp z folderu WYDZ,
+    baza = jedyna .mdb folder wyżej. Wybrane ścieżki trafiają do (ukrytych)
+    lineEdit_wydz/lineEdit_ls - z nich czyta reszta skryptu."""
+
+    def __init__(self, parent=None):
+        super(PobierzDane, self).__init__(parent)
 
         self.ui = Ui_Ui_Dialog()
         self.ui.setupUi(self)
@@ -1050,17 +1065,28 @@ class PobierzDane(QDialog):
         # wartosc True jezeli uzytkownik zrezygnowal z przetwarzania
         self.porzucone = True
 
-        # wpisz sciezki do przekazanych warstw i bazy
-        if wydz:
-            self.ui.lineEdit_wydz.setText(wydz)
-        if ls:
-            self.ui.lineEdit_ls.setText(ls)
-        if baza:
-            self.ui.lineEdit_baza.setText(baza)
-
         # trigger do sprawdzenia poprawnosci wpisanych danych przez
         # uzyszkodnika
         self.valid = False
+
+        # na listach tylko warstwy z WYDZ / LS gdziekolwiek w nazwie (bez
+        # względu na wielkość liter) - inne pliki przez "Wskaż..."
+        toc = warstwy_plikowe_toc()
+        lista_wydz = [x for x in toc if 'WYDZ' in x[0].upper()]
+        self.combo_wydz = self._lista(self.ui.lineEdit_wydz, lista_wydz)
+        self.combo_ls = self._lista(
+            self.ui.lineEdit_ls, [x for x in toc if 'LS' in x[0].upper()])
+
+        # podpowiedz WYDZ: warstwa z TOC o nazwie dokladnie WYDZ (po
+        # pozycji na liscie, nie po sciezce - ten sam plik moze byc w TOC
+        # pod kilkoma nazwami)
+        wydz = [i for i, (nazwa, _sc) in enumerate(lista_wydz)
+                if nazwa == 'WYDZ']
+        self.combo_wydz.currentIndexChanged.connect(self._wydz_zmieniona)
+        if wydz:
+            self.combo_wydz.setCurrentIndex(wydz[0])
+        else:
+            self._wydz_zmieniona()
 
         # sygnały
         self.ui.pushButton_ok.clicked.connect(self.sprawdz_ok)
@@ -1068,6 +1094,61 @@ class PobierzDane(QDialog):
         self.ui.pushButton_baza.clicked.connect(self.kat_baza)
         self.ui.pushButton_wydz.clicked.connect(self.kat_warstwa)
         self.ui.pushButton_ls.clicked.connect(self.kat_fochr)
+
+    # ------------------------------------------------------------ listy
+
+    def _lista(self, pole, toc):
+        """QComboBox w miejscu pola tekstowego z ui (pole zostaje ukryte i
+        przechowuje wybraną ścieżkę)."""
+        combo = QComboBox(self)
+        combo.setGeometry(pole.geometry())
+        combo.setFont(pole.font())
+        combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLength)
+        for nazwa, sc in toc:
+            combo.addItem('%s   (%s)' % (nazwa, sc), sc)
+        combo.setCurrentIndex(-1)
+        combo.setToolTip('Warstwa z TOC o pasującej nazwie albo "Wskaż..." '
+                         '- plik z dysku')
+        combo.currentIndexChanged.connect(
+            lambda _i, c=combo, p=pole: p.setText(c.currentData() or ''))
+        pole.hide()
+        combo.show()
+        return combo
+
+    def _ustaw(self, combo, sc, z_dysku=False):
+        """Wybiera ścieżkę na liście (dokłada ją, gdy jej nie ma)."""
+        sc = os.path.normpath(sc)
+        for i in range(combo.count()):
+            if os.path.normcase(combo.itemData(i) or '') == \
+                    os.path.normcase(sc):
+                combo.setCurrentIndex(i)
+                return
+        combo.addItem('%s   (%s)' % (
+            'z dysku: ' + os.path.splitext(os.path.basename(sc))[0]
+            if z_dysku else os.path.splitext(os.path.basename(sc))[0], sc),
+            sc)
+        combo.setCurrentIndex(combo.count() - 1)
+
+    def _wydz_zmieniona(self, *_):
+        """Podpowiedzi Ls i bazy wg folderu wybranej warstwy WYDZ."""
+        wydz = self.combo_wydz.currentData() or ''
+        if not wydz:
+            self.ui.lineEdit_baza.setPlaceholderText('')
+            return
+        self.kat = os.path.dirname(wydz)
+        ls = domyslna_ls(wydz)
+        if ls:
+            self._ustaw(self.combo_ls, ls)
+        else:
+            self.combo_ls.setCurrentIndex(-1)
+        bazy = bazy_folder_wyzej(wydz)
+        self.ui.lineEdit_baza.setText(bazy[0] if len(bazy) == 1 else '')
+        self.ui.lineEdit_baza.setPlaceholderText(
+            '' if len(bazy) == 1 else
+            'w folderze wyżej nie ma bazy .mdb - wskaż' if not bazy else
+            'w folderze wyżej jest kilka baz (%d) - wskaż' % len(bazy))
+
+    # ------------------------------------------------------------ przyciski
 
     def porzuc(self):
         self.porzucone = True
@@ -1081,9 +1162,9 @@ class PobierzDane(QDialog):
             self.porzucone = False
             self.hide()
         else:
-            msbx = QMessageBox(
+            QMessageBox.warning(
+                self, self.windowTitle(),
                 'Nie udało się odnaleźć wszystkich podanych plików!')
-            msbx.exec_()
 
     def kat_baza(self):
         sc = QFileDialog().getOpenFileName(self,
@@ -1092,7 +1173,7 @@ class PobierzDane(QDialog):
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
-            self.ui.lineEdit_baza.setText(sc)
+            self.ui.lineEdit_baza.setText(os.path.normpath(sc))
 
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
@@ -1101,7 +1182,7 @@ class PobierzDane(QDialog):
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
-            self.ui.lineEdit_wydz.setText(sc)
+            self._ustaw(self.combo_wydz, sc, z_dysku=True)
 
     def kat_fochr(self):
         sc = QFileDialog().getOpenFileName(self,
@@ -1110,4 +1191,4 @@ class PobierzDane(QDialog):
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
-            self.ui.lineEdit_ls.setText(sc)
+            self._ustaw(self.combo_ls, sc, z_dysku=True)

@@ -17,9 +17,9 @@ zapisane - błąd w jednej blokuje zapis OBU plików (patrz
 import os
 
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
-    QMessageBox, QVBoxLayout,
+    QComboBox, QDialog, QHBoxLayout, QLabel, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import utworz_klon_txt as logika

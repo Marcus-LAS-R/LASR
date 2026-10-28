@@ -5,7 +5,8 @@ from qgis.core import (
     QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsProject,
 )
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
+from .przyciski import QMessageBox
 
 from . import kafelkowanie
 from .ui.ui_atlasuj_auto import Ui_Dialog

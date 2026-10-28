@@ -12,7 +12,8 @@ przed uprzątnięciem.
 
 import os
 
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
+from ..przyciski import QMessageBox
 from qgis.core import Qgis, QgsProject, QgsVectorLayer
 
 from ..baza_wrapper import Baza

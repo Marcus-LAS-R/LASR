@@ -1,7 +1,8 @@
 from qgis.core import Qgis, QgsVectorLayer, QgsFeatureRequest, QgsMessageLog
 import os
 import processing
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog
+from .przyciski import QMessageBox
 
 _WARSTWY = [
     'adr_upul',

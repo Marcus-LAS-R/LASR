@@ -2,7 +2,8 @@ import os
 import glob
 from qgis.core import QgsVectorLayer, Qgis, QgsMessageLog, QgsSpatialIndex, \
     QgsFeatureRequest, QgsProject
-from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QDialog
+from .przyciski import QMessageBox
 
 from .baza_wrapper import Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia

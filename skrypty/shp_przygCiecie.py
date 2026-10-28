@@ -9,6 +9,7 @@ import processing
 from . import shp_wyszukaj_lz
 from . import shp_obszary_ciecia
 from .funkcje import zapisz_shp_utf8
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 def stworz_linie(kat):
@@ -180,7 +181,9 @@ def przygotuj_do_terenu(iface):  # noqa
         "PARCEL_POW",
         ]
 
-    ls = iface.activeLayer()
+    ls = aktywna_warstwa_wektorowa(iface)
+    if ls is None:
+        return
     ls_sciezka = ls.dataProvider().dataSourceUri().split("|")[0]
     kat = os.path.dirname(ls_sciezka)
 
@@ -287,7 +290,9 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
         "32": "Z",
         }
 
-    ls = iface.activeLayer()
+    ls = aktywna_warstwa_wektorowa(iface)
+    if ls is None:
+        return
     ls_sciezka = ls.dataProvider().dataSourceUri().split("|")[0]
     kat = os.path.dirname(ls_sciezka)
 

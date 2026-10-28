@@ -55,7 +55,7 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
+        Dialog.setWindowTitle(_translate("Dialog", "Karty wylesień na działkach"))
         self.label.setText(_translate("Dialog", "Nazwa gminy:"))
         self.groupBox.setTitle(_translate("Dialog", "Tryb generowania kart"))
         self.radioButton_all.setText(_translate("Dialog", "Wszystkie poligony z warstwy wylesień"))
@@ -72,6 +72,6 @@ class Ui_Dialog(object):
 "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt;\">- warstwa gr działki ew. powinna zawierać ewidencję (proszę zwrócić uwagę, na labelki, czy istnieją odpowiednie pola z których poligony będą labelkowane)</span></p>\n"
 "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:12pt;\">- warstwa KLU_AFT powinna zawierać kolumnę KLU z połączonymi danymi z AU i SQ</span></p></body></html>"))
         self.pushButton_ok.setText(_translate("Dialog", "Generuj"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))
 
 

@@ -2,6 +2,7 @@ from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
     QgsVectorLayer, QgsField, QgsFeature
 from collections import Counter
 from PyQt5.QtCore import QVariant
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
@@ -14,7 +15,9 @@ def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
 
     # jezeli nie podajemy warstw to sprawdzamy TOC
     if wydz is False:
-        wydz = iface.activeLayer()
+        wydz = aktywna_warstwa_wektorowa(iface)
+        if wydz is None:
+            return False, -1, -1
 
         # SPRAWDZ WARUNKI POCZATKOWE ----------------------
         # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
@@ -43,7 +46,7 @@ def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
                 10)
             return False, -1, -1
 
-    if iface.activeLayer().name() == 'ODDZ':
+    if wydz.name() == 'ODDZ':
         QgsMessageLog.logMessage(
             'Aktywną warstwą powinny być wydzielenia',
             'Las-R',

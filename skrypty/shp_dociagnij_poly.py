@@ -1,6 +1,7 @@
 ﻿from math import sqrt
 import os
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsGeometry, QgsFeature, QgsVectorFileWriter,\
     QgsSpatialIndex, QgsVectorLayer, Qgis, QgsProject, \

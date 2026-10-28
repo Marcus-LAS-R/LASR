@@ -7,10 +7,11 @@ import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QPushButton, QRadioButton, QTableWidget, QVBoxLayout,
+    QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QPushButton, QRadioButton, QTableWidget, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox
 from qgis.core import QgsProject
 
 from ...baza_wrapper import Baza
@@ -47,7 +48,7 @@ class PodmienZabiegiDialog(QDialog):
         self.le_baza = QLineEdit()
         self.le_baza.setReadOnly(True)
         rz.addWidget(self.le_baza, 1)
-        btn = QPushButton('Wskaż…')
+        btn = QPushButton('Wskaż...')
         btn.clicked.connect(self._wybierz_baze)
         rz.addWidget(btn)
         layout.addLayout(rz)

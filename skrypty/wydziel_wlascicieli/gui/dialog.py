@@ -8,10 +8,11 @@ import os
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
-    QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QAbstractItemView, QCheckBox, QDialog, QFileDialog, QGridLayout, QGroupBox,
+    QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget,
+    QTableWidgetItem, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox
 
 from ...baza_wrapper import Baza
 from ..core import eksport
@@ -59,7 +60,7 @@ class WydzielWlascicieliDialog(QDialog):
         self.le_zrodlo = QLineEdit()
         self.le_zrodlo.setReadOnly(True)
         zrodlo_row.addWidget(self.le_zrodlo, 1)
-        btn_zrodlo = QPushButton('Wskaż…')
+        btn_zrodlo = QPushButton('Wskaż...')
         btn_zrodlo.clicked.connect(self._wybierz_zrodlo)
         zrodlo_row.addWidget(btn_zrodlo)
         layout.addLayout(zrodlo_row)
@@ -111,7 +112,7 @@ class WydzielWlascicieliDialog(QDialog):
         self.le_shp = QLineEdit()
         self.le_shp.setEnabled(False)
         shp_row.addWidget(self.le_shp, 1)
-        btn_shp = QPushButton('Wskaż…')
+        btn_shp = QPushButton('Wskaż...')
         btn_shp.setEnabled(False)
         btn_shp.clicked.connect(self._wybierz_shp)
         shp_row.addWidget(btn_shp)
@@ -132,7 +133,7 @@ class WydzielWlascicieliDialog(QDialog):
         cel_row.addWidget(QLabel('Baza docelowa (istniejąca):'))
         self.le_cel = QLineEdit()
         cel_row.addWidget(self.le_cel, 1)
-        btn_cel = QPushButton('Wskaż…')
+        btn_cel = QPushButton('Wskaż...')
         btn_cel.clicked.connect(self._wybierz_cel)
         cel_row.addWidget(btn_cel)
         layout.addLayout(cel_row)

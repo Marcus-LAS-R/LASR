@@ -50,13 +50,15 @@ class QmlCacheModule():
 
     def setQml(self, checked, menu_action):
         params = menu_action.data()
+        lyr = funkcje.aktywna_warstwa_wektorowa(iface)
+        if lyr is None:
+            return
         try:
-            print(params)
-            iface.activeLayer().loadNamedStyle(params)
-            iface.activeLayer().triggerRepaint()
+            lyr.loadNamedStyle(params)
+            lyr.triggerRepaint()
             iface.mapCanvas().refresh()
         except Exception as e:
             iface.messageBar().pushMessage(
-                'Wczytanie qml', f'Nie udało się podczytać stylu {os.path.basename(params)} do warstwy {self.iface.activeLayer().name()}',
+                'Wczytanie qml', f'Nie udało się podczytać stylu {os.path.basename(params)} do warstwy {lyr.name()}',
                 level=Qgis.Warning
             )

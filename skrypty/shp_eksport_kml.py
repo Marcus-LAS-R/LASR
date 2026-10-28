@@ -1,6 +1,6 @@
 from qgis.core import QgsVectorLayer, Qgis, QgsVectorFileWriter, \
     QgsCoordinateReferenceSystem, QgsMessageLog
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 import os
 import processing
 

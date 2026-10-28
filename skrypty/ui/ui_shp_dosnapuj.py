@@ -31,9 +31,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 160, 471, 41))
         font = QtGui.QFont()
         font.setFamily("Arial")
-        font.setPointSize(14)
-        font.setBold(True)
-        font.setWeight(75)
         self.pushButton_ok.setFont(font)
         self.pushButton_ok.setObjectName("pushButton_ok")
         self.pushButton_cancel = QtWidgets.QPushButton(Dialog)
@@ -82,11 +79,11 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
-        self.pushButton_snap.setText(_translate("Dialog", "Wybierz"))
-        self.pushButton_dz.setText(_translate("Dialog", "Wybierz"))
+        Dialog.setWindowTitle(_translate("Dialog", "Przysnapuj do działek"))
+        self.pushButton_snap.setText(_translate("Dialog", "Wskaż..."))
+        self.pushButton_dz.setText(_translate("Dialog", "Wskaż..."))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_cancel.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))
         self.label.setText(_translate("Dialog", "Warstwa do dociągnięcia:"))
         self.label_2.setText(_translate("Dialog", "Działki ewidencyjne:"))
         self.label_3.setText(_translate("Dialog", "Zasięg snapowania: [cm]"))

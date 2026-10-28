@@ -39,9 +39,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -49,7 +46,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(250, 120, 210, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -60,7 +56,7 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Ui_Dialog.setWindowTitle(_translate("Ui_Dialog", "Anonimizuj bazy - opcje"))
         self.label_folder.setText(_translate("Ui_Dialog", "Katalog z bazami danych:"))
-        self.pushButton_folder.setText(_translate("Ui_Dialog", "Wybierz"))
+        self.pushButton_folder.setText(_translate("Ui_Dialog", "Wskaż..."))
         self.checkBox_kwerendy.setText(_translate("Ui_Dialog", "Usuń kwerendy z baz"))
-        self.pushButton_ok.setText(_translate("Ui_Dialog", "Wykonaj"))
-        self.pushButton_cancel.setText(_translate("Ui_Dialog", "Porzuć"))
+        self.pushButton_ok.setText(_translate("Ui_Dialog", "Uruchom"))
+        self.pushButton_cancel.setText(_translate("Ui_Dialog", "Anuluj"))

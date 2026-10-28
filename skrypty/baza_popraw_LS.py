@@ -4,7 +4,8 @@ import glob
 import bisect
 from collections import Counter
 from datetime import datetime
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza

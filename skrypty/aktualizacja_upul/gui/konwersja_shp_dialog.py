@@ -33,10 +33,11 @@ from datetime import datetime
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
-    QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
-    QTextEdit, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
+    QWidget,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer
 
 from ..core import shp_standard
@@ -92,7 +93,7 @@ class KonwersjaShpDialog(QDialog):
         self.edit_folder_wej.returnPressed.connect(
             lambda: self._wczytaj_folder(self.edit_folder_wej.text().strip()))
         wej_row.addWidget(self.edit_folder_wej, 1)
-        wej_btn = QPushButton("Wybierz…")
+        wej_btn = QPushButton("Wskaż...")
         wej_btn.clicked.connect(self._wybierz_folder_wej)
         wej_row.addWidget(wej_btn)
         layout.addLayout(wej_row)
@@ -151,7 +152,7 @@ class KonwersjaShpDialog(QDialog):
         self.edit_folder.setPlaceholderText(
             "Wskaż folder, do którego mają trafić przekonwertowane warstwy…")
         folder_row.addWidget(self.edit_folder, 1)
-        folder_btn = QPushButton("Wybierz…")
+        folder_btn = QPushButton("Wskaż...")
         folder_btn.clicked.connect(self._wybierz_folder)
         folder_row.addWidget(folder_btn)
         layout.addLayout(folder_row)

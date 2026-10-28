@@ -3,7 +3,8 @@ from qgis.core import QgsField, QgsVectorLayer, QgsPointXY, QgsGeometry, Qgis,\
     QgsFeature, QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
     QgsProject, QgsSpatialIndex
 from PyQt5.QtCore import QVariant
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
+from .przyciski import QMessageBox
 from .ui.ui_atlasuj import Ui_Dialog
 
 

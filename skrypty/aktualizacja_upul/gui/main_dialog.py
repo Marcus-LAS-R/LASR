@@ -28,10 +28,10 @@ import os
 
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import (
-    QDialog, QDialogButtonBox, QFileDialog, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 
 from ..core import f1_aktualizacja, f2_uzupelnienie, f3_korekta_masy, f4_korekta_bhd
 from ..core.db import connect
@@ -108,7 +108,7 @@ class MainDialog(QDialog):
         mdb_row = QHBoxLayout()
         self.mdb_edit = QLineEdit()
         self.mdb_edit.setReadOnly(True)  # ścieżka tylko przez file dialog — brak literówek
-        browse_btn = QPushButton("Wybierz…")
+        browse_btn = QPushButton("Wskaż...")
         browse_btn.clicked.connect(self._browse)
         mdb_row.addWidget(self.mdb_edit, 1)
         mdb_row.addWidget(browse_btn)

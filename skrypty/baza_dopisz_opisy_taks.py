@@ -42,9 +42,10 @@ import os
 
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout,
+    QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QVBoxLayout,
 )
+from .przyciski import QDialogButtonBox, QInputDialog, QMessageBox
 from qgis.core import (
     QgsFeature, QgsField, QgsProject, QgsSpatialIndex, QgsVectorLayer,
     QgsWkbTypes,

@@ -11,7 +11,8 @@ i warstwy źródłowe nie są zmieniane. Szczegóły - core/rozdziel.py.
 import os
 import shutil
 
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
+from ..przyciski import QMessageBox
 from qgis.core import Qgis
 
 from ..baza_wrapper import Baza

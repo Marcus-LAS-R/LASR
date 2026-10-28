@@ -3,9 +3,13 @@ import os
 from PyQt5.QtWidgets import QDialog
 from qgis.core import QgsVectorLayer, QgsFeatureRequest, Qgis
 from .ui.ui_czysc_kolumny import Ui_Dialog
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 def czysc_kolumny(iface):
+    # okno (PobierzDane.__init__) i reszta skryptu biorą aktywną warstwę
+    if aktywna_warstwa_wektorowa(iface) is None:
+        return
     d = PobierzDane(iface)
     d.exec_()
 

@@ -102,9 +102,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setEnabled(False)
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -112,7 +109,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(290, 208, 250, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -123,18 +119,18 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Doliterkuj wydzielenia - opcje"))
         self.label_warstwa.setText(_translate("Dialog", "Warstwa wydzieleń:"))
-        self.pushButton_warstwa.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_warstwa.setText(_translate("Dialog", "Wskaż..."))
         self.label_zrodlo.setText(_translate(
             "Dialog", "Źródło już zajętych liter:"))
         self.radioButton_zrodloSHP.setText(_translate(
             "Dialog", "z warstwy SHP"))
         self.radioButton_zrodloBaza.setText(_translate(
             "Dialog", "z bazy (F_ARODES)"))
-        self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_baza.setText(_translate("Dialog", "Wskaż..."))
         self.checkBox_oddz_reczny.setText(_translate(
             "Dialog", "Wpisz oddział ręcznie:"))
         self.checkBox_od.setText(_translate(
             "Dialog",
             "Doliterkuj od... (osobno dla każdego oddziału)"))
-        self.pushButton_ok.setText(_translate("Dialog", "Wykonaj"))
-        self.pushButton_cancel.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_ok.setText(_translate("Dialog", "Uruchom"))
+        self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))

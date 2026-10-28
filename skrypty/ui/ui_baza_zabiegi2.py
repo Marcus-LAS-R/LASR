@@ -67,9 +67,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 410, 571, 61))
         font = QtGui.QFont()
         font.setFamily("Arial")
-        font.setPointSize(14)
-        font.setBold(True)
-        font.setWeight(75)
         self.pushButton_ok.setFont(font)
         self.pushButton_ok.setObjectName("pushButton_ok")
         self.pushButton_porzuc = QtWidgets.QPushButton(Dialog)
@@ -101,7 +98,7 @@ class Ui_Dialog(object):
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Sprawdź / Uzupełnij bazę"))
-        self.pushButton_baza.setText(_translate("Dialog", "Wybierz"))
+        self.pushButton_baza.setText(_translate("Dialog", "Wskaż..."))
         self.grupBox.setTitle(_translate("Dialog", "Wybierz czynność:"))
         self.radioButton_sprawdz.setText(_translate("Dialog", "Sprawdź wpisane zabiegi w bazie (Nie modyfikuje zawartości)"))
         self.radioButton_uzpelnij.setText(_translate("Dialog", "Popraw powierzchnię wpisanych zabiegów (nie dopisuje zabiegów, nie zmienia uwag ani pięter)"))
@@ -109,7 +106,7 @@ class Ui_Dialog(object):
         self.checkBox_czysc_cue.setText(_translate("Dialog", "Wyczyść tabelę F_AROD_CUE przed dopisaniem (zabiegi zostaną wygenerowane od zera)"))
         self.label.setText(_translate("Dialog", "Baza taksatora:"))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))
         self.groupBox.setTitle(_translate("Dialog", "Modyfikator dla Trzebieży"))
         self.label_2.setText(_translate("Dialog", "O ile procent powiększyć domyślne pozyskanie:"))
         self.groupBox_2.setTitle(_translate("Dialog", "Uproszczenie (wszędzie \"IB\")"))

@@ -44,9 +44,6 @@ class Ui_Dialog(object):
         self.pushButton_ok.setGeometry(QtCore.QRect(20, 176, 300, 34))
         font_ok = QtGui.QFont()
         font_ok.setFamily("Arial")
-        font_ok.setPointSize(11)
-        font_ok.setBold(True)
-        font_ok.setWeight(75)
         self.pushButton_ok.setFont(font_ok)
         self.pushButton_ok.setObjectName("pushButton_ok")
 
@@ -54,7 +51,6 @@ class Ui_Dialog(object):
         self.pushButton_cancel.setGeometry(QtCore.QRect(340, 176, 160, 34))
         font_cancel = QtGui.QFont()
         font_cancel.setFamily("Arial")
-        font_cancel.setPointSize(8)
         self.pushButton_cancel.setFont(font_cancel)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
 
@@ -69,6 +65,6 @@ class Ui_Dialog(object):
         self.label_info.setText(_translate("Dialog", ""))
         self.checkBox_wskaz.setText(_translate(
             "Dialog", "Wskaż bazę docelową ręcznie (np. pustą bazę-szablon)"))
-        self.pushButton_przegladaj.setText(_translate("Dialog", "Przeglądaj..."))
+        self.pushButton_przegladaj.setText(_translate("Dialog", "Wskaż..."))
         self.pushButton_ok.setText(_translate("Dialog", "Dalej"))
         self.pushButton_cancel.setText(_translate("Dialog", "Anuluj"))

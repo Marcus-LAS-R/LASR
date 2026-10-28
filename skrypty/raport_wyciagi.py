@@ -3,7 +3,8 @@ import uuid
 import datetime
 import traceback
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 from PyQt5.QtGui import QFont, QPolygonF, QColor, QFontMetricsF, QImage
 from PyQt5.QtCore import Qt, QPointF, QVariant
 

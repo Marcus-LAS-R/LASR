@@ -48,7 +48,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Porzuć</string>
+    <string>Anuluj</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_ls">
@@ -61,7 +61,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_dz">
@@ -74,7 +74,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Wybierz</string>
+    <string>Wskaż...</string>
    </property>
   </widget>
   <widget class="QLineEdit" name="ls_sc">

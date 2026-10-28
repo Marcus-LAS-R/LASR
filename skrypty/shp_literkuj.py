@@ -6,12 +6,13 @@ from qgis.core import (
     Qgis, QgsMessageLog, QgsVectorLayer, QgsProject, QgsFeature, QgsField,
     QgsGeometry,
 )
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 from operator import itemgetter
 
 from . import kopie_manipulacyjne
 from .funkcje import wyczysc_katalog_temp
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 def _zgadnij_baze(warstwa_sc):
@@ -64,8 +65,9 @@ def _oddz_nieprawidlowy(wartosc):
 
 
 def Literkuj(iface, lyr=False):  # noqa
-    if lyr is False:
-        lyr = iface.activeLayer()
+    lyr = aktywna_warstwa_wektorowa(iface, lyr)
+    if lyr is None:
+        return False
 
     lit = LITERY
 
@@ -121,7 +123,7 @@ def Literkuj(iface, lyr=False):  # noqa
             'nie liczy się jako wpisana litera i zawsze zostaje bez zmian.'
             '\n\nCo zrobić?'
         )
-        btn_porzuc = monit.addButton('Porzuć', QMessageBox.RejectRole)
+        btn_porzuc = monit.addButton('Anuluj', QMessageBox.RejectRole)
         btn_doliteruj = monit.addButton('Doliteruj', QMessageBox.AcceptRole)
         btn_doliteruj.setToolTip('Na podstawie SHP')
         btn_nadpisz = monit.addButton('Nadpisz', QMessageBox.DestructiveRole)

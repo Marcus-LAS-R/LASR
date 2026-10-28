@@ -42,9 +42,9 @@ from qgis.core import (
 from PyQt5.QtCore import QVariant, Qt
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFileDialog, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QVBoxLayout,
-    QWidget,
+    QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
+from ..przyciski import QMessageBox
 
 _LOG = 'Las-R'
 EPSG_DOCELOWY = 'EPSG:2180'
@@ -446,7 +446,7 @@ class EksportSHPzGML(QDialog):
 
         wiersz_folder = QHBoxLayout()
         self.pole_folder = QLineEdit()
-        przycisk_folder = QPushButton('Przegladaj...')
+        przycisk_folder = QPushButton('Wskaż...')
         przycisk_folder.clicked.connect(self._wybierz_folder)
         wiersz_folder.addWidget(QLabel('Folder startowy (geodezja):'))
         wiersz_folder.addWidget(self.pole_folder)

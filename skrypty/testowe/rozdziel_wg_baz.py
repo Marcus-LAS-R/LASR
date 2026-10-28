@@ -28,8 +28,9 @@ from qgis.core import (
 )
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QVBoxLayout,
+    QPushButton, QVBoxLayout,
 )
+from ..przyciski import QMessageBox
 
 from ..baza_wrapper import Baza
 from ..funkcje import rozbij_adres_gmina_obreb
@@ -227,7 +228,7 @@ class RozdzielWgBaz(QDialog):
 
         wiersz = QHBoxLayout()
         self.pole_folder = QLineEdit()
-        przycisk = QPushButton('Przegladaj...')
+        przycisk = QPushButton('Wskaż...')
         przycisk.clicked.connect(self._wybierz_folder)
         wiersz.addWidget(QLabel(
             'Folder nadrzędny (zbiorcze SHP + podfoldery z bazami):'))

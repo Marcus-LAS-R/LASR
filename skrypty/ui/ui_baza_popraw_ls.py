@@ -50,4 +50,4 @@ class Ui_Dialog(object):
         self.pushButton_bazy.setText(_translate("Dialog", "Wskaż..."))
         self.checkBox_wszystkie.setText(_translate("Dialog", "Sprawdzaj wszystkie użytki (nie tylko Ls)"))
         self.pushButton_ok.setText(_translate("Dialog", "OK"))
-        self.pushButton_porzuc.setText(_translate("Dialog", "Porzuć"))
+        self.pushButton_porzuc.setText(_translate("Dialog", "Anuluj"))

@@ -4,7 +4,8 @@ import shutil
 from qgis.core import QgsVectorLayer, QgsFeature, Qgis, QgsSpatialIndex, \
     QgsRectangle, QgsCoordinateReferenceSystem, QgsVectorFileWriter, \
     QgsMessageLog, QgsProject
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 import processing
 
@@ -685,14 +686,14 @@ class PobierzDane(QDialog):
         except:  # nopep8
             message = QMessageBox()
             message.setIcon(QMessageBox.Information)
-            message.setWindowTitle('Bl�d')
+            message.setWindowTitle('Błąd')
             message.setText('Nie uda�o si� otworzy� podanej warstwy')
             message.addButton(u"Zamknij", QMessageBox.ActionRole)
             message.exec_()
 
     def wybierz_pole_uz(self, dostepne_pola):
         """Pyta uzytkownika ktora kolumne uzyc jako klase uzytku gruntowego."""
-        from PyQt5.QtWidgets import QInputDialog
+        from .przyciski import QInputDialog
         if not dostepne_pola:
             return None
         opis = ('Wybierz kolumne zawierajaca klase uzytku gruntowego\n'

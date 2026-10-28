@@ -3,7 +3,8 @@ import glob
 import platform
 from datetime import datetime
 from collections import Counter, defaultdict
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
     QgsVectorLayer, QgsMessageLog, QgsProject, QgsWkbTypes, QgsFields, \

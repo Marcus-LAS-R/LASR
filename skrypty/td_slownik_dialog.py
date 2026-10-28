@@ -1,4 +1,5 @@
-from PyQt5.QtWidgets import QDialog, QMessageBox, QTableWidgetItem
+from PyQt5.QtWidgets import QDialog, QTableWidgetItem
+from .przyciski import QMessageBox
 
 from . import td_slownik
 from .ui.ui_td_slownik_dialog import Ui_Dialog

@@ -16,10 +16,10 @@ do projektu.
 import os
 
 from PyQt5.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QTextEdit,
-    QVBoxLayout,
+    QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QTextEdit, QVBoxLayout,
 )
+from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import baza_finder

@@ -28,9 +28,10 @@ import shutil
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
-    QApplication, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
-    QGridLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QApplication, QCheckBox, QDialog, QFileDialog, QGridLayout, QLabel,
+    QLineEdit, QPushButton,
 )
+from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 
 from .baza_wrapper import KWERENDY_CHRONIONE, baza_zajeta, pokaz_blokade_bazy
@@ -275,7 +276,7 @@ class _Dialog(QDialog):
                       0, 0, 1, 2)
         self.le_folder = QLineEdit()
         lay.addWidget(self.le_folder, 1, 0)
-        b = QPushButton('Przeglądaj...')
+        b = QPushButton('Wskaż...')
         b.clicked.connect(self._folder)
         lay.addWidget(b, 1, 1)
         self.cb_podfoldery = QCheckBox(
@@ -290,7 +291,7 @@ class _Dialog(QDialog):
             3, 0, 1, 2)
         self.le_zrodlo = QLineEdit()
         lay.addWidget(self.le_zrodlo, 4, 0)
-        b = QPushButton('Przeglądaj...')
+        b = QPushButton('Wskaż...')
         b.clicked.connect(self._zrodlo)
         lay.addWidget(b, 4, 1)
         uw = QLabel(

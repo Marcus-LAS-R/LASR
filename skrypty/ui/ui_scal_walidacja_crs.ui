@@ -149,7 +149,7 @@
      <item>
       <widget class="QPushButton" name="pushButton_wykonaj">
        <property name="text">
-        <string>Wykonaj</string>
+        <string>Uruchom</string>
        </property>
        <property name="enabled">
         <bool>false</bool>

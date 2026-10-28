@@ -74,7 +74,9 @@ class TestIndeks(unittest.TestCase):
                 ('utf', {'uutf8'}),
                 ('edytor opisu', {'a_opis_taks'}),
                 ('klepanie karty', {'przyg_rap', 'przyg_klep'}),
-                ('BDL', {'a_pobierz_bdl', 'a_utworz_baze_bdl'})):
+                ('BDL', {'a_pobierz_bdl', 'a_utworz_baze_bdl'}),
+                ('kangur', {'a_nawigator'}),
+                ('kangurkowanie', {'a_nawigator'})):
             w, _d = self._pierwszy(zapytanie)
             self.assertIn(w.id, oczekiwane, zapytanie)
 

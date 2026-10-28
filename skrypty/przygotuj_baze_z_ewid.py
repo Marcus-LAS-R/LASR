@@ -3,9 +3,8 @@ import re
 import datetime
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QDialog, QFileDialog, QMessageBox, QTableWidgetItem,
-)
+from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
+from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 
 from . import teryt_obreby

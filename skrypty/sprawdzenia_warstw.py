@@ -1,7 +1,7 @@
 from qgis.core import Qgis, QgsMessageLog, QgsFeatureRequest,  QgsGeometry, \
     QgsSpatialIndex, QgsField, QgsFeature, QgsVectorLayer, QgsProject
 from collections import Counter
-from PyQt5.QtWidgets import QMessageBox
+from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 
 

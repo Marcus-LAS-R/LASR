@@ -5,7 +5,8 @@ import zipfile
 
 import openpyxl
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QMessageBox
+from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem
+from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsProject
 
 from .baza_wrapper import Baza
