@@ -292,11 +292,12 @@ def dopisz_metadane(iface, wydz_sc, baza_sc):
 
 # ---------------------------------------------------------------- raport
 
-def zapisz_raport(eksport, linie, nazwa="przygotuj"):
+def zapisz_raport(eksport, linie, nazwa="przygotuj", skrot="NTG"):
     kat = os.path.join(eksport, "Raporty")
     os.makedirs(kat, exist_ok=True)
-    sc = os.path.join(kat, "raport_%s_NTG_%s.txt"
-                      % (nazwa, datetime.now().strftime("%Y%m%dT%H%M%S")))
+    sc = os.path.join(kat, "raport_%s_%s_%s.txt"
+                      % (nazwa, skrot,
+                         datetime.now().strftime("%Y%m%dT%H%M%S")))
     with open(sc, "w", encoding="utf-8") as f:
         f.write("\n".join(linie))
     return sc

@@ -121,6 +121,7 @@ from .skrypty import aktualizacja_upul
 from .skrypty import konwersja_pul_upul
 from .skrypty import kontrola_terenowa
 from .skrypty import protokol_ntg
+from .skrypty import projekt_ppoz
 from .skrypty import shp_przygDotaks
 from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
@@ -1398,6 +1399,29 @@ class LasR:
         self.m_ntg.addAction(self.a_ntg_prezentacja)
         self.a_ntg_prezentacja.triggered.connect(self.ntg_prezentacja)
 
+        self.m_ppoz = QMenu("PPOŻ materiały", self.m_raporty)
+        self.m_raporty.addMenu(self.m_ppoz)
+
+        self.a_ppoz_warstwy = QAction(
+            QIcon(None), "Przygotuj warstwy i bazę", self.iface.mainWindow())
+        self.a_ppoz_warstwy.setToolTip(
+            "PPOŻ: jak w NTG - łączy WYDZ, ODDZ, OBR, GMIN, LS i bazy TPU z "
+            "folderów obiektu, anonimizuje bazę, tworzy WYDZ_DOPISANE "
+            "(wynik: _PPOZ/SHP, baza, raporty).")
+        self.m_ppoz.addAction(self.a_ppoz_warstwy)
+        self.a_ppoz_warstwy.triggered.connect(self.ppoz_przygotuj_warstwy)
+
+        self.a_ppoz_kompleksy = QAction(
+            QIcon(None), "Wyznacz kompleksy leśne pow. 300 ha",
+            self.iface.mainWindow())
+        self.a_ppoz_kompleksy.setToolTip(
+            "PPOŻ: kompleksy leśne bez względu na własność (WYDZ + lasy PGL "
+            "LP i poza PGL LP z BDL), łączone do zadanej odległości; "
+            "kontury > 300 ha, nasze wydzielenia w kompleksach, tabela XLSX "
+            "z powierzchniami z bazy.")
+        self.m_ppoz.addAction(self.a_ppoz_kompleksy)
+        self.a_ppoz_kompleksy.triggered.connect(self.ppoz_kompleksy)
+
         # toolbar -----------------------------
         self.dop_meta = QAction(
             ico_wydz_dopisz, "Dopisz metadane", self.iface.mainWindow()
@@ -2029,6 +2053,12 @@ class LasR:
 
     def ntg_prezentacja(self):
         protokol_ntg.przygotuj_prezentacje(self.iface)
+
+    def ppoz_przygotuj_warstwy(self):
+        projekt_ppoz.przygotuj_warstwy(self.iface)
+
+    def ppoz_kompleksy(self):
+        projekt_ppoz.kompleksy_300ha(self.iface)
 
     def pobierz_bdl(self):
         pobierz_BDL.uruchom(self.iface)

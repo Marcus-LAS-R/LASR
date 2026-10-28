@@ -295,6 +295,11 @@ INDEKS = {
                             'PowerPoint PPTX slajdy wzór znaczniki tabele '
                             'mapy TSL TD wieki rębności grunty '
                             'niezalesione'),
+    'a_ppoz_warstwy': _w('PPOŻ przeciwpożarowy ochrona ppoż przygotuj '
+                         'warstwy baza połączone obiekt anonimizacja'),
+    'a_ppoz_kompleksy': _w('PPOŻ przeciwpożarowy kompleksy leśne 300 ha '
+                           'BDL PGL LP lasy inne własności odległość '
+                           'łączenia kontury zestawienie XLSX'),
 
     # --- pasek LAS-R
     'dop_meta': _w('dopisz metadane wydzielenia', dawne=['dopisz metadane']),
