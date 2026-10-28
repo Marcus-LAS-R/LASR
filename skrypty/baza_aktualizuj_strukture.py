@@ -7,6 +7,7 @@ from qgis.core import Qgis
 
 from .baza_wrapper import Baza
 from .baza_polacz_rejestr import F_COMMUNITY, GRUPA3_DZIECI
+from .baza_formy_ochrony import SL_FORM, polacz_formy_ochrony
 from .baza_polacz import _kontrola_duplikatow_wydzieln
 from .baza_kontrola_slownikow_wgSULMN import KontrolaSlownikowWiele
 from .baza_aktualizuj_strukture_dialog import WyborTrybuAktualizacjiDialog
@@ -275,6 +276,21 @@ class KopiaStrukturalna:
         fk_arodes = next(
             (f for f in t.fk if f.slownik == 'sl_arodes'), None)
 
+        # F_SET.MY_INT_NUM -> forma ochrony (F_LAND_PROTECT): formy użyte
+        # przez kopiowane wiersze dopisywane/łączone w docelowej, numer
+        # przemapowany (wcześniej kopiowany wprost - cudze formy)
+        fk_formy = next(
+            (f for f in t.fk if f.slownik == SL_FORM and f.kolumna in idx),
+            None)
+        sl_formy = {}
+        if fk_formy is not None:
+            uzyte = {row[idx[fk_formy.kolumna]] for row in wiersze
+                     if fk_arodes is None or
+                     row[idx[fk_arodes.kolumna]] in self.sl_arodes}
+            sl_formy = polacz_formy_ochrony(
+                self.baza0, self.baza, uzyte, self.l_bledy_odczytu,
+                self.l_bledy_wpisu)
+
         for row in wiersze:
             nag, its, pomin = [], [], False
             for kolumna, wartosc in zip(kolumny, row):
@@ -286,6 +302,12 @@ class KopiaStrukturalna:
                         break
                     nag.append(kolumna)
                     its.append(self.sl_arodes[wartosc])
+                elif fk_formy is not None and kolumna == fk_formy.kolumna:
+                    if wartosc not in sl_formy:
+                        pomin = True
+                        break
+                    nag.append(kolumna)
+                    its.append(sl_formy[wartosc])
                 elif wartosc is not None:
                     nag.append(kolumna)
                     its.append(wartosc)

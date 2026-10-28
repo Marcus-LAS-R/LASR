@@ -8,6 +8,8 @@ from qgis.core import Qgis, QgsMessageLog
 
 from .pw import PasekPostepu
 from .baza_wrapper import Baza
+from .baza_formy_ochrony import SL_FORM, polacz_formy_ochrony
+from .baza_anonimizuj import anonimizuj_baze
 from .baza_kontrola_slownikow_wgSULMN import KontrolaSlownikowWiele
 from .baza_polacz_rejestr import (
     F_COMMUNITY, F_PARCEL_NADRZEDNA, V_ADDRESS_NADRZEDNA,
@@ -514,28 +516,25 @@ class PolaczBazy():
             )
 
     def _utworz_baze_bdo(self):
-        """Kopia połączonej bazy *_BDO.mdb: anonimizacja V_ADDRESS, bez
-        V_ADDRESS_second i kwerend (jak "Anonimizuj bazy TPU"). Zwraca
-        dopisek do komunikatu końcowego."""
+        """Kopia połączonej bazy *_BDO.mdb zanonimizowana tą samą funkcją co
+        "Anonimizuj bazy TPU" (anonimizuj_baze, z usunięciem kwerend) -
+        wcześniej własna kopia kroków bez czyszczenia
+        V_ARODES_PARTICIPATION_AREA_SUB_OWNER. Zwraca dopisek do komunikatu
+        końcowego."""
         sc = self.baza0.baza
         sc_bdo = os.path.splitext(sc)[0] + '_BDO' + os.path.splitext(sc)[1]
         try:
             copyfile(sc, sc_bdo)
-            baza = Baza(sc_bdo)
-            if not baza.polacz():
+            if not anonimizuj_baze(sc_bdo, usun_kwerendy=True):
                 raise RuntimeError('nie udało się połączyć z kopią')
-            baza.anonimizuj_vaddress()
-            baza.usun_tabele(['V_ADDRESS_second'])
-            usuniete = baza.usun_kwerendy()
-            baza.zamknij()
         except Exception as e:
             QgsMessageLog.logMessage(
                 'Połącz bazy TPU - baza BDO nieutworzona (' + sc_bdo +
                 '): ' + str(e), 'Las-R', Qgis.Critical)
             return '; !!! BAZA BDO NIEUTWORZONA: ' + str(e)
         QgsMessageLog.logMessage(
-            'Połącz bazy TPU - baza BDO: ' + sc_bdo + ', usunięto kwerend: ' +
-            str(len(usuniete)), 'Las-R', Qgis.Info)
+            'Połącz bazy TPU - baza BDO (zanonimizowana): ' + sc_bdo,
+            'Las-R', Qgis.Info)
         return '; baza BDO: ' + os.path.basename(sc_bdo)
 
     def _zapisz_raport_bledow(self, katalog, bledy):
@@ -580,6 +579,9 @@ class Laczenie():
         self.sl_arodes = {}  # slownik z starym arodes: nowy arodes
         self.sl_parcel = {}
         self.sl_addr = {}
+        # forma ochrony: stary F_SET.MY_INT_NUM -> F_LAND_PROTECT.INT_NUM w
+        # docelowej; None = jeszcze nie zbudowany (w locie w _polacz_dziecko)
+        self.sl_land_protect = None
         self.f_arodes = []
         self.f_community_nowe = []
         self.f_parcel_nowe = []
@@ -825,11 +827,33 @@ class Laczenie():
                     str(row[definicja.indeks_klucza]))
             self._wpisz(sql, row, definicja.nazwa, opis)
 
+    def _przygotuj_formy_ochrony(self, t):
+        """Tabela z FK do formy ochrony (F_SET.MY_INT_NUM): przed jej
+        wpisaniem dopisz do docelowej formy (F_LAND_PROTECT, F_ENV_PROTECT)
+        użyte przez kopiowane wiersze i zbuduj sl_land_protect. W locie, a
+        nie w p_/d_tabele - działa też dla klas, które je nadpisują
+        (konwersja PUL, Wydziel właścicieli)."""
+        fk = next((f for f in t.fk if f.slownik == SL_FORM), None)
+        if fk is None or self.sl_land_protect is not None:
+            return
+        self.sl_land_protect = {}
+        if fk.kolumna not in t.kolumny:
+            return
+        i_form = t.kolumny.index(fk.kolumna)
+        fk_ar = next((f for f in t.fk if f.slownik == 'sl_arodes'), None)
+        i_ar = t.kolumny.index(fk_ar.kolumna) if fk_ar else None
+        uzyte = {row[i_form] for row in self._wiersze.get(t.klucz, [])
+                 if i_ar is None or row[i_ar] in self.sl_arodes}
+        self.sl_land_protect = polacz_formy_ochrony(
+            self.baza0, self.baza, uzyte, self.l_bledy_odczytu,
+            self.l_bledy_wpisu, dozwolone_obreby=self.dozwolone_obreby)
+
     def _polacz_dziecko(self, t):
         """Wpisuje wiersze jednej tabeli-dziecka, remapujac kazda kolumne
         FK przez odpowiedni slownik (sl_arodes/sl_parcel/sl_addr) i
         nadajac nowa wartosc wlasnego surogatu, jesli tabela go ma
         (analogicznie do dzisiejszego SPEC_STOR_INT_NUM)."""
+        self._przygotuj_formy_ochrony(t)
         for row in self._wiersze.get(t.klucz, []):
             nag, its, pomin = [], [], False
             for kolumna, wartosc in zip(t.kolumny, row):

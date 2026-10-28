@@ -211,11 +211,14 @@ GRUPA3_DZIECI = [
 
     TabelaDziecko('f_set', 'F_SET', [
         'ARODES_INT_NUM', 'SET_INT_NUM', 'SET_TYPE_FL', 'MY_INT_NUM',
-    ], fk=[FK('ARODES_INT_NUM', 'sl_arodes')],
+    ], fk=[FK('ARODES_INT_NUM', 'sl_arodes'),
+           FK('MY_INT_NUM', 'sl_land_protect')],
         wlasny_klucz='SET_INT_NUM', wlasny_klucz_licznik='maxset'),
-        # MY_INT_NUM nie jest w fk ani wlasny_klucz -> kopiowane wprost
-        # (zawsze 0 w dostepnych probkach, brak odpowiadajacej tabeli w
-        # schemacie, wiec nie jest traktowane jako klucz obcy)
+        # MY_INT_NUM = F_LAND_PROTECT.INT_NUM (forma ochrony, tak zapisuje
+        # "Dopisz FOP") - sl_land_protect budowany w locie przez
+        # baza_formy_ochrony.polacz_formy_ochrony (formy z bazy źródłowej
+        # dopisywane / łączone z tymi samymi w docelowej), wcześniej
+        # kopiowane wprost -> cudze albo nieistniejące formy
 
     TabelaDziecko('f_arod_damage', 'F_AROD_DAMAGE', [
         'arodes_int_num', 'damage_int_num', 'damage_grad_cd', 'damage_perc',

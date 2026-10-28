@@ -1007,7 +1007,7 @@ class Baza(object):
             "update v_address set name_1='NAZWISKO', name_2='IMIE', "
             + "place='MIEJSCOWOSC', street='ULICA d:0 l:0', "
             + "post_cd='00-000', post='POCZTA', stat_info='00000000000'"
-            + ", tax_nr='000-000-00-00';"
+            + ", tax_nr='000-000-00-00', phone_nr=null;"
         )
 
         self.cur.execute(sql)

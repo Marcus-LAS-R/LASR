@@ -11,6 +11,12 @@ from .wydzielenie import Wydzielenie
 from ..baza_wrapper import Baza
 from .. import raporty
 
+# uwagi do osobnej (dolnej) grupy raportu - początek tekstu z sprawdz.py
+UWAGI_PIERSNICY = ('Duża odchyłka pierś/wys', 'Brak wpisanej pierśnicy')
+NAGLOWEK_UWAG = '===== UWAGI =====\n'
+NAGLOWEK_PIERSNICY = ('===== PIERŚNICA / WYSOKOŚĆ (duża odchyłka pierś/wys, '
+                      'brak wpisanej pierśnicy) =====\n')
+
 
 class Zabiegi():
     def __init__(self):
@@ -177,14 +183,18 @@ class Zabiegi():
                 'Generuje raport', '..........', Qgis.Info, 0
             )
             QApplication.processEvents()
-        rap = ''
+        # dwie grupy: na górze wszystkie uwagi, poniżej osobno pierśnica/
+        # wysokość (duża odchyłka pierś/wys, brak pierśnicy) - masowe i
+        # mniej pilne, nie mieszają się z resztą
+        rap, rap_piers = '', ''
         for k in sorted(self.wydz.keys()):
             try:
                 w = self.sl[k]
-                if len(w.uw_raport+w.uw_baza) > 0:
-                    rap += '\n'.join([
-                        f'{k}#   '+x for x in w.uw_raport+w.uw_baza])
-                    rap += '\n'
+                for x in w.uw_raport + w.uw_baza:
+                    if x.startswith(UWAGI_PIERSNICY):
+                        rap_piers += f'{k}#   {x}\n'
+                    else:
+                        rap += f'{k}#   {x}\n'
                 if k in self.bledy:
                     rap += 'Coś się wysypało przy generowaniu, ' + \
                         'ale kto to wie? ¯\\_( ͡° ͜ʖ ͡°)_/¯\n'
@@ -195,6 +205,8 @@ class Zabiegi():
                     'zonk!? - SPRAWDZIC!!!'
                 ])
                 rap += '\n'
+        rap = (NAGLOWEK_UWAG + (rap or 'Brak uwag\n') + '\n' +
+               NAGLOWEK_PIERSNICY + (rap_piers or 'Brak uwag\n'))
 
         rap_sc = os.path.join(
             self.kat, 'raport_zabiegi_'+self.baza.czas+'.txt')

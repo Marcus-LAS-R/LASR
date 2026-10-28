@@ -97,8 +97,8 @@ class StartPolaczDialog(WybierzKatalogDialog):
         self.rb_bdo = QRadioButton('BDO (tylko *_BDO)')
         self.rb_zwykle.setChecked(True)
         self.cb_utworz_bdo = QCheckBox(
-            'Utwórz bazę BDO (kopia połączonej: anonimizacja V_ADDRESS, '
-            'bez kwerend)')
+            'Utwórz bazę BDO (kopia połączonej, zanonimizowana jak w '
+            '"Anonimizuj bazy TPU", bez kwerend)')
         self.cb_utworz_bdo.setEnabled(rozszerzenie_baz() == '.mdb')
         for w in (self.rb_zwykle, self.rb_bdo, self.cb_utworz_bdo):
             lay.addWidget(w)

@@ -221,10 +221,13 @@ def test_sprawdzenia_pozyskanie_na_ha(baza):
     w.odczytaj_dane_z_bazy(wyn)
     w.sum_cue_volume = 10
     w.zbiorcze_sprawdzenie()
-    assert len(w.uw_raport) == 2
-    assert 'Pozyskanie <61m³/ha [11 m³/ha], (pow. wydz: 1.0972)' in \
+    # 11 m³/ha - poniżej progu 100 m³/ha, bez komunikatu o pozyskaniu
+    assert not [u for u in w.uw_raport if u.startswith('Pozyskanie >')]
+    w.uw_raport = []
+    w.sum_cue_volume = 120  # 109 m³/ha
+    w.sprawdz_pozyskanie_na_1ha()
+    assert 'Pozyskanie >100m³/ha [109 m³/ha], (pow. wydz: 1.0972)' in \
         w.uw_raport
-    # wiek reb ponizej tego w bazie, pozyskanie < 61
 
 
 def test_sprawdzenia_wydz_przest(baza):

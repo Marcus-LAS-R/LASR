@@ -407,15 +407,17 @@ class Sprawdz:
             pozysk_total += round(self.mlode_pozyskanie, 0)
             pozysk_total += round(self.przest_pozyskanie, 0)
             pozysk = int(pozysk_total / self.pow_wydz)
-            if 61 < pozysk:
+            if pozysk > 100:
                 self.uw_raport.append(
-                    f'Pozyskanie >61m³/ha [{pozysk} m³/ha], ' +
+                    f'Pozyskanie >100m³/ha [{pozysk} m³/ha], ' +
                     f'(pow. wydz: {self.pow_wydz})'
                 )
 
-            if pozysk > 500 and len(
-                [1 for x in self.drzew_gat if x[0][:2] in ['SO', 'ŚW']]
-            ) == 0:
+            # powyżej 500 m³/ha dodatkowo, gdy w drzewostanie nie ma jodły
+            # ani świerka (w JD/ŚW takie pozyskanie jest możliwe)
+            if pozysk > 500 and not any(
+                    str(x[0])[:2].upper() in ('JD', 'ŚW')
+                    for x in self.drzew_gat):
                 self.uw_raport.append(f'Pozyskanie >500m³/ha [{pozysk} m³/ha]')
 
     def sprawdz_pozyskanie_przes(self):
