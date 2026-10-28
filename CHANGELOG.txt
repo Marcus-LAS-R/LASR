@@ -1,6 +1,59 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0w — 2026-10-28
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> PPOŻ materiały (projekt ochrony przeciwpożarowej):
+   - "Przygotuj warstwy i bazę" - jak w NTG: łączy warstwy i bazy
+     z folderów obiektu, połączona baza od razu anonimizowana
+     (_PPOZ\Baza_PPOZ_polaczona_BDO.mdb); granice nadleśnictw opcjonalne;
+   - "Wyznacz kompleksy leśne pow. 300 ha" - kompleksy bez względu na
+     własność: nasze wydzielenia + lasy PGL LP i poza PGL LP pobrane
+     z Banku Danych o Lasach, łączone do zadanej odległości (domyślnie
+     20 m); wynik: kontury kompleksów, nasze wydzielenia w kompleksach
+     (zbiorczo i osobno dla każdego kompleksu) oraz tabela XLSX
+     z powierzchniami wydzieleń z bazy.
+2. NOWOŚĆ: NTG materiały -> "Stwórz prezentację" - prezentacja PPTX na
+   naradę ze wzoru ze znacznikami: tabele z bazy dla każdej gminy, mapy
+   z "Generuj mapy".
+3. NOWOŚĆ: Edytor opisu - "Dodaj nowe wydzielenie" dla zaznaczonego
+   poligonu: gmina, obręb i oddział z położenia na warstwie ODDZ, po
+   "Zapisz" adres leśny wpisywany do poligonu.
+4. ZMIANA: polskie przyciski we wszystkich oknach wtyczki także przy
+   angielskim interfejsie QGIS-a (wcześniej np. "Yes/Abort"); ujednolicone
+   napisy (Anuluj, Przerwij, Uruchom, "Wskaż...") i jednakowa wielkość
+   czcionki na przyciskach; polskie tytuły okien.
+5. POPRAWKA: brak zaznaczonej warstwy (albo zaznaczony raster) - zamiast
+   błędu Pythona komunikat "Zaznacz w TOC poprawną warstwę wektorową"
+   (m.in. Literkuj, Doliteruj, Utwórz adresy leśne, Rysuj..., Przygotuj
+   w teren / do cięcia, Dopisz metadane, Sprawdź cięcie, Sprawdź
+   topologię, Oblicz powierzchnię graficzną).
+6. NOWOŚĆ: Sprawdź wydzielenia - kontrola pustych wydzieleń (bez rodzaju
+   powierzchni): pierwsza sekcja raportu, warstwa "WYDZ z pustym
+   opisem" i od razu Nawigator błędów.
+7. ZMIANA: Zanumeruj oddziały - gdy warstwa ma już numery, pytanie
+   Anuluj / Przenumeruj całość (z kopią warstwy) / Dodaj numerację
+   (tylko brakujące, od najwyższego numeru w obrębie - wcześniej numery
+   mogły się dublować).
+8. ZMIANA: Rozlicz powierzchnię - od razu okno z danymi: podpowiada
+   warstwę WYDZ z TOC, LS z jej folderu i bazę z folderu wyżej; listy
+   warstw z "WYDZ" / "LS" w nazwie, "Wskaż..." - plik z dysku.
+9. POPRAWKA: łączenie baz (Połącz bazy TPU, NTG/PPOŻ, Aktualizuj
+   strukturę bazy, Konwersja PUL, Wydziel właścicieli) - formy ochrony
+   przyrody przenoszone razem z przypisaniem do wydzieleń (wcześniej
+   wydzielenia z kolejnych baz mogły wskazywać cudzą formę ochrony).
+10. POPRAWKA: anonimizacja - baza BDO z "Połącz bazy TPU" czyści też
+    udziały właścicieli (SUB_OWNER); wszystkie anonimizacje czyszczą
+    telefon właściciela.
+11. ZMIANA: Dopisz/sprawdź zabiegi - pozyskanie zgłaszane powyżej
+    100 m³/ha (było 61), powyżej 500 m³/ha dodatkowo, gdy w drzewostanie
+    nie ma jodły ani świerka; raport w dwóch grupach - na górze uwagi,
+    niżej osobno pierśnica/wysokość (duża odchyłka, brak pierśnicy).
+12. ZMIANA: menu Kontrola danych - nowa kolejność (Sprawdź topologię,
+    Sprawdź wydzielenia, Sprawdź rozliczenie u góry); wyszukiwarka
+    (Ctrl+K) zna "kangur"/"kangurkuj" - Nawigator błędów.
+
 Wersja 2.0v — 2026-10-27
 ------------------------------------------------
 
