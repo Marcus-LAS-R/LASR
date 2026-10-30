@@ -17,6 +17,17 @@ from .aktualizacja_upul.core.utworz_klon_txt import zapisz_plik
 from .funkcje import aktywna_warstwa_wektorowa
 
 
+def _pusty(wartosc):
+    """None, QGIS NULL (pusty QVariant - tak OGR oddaje puste pola SHP),
+    pusty/bialy string albo literalne "None"/"NULL" (np. po wczesniejszym
+    str() na NULL-u zapisanym z powrotem do pola)."""
+    if wartosc is None:
+        return True
+    if isinstance(wartosc, QVariant):
+        return wartosc.isNull()
+    return str(wartosc).strip().upper() in ('', 'NONE', 'NULL')
+
+
 class SprawdzCiecie:
     def __init__(self, iface):
         self.iface = iface
@@ -134,9 +145,13 @@ class SprawdzCiecie:
                 fk = self.slpkt[it]
                 if feat.geometry().intersects(fk.geometry()):
                     self.l_pkt_przec.append(it)
+                    # 4. element: karta bez pelnego numeru (puste ODDZ
+                    # lub WYDZ) - raport kart do klepania ja pomija
                     self.slkart[feat.id()] += [[str(fk['oddz']),
                                                 str(fk['wydz']),
                                                 str(feat['ADR_LES']),
+                                                _pusty(fk['oddz']) or
+                                                _pusty(fk['wydz']),
                                                 ]]
 
     def raport_spis_kart(self):
@@ -176,13 +191,19 @@ class SprawdzCiecie:
         tab = []
 
         for k, val in self.slkart.items():
+            # karty z pustym ODDZ lub WYDZ (NULL albo pusty tekst) nie
+            # istnieja dla raportu - inaczej wszystkie "NULL-NULL" z bazy
+            # tworzyly jedna grupe i trafialy do KLON_po_klepaniu
+            val = [x for x in val if not x[3]]
             key = '---------------------'
             if len(val) > 0:
                 if len(val[0][2]) > 20:
                     key = val[0][2]
             else:
-                if k in self.slwydz:
-                    key = self.slwydz[k]['ADR_LES']
+                if k in self.slwydz and \
+                        not _pusty(self.slwydz[k]['ADR_LES']) and \
+                        len(str(self.slwydz[k]['ADR_LES'])) > 20:
+                    key = str(self.slwydz[k]['ADR_LES'])
 
             tp = [key[3:6], key[6:10], key[13:17], key[18:20], ]
 
