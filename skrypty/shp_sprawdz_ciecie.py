@@ -256,9 +256,12 @@ class SprawdzCiecie:
                 kolumny + [adr, adr_wzorca, os.path.basename(baza)])
         wb.save(os.path.join(kat_wyj, 'raport_nr_robocze.xlsx'))
 
-        pary_baz = {}  # baza -> [(adr_wzorca, adr_celu)]
-        for _kolumny, adr, adr_wzorca, baza in klony:
-            pary_baz.setdefault(baza, []).append((adr_wzorca, adr))
+        # trzecia kolumna = numer klonowanego opisu (NR_ROBO), tylko
+        # informacyjnie - Klonuj ja pomija
+        pary_baz = {}  # baza -> [(adr_wzorca, adr_celu, nr_robo)]
+        for kolumny, adr, adr_wzorca, baza in klony:
+            pary_baz.setdefault(baza, []).append(
+                (adr_wzorca, adr, kolumny[4]))
         pliki = []
         for baza, pary in pary_baz.items():
             nazwa = 'KLON_po_klepaniu.txt'

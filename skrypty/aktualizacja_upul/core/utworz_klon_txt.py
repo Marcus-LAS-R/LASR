@@ -243,8 +243,9 @@ def wykonaj_notatki(notatki_lyr, wydz_lyr):
 
 def zapisz_plik(pary, sciezka):
     """Zapisuje plik tekstowy (KLON.txt w formacie wymaganym przez
-    Klonuj.dane_konf(), albo NOTATKI_zmiany.txt) - dwie kolumny
-    rozdzielone tabulatorem, bez pustej linii na końcu."""
+    Klonuj.dane_konf(), albo NOTATKI_zmiany.txt) - kolumny rozdzielone
+    tabulatorem, bez pustej linii na końcu. Zwykle dwie; KLON_po_klepaniu
+    ma trzecią (numer klonowanego opisu), którą Klonuj pomija."""
     with open(sciezka, 'w', encoding='utf-8', newline='') as plik:
-        for a, b in pary:
-            plik.write(f'{a}\t{b}\n')
+        for wiersz in pary:
+            plik.write('\t'.join(str(x) for x in wiersz) + '\n')

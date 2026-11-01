@@ -24,6 +24,19 @@ _TABELE_OPISU = (
 )
 
 
+def _wczytaj_instrukcje(linie):
+    """Zamienia linie pliku KLON na [[adr_les_org, adr_les_klon], ...].
+    Opcjonalna trzecia kolumna (numer klonowanego opisu, np. NR_ROBO
+    z KLON_po_klepaniu) jest tylko informacyjna - pomijana. Linia z inną
+    liczbą kolumn niż 2 lub 3 zostaje nieobcięta, żeby kontrola struktury
+    ją odrzuciła."""
+    instr = []
+    for x in linie:
+        kol = x.rstrip('\r\n ').split('\t')
+        instr.append(kol[:2] if len(kol) == 3 else kol)
+    return instr
+
+
 class Klonuj():
     def __init__(self, iface):
         """ Konstruktor """
@@ -79,7 +92,7 @@ class Klonuj():
         instr = open(plik, 'r').readlines()
 
         if len(instr) > 0:
-            self.instr = [x.rstrip('\r\n ').split('\t') for x in instr]
+            self.instr = _wczytaj_instrukcje(instr)
 
         # jeżeli nie odnaleziono żadnych instrukcji
         if len(self.instr) == 0:
@@ -128,7 +141,7 @@ class Klonuj():
             self.pobierz_dane.ui.lineEdit_wydz.text(), 'r').readlines()
 
         if len(instr) > 0:
-            self.instr = [x.rstrip('\r\n ').split('\t') for x in instr]
+            self.instr = _wczytaj_instrukcje(instr)
 
         # jeżeli nie odnaleziono żadnych instrukcji
         if len(self.instr) == 0:
