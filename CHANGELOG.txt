@@ -1,6 +1,57 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0x — 2026-11-02
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> "Spakuj do opiniowania przez Nadleśnictwo" - wskazujesz
+   folder obiektu i warstwę nadleśnictw, a wtyczka przygotowuje dla każdego
+   nadleśnictwa ZIP z mapami, atlasami i operatami BDO jego obrębów oraz
+   zestawienie XLSX. Obręb należy do nadleśnictwa, gdy choć jedno wydzielenie
+   ma w nim ponad 20% powierzchni. Paczki od 500 MB są dzielone na części,
+   a jeden obręb nigdy nie jest rozdzielany.
+2. NOWOŚĆ: Edytor opisu - "Pobierz opis BDL": klikasz na mapie, a opis
+   wydzielenia z Banku Danych o Lasach trafia na kartę. Wiek, pierśnica,
+   wysokość i masa są przeliczane na bieżący rok. Zabiegi z BDL są pomijane.
+3. NOWOŚĆ: Edytor opisu - "Lista wydzieleń" w osobnym oknie: filtry, sortowanie,
+   wczytanie wydzielenia na kartę (także bez poligonu, więc można je usunąć),
+   kolumna Stan z kolorem błędów i ostrzeżeń, szybkie filtry, zmiana szerokości
+   kolumn myszą oraz "Załaduj do Nawigatora" dla wyfiltrowanej listy.
+4. NOWOŚĆ: Edytor opisu - zakładka "Ewidencja" (tylko podgląd): działki,
+   klasoużytki i właściciele wydzielenia oraz wyszukiwarka właściciela i działki,
+   która od razu przechodzi do właściwego wydzielenia.
+5. NOWOŚĆ: Edytor opisu - zakładka "Rozliczenie powierzchni": rozliczenie użytków
+   tylko wybranego wydzielenia, razem z leżącymi na nich sąsiadami i powierzchnią
+   ich zabiegów, bez przeliczania całej bazy. Przed oddaniem nadal potrzebne jest
+   pełne rozliczenie. Rozliczenie jest blokowane, gdy na tych użytkach grafika
+   i baza są niezgodne (np. po połączeniu poligonów).
+6. NOWOŚĆ: Edytor opisu - "Zmień warstwę" w opisie drzewostanu, np. DRZEW na
+   ZADRZEW, z zachowaniem wpisanych gatunków.
+7. ZMIANA: Edytor opisu - start od pola Rodzaj powierzchni, przyciski gotowych
+   fraz pod Informacjami różnymi, zielony przycisk "Dodaj nowe wydzielenie",
+   adres, powierzchnia i licznik uwag w tytule okna, Informacje różne w podglądzie
+   przy rodzaju INNE WYL, warstwa wydzieleń ustawiana jako aktywna.
+8. ZMIANA: kopie manipulacyjne pakowane do ZIP-ów (około 10% rozmiaru), baza razem
+   z warstwą. W Edytorze pierwsza kopia z sesji jest oznaczona jako pierwotna
+   i nie wypada przy rotacji zwykłych kopii. Istniejące kopie zostają bez zmian.
+9. ZMIANA: jeden format daty w nazwach plików raportów i kopii:
+   rr-mm-dd_T_gg_mm_ss, dzięki czemu sortują się chronologicznie. Dziennik edycji
+   Edytora opisu przeniesiony do folderu Raporty.
+10. ZMIANA: Rozlicz powierzchnię - w błędach rozliczenia Ls dopisek "brak Ls", gdy
+    Ls brakuje wg najnowszego raportu Ls, a przy braku raportu "brak raportu Ls".
+11. ZMIANA: KLON_po_klepaniu.txt ma trzecią kolumnę z numerem klonowanego opisu.
+12. POPRAWKA: Połącz bazy - użytki i klasy, których nie ma w słownikach bazy
+    docelowej, nie znikają już po cichu. Przed łączeniem zobaczysz listę kodów
+    z liczbą rekordów i hektarami i zdecydujesz: dopisać je, połączyć bez nich
+    albo przerwać. Bazy łączone wcześniej do czystej bazy warto sprawdzić, bo mogły
+    stracić np. użytki Lzr-*, W-*, Br-* i Wsr-*.
+13. POPRAWKA: Połącz bazy i Przygotuj bazę z EWID - działka o tym samym numerze na
+    innym arkuszu nie jest już traktowana jako duplikat.
+14. POPRAWKA: Przygotuj bazę z EWID - pusty arkusz nie jest już zapisywany jako
+    tekst "NULL".
+15. POPRAWKA: Stwórz raport kart do klepania - punkty z pustym ODDZ lub WYDZ są
+    pomijane i nie tworzą fałszywych klonów.
+
 Wersja 2.0w — 2026-10-28
 ------------------------------------------------
 
