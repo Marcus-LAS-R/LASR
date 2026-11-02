@@ -1583,6 +1583,8 @@ class LasR:
         self.dockOpisTaks.zadokuj()
         # "Pokaż puste opisy" w panelu - waypointy od razu do Nawigatora
         self.dockOpisTaks.waypointyGotowe.connect(self.wczytaj_do_nawigatora)
+        self.dockOpisTaks.listaDoNawigatora.connect(
+            self.wczytaj_liste_do_nawigatora)
         # QGIS po starcie odtwarza zapamiętaną widoczność paneli (także
         # naszego) - Edytor ma zawsze startować ukryty, otwierany z menu
         self.iface.initializationCompleted.connect(self._schowaj_panel_opisu)
@@ -1766,6 +1768,12 @@ class LasR:
         if waypointy_sc:
             self.dockNawigator.wczytaj_plik(waypointy_sc)
             self.dockNawigator.show()
+
+    def wczytaj_liste_do_nawigatora(self, waypointy_sc, warstwa):
+        """Lista wydzieleń z Edytora opisu - Nawigator ustawiony na warstwę
+        Edytora, żeby przechodzenie przełączało kartę."""
+        self.dockNawigator.ustaw_wydzielenia(warstwa)
+        self.wczytaj_do_nawigatora(waypointy_sc)
 
     def przygotuj_ls_na_chama(self):
         spr = przygotuj_ls_na_chama.PrzygotujLsNaChama(self.iface)

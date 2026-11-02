@@ -58,6 +58,9 @@ Panel otwarty = baza podłączona:
   bez zmian, do bazy po "Zapisz",
 - "Lista wydzieleń" (panel, opis_lista.py): filtry, sortowanie, wczytanie
   do karty także wydzielenia bez poligonu,
+- zakładka "Ewidencja" (opis_ewidencja.py): działki, jednostki rejestrowe
+  i właściciele wydzielenia, wyszukiwarka właściciela i działki; tylko odczyt,
+  pasek funkcji wyszarzony,
 - PNSW (F_AROD_SPEC_AREA + gatunki F_SPECIES_SPAREA, opis_pnsw.py): rodzaj,
   położenie, pow. wpisywana ręcznie, gatunki z wiekiem w osobnych wierszach
   pod PNSW (jak cechy/TD), ✕ usuwa PNSW; numery stałe (dziury po
@@ -84,10 +87,11 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox,
-    QCompleter, QDialog, QDockWidget, QMenu, QFileDialog, QFrame, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea,
-    QShortcut, QSpinBox, QStyledItemDelegate, QTableWidget, QTableWidgetItem,
-    QToolButton, QVBoxLayout, QWidget,
+    QCompleter, QDialog, QDockWidget, QMenu, QFileDialog, QFrame, QGridLayout,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton,
+    QScrollArea, QShortcut, QSizePolicy, QSpinBox, QStyledItemDelegate,
+    QTableWidget, QTableWidgetItem,
+    QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
@@ -103,6 +107,7 @@ from . import kopie_manipulacyjne
 from . import opis_adres as oa
 from . import opis_bdl
 from . import opis_lista
+from .opis_ewidencja import WidokEwidencji
 from . import opis_pnsw as opn
 from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
@@ -463,6 +468,13 @@ def _model_warstw(warstwy, gatunki):
             'gatunki': gat,
         })
     return wyn
+
+
+def _liczby_uwag(walidacja, walidacja_pnsw, warstwy):
+    """(błędy, ostrzeżenia) - te same liczby w tytule karty i na liście."""
+    _b, ostrz = ow.policz(walidacja)
+    return (len(ow.lista_bledow(walidacja, warstwy)),
+            ostrz + opn.liczba_ostrzezen(walidacja_pnsw))
 
 
 def _info_podgladu(sub):
@@ -1239,6 +1251,7 @@ class OknoOpisu(QWidget):
         self.grupy = []
         self.walidacja = {}
         self.walidacja_pnsw = {}
+        self._tekst_uwag = ''    # licznik błędów/ostrzeżeń w tytule okna
         # wiersze tabeli PNSW: [(indeks PNSW, indeks gatunku)], (None, None)
         # - pusty wiersz nowego PNSW
         self._wiersze_pnsw = []
@@ -1269,17 +1282,21 @@ class OknoOpisu(QWidget):
 
     def _ustaw_tytul(self):
         # adres (obręb/grupa/oddział/wydz.) jest w pasku adresu karty -
-        # w tytule tylko powierzchnia wydzielenia, wyraźnie odsunięta od nazwy
-        czesci = []
+        # adres z bazy (edycja w pasku adresu - po "Zapisz") i powierzchnia,
+        # wyraźnie odsunięta
+        nazwa, czesci = 'Opis taksacyjny', []
         if self.dane is not None and self.aint is None:
-            czesci.append('NOWE WYDZIELENIE')
+            nazwa = 'NOWE WYDZIELENIE'
         elif self.dane is not None:
+            nazwa = self.adres_bazy or nazwa
             czesci.append(f'pow. {_fmt(self.pow_wydz, 4)} ha'
                           if self.pow_wydz > 0 else 'Nierozliczona')
+        if self._tekst_uwag:
+            czesci.append(self._tekst_uwag)
         if self.tylko_odczyt:
             czesci.append('[TYLKO PODGLĄD]')
         self.setWindowTitle(
-            'Opis taksacyjny' + ODSTEP_TYTULU + '   '.join(czesci))
+            nazwa + (ODSTEP_TYTULU + '   '.join(czesci) if czesci else ''))
 
     def _wiersze(self, sql, parametry):
         """Lista słowników {kolumna: wartość}."""
@@ -1415,8 +1432,6 @@ class OknoOpisu(QWidget):
         btn_kopiuj.clicked.connect(self._kopiuj_adres)
         gora.addWidget(btn_kopiuj)
         gora.addStretch(1)
-        self.lbl_walidacja = QLabel()
-        gora.addWidget(self.lbl_walidacja)
         glowny.addWidget(self.pasek_adr)
 
         self.przewijanie = QScrollArea()
@@ -1426,7 +1441,14 @@ class OknoOpisu(QWidget):
         self.lay_tresc = QVBoxLayout(self.tresc)
         self.lay_tresc.setContentsMargins(0, 0, 0, 0)
         self.przewijanie.setWidget(self.tresc)
-        glowny.addWidget(self.przewijanie)
+        # zakładki obejmują tylko środek: pasek adresu i pasek funkcji są
+        # wspólne (pasek funkcji wyszarzony na Ewidencji)
+        self.zakladki = QTabWidget()
+        self.zakladki.setDocumentMode(True)
+        self.zakladki.addTab(self.przewijanie, 'Opis wydzielenia')
+        self.ewidencja = WidokEwidencji(self)
+        self.zakladki.addTab(self.ewidencja, 'Ewidencja')
+        glowny.addWidget(self.zakladki)
 
         # --- opis wydzielenia
         self.lay_tresc.addWidget(_sekcja('Opis wydzielenia'))
@@ -1464,6 +1486,11 @@ class OknoOpisu(QWidget):
 
         # --- opis drzewostanu (grupy warstw)
         self.lay_tresc.addWidget(_sekcja('Opis drzewostanu'))
+        self.lbl_blad_wydz = QLabel()
+        self.lbl_blad_wydz.setWordWrap(True)
+        self.lbl_blad_wydz.setStyleSheet('color: #c00000; font-weight: bold;')
+        self.lbl_blad_wydz.hide()
+        self.lay_tresc.addWidget(self.lbl_blad_wydz)
         self.kontener_warstw = QWidget()
         self.lay_warstw = QVBoxLayout(self.kontener_warstw)
         self.lay_warstw.setContentsMargins(0, 0, 0, 0)
@@ -1538,17 +1565,20 @@ class OknoOpisu(QWidget):
         self.info.textChanged.connect(self._zmiana_info)
         prawa.addWidget(self.info)
         # gotowe frazy - te same co w generatorze opisów (opis_pkt)
+        # siatka, a nie rząd: przyciski nie mogą poszerzać kolumny (okno ma
+        # stałą szerokość, wyszedłby poziomy pasek przewijania)
         self.btn_frazy = []
-        wiersz_fraz = QHBoxLayout()
-        wiersz_fraz.setSpacing(4)
-        for etykieta, fraza in PRESETY_INF_ROZNE:
+        siatka_fraz = QGridLayout()
+        siatka_fraz.setSpacing(4)
+        for nr, (etykieta, fraza) in enumerate(PRESETY_INF_ROZNE):
             btn = QPushButton(etykieta)
             btn.setToolTip(f'Dopisuje do Informacji różnych: {fraza}')
+            btn.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             btn.clicked.connect(
                 lambda _zazn, f=fraza: self.wstaw_fraze(f))
             self.btn_frazy.append(btn)
-            wiersz_fraz.addWidget(btn)
-        prawa.addLayout(wiersz_fraz)
+            siatka_fraz.addWidget(btn, nr // 3, nr % 3)
+        prawa.addLayout(siatka_fraz)
         prawa.addStretch(1)
         dol.addLayout(prawa, 1)
         self.lay_tresc.addLayout(dol)
@@ -1558,7 +1588,9 @@ class OknoOpisu(QWidget):
         # grupy oddzielone kreskami: Usuń | Cofnij, Cofnij wszystko |
         # Skopiuj opis z... | status + Zapisz (usuwanie po przeciwnej
         # stronie niż Zapisz)
-        self.pasek = QHBoxLayout()
+        self.pasek_funkcji = QWidget()
+        self.pasek = QHBoxLayout(self.pasek_funkcji)
+        self.pasek.setContentsMargins(0, 0, 0, 0)
         self.pasek.setSpacing(4)
         self._sep_paska = []
 
@@ -1635,7 +1667,8 @@ class OknoOpisu(QWidget):
             'blokują zapis.')
         self.btn_zapisz.clicked.connect(self.zapisz)
         self.pasek.addWidget(self.btn_zapisz)
-        glowny.addLayout(self.pasek)
+        glowny.addWidget(self.pasek_funkcji)
+        self.zakladki.currentChanged.connect(self._zmiana_zakladki)
 
         QShortcut(QKeySequence('Ctrl+Z'), self, self.cofnij_krok,
                   context=Qt.WidgetWithChildrenShortcut)
@@ -1655,7 +1688,8 @@ class OknoOpisu(QWidget):
         self.aint = None
         self.walidacja = {}
         self._historia, self._ponow = [], []
-        self.lbl_walidacja.setText('')
+        self._tekst_uwag = ''
+        self.lbl_blad_wydz.hide()
         self.t_opis.clearContents()
         self.t_opis.setRowCount(1)
         _dopasuj(self.t_opis)
@@ -1672,6 +1706,7 @@ class OknoOpisu(QWidget):
         self._poligon, self._adr_warstwy = None, set()
         self._wypelnij_adres()
         self._status(tekst_statusu)
+        self._ustaw_tytul()
         self._koniec_kopii()
         self._odswiez_przyciski()
         self._dopasuj_okno()
@@ -1710,18 +1745,19 @@ class OknoOpisu(QWidget):
         self.walidacja = ow.waliduj(self.dane['WARSTWY'],
                                     self.dane['AREA_TYPE_CD'])
         self.walidacja_pnsw = opn.waliduj(self.dane['PNSW'], self.pow_wydz)
-        _b, ostrz = ow.policz(self.walidacja)
-        ostrz += opn.liczba_ostrzezen(self.walidacja_pnsw)
-        bledy = len(ow.lista_bledow(self.walidacja, self.dane['WARSTWY']))
+        bledy, ostrz = _liczby_uwag(self.walidacja, self.walidacja_pnsw,
+                                    self.dane['WARSTWY'])
         tekst = []
         if bledy:
-            tekst.append(f'<span style="color:#c00000">błędy: {bledy}</span>')
+            tekst.append(f'błędy: {bledy}')
         if ostrz:
-            tekst.append(f'<span style="color:#9a7000">ostrzeżenia: {ostrz}'
-                         '</span>')
-        self.lbl_walidacja.setText('  '.join(tekst))
+            tekst.append(f'ostrzeżenia: {ostrz}')
+        self._tekst_uwag = '  '.join(tekst)
+        self._ustaw_tytul()
+        # uwagi bez własnej komórki (np. brak warstwy DRZEW)
         wydz = self.walidacja.get(('wydz', None, None), [])
-        self.lbl_walidacja.setToolTip('\n'.join(tx for _p, _k, tx in wydz))
+        self.lbl_blad_wydz.setText('\n'.join(tx for _p, _k, tx in wydz))
+        self.lbl_blad_wydz.setVisible(bool(wydz))
 
     def _odbuduj_grupy(self, rozwiniete=None):
         """Grupy warstw od nowa (po dodaniu/usunięciu warstwy albo
@@ -1865,6 +1901,7 @@ class OknoOpisu(QWidget):
         m = self.layout().contentsMargins()
         return (self.tresc.sizeHint().height()
                 + self.pasek_adr.sizeHint().height()
+                + self.zakladki.tabBar().sizeHint().height()
                 + self.btn_zapisz.sizeHint().height()
                 + m.top() + m.bottom() + 2 * self.layout().spacing() + 4)
 
@@ -2635,7 +2672,7 @@ class OknoOpisu(QWidget):
         self._odswiez_przyciski()
         self._status('nowe wydzielenie - do bazy i do poligonu trafi po '
                      '"Zapisz"', '#b36b00')
-        self._fokus_na_opis()
+        self.przejdz_do_opisu()
         QTimer.singleShot(0, self._dopasuj_okno)
         return True
 
@@ -2682,7 +2719,8 @@ class OknoOpisu(QWidget):
         QTimer.singleShot(0, self._dopasuj_okno)
 
     def cofnij_krok(self):
-        if self.tylko_odczyt or self.dane is None or not self._historia:
+        if self.tylko_odczyt or self.dane is None or not self._historia \
+                or self._na_ewidencji():
             return
         opis, przed = self._historia.pop()
         self._ponow.append((opis, copy.deepcopy(self.dane)))
@@ -2690,7 +2728,8 @@ class OknoOpisu(QWidget):
         self._status(f'cofnięto: {opis}')
 
     def ponow_krok(self):
-        if self.tylko_odczyt or self.dane is None or not self._ponow:
+        if self.tylko_odczyt or self.dane is None or not self._ponow \
+                or self._na_ewidencji():
             return
         opis, po = self._ponow.pop()
         self._historia.append((opis, copy.deepcopy(self.dane)))
@@ -3688,6 +3727,7 @@ class OknoOpisu(QWidget):
                          '#b36b00')
             return
         self._laduj_adres(adr)
+        self._odswiez_ewidencje()
 
     def wczytaj_adres(self, adr):
         """Wydzielenie z listy, bez zaznaczania pojedynczego poligonu (nie
@@ -3700,13 +3740,37 @@ class OknoOpisu(QWidget):
                          '#b36b00')
             return False
         self._laduj_adres(adr)
+        self._odswiez_ewidencje()
         return True
+
+    # ------------------------------------------------- zakładka Ewidencja
+
+    def _na_ewidencji(self):
+        return self.zakladki.currentWidget() is self.ewidencja
+
+    def _zmiana_zakladki(self, _indeks):
+        ewidencja = self._na_ewidencji()
+        self.pasek_funkcji.setEnabled(not ewidencja)
+        if ewidencja:
+            # narzędzia mapy należą do paska funkcji
+            self.btn_skopiuj.setChecked(False)
+            self.btn_bdl.setChecked(False)
+            self.ewidencja.aktywuj(self.aint)
+
+    def _odswiez_ewidencje(self):
+        if self._na_ewidencji():
+            self.ewidencja.pokaz(self.aint)
+
+    def przejdz_do_opisu(self):
+        self.zakladki.setCurrentWidget(self.przewijanie)
+        self._fokus_na_opis()
 
     def _fokus_na_opis(self):
         """Edycja startuje od pola Rodzaj powierzchni (bez aktywowania okna -
         wybór na mapie nie zabiera fokusu mapie)."""
         def ustaw():
-            if sip.isdeleted(self) or self.dane is None:
+            if sip.isdeleted(self) or self.dane is None \
+                    or self._na_ewidencji():
                 return
             kol = next(i for i, k in enumerate(KOLUMNY_OPIS)
                        if k[1] == 'AREA_TYPE_CD')
@@ -3761,6 +3825,9 @@ class PanelOpisu(QDockWidget):
     # ścieżka pliku waypointów z "Pokaż puste opisy" - las_r wczytuje go do
     # Nawigatora błędów (panel nie zależy od Nawigatora)
     waypointyGotowe = pyqtSignal(str)
+    # "Załaduj do Nawigatora" z listy wydzieleń: ścieżka pliku + warstwa,
+    # na którą Nawigator ma się ustawić
+    listaDoNawigatora = pyqtSignal(str, object)
 
     def __init__(self, iface):
         super().__init__(self.TYTUL, iface.mainWindow())
@@ -4472,6 +4539,45 @@ class PanelOpisu(QDockWidget):
         """Po usunięciu/zapisie na karcie - lista pokazuje stan bazy."""
         if self._lista_otwarta():
             self.lista.odswiez()
+
+    def uwagi_wydzielen(self):
+        """{ARODES_INT_NUM: (błędy, ostrzeżenia)} wg reguł karty, dla całej
+        bazy naraz. Bez rekordu F_SUBAREA karta nie ma czego sprawdzać -
+        takich wydzieleń nie ma w wyniku."""
+        def po_aint(sql):
+            cur = self.baza.cur
+            cur.execute(sql)
+            kol = [d[0] for d in cur.description]
+            wyn = {}
+            for w in cur.fetchall():
+                r = dict(zip(kol, w))
+                wyn.setdefault(r['ARODES_INT_NUM'], []).append(r)
+            return wyn
+
+        try:
+            warstwy = po_aint('select * from F_AROD_STOREY '
+                              'order by STOREY_RANK_ORDER')
+            gatunki = po_aint('select * from F_STOREY_SPECIES '
+                              'order by SPECIES_RANK_ORDER')
+            pnsw = po_aint('select * from F_AROD_SPEC_AREA')
+            pnsw_gat = po_aint('select * from F_SPECIES_SPAREA')
+            wyn = {}
+            for s in self.baza.cur.execute(
+                    'select ARODES_INT_NUM, AREA_TYPE_CD, SUB_AREA '
+                    'from F_SUBAREA').fetchall():
+                a = s[0]
+                model = _model_warstw(warstwy.get(a, []), gatunki.get(a, []))
+                wyn[a] = _liczby_uwag(
+                    ow.waliduj(model, _txt(s[1])),
+                    opn.waliduj(opn.model(pnsw.get(a, []), pnsw_gat.get(a, [])),
+                                _float(s[2]) or 0.0),
+                    model)
+            return wyn
+        except Exception as e:
+            self.iface.messageBar().pushWarning(
+                'Opis taksacyjny',
+                f'Nie udało się policzyć błędów na liście wydzieleń: {e}')
+            return {}
 
     def poligony_adresow(self):
         """{ADR_LES: [fid, ...]} poligonów warstwy (z buforem edycji)."""

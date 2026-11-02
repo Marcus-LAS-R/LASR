@@ -176,6 +176,13 @@ class NawigatorDock(QDockWidget):
         if sc:
             self.wczytaj_plik(sc)
 
+    def ustaw_wydzielenia(self, warstwa):
+        """Warstwa wydzieleń i zaznaczanie obiektów dla listy z Edytora opisu
+        (zaznaczenie poligonu przełącza kartę). Przed wczytaj_plik - pierwsza
+        pozycja pokazywana jest od razu."""
+        self.cbo_wydz.setLayer(warstwa)
+        self.chk_zaznacz.setChecked(True)
+
     def wczytaj_plik(self, sciezka):
         try:
             wiersze = waypointy.wczytaj(sciezka)
