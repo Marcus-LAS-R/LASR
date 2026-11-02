@@ -59,7 +59,11 @@ def _tekst(f, nazwy_pol, klucz):
     if klucz not in nazwy_pol:
         return ''
     wartosc = f[nazwy_pol[klucz]]
-    return '' if wartosc is None else str(wartosc).strip()
+    # puste pole SHP QGIS oddaje jako pusty QVariant, nie None - str() dałoby
+    # napis 'NULL', który trafiał np. do arkusza mapy (REG_SHEET_NR1/2)
+    if wartosc is None or (hasattr(wartosc, 'isNull') and wartosc.isNull()):
+        return ''
+    return str(wartosc).strip()
 
 
 def _sprawdz_wymagane_pola(warstwa):

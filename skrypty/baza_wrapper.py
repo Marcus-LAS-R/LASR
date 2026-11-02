@@ -6,6 +6,7 @@ import sqlite3
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtCore import QVariant
 from qgis.core import Qgis, QgsMessageLog
+from .kopie_zip import spakuj
 from .znacznik_czasu import znacznik
 from shutil import copyfile
 from collections import Counter
@@ -258,9 +259,10 @@ class Baza(object):
             return False
 
     def utworz_kopie(self, wpis="", debug=False):
-        """Metoda tworzy kopie bezpieczenstwa bazy (ze znacznikiem czasu
+        """Metoda tworzy kopie bezpieczenstwa bazy (ZIP ze znacznikiem czasu
         oraz ew. podanym wpisem) w folderze Kopie_manipulacyjne, w katalogu
-        z podana baza - folder jest tworzony, jesli jeszcze nie istnieje"""
+        z podana baza - folder jest tworzony, jesli jeszcze nie istnieje.
+        debug - zwykla kopia, na ktora przelacza sie obiekt."""
         katalog, plik = os.path.split(self.baza)
         kat_kopii = os.path.join(katalog, 'Kopie_manipulacyjne')
         if not os.path.isdir(kat_kopii):
@@ -271,11 +273,12 @@ class Baza(object):
         else:
             plikn = plik[:-7] + "_" + wpis + "_" + self.czas + ".sqlite"
 
-        copyfile(self.baza, os.path.join(kat_kopii, plikn))
-
-        # debug
         if debug:
+            copyfile(self.baza, os.path.join(kat_kopii, plikn))
             self.baza = os.path.join(kat_kopii, plikn)
+        else:
+            spakuj(os.path.join(kat_kopii, os.path.splitext(plikn)[0] + '.zip'),
+                   [(self.baza, plikn)])
 
         self.zamknij()
         self.polacz()

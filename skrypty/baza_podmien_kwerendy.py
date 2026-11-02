@@ -24,7 +24,6 @@ w <folder>\\Raporty.
 """
 import os
 import glob
-import shutil
 from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFileDialog, QGridLayout, QLabel,
@@ -34,6 +33,7 @@ from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 
 from .baza_wrapper import KWERENDY_CHRONIONE, baza_zajeta, pokaz_blokade_bazy
+from .kopie_zip import wypakuj_plik
 from .baza_polacz_wyszukaj import czy_bdo, pomin_folder
 from .kopie_manipulacyjne import zrob_kopie_manipulacyjna
 from .pw import PasekPostepu
@@ -417,12 +417,11 @@ def uruchom(iface):
     for i, sc in enumerate(bazy):
         postep.setValue(i)
         QApplication.processEvents()
-        kopia_kat = zrob_kopie_manipulacyjna(sc, [], 'podmien_kwerendy')
-        if kopia_kat is None:
+        kopia = zrob_kopie_manipulacyjna(sc, [], 'podmien_kwerendy')
+        if kopia is None:
             wyniki.append((sc, None, 'nie udało się zrobić kopii - baza '
                                      'pominięta, bez zmian'))
             continue
-        kopia = os.path.join(kopia_kat, os.path.basename(sc))
         try:
             w = podmien(sc, zrodlo, kwerendy, tabele)
         except Exception as e:
@@ -431,7 +430,7 @@ def uruchom(iface):
         uwaga = ''
         if w['bledy']:
             try:
-                shutil.copyfile(kopia, sc)
+                wypakuj_plik(kopia, os.path.basename(sc), sc)
                 uwaga = 'BŁĘDY - baza przywrócona z kopii, bez zmian'
             except Exception as e:
                 uwaga = ('BŁĘDY i NIE UDAŁO SIĘ PRZYWRÓCIĆ kopii (%s) - '

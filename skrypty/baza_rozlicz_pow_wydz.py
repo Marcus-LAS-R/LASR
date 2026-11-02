@@ -16,6 +16,7 @@ from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
 from . import raporty
 from . import raporty_ls
+from . import rozliczenie_uzytku as ru
 from .funkcje import wyczysc_katalog_temp
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
@@ -481,16 +482,12 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # tabela z roliczonymi pow wydzielen na uzytku
         temp_pow = self.o_tabele_pow_rej(uz, pow_uz_rej, pow_uz_graf)
 
-        # oblicz poprawkę jaką trzeba dodać aby pow się zgadzała z rej. w bazie
-        if round(pow_uz_rej, 4) != round(sum([x[1] for x in temp_pow]), 4):
-            poprawka = round(pow_uz_rej - sum([x[1] for x in temp_pow]), 4)
-
-            # dodaj do największego wydzielenia na uzytku
-            temp_pow[0][1] = round(temp_pow[0][1] + poprawka, 4)
-
-            if -0.01 > poprawka or poprawka > 0.01:
-                self.wypis += key + ' wyliczona poprawka to:\t' + \
-                    str(poprawka) + '\n'
+        # poprawka, aby pow się zgadzała z rej. w bazie (do największego
+        # wydzielenia na uzytku)
+        poprawka = ru.z_poprawka(temp_pow, pow_uz_rej)
+        if -0.01 > poprawka or poprawka > 0.01:
+            self.wypis += key + ' wyliczona poprawka to:\t' + \
+                str(poprawka) + '\n'
 
         return [self.sl_uz_baza[key][:2] + [self.adr_les[tt[0]]] + [tt[1]]
                 for tt in temp_pow if tt[0] in self.adr_les]
@@ -499,28 +496,14 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
         # suma wszystkich uzytkow na pow - GRAFICZNA
         suma_graf = round(sum([x for x in uz.values()]), 4)
         # pow rej calego uzytku
-        pow_uz_rej = self.sl_uz_baza[key][2]
-        pow_uz_graf = self.sl_uz_baza[key][3]
-
         # jezeli pow graf intersecta i calego uzytku nie zgadza sie w 99%,
-        # , przelicz pow rej z proporcji na
-        # część wspólną i na jej podstawie licz pow rej
-        if abs(suma_graf - self.sl_uz_baza[key][3]) > 0.0005:
-            self.uz_czesciowe.append(key)
-
-            pow_uz_graf = suma_graf
-            if self.sl_uz_baza[key][3] > 0:
-                pow_uz_rej = round(
-                    (pow_uz_rej*suma_graf) / self.sl_uz_baza[key][3],
-                    4
-                )
-            else:
-                QgsMessageLog.logMessage('---> SPRAWDŹ: '+key, 'Las-R')
-                self.wypis += '---> DO SPRAWDZENIA: ' + key + '\n'
-                pow_uz_rej = 0.0
-
-        else:
-            self.uz_cale.append(key)
+        # przelicz pow rej z proporcji na czesc wspolna
+        caly, pow_uz_rej, pow_uz_graf, brak_graf = ru.do_rozliczenia(
+            suma_graf, self.sl_uz_baza[key][2], self.sl_uz_baza[key][3])
+        (self.uz_cale if caly else self.uz_czesciowe).append(key)
+        if brak_graf:
+            QgsMessageLog.logMessage('---> SPRAWDŹ: '+key, 'Las-R')
+            self.wypis += '---> DO SPRAWDZENIA: ' + key + '\n'
 
         self.sl_uz_baza[key] += [pow_uz_rej, pow_uz_graf]
         return pow_uz_rej, pow_uz_graf
@@ -532,15 +515,7 @@ class RozliczPowierzchnieWydz(SprawdzWydzielenia):
             [[ADR_LES, POW], ... ]
         """
 
-        # oblicz pow rej dla każdego z wydzieleń
-        temp_pow = sorted(
-            [[k, round((v*pow_uz_rej)/pow_uz_graf, 4)]
-                for k, v in uz.items()],
-            reverse=True,
-            key=lambda x: x[1]
-        )
-
-        return temp_pow
+        return ru.podziel(uz, pow_uz_rej, pow_uz_graf)
 
     def zapisz_rozliczenie(self):
         """ Metoda wypisuje rozliczenie do pliku w celu porównania z rozlicz.

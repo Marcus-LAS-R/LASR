@@ -72,7 +72,7 @@ class Ewidencja:
                 'obreb': _t(c), 'jr': _t(jr),
                 'nazwa_obrebu': obreby.get(_t(d) + _t(m) + _t(c), ''),
             }
-        self.uzytki = {(pid, sh): (_t(au) + _t(sq), pow_u)
+        self.uzytki = {(pid, sh): (_t(au), _t(sq), pow_u)
                        for pid, sh, sq, au, pow_u in uzytki}
         self.rozliczenie = {}     # {aint: [(działka, nr użytku, pow.)]}
         self.wydz_dzialki = {}    # {działka: {aint}}
@@ -102,14 +102,15 @@ class Ewidencja:
     # ------------------------------------------------- widok wydzielenia
 
     def dzialki_wydzielenia(self, aint):
-        """[{obreb, dzialka, jr, uzytek, pow_uzytku, rozliczona}]."""
+        """[{obreb, dzialka, jr, uzytek, au, klasa, pow_uzytku, rozliczona}]."""
         wyn = []
         for pid, sh, pow_r in self.rozliczenie.get(aint, []):
             d = self.dzialki.get(pid, {})
-            uz, pow_u = self.uzytki.get((pid, sh), ('', None))
+            au, klasa, pow_u = self.uzytki.get((pid, sh), ('', '', None))
             wyn.append({
                 'obreb': d.get('obreb', ''), 'dzialka': d.get('numer', ''),
-                'jr': d.get('jr', ''), 'uzytek': uz, 'pow_uzytku': pow_u,
+                'jr': d.get('jr', ''), 'uzytek': au + klasa, 'au': au,
+                'klasa': klasa, 'pow_uzytku': pow_u,
                 'rozliczona': pow_r})
         return sorted(wyn, key=lambda w: (
             w['obreb'], klucz_naturalny(w['dzialka']), w['uzytek']))

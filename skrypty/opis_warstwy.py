@@ -352,6 +352,38 @@ def podpowiedz_td(tsl, wpisane):
     return None
 
 
+def wolne_warstwy(warstwy):
+    """Warstwy do wyboru: praktyczne, których nie ma jeszcze w wydzieleniu."""
+    obecne = {w['STOREY_CD'] for w in warstwy}
+    return [k for k in PRAKTYCZNE if k not in obecne]
+
+
+def zmien_warstwe(warstwa, kod):
+    """Zmienia kod warstwy (słownik modelu karty), rekordy zostają. Pola,
+    których nowa warstwa zabrania, są czyszczone - inaczej zapis blokowałyby
+    błędy. Gatunki dostają status nowych: plan_zapisu usuwa starą warstwę
+    i wstawia nową w jednej transakcji. Zwraca opisy wyczyszczonych pól."""
+    wyczyszczone = []
+    warstwa['STOREY_CD'] = kod
+    if kod in UDZIAL_ZAKAZANY:
+        udzialy = [str(g['PART_CD']).strip() for g in warstwa['gatunki']
+                   if not pusty(g['PART_CD'])]
+        if udzialy:
+            wyczyszczone.append(f"udział ({', '.join(udzialy)})")
+        for g in warstwa['gatunki']:
+            g['PART_CD'] = ''
+    if kod in ZMIESZANIE_ZAKAZANE and not pusty(warstwa['MIXTURE_CD']):
+        wyczyszczone.append(f"zmieszanie ({warstwa['MIXTURE_CD']})")
+        warstwa['MIXTURE_CD'] = ''
+    if kod in ZADRZEWIENIE_ZAKAZANE and \
+            not pusty(warstwa['STANDDENSITY_INDEX']):
+        wyczyszczone.append(f"zadrzewienie ({warstwa['STANDDENSITY_INDEX']})")
+        warstwa['STANDDENSITY_INDEX'] = None
+    for g in warstwa['gatunki']:
+        g['SPEC_STOR_INT_NUM'] = None
+    return wyczyszczone
+
+
 def pola_wymagane_warstwy(kod):
     """Pola parametrów warstwy odwiedzane przez Enter (kolejność kolumn)."""
     if kod in JAK_DRZEW:

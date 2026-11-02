@@ -26,7 +26,8 @@ Panel otwarty = baza podłączona:
   przyrost nie jest liczony (robi to Taksator PU),
 - zapis pojedynczego wydzielenia w jednej transakcji; pakiet kopii (baza +
   pliki warstwy wydzieleń, Kopie_manipulacyjne/edycja_opisu_<czas>/) raz
-  na połączenie i na żądanie ("Zapisz kopię bazy"), trzymane 5 ostatnich,
+  na połączenie i na żądanie ("Zapisz kopię bazy"), trzymane 5 ostatnich;
+  pierwsza kopia sesji oznaczona PIERWOTNA, z osobnym limitem 5,
 - dziennik zmian Raporty/<baza>_dziennik_edycji.csv (pole przed/po, a przy
   usunięciu wydzielenia pełna zawartość jego rekordów jako JSON),
 - usuwanie wydzielenia z bazy (Baza.usun_rekordy; TD, cechy, PNSW,
@@ -58,6 +59,8 @@ Panel otwarty = baza podłączona:
   bez zmian, do bazy po "Zapisz",
 - "Lista wydzieleń" (panel, opis_lista.py): filtry, sortowanie, wczytanie
   do karty także wydzielenia bez poligonu,
+- zakładka "Rozliczenie powierzchni" (opis_rozliczenie.py): użytki jak
+  w Taksatorze, rozliczenie tylko użytków tego wydzielenia,
 - zakładka "Ewidencja" (opis_ewidencja.py): działki, jednostki rejestrowe
   i właściciele wydzielenia, wyszukiwarka właściciela i działki; tylko odczyt,
   pasek funkcji wyszarzony,
@@ -107,6 +110,7 @@ from . import kopie_manipulacyjne
 from . import opis_adres as oa
 from . import opis_bdl
 from . import opis_lista
+from . import opis_rozliczenie
 from .opis_ewidencja import WidokEwidencji
 from . import opis_pnsw as opn
 from . import opis_warstwy as ow
@@ -219,6 +223,10 @@ KOLUMNY_PNSW = [
 
 NAZWA_KOPII = 'edycja_opisu'
 ILE_KOPII = 5  # tyle ostatnich pakietów kopii Edytora zostaje na dysku
+# pierwsza kopia sesji (od Połącz do Rozłącz): stan sprzed wszystkich zmian,
+# poza rotacją zwykłych kopii, z własnym limitem
+NAZWA_KOPII_PIERWOTNEJ = NAZWA_KOPII + '_PIERWOTNA'
+ILE_KOPII_PIERWOTNYCH = 5
 NAZWA_BEZ_OPISU = 'WYDZ bez opisu w bazie'
 # nowe wydzielenie: część poligonu w jednym oddziale warstwy ODDZ (jak
 # baza_przeliterkuj.PROG_W_ODDZ)
@@ -890,6 +898,7 @@ class _GrupaWarstwy(QWidget):
             usun.setStyleSheet('QToolButton { color: #c62828; border: none; }')
             usun.clicked.connect(lambda: okno.usun_warstwe(self.wi))
             self._btn_usun = usun  # wstawiany niżej, na wysokość nagłówków tabel
+            self._btn_zmien = self._przycisk_zmiany()
         lay.addLayout(naglowek)
 
         self.cialo = QWidget()
@@ -937,10 +946,28 @@ class _GrupaWarstwy(QWidget):
             self.tg.installEventFilter(self)
         hl.addStretch(1)
         if getattr(self, '_btn_usun', None) is not None:
+            hl.addWidget(self._btn_zmien, 0, Qt.AlignTop)
             hl.addWidget(self._btn_usun, 0, Qt.AlignTop)
         lay.addWidget(self.cialo)
         self.odswiez()
         self.ustaw(True)
+
+    def _przycisk_zmiany(self):
+        """Lista warstw, których nie ma jeszcze w wydzieleniu."""
+        btn = QToolButton()
+        btn.setText('Zmień warstwę')
+        btn.setToolTip('Zmienia kod warstwy, wpisane gatunki zostają. Pola, '
+                       'których nowa warstwa zabrania (np. udział w ZADRZEW), '
+                       'są czyszczone. Do bazy po "Zapisz"; Ctrl+Z - cofnij.')
+        btn.setStyleSheet('QToolButton { border: none; }')
+        btn.setPopupMode(QToolButton.InstantPopup)
+        wolne = ow.wolne_warstwy(self.okno.dane['WARSTWY'])
+        btn.setEnabled(bool(wolne))
+        menu = QMenu(btn)
+        for k in wolne:
+            menu.addAction(k, lambda k=k: self.okno.zmien_warstwe(self.wi, k))
+        btn.setMenu(menu)
+        return btn
 
     def odswiez(self):
         okno = self.okno
@@ -1448,6 +1475,8 @@ class OknoOpisu(QWidget):
         self.zakladki.addTab(self.przewijanie, 'Opis wydzielenia')
         self.ewidencja = WidokEwidencji(self)
         self.zakladki.addTab(self.ewidencja, 'Ewidencja')
+        self.rozliczenie = opis_rozliczenie.WidokRozliczenia(self)
+        self.zakladki.addTab(self.rozliczenie, 'Rozliczenie powierzchni')
         glowny.addWidget(self.zakladki)
 
         # --- opis wydzielenia
@@ -2354,6 +2383,33 @@ class OknoOpisu(QWidget):
         self._odswiez_przyciski()
         QTimer.singleShot(0, self._dopasuj_okno)
 
+    def zmien_warstwe(self, wi, kod):
+        """Zmiana kodu warstwy z zachowaniem rekordów, jeden krok historii."""
+        if self.dane is None or self.tylko_odczyt:
+            return
+        w = self.dane['WARSTWY'][wi]
+        stary = w['STOREY_CD']
+        if any(x['STOREY_CD'] == kod for x in self.dane['WARSTWY']):
+            self._blad(f'Warstwa {kod} już jest w tym wydzieleniu')
+            return
+        stan = self._stan_grup()
+        przed = copy.deepcopy(self.dane)
+        wyczyszczone = ow.zmien_warstwe(w, kod)
+        nr = self._nr_warstw()
+        self.dane['WARSTWY'].sort(key=lambda x: ow.KOLEJNOSC_SPECJALNA.get(
+            x['STOREY_CD'], nr.get(x['STOREY_CD'], 99.0)))
+        stan[kod] = stan.pop(stary, True)
+        self._do_historii(f'zmiana warstwy {stary} na {kod}', przed)
+        self._przelicz()
+        self._odbuduj_grupy(stan)
+        self._odswiez_przyciski()
+        tekst = f'zmieniono {stary} na {kod}'
+        if wyczyszczone:
+            tekst += ', wyczyszczono ' + ', '.join(wyczyszczone)
+        self._status(tekst + ' - do bazy po "Zapisz" (Ctrl+Z - cofnij)',
+                     '#107010')
+        QTimer.singleShot(0, self._dopasuj_okno)
+
     def _lista_bledow(self):
         """Błędy twarde bez powtórzeń (do okna przy zapisie)."""
         return ow.lista_bledow(self.walidacja, self.dane['WARSTWY'])
@@ -2720,7 +2776,7 @@ class OknoOpisu(QWidget):
 
     def cofnij_krok(self):
         if self.tylko_odczyt or self.dane is None or not self._historia \
-                or self._na_ewidencji():
+                or not self._na_opisie():
             return
         opis, przed = self._historia.pop()
         self._ponow.append((opis, copy.deepcopy(self.dane)))
@@ -2729,7 +2785,7 @@ class OknoOpisu(QWidget):
 
     def ponow_krok(self):
         if self.tylko_odczyt or self.dane is None or not self._ponow \
-                or self._na_ewidencji():
+                or not self._na_opisie():
             return
         opis, po = self._ponow.pop()
         self._historia.append((opis, copy.deepcopy(self.dane)))
@@ -3745,21 +3801,99 @@ class OknoOpisu(QWidget):
 
     # ------------------------------------------------- zakładka Ewidencja
 
+    def _na_opisie(self):
+        return self.zakladki.currentWidget() is self.przewijanie
+
     def _na_ewidencji(self):
         return self.zakladki.currentWidget() is self.ewidencja
 
     def _zmiana_zakladki(self, _indeks):
-        ewidencja = self._na_ewidencji()
-        self.pasek_funkcji.setEnabled(not ewidencja)
-        if ewidencja:
+        self.pasek_funkcji.setEnabled(self._na_opisie())
+        if not self._na_opisie():
             # narzędzia mapy należą do paska funkcji
             self.btn_skopiuj.setChecked(False)
             self.btn_bdl.setChecked(False)
+        if self._na_ewidencji():
             self.ewidencja.aktywuj(self.aint)
+        elif self.zakladki.currentWidget() is self.rozliczenie:
+            self.rozliczenie.aktywuj(self.aint)
 
     def _odswiez_ewidencje(self):
         if self._na_ewidencji():
             self.ewidencja.pokaz(self.aint)
+        elif self.zakladki.currentWidget() is self.rozliczenie:
+            self.rozliczenie.aktywuj(self.aint)
+
+    # --------------------------------------- rozliczenie użytków wydzielenia
+
+    def rozlicz_uzytki(self):
+        """Rozliczenie użytków tego wydzielenia: niezapisane zmiany, plan,
+        krótkie pytanie, kopia, zapis w jednej transakcji, odświeżenie."""
+        if self.tylko_odczyt or self.aint is None:
+            return
+        if not self._zapytaj_o_zmiany():
+            return
+        if self.aint is None:
+            return
+        if self._zmienione():  # "Odrzuć wszystko" - karta jak w bazie
+            self._przeladuj()
+        lyr_ls = self.panel.warstwa_ls()
+        if lyr_ls is None:
+            QMessageBox.warning(self, 'Rozlicz powierzchnię użytków',
+                                'Dodaj do projektu warstwę Ls z polem LANDID.')
+            return
+        adr = self.adres_bazy
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            plan = opis_rozliczenie.zaplanuj(
+                self.lyr, lyr_ls, self.baza, adr, self.wydz)
+        except Exception as e:
+            plan = opis_rozliczenie.Plan()
+            plan.blad = f'Nie udało się policzyć rozliczenia: {e}'
+        finally:
+            QApplication.restoreOverrideCursor()
+        if plan.blad:
+            QMessageBox.warning(self, 'Rozlicz powierzchnię użytków', plan.blad)
+            return
+        zgodne, _p, _s, liczniki = sprawdz_zgodnosc(self.lyr, self.wydz)
+        if QMessageBox.question(
+                self, 'Rozlicz powierzchnię użytków',
+                opis_rozliczenie.tresc_pytania(
+                    plan, lambda a: rozbij_adres(a) or a,
+                    '' if zgodne else ', '.join(liczniki)),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes) != QMessageBox.Yes:
+            return
+        if self.panel.zrob_kopie() is None:
+            return
+        try:
+            opis_rozliczenie.wykonaj(plan, self.baza)
+        except Exception as e:
+            QMessageBox.critical(
+                self, 'Błąd rozliczenia',
+                'Rozliczenie nie powiodło się - wycofano, w bazie nic się nie '
+                f'zmieniło.\n\n{e}')
+            return
+        self._do_dziennika(
+            [(a, 'ROZLICZENIE', 'SUB_AREA', s, n)
+             for a, _i, s, n in plan.zmiany if s != n] +
+            [(a, 'ROZLICZENIE', f'ZABIEG {kod}', '', pow_ha)
+             for a, i, _s, _n in plan.zmiany
+             for kod, pow_ha in plan.zabiegi.get(i, [])])
+        self._przeladuj()
+        self.panel.odswiez_liste()
+        self._odswiez_ewidencje()
+        self.iface.messageBar().pushSuccess(
+            'Opis taksacyjny',
+            f'Rozliczono wydzielenia: {len(plan.zmiany)}. Przed oddaniem '
+            'potrzebne jest pełne rozliczenie.')
+
+    def _przeladuj(self):
+        """Karta od nowa ze stanu bazy."""
+        wynik = self._wczytaj(self.aint)
+        if wynik:
+            self._wypelnij(*wynik)
+        self._ustaw_tytul()
 
     def przejdz_do_opisu(self):
         self.zakladki.setCurrentWidget(self.przewijanie)
@@ -3770,7 +3904,7 @@ class OknoOpisu(QWidget):
         wybór na mapie nie zabiera fokusu mapie)."""
         def ustaw():
             if sip.isdeleted(self) or self.dane is None \
-                    or self._na_ewidencji():
+                    or not self._na_opisie():
                 return
             kol = next(i for i, k in enumerate(KOLUMNY_OPIS)
                        if k[1] == 'AREA_TYPE_CD')
@@ -3853,6 +3987,7 @@ class PanelOpisu(QDockWidget):
         self._warstwy = []
         self._oddz = None  # warstwa ODDZ wybrana przy nowym wydzieleniu
         self.lista = None  # okno "Lista wydzieleń"
+        self._ls = None  # warstwa Ls wybrana przy rozliczeniu użytków
         # przeliczenie zgodności po zmianach na warstwie - z opóźnieniem,
         # żeby seryjne kasowanie poligonów nie liczyło jej przy każdym
         self._timer_zgodnosci = QTimer(self)
@@ -3942,7 +4077,8 @@ class PanelOpisu(QDockWidget):
         self.btn_kopia = QPushButton('Zapisz kopię bazy')
         self.btn_kopia.setToolTip(
             'Kopia bazy i plików warstwy wydzieleń do Kopie_manipulacyjne '
-            f'(zostaje {ILE_KOPII} ostatnich kopii Edytora)')
+            f'(zostaje {ILE_KOPII} ostatnich kopii Edytora i pierwsze kopie '
+            f'{ILE_KOPII_PIERWOTNYCH} ostatnich sesji)')
         self.btn_kopia.clicked.connect(self.zrob_kopie)
         lay.addWidget(self.btn_kopia)
 
@@ -4162,12 +4298,14 @@ class PanelOpisu(QDockWidget):
         self.odswiez_bez_opisu()
 
     def zrob_kopie(self):
-        """Pakiet: baza + pliki warstwy wydzieleń. Zwraca ścieżkę folderu
-        albo None. Liczy się też jako kopia sesji."""
+        """Pakiet ZIP: baza + pliki warstwy wydzieleń. Zwraca ścieżkę ZIP-a
+        albo None. Liczy się też jako kopia sesji; pierwsza w sesji to kopia
+        pierwotna."""
         if not self.polaczona():
             return None
         folder = kopie_manipulacyjne.zrob_kopie_manipulacyjna(
-            self.baza_sc, [self.lyr], NAZWA_KOPII)
+            self.baza_sc, [self.lyr], NAZWA_KOPII if self.kopia_zrobiona
+            else NAZWA_KOPII_PIERWOTNEJ)
         if folder is None:
             QMessageBox.critical(
                 self, 'Kopia bazy',
@@ -4186,18 +4324,30 @@ class PanelOpisu(QDockWidget):
 
     @staticmethod
     def _rotuj_kopie(kat_kopii):
-        """Zostawia ILE_KOPII najnowszych pakietów Edytora (nazwy sortują się
-        chronologicznie, także starsze RRRR-MM-DD_... przed nowszymi
-        RR-MM-DD_T_...); kopie innych skryptów nietknięte."""
+        """Zostawia ILE_KOPII najnowszych pakietów Edytora (ZIP-y i starsze
+        foldery razem) i osobno ILE_KOPII_PIERWOTNYCH kopii pierwotnych. Nazwy
+        sortują się chronologicznie, także starsze RRRR-MM-DD_... przed
+        nowszymi RR-MM-DD_T_...; kopie innych skryptów nietknięte."""
         try:
-            foldery = sorted(
+            wpisy = sorted(
                 d for d in os.listdir(kat_kopii)
                 if d.startswith(NAZWA_KOPII + '_')
-                and os.path.isdir(os.path.join(kat_kopii, d)))
+                and (d.lower().endswith('.zip')
+                     or os.path.isdir(os.path.join(kat_kopii, d))))
         except OSError:
             return
-        for d in foldery[:-ILE_KOPII]:
-            shutil.rmtree(os.path.join(kat_kopii, d), ignore_errors=True)
+        pierwotne = [d for d in wpisy
+                     if d.startswith(NAZWA_KOPII_PIERWOTNEJ + '_')]
+        zwykle = [d for d in wpisy if d not in pierwotne]
+        for d in zwykle[:-ILE_KOPII] + pierwotne[:-ILE_KOPII_PIERWOTNYCH]:
+            sc = os.path.join(kat_kopii, d)
+            if os.path.isdir(sc):
+                shutil.rmtree(sc, ignore_errors=True)
+            else:
+                try:
+                    os.remove(sc)
+                except OSError:
+                    pass
 
     def pokaz_puste(self):
         """Pokaż puste wydzielenia na podłączonej bazie i wybranej warstwie
@@ -4483,6 +4633,7 @@ class PanelOpisu(QDockWidget):
             zwolnij_baze(self.baza_sc)
         self.lyr = None
         self._oddz = None
+        self._ls = None
         self.baza = None
         self.baza_sc = ''
         self.tylko_odczyt = False
@@ -4634,6 +4785,22 @@ class PanelOpisu(QDockWidget):
         self.karta.raise_()
         self.karta.activateWindow()
         self.karta.nowe_wydzielenie()
+
+    def warstwa_ls(self):
+        """Warstwa użytków z TOC (nazwa zaczyna się od LS, pole LANDID; przy
+        kilku - wybór, pamiętany do rozłączenia) albo None."""
+        prj = QgsProject.instance()
+        if self._ls is not None and not sip.isdeleted(self._ls) and \
+                prj.mapLayer(self._ls.id()) is not None:
+            return self._ls
+        from .funkcje import wybierz_warstwe_z_kandydatow
+        kandydaci = [x for x in prj.mapLayers().values()
+                     if isinstance(x, QgsVectorLayer)
+                     and x.geometryType() == QgsWkbTypes.PolygonGeometry
+                     and x.name()[:2].upper() == 'LS'
+                     and x.fields().lookupField('LANDID') >= 0]
+        self._ls = wybierz_warstwe_z_kandydatow(self.iface, kandydaci, 'LS')
+        return self._ls
 
     def warstwa_oddz(self):
         """Warstwa oddziałów z TOC (nazwa zaczyna się od ODDZ; przy kilku -

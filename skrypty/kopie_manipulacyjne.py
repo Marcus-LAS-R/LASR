@@ -1,16 +1,16 @@
 import os
 import glob
-import shutil
+from .kopie_zip import spakuj
 from .znacznik_czasu import znacznik
 from qgis.core import Qgis, QgsMessageLog
 
 
 def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
     """ Migawka stanu PRZED destrukcyjna operacja (usuwanie wydzielen z
-    warstwy lub z bazy) - w katalogu bazy (poziom projektu) tworzy folder
-    Kopie_manipulacyjne/<nazwa_czynnosci>_<data>_<godzina-minuta-sekunda>/
-    i kopiuje tam NIEZMIENIONY komplet: cala baza (.mdb/.sqlite) oraz
-    wszystkie pliki towarzyszace (.shp/.shx/.dbf/.prj/...) podanych warstw.
+    warstwy lub z bazy) - w katalogu bazy (poziom projektu) tworzy ZIP
+    Kopie_manipulacyjne/<nazwa_czynnosci>_<znacznik czasu>.zip
+    z NIEZMIENIONYM kompletem: cala baza (.mdb/.sqlite) oraz wszystkie pliki
+    towarzyszace (.shp/.shx/.dbf/.prj/...) podanych warstw - jeden pakiet.
 
     `warstwy` moze zawierac None (np. brakujaca/nieuzywana warstwa PNSW) -
     takie wpisy sa pomijane.
@@ -19,7 +19,7 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
     sa same warstwy, a Kopie_manipulacyjne powstaje w katalogu pierwszej
     podanej warstwy.
 
-    Zwraca sciezke do utworzonego folderu kopii, albo None przy bledzie
+    Zwraca sciezke do utworzonego ZIP-a, albo None przy bledzie
     (callerzy powinni w takim przypadku przerwac operacje - bez kopii nie
     usuwamy nic). """
     try:
@@ -33,13 +33,9 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
         if not os.path.isdir(kat_kopii):
             os.mkdir(kat_kopii)
 
-        czas = znacznik()
-        podkat = os.path.join(kat_kopii, nazwa_czynnosci + '_' + czas)
-        os.mkdir(podkat)
-
+        pliki = []
         if baza_sc:
-            shutil.copyfile(
-                baza_sc, os.path.join(podkat, os.path.basename(baza_sc)))
+            pliki.append((baza_sc, os.path.basename(baza_sc)))
 
         for lyr in warstwy:
             if lyr is None:
@@ -47,10 +43,10 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
             sciezka = lyr.dataProvider().dataSourceUri().split("|")[0]
             baza_nazwy = os.path.splitext(sciezka)[0]
             for plik in glob.glob(baza_nazwy + '.*'):
-                shutil.copyfile(
-                    plik, os.path.join(podkat, os.path.basename(plik)))
+                pliki.append((plik, os.path.basename(plik)))
 
-        return podkat
+        return spakuj(os.path.join(
+            kat_kopii, nazwa_czynnosci + '_' + znacznik() + '.zip'), pliki)
     except Exception as e:
         QgsMessageLog.logMessage(
             f'zrob_kopie_manipulacyjna: błąd przy tworzeniu kopii: {e}',
