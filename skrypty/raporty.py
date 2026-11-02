@@ -16,11 +16,12 @@ import os
 
 from qgis.core import Qgis
 
+from .raporty_ls import PRZEDROSTKI as PRZEDROSTKI_LS
 from .waypointy import katalog_raportow
 
 # rodzina -> przedrostki nazw plików raportów
 RODZINY = {
-    'LS': ('ls_raport_', 'ls_kontrola_'),
+    'LS': PRZEDROSTKI_LS,
     'DZKAT': ('dzkat_raport_', 'dzkat_kontrola_'),
     'ROZLICZENIE': ('raport_rozliczPow_', 'raport_spr_rozliczPow_'),
     'ZABIEGI': ('raport_zabiegi_',),

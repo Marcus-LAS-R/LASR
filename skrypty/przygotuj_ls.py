@@ -1,7 +1,7 @@
 import os
 import glob
 import platform
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from collections import Counter, defaultdict
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from .przyciski import QMessageBox
@@ -149,8 +149,7 @@ class AnalizujKlus(object):
         # {'RV': ['R', 'V'], ...}
         self.sl_klu = {}
 
-        self.czas = datetime.now().isoformat(
-                        ).replace(":", "")[:-7].replace('-', '')
+        self.czas = znacznik()
 
         self.kolumny_dz = [
             QgsField("COUNTY", QVariant.String, len=2),

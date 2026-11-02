@@ -2,7 +2,7 @@ import os
 import platform
 from PyQt5.QtWidgets import QDialog
 from .przyciski import QMessageBox
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from shutil import copyfile
 from qgis.core import Qgis, QgsMessageLog
 
@@ -50,7 +50,7 @@ def _kontrola_duplikatow_generic(katalog_raportu, sciezki, pobierz_klucze_fn,
     if not duplikaty:
         return {}, None
 
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog_raportu, prefiks_pliku + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:
@@ -419,7 +419,7 @@ class PolaczBazy():
     def stworz_docelowa(self):
         katalog = self.kat_wyniku
         self.czas = \
-            datetime.now().isoformat().replace(':', '')[:-7]
+            znacznik()
 
         # domyslnie self.lista[0] (posortowana alfabetycznie), albo recznie
         # wskazana baza (patrz wybierz_baze_docelowa) - rozszerzenie brane
@@ -538,7 +538,7 @@ class PolaczBazy():
         return '; baza BDO: ' + os.path.basename(sc_bdo)
 
     def _zapisz_raport_bledow(self, katalog, bledy):
-        czas = datetime.now().isoformat().replace(':', '')[:-7]
+        czas = znacznik()
         rap_sc = os.path.join(
             katalog, 'bledy_zapisu_laczenie_' + czas + '.txt')
 

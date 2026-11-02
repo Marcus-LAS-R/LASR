@@ -2,6 +2,7 @@ import os
 import re
 import platform
 from datetime import date, datetime
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import QFileDialog
 from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
@@ -382,7 +383,7 @@ def KontrolaSlownikowWiele(katalog_raportu: str, sciezki: list):
     """Uruchamia kontrolę słownikową kolejno na wielu bazach (np. przed
     łączeniem baz TPU) i zapisuje jeden wspólny raport TXT w podanym katalogu.
     Zwraca (ile_blednych_lacznie, sciezka_raportu)."""
-    czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
+    czas = znacznik()
     rap_sc = os.path.join(waypointy.katalog_raportow(katalog_raportu),
                           f'kontrola_slownikow_przed_laczeniem_{czas}.txt')
 
@@ -437,7 +438,7 @@ def KontrolaSlownikow(iface):
 
     wyniki = _uruchom_kontrole(baza)
 
-    czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
+    czas = znacznik()
     baza.zamknij()
 
     ile_blednych = sum(len(b) for _, b, _t in wyniki if b is not False and len(b) > 0)

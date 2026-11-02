@@ -21,6 +21,7 @@ warstwę w folderze docelowym (domyślnie <folder nadrzędny>\\SHP_razem).
 
 import os
 from datetime import datetime
+from .znacznik_czasu import znacznik
 
 from PyQt5.QtCore import Qt, QVariant
 from PyQt5.QtWidgets import (
@@ -402,7 +403,7 @@ def zapisz_raport(folder_docelowy, wyniki):
     os.makedirs(kat, exist_ok=True)
     teraz = datetime.now()
     sciezka = os.path.join(
-        kat, f'raport_polacz_warstwy_{teraz.strftime("%Y%m%dT%H%M%S")}.txt')
+        kat, f'raport_polacz_warstwy_{znacznik(teraz)}.txt')
     w = [f'{_TYTUL} - {teraz.strftime("%Y-%m-%d %H:%M")}',
          f'Układ wynikowy: {EPSG_DOCELOWY}', '']
     for r in wyniki:

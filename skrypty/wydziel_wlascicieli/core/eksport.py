@@ -12,8 +12,7 @@ modyfikując samego Laczenie/baza_polacz.py.
 """
 
 import os
-from datetime import datetime
-
+from ...znacznik_czasu import znacznik
 from qgis.core import (
     Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsVectorFileWriter,
 )
@@ -242,7 +241,7 @@ def zapisz_raport_bledow(katalog, l_bledy_wpisu, l_bledy_odczytu):
     liczone w podsumowaniu, nigdy nigdzie nie zapisywane, więc komunikat
     "sprawdź log Las-R" nie prowadził do żadnych szczegółów (zgłoszone
     przez użytkownika 2026-09-15)."""
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog, 'bledy_eksportu_' + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:
@@ -276,7 +275,7 @@ def zapisz_raport_wydzielen_mieszanych(katalog, mieszane, wszystkie_wlasciwe):
     (wszystkie_wlasciwe, patrz policz_wszystkie_parcelid) - podział
     właściwych per-wydzielenie byłby mylący dla operatora (feedback
     użytkownika 2026-09-14)."""
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog, 'wydzielenia_mieszane_' + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:
@@ -363,7 +362,7 @@ def zapisz_raport_eksportu(katalog, baza, addr_wybrani, addr_final,
             'ARODES_INT_NUM', arodes_raport):
         parcel_arodes.setdefault(parcel, set()).add(arod)
 
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog, 'eksport_wlascicieli_' + czas + '.txt')
 
     def _naglowek(addr_nr):

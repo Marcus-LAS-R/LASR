@@ -2,7 +2,7 @@ import os
 import re
 import glob
 import platform
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
@@ -89,8 +89,7 @@ class AnalizujDzKat(object):
 
         self.p = Przetworz()
 
-        self.czas = datetime.now().isoformat().replace(
-            ":", "")[:-7].replace('-', '')
+        self.czas = znacznik()
 
         self.kolumny = [
             QgsField("COUNTY", QVariant.String, len=2),

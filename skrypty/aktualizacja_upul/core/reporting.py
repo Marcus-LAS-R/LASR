@@ -14,6 +14,7 @@ sam czyści, jeśli zaczyna być ich za dużo (D0.5 — brak limitu).
 """
 
 import datetime
+from ...znacznik_czasu import znacznik
 import os
 
 
@@ -124,7 +125,7 @@ class Report:
                 fail-fast — `mdb_path` powinien być sprawdzony wcześniej).
         """
         mdb_dir = os.path.dirname(self.mdb_path)
-        ts = self.started_at.strftime("%d-%m-%Y_%H-%M-%S")
+        ts = znacznik(self.started_at)
         skrot = _SKROT_NAZWY_PLIKU.get(self.operation, self.operation.lower())
         path = os.path.join(mdb_dir, f"raport_{skrot}_{ts}.txt")
 

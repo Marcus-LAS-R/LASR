@@ -1,7 +1,6 @@
 import os
 import re
-import datetime
-
+from .znacznik_czasu import znacznik
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
 from .przyciski import QMessageBox
@@ -544,8 +543,7 @@ def PrzygotujBazeZEWID(iface, shp_sc, baza_sc, dobre, obreby, wlasciciel,
         QgsMessageLog.logMessage('------ KONIEC -------- \n', 'Las-R', Qgis.Info)
         return False
 
-    czas = datetime.datetime.now().isoformat(
-    ).replace(':', '')[:-7].replace('-', '')
+    czas = znacznik()
 
     wypis = (
         '---- PRZYGOTUJ BAZĘ Z EWID ----\n\n'

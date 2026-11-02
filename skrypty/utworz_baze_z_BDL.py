@@ -1,7 +1,6 @@
 import os
 import re
-import datetime
-
+from .znacznik_czasu import znacznik
 import openpyxl
 
 from PyQt5.QtCore import Qt, QVariant
@@ -941,8 +940,7 @@ def UtworzBazeZBDL(iface, folder, baza_sc, obr_sc, wlasnosci, obreby,
 
             zapisano += 1
 
-    czas = datetime.datetime.now().isoformat(
-                    ).replace(':', '')[:-7].replace('-', '')
+    czas = znacznik()
 
     wypis = (
         '---- UTWÓRZ BAZĘ Z BDL ----\n\n'

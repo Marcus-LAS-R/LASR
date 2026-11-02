@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 from datetime import datetime
+from ...znacznik_czasu import znacznik
 
 from qgis.core import (
     Qgis, QgsMessageLog, QgsProject, QgsVectorFileWriter, QgsVectorLayer,
@@ -639,7 +640,7 @@ def _sekcja_obrebow(linie, obreby, przydzial, grupa, tytul):
 
 def zapisz_raport_konfliktow(katalog, konflikty):
     os.makedirs(katalog, exist_ok=True)
-    czas = datetime.now().strftime('%Y%m%dT%H%M%S')
+    czas = znacznik()
     sc = os.path.join(katalog, f'rozdziel_UPUL_ISL_konflikty_{czas}.txt')
     linie = [
         'ROZDZIEL BAZY NA UPUL I ISL - wydzielenia na granicy grup',
@@ -662,7 +663,7 @@ def zapisz_raport_konfliktow(katalog, konflikty):
 def zapisz_raport(katalog, baza_sc, tryb, obreby, przydzial, analiza,
                   wyniki_baz, raport_grafiki):
     os.makedirs(katalog, exist_ok=True)
-    czas = datetime.now().strftime('%Y%m%dT%H%M%S')
+    czas = znacznik()
     sc = os.path.join(katalog, f'rozdziel_UPUL_ISL_{czas}.txt')
     linie = [
         'ROZDZIEL BAZY NA UPUL I ISL',

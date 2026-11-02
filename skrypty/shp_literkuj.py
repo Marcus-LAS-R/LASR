@@ -1,6 +1,6 @@
 import os
 import glob
-import datetime
+from .znacznik_czasu import znacznik
 import processing
 from qgis.core import (
     Qgis, QgsMessageLog, QgsVectorLayer, QgsProject, QgsFeature, QgsField,
@@ -332,8 +332,7 @@ def Literkuj(iface, lyr=False):  # noqa
         kat = os.path.dirname(sciezka)
         tempkat = os.path.join(kat, 'temp')
 
-        czas = datetime.datetime.now().isoformat(
-                        ).replace(":", "")[:-7].replace('-', '')
+        czas = znacznik()
 
         if not os.path.isdir(tempkat):
             os.mkdir(tempkat)

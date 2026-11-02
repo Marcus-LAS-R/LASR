@@ -1,8 +1,7 @@
 import os
 import glob
 import shutil
-from datetime import datetime
-
+from .znacznik_czasu import znacznik
 from qgis.core import Qgis, QgsMessageLog
 
 
@@ -34,7 +33,7 @@ def zrob_kopie_manipulacyjna(baza_sc, warstwy, nazwa_czynnosci):
         if not os.path.isdir(kat_kopii):
             os.mkdir(kat_kopii)
 
-        czas = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        czas = znacznik()
         podkat = os.path.join(kat_kopii, nazwa_czynnosci + '_' + czas)
         os.mkdir(podkat)
 

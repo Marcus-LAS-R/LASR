@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import platform
 from datetime import date, datetime
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import QFileDialog
 from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
@@ -170,14 +171,14 @@ def _grupuj(kontrole: list):
     wydzieleniem idą w tej samej kolejności."""
     wydz, dzialki, bez_adresu = {}, {}, {}
     for k in sorted(kontrole, key=lambda k: k.dodatkowa):
-        znacznik = '[pomocnicza] ' if k.dodatkowa else ''
+        oznaczenie = '[pomocnicza] ' if k.dodatkowa else ''
         for adres, opis in k.errors:
             if adres is None:
-                bez_adresu.setdefault(znacznik + k.nazwa, []).append(opis)
+                bez_adresu.setdefault(oznaczenie + k.nazwa, []).append(opis)
             else:
                 cel = dzialki if _ADRES_DZIALKI.match(adres) else wydz
                 cel.setdefault(adres, []).append(
-                    f'{znacznik}{k.nazwa}: {opis}')
+                    f'{oznaczenie}{k.nazwa}: {opis}')
     return wydz, dzialki, bez_adresu
 
 
@@ -325,8 +326,8 @@ def AktualizujSlownikKontroli(iface) -> None:
     if msg.clickedButton() != btn_tak:
         return
 
-    znacznik  = datetime.now().strftime('%d-%m-%Y')
-    backup_sc = os.path.join(_SZABLONY_DIR, f'baza_kontroli_upul_{znacznik}.mdb')
+    czas_kopii = znacznik()
+    backup_sc = os.path.join(_SZABLONY_DIR, f'baza_kontroli_upul_{czas_kopii}.mdb')
     try:
         shutil.copy2(_BAZA_KONTROLI, backup_sc)
         shutil.copy2(_MAPA_PU_BAZA_KONTROLI, _BAZA_KONTROLI)
@@ -399,7 +400,7 @@ def KontrolaOpisow(iface):
 
     # połącz z kopią
     baza_upul = Baza(tmp_baza)
-    czas = datetime.now().strftime('%d-%m-%Y_g%H-%M-%S')
+    czas = znacznik()
     if not baza_upul.polacz():
         iface.messageBar().pushMessage(
             'BŁĄD', f'Nie można połączyć się z kopią bazy: {tmp_baza}',

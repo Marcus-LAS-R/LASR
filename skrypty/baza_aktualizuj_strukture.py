@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from shutil import copyfile
 
 from PyQt5.QtWidgets import QDialog
@@ -439,7 +439,7 @@ class AktualizujStruktureBazy:
                 Qgis.Critical, 0)
             return False
 
-        czas = datetime.now().isoformat().replace(':', '')[:-7]
+        czas = znacznik()
         plikn = ('baza_zaktualizowana_' + czas +
                  os.path.splitext(self.cel_lub_szablon)[1])
         docelowa_sc = os.path.join(katalog, plikn)
@@ -491,7 +491,7 @@ class AktualizujStruktureBazy:
 
     def _uruchom_szablon(self):
         katalog = self.folder_wyjsciowy
-        czas = datetime.now().isoformat().replace(':', '')[:-7]
+        czas = znacznik()
         rozszerzenie = os.path.splitext(self.cel_lub_szablon)[1]
 
         wynikowe = []
@@ -587,7 +587,7 @@ class AktualizujStruktureBazy:
                 Qgis.Success, 10)
 
     def _zapisz_raport(self, katalog, bledy, kolumny_pominiete):
-        czas = datetime.now().isoformat().replace(':', '')[:-7]
+        czas = znacznik()
         rap_sc = os.path.join(
             katalog, 'raport_aktualizacji_struktury_' + czas + '.txt')
 

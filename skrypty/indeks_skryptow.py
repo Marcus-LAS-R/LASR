@@ -284,6 +284,9 @@ INDEKS = {
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
+    'a_spakuj_opiniowanie': _w('spakuj ZIP opiniowanie nadleśnictwo nadleśnictwa '
+                               'mapy atlasy operaty BDO obręby wyślij XLSX '
+                               'generuj'),
     'a_ntg_warstwy': _w('NTG narada techniczno-gospodarcza przygotuj '
                         'warstwy baza połączone obiekt'),
     'a_ntg_mapy': _w('NTG narada techniczno-gospodarcza mapy mapa ogólna '

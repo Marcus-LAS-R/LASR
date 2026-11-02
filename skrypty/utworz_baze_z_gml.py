@@ -53,7 +53,7 @@ i małżeński) - zapisywane wszystkie, lista w raporcie.
 import os
 import re
 import shutil
-import datetime
+from .znacznik_czasu import znacznik
 from math import gcd
 import xml.etree.ElementTree as ET
 from collections import Counter, OrderedDict
@@ -1433,7 +1433,7 @@ def uruchom(iface):
 def _zapisz_raport(folder_startowy, wzor, tryb, wyniki, bledy_gml,
                    nowe_kody, nowe_gminy, brak_kodow, brak_gmin,
                    uwagi_gmin=None, konwersje=None, tylko_ls=False):
-    czas = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+    czas = znacznik()
     w = []
     w.append('---- ' + _TYTUL.upper() + ' ----\n')
     w.append('Folder startowy: ' + folder_startowy)

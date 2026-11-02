@@ -27,7 +27,7 @@ Panel otwarty = baza podłączona:
 - zapis pojedynczego wydzielenia w jednej transakcji; pakiet kopii (baza +
   pliki warstwy wydzieleń, Kopie_manipulacyjne/edycja_opisu_<czas>/) raz
   na połączenie i na żądanie ("Zapisz kopię bazy"), trzymane 5 ostatnich,
-- dziennik zmian <baza>_dziennik_edycji.csv (pole przed/po, a przy
+- dziennik zmian Raporty/<baza>_dziennik_edycji.csv (pole przed/po, a przy
   usunięciu wydzielenia pełna zawartość jego rekordów jako JSON),
 - usuwanie wydzielenia z bazy (Baza.usun_rekordy; TD, cechy, PNSW,
   rozliczenie znikają kaskadowo) - geometria warstw bez zmian, poligon
@@ -52,6 +52,12 @@ Panel otwarty = baza podłączona:
   (opis_zabiegi.py): zabiegi karty planowane od nowa, do bazy po "Zapisz",
 - wskazania gospodarcze edytowalne (kod czynności, pilność, % pow. <-> pow.,
   % grub., ✕, nowy wiersz), zapis razem z opisem; masa liczona w TPU,
+- "Pobierz opis BDL": krzyżyk na mapie, opis wskazanego wydzielenia z BDL
+  zastępuje opis na karcie, wiek, wymiary i masa przeliczone ze stanu BDL na
+  bieżący rok (opis_bdl.py); adres, pow., PNSW, zabiegi, Informacje różne
+  bez zmian, do bazy po "Zapisz",
+- "Lista wydzieleń" (panel, opis_lista.py): filtry, sortowanie, wczytanie
+  do karty także wydzielenia bez poligonu,
 - PNSW (F_AROD_SPEC_AREA + gatunki F_SPECIES_SPAREA, opis_pnsw.py): rodzaj,
   położenie, pow. wpisywana ręcznie, gatunki z wiekiem w osobnych wierszach
   pod PNSW (jak cechy/TD), ✕ usuwa PNSW; numery stałe (dziury po
@@ -59,10 +65,12 @@ Panel otwarty = baza podłączona:
 """
 import copy
 import csv
+import html
 import json
 import os
 import re
 import shutil
+import textwrap
 from collections import Counter
 from datetime import datetime
 
@@ -83,7 +91,8 @@ from PyQt5.QtWidgets import (
 )
 from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
-    QgsCoordinateTransform, QgsExpression, QgsFeature, QgsFeatureRequest,
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsExpression,
+    QgsFeature, QgsFeatureRequest,
     QgsField, QgsFillSymbol, QgsGeometry, QgsProject, QgsRectangle,
     QgsVectorLayer, QgsWkbTypes,
 )
@@ -92,15 +101,21 @@ from PyQt5.QtCore import QVariant
 
 from . import kopie_manipulacyjne
 from . import opis_adres as oa
+from . import opis_bdl
+from . import opis_lista
 from . import opis_pnsw as opn
 from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
+from .warstwa_opisow_dock import PRESETY_INF_ROZNE
+from .waypointy import katalog_raportow
 
 SZARY = QColor(225, 225, 225)
 ZMIENIONE = QColor(214, 234, 255)   # zmienione, niezapisane
 BLEDNE = QColor(255, 196, 196)      # reguła twarda - blokuje zapis
 OSTRZEGAWCZE = QColor(255, 240, 170)  # ostrzeżenie - zapis możliwy
 MAX_INFO = 255  # F_SUBAREA.SUBAREA_INFO VARCHAR(255)
+RODZAJ_INNE_WYL = 'INNE WYL'  # podgląd PPM pokazuje wtedy Informacje różne
+ODSTEP_TYTULU = ' ' * 24  # paski tytułu nie zawijają ani nie skracają spacji
 
 # pole -> (tabela słownika, kolumna kodu, kolumna nazwy, kolumna numeru)
 SLOWNIKI = {
@@ -249,7 +264,18 @@ def _nr_txt(nr):
 
 
 def sciezka_dziennika(baza_sc):
-    return os.path.splitext(baza_sc)[0] + '_dziennik_edycji.csv'
+    """<folder bazy>/Raporty/<baza>_dziennik_edycji.csv."""
+    katalog, plik = os.path.split(os.path.abspath(baza_sc))
+    return os.path.join(katalog_raportow(katalog),
+                        os.path.splitext(plik)[0] + '_dziennik_edycji.csv')
+
+
+def _przenies_stary_dziennik(baza_sc, sc):
+    """Dziennik sprzed przeniesienia do Raporty (leżał obok bazy) trafia tam
+    przy pierwszym zapisie, żeby historia się nie rozdzieliła."""
+    stary = os.path.splitext(baza_sc)[0] + '_dziennik_edycji.csv'
+    if os.path.isfile(stary) and not os.path.isfile(sc):
+        os.replace(stary, sc)
 
 
 def _dziennik_txt(v):
@@ -260,13 +286,14 @@ def _dziennik_txt(v):
 
 def dopisz_do_dziennika(baza_sc, wiersze):
     """wiersze: (adr_les, operacja, pole, przed, po). CSV ';' z BOM (Excel)
-    obok bazy. Zwraca False przy błędzie zapisu (zapis do bazy już się
-    odbył - to tylko ostrzeżenie)."""
-    sc = sciezka_dziennika(baza_sc)
-    nowy = not os.path.isfile(sc)
+    w folderze Raporty obok bazy. Zwraca False przy błędzie zapisu (zapis do
+    bazy już się odbył - to tylko ostrzeżenie)."""
     czas = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     uzytkownik = os.environ.get('USERNAME', '')
     try:
+        sc = sciezka_dziennika(baza_sc)
+        _przenies_stary_dziennik(os.path.abspath(baza_sc), sc)
+        nowy = not os.path.isfile(sc)
         with open(sc, 'a', newline='',
                   encoding='utf-8-sig' if nowy else 'utf-8') as f:
             w = csv.writer(f, delimiter=';')
@@ -436,6 +463,16 @@ def _model_warstw(warstwy, gatunki):
             'gatunki': gat,
         })
     return wyn
+
+
+def _info_podgladu(sub):
+    """Podgląd przy rodzaju pow. INNE WYL: Informacje różne kursywą, zawijane
+    ręcznie (QLabel nie zawija tekstu i okienko by się rozciągało)."""
+    if not sub or _txt(sub[0]) != RODZAJ_INNE_WYL or not _txt(sub[3]):
+        return ''
+    linie = textwrap.wrap(_txt(sub[3]), 50)
+    return ('<div style="margin-top:4px"><i>'
+            + '<br>'.join(html.escape(x) for x in linie) + '</i></div>')
 
 
 def rozbij_adres(adr):
@@ -1232,8 +1269,8 @@ class OknoOpisu(QWidget):
 
     def _ustaw_tytul(self):
         # adres (obręb/grupa/oddział/wydz.) jest w pasku adresu karty -
-        # w tytule tylko powierzchnia wydzielenia
-        czesci = ['Opis taksacyjny']
+        # w tytule tylko powierzchnia wydzielenia, wyraźnie odsunięta od nazwy
+        czesci = []
         if self.dane is not None and self.aint is None:
             czesci.append('NOWE WYDZIELENIE')
         elif self.dane is not None:
@@ -1241,7 +1278,8 @@ class OknoOpisu(QWidget):
                           if self.pow_wydz > 0 else 'Nierozliczona')
         if self.tylko_odczyt:
             czesci.append('[TYLKO PODGLĄD]')
-        self.setWindowTitle('   '.join(czesci))
+        self.setWindowTitle(
+            'Opis taksacyjny' + ODSTEP_TYTULU + '   '.join(czesci))
 
     def _wiersze(self, sql, parametry):
         """Lista słowników {kolumna: wartość}."""
@@ -1499,6 +1537,18 @@ class OknoOpisu(QWidget):
         self.info.setFixedHeight(100)
         self.info.textChanged.connect(self._zmiana_info)
         prawa.addWidget(self.info)
+        # gotowe frazy - te same co w generatorze opisów (opis_pkt)
+        self.btn_frazy = []
+        wiersz_fraz = QHBoxLayout()
+        wiersz_fraz.setSpacing(4)
+        for etykieta, fraza in PRESETY_INF_ROZNE:
+            btn = QPushButton(etykieta)
+            btn.setToolTip(f'Dopisuje do Informacji różnych: {fraza}')
+            btn.clicked.connect(
+                lambda _zazn, f=fraza: self.wstaw_fraze(f))
+            self.btn_frazy.append(btn)
+            wiersz_fraz.addWidget(btn)
+        prawa.addLayout(wiersz_fraz)
         prawa.addStretch(1)
         dol.addLayout(prawa, 1)
         self.lay_tresc.addLayout(dol)
@@ -1557,6 +1607,20 @@ class OknoOpisu(QWidget):
             'font-weight: bold; border: 1px solid #0d47a1; }')
         self.btn_skopiuj.toggled.connect(self._przelacz_kopiowanie)
         self.pasek.addWidget(self.btn_skopiuj)
+        self.btn_bdl = QPushButton('Pobierz opis BDL')
+        self.btn_bdl.setCheckable(True)
+        self.btn_bdl.setToolTip(
+            'Krzyżykiem wskaż LPM miejsce na mapie: opis wydzielenia BDL z '
+            'tego miejsca zastąpi opis na karcie (warstwy, gatunki, TSL, TD '
+            'z TSL). Wiek, pierśnica, wysokość i masa przeliczone ze stanu '
+            'BDL na bieżący rok. Adres, powierzchnia, PNSW, zabiegi '
+            'i Informacje różne bez zmian. Do bazy po "Zapisz"; Esc - anuluj, '
+            'Ctrl+Z - cofnij.')
+        self.btn_bdl.setStyleSheet(
+            'QPushButton:checked { background: #1565c0; color: white; '
+            'font-weight: bold; border: 1px solid #0d47a1; }')
+        self.btn_bdl.toggled.connect(self._przelacz_bdl)
+        self.pasek.addWidget(self.btn_bdl)
         oddziel()
         # status (wynik zabiegów, zapisu, błędy) - wolne miejsce przed
         # Zapisz, który zostaje dociśnięty do prawej
@@ -2279,6 +2343,28 @@ class OknoOpisu(QWidget):
         self._licznik()
         self._odswiez_przyciski()
 
+    def wstaw_fraze(self, fraza):
+        """Przycisk gotowej frazy: dopisuje ją po spacji (puste pole - sama
+        fraza), bez dublowania; jeden krok Ctrl+Z, do bazy po "Zapisz"."""
+        if self.dane is None or self.tylko_odczyt:
+            return
+        obecny = self.info.toPlainText().strip()
+        if re.search(rf'(?<!\w){re.escape(fraza)}(?!\w)', obecny):
+            self._status(f'"{fraza}" jest już w Informacjach różnych')
+            return
+        nowy = f'{obecny} {fraza}' if obecny else fraza
+        if len(nowy) > MAX_INFO:
+            self._blad(f'Informacje różne: "{fraza}" nie mieści się w limicie '
+                       f'{MAX_INFO} znaków')
+            return
+        # osobny krok historii, także po pisaniu chwilę wcześniej
+        self._info_krok = False
+        self.info.setPlainText(nowy)
+        self._info_krok = False
+        kursor = self.info.textCursor()
+        kursor.movePosition(kursor.End)
+        self.info.setTextCursor(kursor)
+
     def _licznik(self):
         n = len(self.info.toPlainText())
         self.lbl_licznik.setText(f'{n}/{MAX_INFO}')
@@ -2304,9 +2390,14 @@ class OknoOpisu(QWidget):
         self.btn_usun.setEnabled(self.dane is not None and self.aint is not None)
         self.btn_dodaj_zab.setEnabled(self.dane is not None)
         self.btn_skopiuj.setVisible(not self.tylko_odczyt)
+        self.btn_bdl.setVisible(not self.tylko_odczyt)
         for linia in self._sep_paska:   # bez przycisków - same kreski
             linia.setVisible(not self.tylko_odczyt)
         self.btn_skopiuj.setEnabled(self.dane is not None)
+        self.btn_bdl.setEnabled(self.dane is not None)
+        for btn in self.btn_frazy:
+            btn.setVisible(not self.tylko_odczyt)
+            btn.setEnabled(self.dane is not None)
         if zm:
             self._status('zmiany niezapisane', '#b36b00')
 
@@ -2544,6 +2635,7 @@ class OknoOpisu(QWidget):
         self._odswiez_przyciski()
         self._status('nowe wydzielenie - do bazy i do poligonu trafi po '
                      '"Zapisz"', '#b36b00')
+        self._fokus_na_opis()
         QTimer.singleShot(0, self._dopasuj_okno)
         return True
 
@@ -2780,6 +2872,7 @@ class OknoOpisu(QWidget):
         if wynik:
             self._wypelnij(*wynik)
         self._ustaw_tytul()
+        self.panel.odswiez_liste()
         self._poligon, self._adr_warstwy = None, set()
         if poligon is not None:
             blad_pol = self._wpisz_do_poligonu(poligon, nowy_adr)
@@ -2896,6 +2989,7 @@ class OknoOpisu(QWidget):
         self.wydz.pop(adr, None)
         self._adresy_cache = None
         self.panel.przelicz_zgodnosc()  # też warstwa "WYDZ bez opisu"
+        self.panel.odswiez_liste()
         self.dane = self.oryginal = None
         self._pokaz('wydzielenie usunięte z bazy (geometria bez zmian)')
         self.iface.messageBar().pushSuccess(
@@ -3340,9 +3434,94 @@ class OknoOpisu(QWidget):
 
     def _przelacz_kopiowanie(self, wlaczony):
         if wlaczony:
+            self.btn_bdl.setChecked(False)
             self._zacznij_wskazywanie()
         else:
             self._zakoncz_wskazywanie()
+
+    # ------------------------------------------------- "Pobierz opis BDL"
+
+    def _przelacz_bdl(self, wlaczony):
+        if wlaczony:
+            self.btn_skopiuj.setChecked(False)
+            self._zacznij_bdl()
+        else:
+            self._zakoncz_wskazywanie()
+
+    def _zacznij_bdl(self):
+        kanwa = self.panel._kanwa()
+        if kanwa is None or self.dane is None or self.tylko_odczyt:
+            self.btn_bdl.setChecked(False)
+            return
+        self._narzedzie_przed = kanwa.mapTool()
+        self._narzedzie = _WskazWydzielenie(
+            kanwa, self._wskazano_bdl, lambda: self.btn_bdl.setChecked(False))
+        self._narzedzie.deactivated.connect(
+            lambda: self.btn_bdl.setChecked(False))
+        kanwa.setMapTool(self._narzedzie)
+        self._status('wskaż LPM na mapie wydzielenie, z którego pobrać opis '
+                     'BDL (Esc - anuluj)', '#1565c0')
+
+    def _wskazano_bdl(self, pos):
+        kanwa = self.panel._kanwa()
+        if kanwa is None:
+            return
+        pt = kanwa.getCoordinateTransform().toMapCoordinates(pos)
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            pt = QgsCoordinateTransform(
+                kanwa.mapSettings().destinationCrs(),
+                QgsCoordinateReferenceSystem('EPSG:2180'),
+                QgsProject.instance()).transform(pt)
+            trafienia = opis_bdl.szukaj_w_punkcie(pt.x(), pt.y())
+            if not trafienia:
+                self._blad('w tym miejscu BDL nie ma wydzielenia - wskaż inne '
+                           '(Esc - anuluj)')
+                return
+            odpowiedz = opis_bdl.pobierz_opis(trafienia[0])
+            if self.wstaw_opis_bdl(odpowiedz, trafienia[0]):
+                self.btn_bdl.setChecked(False)
+        except opis_bdl.BladBDL as e:
+            self._blad(f'{e} - karta bez zmian')
+        except Exception as e:
+            self._blad(f'nie udało się pobrać opisu BDL: {e} - karta bez zmian')
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def wstaw_opis_bdl(self, odpowiedz, atrybuty, rok=None):
+        """Opis BDL zastępuje opis na karcie (jeden krok historii, do bazy po
+        "Zapisz"). Zostają: adres, powierzchnia, PNSW, zabiegi, Informacje
+        różne, drewno martwe - BDL ich nie daje albo są nieaktualne."""
+        stan_na = atrybuty.get('a_year')
+        rok = rok or datetime.now().year
+        lata = max(rok - stan_na, 0) if stan_na else 0
+        pola, warstwy, gatunki = opis_bdl.opis_karty(
+            odpowiedz, lata, *opis_bdl.parametry_wzrostu())
+
+        przed = copy.deepcopy(self.dane)
+        nowe = copy.deepcopy(self.dane)
+        for pole, kod in pola.items():
+            nowe[pole] = _txt(kod)
+        nowe['WARSTWY'] = _model_warstw(warstwy, gatunki)
+        td = ow.TD_DLA_TSL.get(nowe['SITE_TYPE_CD'], '').split()
+        if td:
+            nowe['TD'] = td
+        # BDL nie podaje cechy - jak "Utwórz bazę z BDL", bez kasowania
+        # cechy wpisanej na karcie
+        if not nowe['FOREST_PEC_CD']:
+            nowe['FOREST_PEC_CD'] = ['DRZ NAT']
+
+        adr = _txt(atrybuty.get('adress_forest'))
+        if nowe == przed:
+            self._status(f'opis BDL {adr} jest taki sam jak na karcie')
+            return True
+        self._do_historii('Pobierz opis BDL', przed, wymus=True)
+        self._odtworz(nowe)
+        przeliczono = f', przeliczono o {lata} lat' if lata else ''
+        self._status(f'opis BDL {rozbij_adres(adr) or adr} (stan na {stan_na}'
+                     f'{przeliczono}) - do bazy po "Zapisz" (Ctrl+Z - cofnij)',
+                     '#107010')
+        return True
 
     def _zacznij_wskazywanie(self):
         kanwa = self.panel._kanwa()
@@ -3397,6 +3576,8 @@ class OknoOpisu(QWidget):
         self._kopia_czeka = False
         if self.btn_skopiuj.isChecked():
             self.btn_skopiuj.setChecked(False)
+        if self.btn_bdl.isChecked():
+            self.btn_bdl.setChecked(False)
         self._przywroc_podglad()
 
     def _wskazano(self, pos):
@@ -3506,6 +3687,34 @@ class OknoOpisu(QWidget):
             self._status(f'zostaję przy {self.adr} (niezapisane zmiany)',
                          '#b36b00')
             return
+        self._laduj_adres(adr)
+
+    def wczytaj_adres(self, adr):
+        """Wydzielenie z listy, bez zaznaczania pojedynczego poligonu (nie
+        ma go na warstwie albo jest ich kilka). False - użytkownik został
+        przy niezapisanych zmianach."""
+        if adr == self.adr and self.dane is not None:
+            return True
+        if not self._zapytaj_o_zmiany():
+            self._status(f'zostaję przy {self.adr} (niezapisane zmiany)',
+                         '#b36b00')
+            return False
+        self._laduj_adres(adr)
+        return True
+
+    def _fokus_na_opis(self):
+        """Edycja startuje od pola Rodzaj powierzchni (bez aktywowania okna -
+        wybór na mapie nie zabiera fokusu mapie)."""
+        def ustaw():
+            if sip.isdeleted(self) or self.dane is None:
+                return
+            kol = next(i for i, k in enumerate(KOLUMNY_OPIS)
+                       if k[1] == 'AREA_TYPE_CD')
+            self.t_opis.setCurrentCell(0, kol)
+            self.t_opis.setFocus()
+        QTimer.singleShot(0, ustaw)
+
+    def _laduj_adres(self, adr):
         self.adr = adr
         self._adresy_cache = None
         self._poligon, self._adr_warstwy = None, set()
@@ -3523,6 +3732,7 @@ class OknoOpisu(QWidget):
             return
         self._wypelnij(*wynik)
         self._ustaw_tytul()
+        self._fokus_na_opis()
 
     # -------------------------------------------------------- zamknięcie
 
@@ -3575,6 +3785,7 @@ class PanelOpisu(QDockWidget):
         self._liczniki = []
         self._warstwy = []
         self._oddz = None  # warstwa ODDZ wybrana przy nowym wydzieleniu
+        self.lista = None  # okno "Lista wydzieleń"
         # przeliczenie zgodności po zmianach na warstwie - z opóźnieniem,
         # żeby seryjne kasowanie poligonów nie liczyło jej przy każdym
         self._timer_zgodnosci = QTimer(self)
@@ -3627,8 +3838,22 @@ class PanelOpisu(QDockWidget):
             'do bazy, a adres do poligonu (ADR_LES i pola adresu, w trybie '
             'edycji warstwy - zapis warstwy należy do Ciebie). Poligon z '
             'adresem - pytanie o nadpisanie.')
+        self.btn_nowe.setStyleSheet(
+            'QPushButton { background: #2e7d32; color: white; '
+            'font-weight: bold; padding: 4px; border: 1px solid #1b5e20; } '
+            'QPushButton:hover { background: #388e3c; } '
+            'QPushButton:disabled { background: #b7d3b9; color: #eef5ee; '
+            'border: 1px solid #a5c4a7; }')
         self.btn_nowe.clicked.connect(self.nowe_wydzielenie)
         lay.addWidget(self.btn_nowe)
+
+        self.btn_lista = QPushButton('Lista wydzieleń')
+        self.btn_lista.setToolTip(
+            'Lista wydzieleń bazy w osobnym oknie: filtry, sortowanie, '
+            'wczytanie wybranego do karty - także bez poligonu na warstwie, '
+            'żeby można je było usunąć.')
+        self.btn_lista.clicked.connect(self.pokaz_liste)
+        lay.addWidget(self.btn_lista)
 
         # dwa przyciski po pół szerokości, tekst w dwóch liniach - wąski
         # panel nie obetnie napisu
@@ -3726,6 +3951,7 @@ class PanelOpisu(QDockWidget):
         self.btn_puste.setEnabled(pol)
         self.btn_szczegoly.setEnabled(pol)
         self.btn_nowe.setEnabled(pol and not self.tylko_odczyt)
+        self.btn_lista.setEnabled(pol)
         self.btn_podglad.setEnabled(pol)
         if not pol and self.btn_podglad.isChecked():
             self.btn_podglad.setChecked(False)
@@ -3890,9 +4116,9 @@ class PanelOpisu(QDockWidget):
 
     @staticmethod
     def _rotuj_kopie(kat_kopii):
-        """Zostawia ILE_KOPII najnowszych pakietów Edytora (nazwy z czasem
-        RRRR-MM-DD_GG-MM-SS sortują się chronologicznie); kopie innych
-        skryptów nietknięte."""
+        """Zostawia ILE_KOPII najnowszych pakietów Edytora (nazwy sortują się
+        chronologicznie, także starsze RRRR-MM-DD_... przed nowszymi
+        RR-MM-DD_T_...); kopie innych skryptów nietknięte."""
         try:
             foldery = sorted(
                 d for d in os.listdir(kat_kopii)
@@ -4025,9 +4251,9 @@ class PanelOpisu(QDockWidget):
             return naglowek + '<br><i>brak opisu w bazie</i>'
         aint = self.wydz[adr]
         cur = self.baza.cur
-        sub = cur.execute('select AREA_TYPE_CD, SITE_TYPE_CD, SUB_AREA from '
-                          'F_SUBAREA where ARODES_INT_NUM = ?',
-                          (aint,)).fetchone()
+        sub = cur.execute('select AREA_TYPE_CD, SITE_TYPE_CD, SUB_AREA, '
+                          'SUBAREA_INFO from F_SUBAREA where '
+                          'ARODES_INT_NUM = ?', (aint,)).fetchone()
         if sub and sub[2] is not None:
             # powierzchnia w tej samej linii co adres, dosunięta do prawej
             # (tabela na całą szerokość - okienko się nie poszerza)
@@ -4120,7 +4346,8 @@ class PanelOpisu(QDockWidget):
         if inne:
             inne = ('<table cellspacing="0" cellpadding="1" '
                     'style="margin-top:4px">' + inne + '</table>')
-        return naglowek + '<br>'.join(linie) + tabela + inne
+        return naglowek + '<br>'.join(linie) + tabela + inne + \
+            _info_podgladu(sub)
 
     def _pokaz_podglad(self, pos):
         adr = self._wydzielenie_pod(pos)
@@ -4163,6 +4390,9 @@ class PanelOpisu(QDockWidget):
             if not self.karta.close():
                 return False
         self.karta = None
+        if self._lista_otwarta():
+            self.lista.close()
+        self.lista = None
         self._timer_zgodnosci.stop()
         if self.lyr is not None and not sip.isdeleted(self.lyr):
             try:
@@ -4221,6 +4451,66 @@ class PanelOpisu(QDockWidget):
             return
         self.karta = OknoOpisu(self)
         self.karta.show()
+
+    # ---------------------------------------------------- lista wydzieleń
+
+    def _lista_otwarta(self):
+        return self.lista is not None and not sip.isdeleted(self.lista)
+
+    def pokaz_liste(self):
+        if not self.polaczona():
+            return
+        if self._lista_otwarta():
+            self.lista.odswiez()
+        else:
+            self.lista = opis_lista.ListaWydzielen(self)
+        self.lista.show()
+        self.lista.raise_()
+        self.lista.activateWindow()
+
+    def odswiez_liste(self):
+        """Po usunięciu/zapisie na karcie - lista pokazuje stan bazy."""
+        if self._lista_otwarta():
+            self.lista.odswiez()
+
+    def poligony_adresow(self):
+        """{ADR_LES: [fid, ...]} poligonów warstwy (z buforem edycji)."""
+        wyn = {}
+        if self.lyr is None or sip.isdeleted(self.lyr):
+            return wyn
+        zapytanie = QgsFeatureRequest().setFlags(
+            QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
+                ['ADR_LES'], self.lyr.fields())
+        for f in self.lyr.getFeatures(zapytanie):
+            adr = _txt(f['ADR_LES'])
+            if adr:
+                wyn.setdefault(adr, []).append(f.id())
+        return wyn
+
+    def pokaz_wydzielenie(self, adr):
+        """Wydzielenie z listy na karcie i na mapie. Jeden poligon -
+        zaznaczenie (kartę ustawia sygnał zaznaczenia, jak przy klikaniu na
+        mapie); bez poligonu albo z kilkoma - wprost z bazy."""
+        if not self.polaczona():
+            return
+        fidy = self.poligony_adresow().get(adr.strip(), [])
+        self.pokaz_karte()
+        if fidy:
+            kanwa = self._kanwa()
+            if kanwa is not None:
+                kanwa.zoomToFeatureIds(self.lyr, fidy)
+                kanwa.refresh()
+        if len(fidy) == 1:
+            if self.lyr.selectedFeatureIds() == fidy:
+                self.karta.wczytaj_adres(adr)
+            else:
+                self.lyr.selectByIds(fidy)
+        else:
+            if fidy:
+                self.lyr.selectByIds(fidy)
+            else:
+                self.lyr.removeSelection()
+            self.karta.wczytaj_adres(adr)
 
     def nowe_wydzielenie(self):
         """Karta nowego wydzielenia (zapis po "Zapisz" w karcie)."""

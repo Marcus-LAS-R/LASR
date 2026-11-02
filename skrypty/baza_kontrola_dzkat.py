@@ -3,7 +3,7 @@ import re
 import glob
 import platform
 import shutil
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
@@ -523,8 +523,7 @@ class KontrolaDzKat(object):
         raport += "---KONIEC RAPORTU----------------------------------"
 
         # zapisz raport do pliku
-        self.czas = datetime.now().isoformat().replace(
-            ":", "")[:-7].replace('-', '')
+        self.czas = znacznik()
         # obok bazy (katalog nad SHP); starsze raporty DZKAT (przygotowanie
         # i kontrola) do Raporty/Archiwum
         self.rap_sc = os.path.join(os.path.dirname(self.kat),

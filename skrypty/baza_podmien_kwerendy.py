@@ -25,8 +25,7 @@ w <folder>\\Raporty.
 import os
 import glob
 import shutil
-from datetime import datetime
-
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFileDialog, QGridLayout, QLabel,
     QLineEdit, QPushButton,
@@ -454,7 +453,7 @@ def uruchom(iface):
 
 
 def _raport(folder, zrodlo, kwerendy, tabele, wyniki):
-    czas = datetime.now().strftime('%Y%m%dT%H%M%S')
+    czas = znacznik()
     sc = os.path.join(katalog_raportow(folder),
                       'raport_podmien_kwerendy_' + czas + '.txt')
     w = ['---- ' + _TYTUL.upper() + ' ----', '',

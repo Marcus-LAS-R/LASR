@@ -6,7 +6,7 @@ import sqlite3
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtCore import QVariant
 from qgis.core import Qgis, QgsMessageLog
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from shutil import copyfile
 from collections import Counter
 
@@ -180,7 +180,7 @@ class Baza(object):
         self.pomin_blokade = pomin_blokade
         self._blokada_zgloszona = False
 
-        self.czas = datetime.now().isoformat().replace(":", "")[:-7]
+        self.czas = znacznik()
 
         # sprawdź czy baza jest poprawna i mozna sie do niej podlaczyc
         # self.polacz(b)

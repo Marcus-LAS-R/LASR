@@ -129,6 +129,7 @@ from .skrypty import wydziel_wlascicieli
 from .skrypty import rozdziel_upul_isl
 from .skrypty import zabiegi_podmien
 from .skrypty import shp_polacz_warstwy
+from .skrypty import spakuj_do_opiniowania
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1359,6 +1360,17 @@ class LasR:
         self.a_kontrola_terenowa.triggered.connect(
             self.materialy_do_kontroli_terenowej)
 
+        self.a_spakuj_opiniowanie = QAction(
+            QIcon(None), "Spakuj do opiniowania przez Nadleśnictwo",
+            self.iface.mainWindow()
+        )
+        self.a_spakuj_opiniowanie.setToolTip(
+            "Ustala obręby w zasięgu każdego nadleśnictwa i pakuje ich mapy, "
+            "atlasy i operaty BDO do osobnych ZIP-ów, z zestawieniem XLSX.")
+        self.m_raporty.addAction(self.a_spakuj_opiniowanie)
+        self.a_spakuj_opiniowanie.triggered.connect(
+            self.spakuj_do_opiniowania)
+
         self.m_raporty.addSeparator()
         self.m_ntg = QMenu("NTG materiały", self.m_raporty)
         self.m_raporty.addMenu(self.m_ntg)
@@ -2333,6 +2345,9 @@ class LasR:
 
     def polacz_warstwy_shp(self):
         shp_polacz_warstwy.uruchom(self.iface)
+
+    def spakuj_do_opiniowania(self):
+        spakuj_do_opiniowania.uruchom(self.iface)
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DodajIUzupelnijAdm()

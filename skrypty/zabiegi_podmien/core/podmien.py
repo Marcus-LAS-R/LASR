@@ -24,6 +24,7 @@ przeliczana - liczona jest w TPU.
 
 import os
 from datetime import datetime
+from ...znacznik_czasu import znacznik
 
 from qgis.core import Qgis, QgsMessageLog
 
@@ -520,7 +521,7 @@ def opis_reguly(zrodlo, cel, proc):
 def zapisz_raport(katalog, baza_sc, reguly, zakres_opis, uwaga, plany,
                   folder_kopii):
     os.makedirs(katalog, exist_ok=True)
-    czas = datetime.now().strftime('%Y%m%dT%H%M%S')
+    czas = znacznik()
     sc = os.path.join(katalog, f'podmiana_zabiegow_{czas}.txt')
     linie = [
         'PODMIEŃ WYBRANE ZABIEGI',

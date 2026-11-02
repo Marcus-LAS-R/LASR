@@ -2,13 +2,11 @@
 raport_aktualizacji_struktury_*.txt (baza_aktualizuj_strukture.py)."""
 
 import os
-from datetime import datetime
-
-
+from ...znacznik_czasu import znacznik
 def zapisz_raport_konfliktow(katalog, konflikty):
     """konflikty: {(oddz,wydz): [(obreb_lesny,lesnictwo,arodes_int_num,
     adres_pelny), ...]}. Zwraca ścieżkę raportu."""
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog, 'konflikty_oddz_wydz_' + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:
@@ -39,7 +37,7 @@ def zapisz_raport_konwersji(katalog, parametry, kopia, dopasowanie_administracji
     ODDZ/WYDZ każdego wydzielenia pochodzą z adresu PUL (TEMP_ADRESS_FOREST),
     nie z tej warstwy. liczba_nieaktywnych: ile wydzieleń źródła PUL
     pominięto z powodu TEMP_ACT_ADRESS != '1'. Zwraca ścieżkę raportu."""
-    czas = datetime.now().isoformat().replace(':', '')[:-7]
+    czas = znacznik()
     rap_sc = os.path.join(katalog, 'raport_konwersji_pul_upul_' + czas + '.txt')
 
     with open(rap_sc, 'w', encoding='utf-8') as plik:

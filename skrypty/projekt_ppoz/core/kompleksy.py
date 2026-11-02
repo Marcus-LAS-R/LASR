@@ -22,8 +22,7 @@ ADRESS_FOREST), nazwy obrębów - z F_COMMUNITY.
 """
 import os
 import re
-from datetime import datetime
-
+from ...znacznik_czasu import znacznik
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature,
     QgsField, QgsFields, QgsGeometry, QgsProject, QgsRectangle,
@@ -505,7 +504,7 @@ def zapisz_raport(folder, linie):
     kat = os.path.join(folder, "Raporty")
     os.makedirs(kat, exist_ok=True)
     sc = os.path.join(kat, "raport_kompleksy_PPOZ_%s.txt"
-                      % datetime.now().strftime("%Y%m%dT%H%M%S"))
+                      % znacznik())
     with open(sc, "w", encoding="utf-8") as f:
         f.write("\n".join(linie))
     return sc

@@ -15,6 +15,7 @@ from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
 from . import raporty
+from . import raporty_ls
 from .funkcje import wyczysc_katalog_temp
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
@@ -976,21 +977,20 @@ class SprawdzRozliczenie():
              'Błędy rozliczenia Ls (' + self.etykieta_bez_wl + '): '],
         ]
         bbledow = True
+        braki_ls = self._braki_z_raportu_ls()
 
         for t in ttt:
             if len(t[0]) > 0:
                 bbledow = False
                 QgsMessageLog.logMessage(
                     '\n' + t[1] + str(len(t[0])) + '\n' +
-                    '\n'.join(['\t'.join([line[0], str(line[1]), str(line[2])])
-                               for line in t[0]]),
+                    self.opis_bledow_ls(t[0], '\t', braki_ls),
                     'Las-R',
                     Qgis.Warning
                 )
 
                 self.wypis += '\n\n' + t[1] + str(len(t[0])) + '\n' + \
-                    '\n'.join([' '.join([line[0], str(line[1]), str(line[2])])
-                               for line in t[0]])
+                    self.opis_bledow_ls(t[0], ' ', braki_ls)
 
         if bbledow:
             QgsMessageLog.logMessage(
@@ -1007,6 +1007,25 @@ class SprawdzRozliczenie():
         self.wypis += '\n----[ KONIEC SPRAWDZENIA ROZLICZENIA wg REJESTRU ' + \
             ']----\n\n'
         self.postep.setValue(95)
+
+    def _braki_z_raportu_ls(self):
+        """Ls-y z sekcji braków najnowszego raportu Ls obok bazy; None, gdy
+        takiego raportu nie ma."""
+        return raporty_ls.brakujace_obok_bazy(
+            os.path.dirname(os.path.abspath(self.baza.baza)))
+
+    @staticmethod
+    def opis_bledow_ls(bledy, separator, braki_ls):
+        """Lista [[LANDID, POW_ROZL, POW_REJ], ...] jako tekst: Ls z raportu
+        braków dostaje po tabulatorze 'brak Ls', a gdy raportu Ls nie ma
+        (braki_ls None) - nad listą jedna linia 'brak raportu Ls'."""
+        linie = ['brak raportu Ls'] if braki_ls is None else []
+        for line in bledy:
+            tekst = separator.join([line[0], str(line[1]), str(line[2])])
+            if braki_ls and line[0].upper() in braki_ls:
+                tekst += '\tbrak Ls'
+            linie.append(tekst)
+        return '\n'.join(linie)
 
     def zwroc_wypis(self):
         return self.wypis

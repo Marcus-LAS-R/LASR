@@ -20,6 +20,7 @@ import glob
 import os
 import platform
 from datetime import datetime
+from .znacznik_czasu import znacznik
 
 from PyQt5 import sip
 from PyQt5.QtCore import QVariant
@@ -234,7 +235,7 @@ def zapisz_raport(baza_sc, lyr, wynik):
     None)."""
     kat = waypointy.katalog_raportow(os.path.dirname(baza_sc))
     nazwa = os.path.splitext(os.path.basename(baza_sc))[0]
-    czas = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    czas = znacznik()
     rap_sc = os.path.join(kat, f'puste_wydzielenia_{nazwa}_{czas}.txt')
     lp, l = '=' * 72, '-' * 72
     with open(rap_sc, 'w', encoding='utf-8') as p:

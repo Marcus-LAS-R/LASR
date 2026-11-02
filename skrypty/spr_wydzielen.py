@@ -1,7 +1,7 @@
 import os
 import platform
 import glob
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 from .przyciski import QMessageBox
 
@@ -173,7 +173,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
             nazwa = os.path.splitext(os.path.basename(self.baza.baza))[0]
             self.waypointy_sc = os.path.join(
                 kat, 'sprawdz_wydzielenia_waypointy_' + nazwa + '_' +
-                datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + '.csv')
+                znacznik() + '.csv')
             waypointy.zapisz(self.waypointy_sc, zbierz_waypointy(
                 {'bez_opisu': [], 'pusty_opis': puste}))
             wyps += 'Waypointy (Nawigator błędów): ' + self.waypointy_sc + '\n'

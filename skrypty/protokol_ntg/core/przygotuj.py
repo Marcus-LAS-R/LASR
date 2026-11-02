@@ -25,8 +25,7 @@ Wynik: <eksport>\\SHP, <eksport>\\Baza_NTG_polaczona_BDO.mdb,
 """
 import os
 import shutil
-from datetime import datetime
-
+from ...znacznik_czasu import znacznik
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature,
     QgsFeatureRequest, QgsGeometry, QgsProject, QgsRectangle,
@@ -297,7 +296,7 @@ def zapisz_raport(eksport, linie, nazwa="przygotuj", skrot="NTG"):
     os.makedirs(kat, exist_ok=True)
     sc = os.path.join(kat, "raport_%s_%s_%s.txt"
                       % (nazwa, skrot,
-                         datetime.now().strftime("%Y%m%dT%H%M%S")))
+                         znacznik()))
     with open(sc, "w", encoding="utf-8") as f:
         f.write("\n".join(linie))
     return sc

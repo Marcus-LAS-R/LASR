@@ -28,8 +28,7 @@ ufania (błędnemu) .cpg.
 """
 
 import os
-from datetime import datetime
-
+from ...znacznik_czasu import znacznik
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
@@ -513,7 +512,7 @@ class KonwersjaShpDialog(QDialog):
         for r in raporty:
             if r.get("sciezka"):
                 folder = os.path.dirname(r["sciezka"])
-                czas = datetime.now().strftime("%Y%m%d_%H%M%S")
+                czas = znacznik()
                 rap_sc = os.path.join(
                     folder, f"raport_konwersji_{czas}.txt")
                 try:

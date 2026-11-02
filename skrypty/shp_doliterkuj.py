@@ -1,6 +1,6 @@
 import os
 import glob
-import datetime
+from .znacznik_czasu import znacznik
 import processing
 from operator import itemgetter
 
@@ -490,8 +490,7 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
     sciezka = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
     kat = os.path.dirname(sciezka)
     tempkat = os.path.join(kat, 'temp')
-    czas = datetime.datetime.now().isoformat(
-                    ).replace(":", "")[:-7].replace('-', '')
+    czas = znacznik()
 
     if not os.path.isdir(tempkat):
         os.mkdir(tempkat)

@@ -3,7 +3,7 @@ import platform
 import glob
 import bisect
 from collections import Counter
-from datetime import datetime
+from .znacznik_czasu import znacznik
 from PyQt5.QtWidgets import QDialog, QFileDialog
 from .przyciski import QMessageBox
 
@@ -37,7 +37,7 @@ def SprawdzBazy(iface):
         )
         return
 
-    czas = datetime.now().isoformat().replace(":", "")[:-7]
+    czas = znacznik()
     wypis = "-----[ RAPORT KONTROLI LS W BAZIE ]-----\n\n"
     if wszystkie_uzytki:
         wypis += (
