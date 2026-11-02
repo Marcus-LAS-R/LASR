@@ -3960,6 +3960,8 @@ class PanelOpisu(QDockWidget):
         self.combo.setSizeAdjustPolicy(
             QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.combo.setMinimumContentsLength(6)
+        # activated - tylko wybór użytkownika, nie odświeżanie listy
+        self.combo.activated.connect(lambda _i: self._ustaw_aktywna_warstwe())
         wiersz.addWidget(self.combo, 1)
         self.btn_warstwy = QToolButton()
         self.btn_warstwy.setText('⟳')
@@ -4124,6 +4126,7 @@ class PanelOpisu(QDockWidget):
             sygnal.connect(self._zmiana_warstwy)
         self._odswiez()
         self.odswiez_bez_opisu()
+        self._ustaw_aktywna_warstwe()
         self.iface.messageBar().pushSuccess(
             'Opis taksacyjny', f'Podłączono bazę {os.path.basename(baza_sc)}')
         if self.zrodlo_tablicy == ow.TABLICA_Z_WTYCZKI:
@@ -4685,7 +4688,20 @@ class PanelOpisu(QDockWidget):
             okno.addDockWidget(Qt.LeftDockWidgetArea, self)
         self.show()
         self.raise_()
+        self._ustaw_aktywna_warstwe()
         QTimer.singleShot(0, self._dopasuj_wysokosc)
+
+    def _ustaw_aktywna_warstwe(self):
+        """Warstwa wydzieleń Edytora (podłączona albo wybrana na liście)
+        aktywna w QGIS. Tylko przy otwarciu z menu, wyborze na liście
+        i połączeniu - samo pokazanie panelu (przełączanie zakładek paneli)
+        nie może zabierać aktywnej warstwy."""
+        lyr = self.lyr
+        if lyr is None:
+            i = self.combo.currentIndex()
+            lyr = self._warstwy[i] if 0 <= i < len(self._warstwy) else None
+        if lyr is not None and not sip.isdeleted(lyr):
+            self.iface.setActiveLayer(lyr)
 
     def _dopasuj_wysokosc(self):
         if sip.isdeleted(self) or self.isFloating() or not self.isVisible():
