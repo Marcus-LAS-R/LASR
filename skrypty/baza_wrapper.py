@@ -23,6 +23,11 @@ from collections import Counter
 _BAZY_ZAJETE = set()
 
 
+def tekst_arkusza(arkusz):
+    """Arkusz w kluczu działki: brak (NULL, pusty tekst) to ''."""
+    return '' if arkusz is None else str(arkusz).strip()
+
+
 class BazaZajetaError(Exception):
     pass
 
@@ -453,6 +458,18 @@ class Baza(object):
         if dz is False or len(dz) == 0:
             return False
         return [tuple(x) for x in dz]
+
+    def pobierz_klucze_dzialek_z_arkuszem(self):
+        """Pełny klucz działki: (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD,
+        COMMUNITY_CD, arkusz, PARCEL_NR). Ten sam numer na innym arkuszu to
+        inna działka. Arkusz z REG_SHEET_NR2 (jak w LANDID), pusty = ''.
+        False przy błędzie/pustej tabeli."""
+        sql = ('select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, '
+               'REG_SHEET_NR2, PARCEL_NR from F_PARCEL;')
+        dz = self.pobierz(sql)
+        if dz is False or len(dz) == 0:
+            return False
+        return [(x[0], x[1], x[2], x[3], tekst_arkusza(x[4]), x[5]) for x in dz]
 
     def pobierz_obreby(self):
         """Zwraca listę krotek (COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD,

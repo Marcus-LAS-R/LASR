@@ -7,7 +7,7 @@ from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog, QgsVectorLayer
 
 from . import teryt_obreby
-from .baza_wrapper import Baza
+from .baza_wrapper import Baza, tekst_arkusza
 from .baza_korekta_gmin_dialog import KorektaGminDialog
 from .ui.ui_przygotuj_baze_z_ewid import Ui_Dialog
 
@@ -133,17 +133,17 @@ def _zbuduj_liste_obrebow(dobre):
 
 
 def _oznacz_duplikaty(dobre, klucze_w_bazie):
-    """ Zwraca (unikalne, duplikaty). Klucz biznesowy dzialki to
-    (MUNICIPALITY_CD, COMMUNITY_CD, PARCEL_NR) - identyfikuje ja jednoznacznie
-    w ramach obrebu. 'klucze_w_bazie' to zbior takich samych kluczy juz
-    obecnych w F_PARCEL (z Baza.pobierz_klucze_dzialek()) - dzieki temu
-    ponowne uruchomienie skryptu na czesciowo wypelnionej bazie nie tworzy
-    duplikatow. """
+    """ Zwraca (unikalne, duplikaty). Klucz biznesowy dzialki jak
+    w Baza.pobierz_klucze_dzialek_z_arkuszem(): kody, arkusz, PARCEL_NR - ten
+    sam numer na innym arkuszu to inna dzialka. 'klucze_w_bazie' to takie
+    same klucze juz obecne w F_PARCEL - dzieki temu ponowne uruchomienie
+    skryptu na czesciowo wypelnionej bazie nie tworzy duplikatow. """
     widziane = set(klucze_w_bazie)
     unikalne = []
     duplikaty = []
     for w in dobre:
-        klucz = (w['municipality'], w['community'], w['parcel_nr'])
+        klucz = (w['county'], w['district'], w['municipality'],
+                 w['community'], tekst_arkusza(w['arkusz']), w['parcel_nr'])
         if klucz in widziane:
             duplikaty.append(w)
             continue
@@ -419,10 +419,7 @@ def PrzygotujBazeZEWID(iface, shp_sc, baza_sc, dobre, obreby, wlasciciel,
         QgsMessageLog.logMessage('------ KONIEC -------- \n', 'Las-R', Qgis.Info)
         return False
 
-    klucze_w_bazie = baza.pobierz_klucze_dzialek() or []
-    klucze_w_bazie = {
-        (k[2], k[3], k[4]) for k in klucze_w_bazie
-    }  # (MUNICIPALITY_CD, COMMUNITY_CD, PARCEL_NR)
+    klucze_w_bazie = baza.pobierz_klucze_dzialek_z_arkuszem() or []
     unikalne, duplikaty = _oznacz_duplikaty(dobre, klucze_w_bazie)
 
     if not unikalne:

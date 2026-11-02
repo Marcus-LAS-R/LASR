@@ -73,7 +73,10 @@ F_PARCEL_NADRZEDNA = TabelaNadrzedna(
      'STAKE_2', 'OWNERSHIP_CD', 'LAND_USE_CD', 'INS_DAT', 'INS_LOGIN',
      'UPD_DAT', 'UPD_LOGIN'],
     indeks_klucza=0, slownik_docelowy='sl_parcel',
-    funkcja_klucza_dedup=lambda w: (w[2], w[3], w[4], w[5], w[1]),
+    # ten sam numer na innym arkuszu (REG_SHEET_NR2) to inna działka
+    funkcja_klucza_dedup=lambda w: (
+        w[2], w[3], w[4], w[5],
+        '' if w[9] is None else str(w[9]).strip(), w[1]),
 )
 
 V_ADDRESS_NADRZEDNA = TabelaNadrzedna(

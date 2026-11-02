@@ -2131,7 +2131,8 @@ class LasR:
                 if p.wybierz_obreby():
                     if p.wybierz_grupy():
                         if p.kontrola_duplikatow():
-                            if p.kontrola_wstepna():
+                            if (p.kontrola_wstepna() and
+                                    p.kontrola_kodow_slownikowych()):
                                 if p.stworz_docelowa():
                                     p.kopiuj()
                                     # try:

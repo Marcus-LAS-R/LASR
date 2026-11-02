@@ -17,6 +17,8 @@ from .baza_polacz_rejestr import (
 from .baza_polacz_dialog import WyborGrupDialog
 from .baza_polacz_obreby_dialog import WyborObrebowDialog
 from .baza_polacz_docelowa_dialog import WyborBazyDocelowejDialog
+from .baza_polacz_slowniki import (
+    dopisz_braki, tresc_pytania, znajdz_braki)
 from .baza_polacz_wyszukaj import (
     KATALOG_WYNIKU, StartPolaczDialog, WyborBazyWFolderzeDialog,
     sciezka_wzgledna, znajdz_bazy)
@@ -104,7 +106,7 @@ def _klucze_wydzielen_z_filtrem(obreby_wybrane):
 def _klucze_dzialek_z_filtrem(obreby_wybrane):
     """Jak wyżej, dla kontroli duplikatów działek."""
     def fn(baza):
-        klucze = baza.pobierz_klucze_dzialek()
+        klucze = baza.pobierz_klucze_dzialek_z_arkuszem()
         if klucze is False:
             return False
         dozwolone = obreby_wybrane.get(baza.baza)
@@ -130,19 +132,19 @@ def _kontrola_duplikatow_wydzieln(katalog_raportu, sciezki, obreby_wybrane=None)
 
 def _kontrola_duplikatow_dzialek(katalog_raportu, sciezki, obreby_wybrane=None):
     """Sprawdza, czy ta sama działka (COUNTY_CD+DISTRICT_CD+
-    MUNICIPALITY_CD+COMMUNITY_CD+PARCEL_NR z F_PARCEL) występuje w więcej
-    niż jednej z podanych baz. Jeśli podano obreby_wybrane, sprawdza tylko
-    działki w wybranych obrębach."""
+    MUNICIPALITY_CD+COMMUNITY_CD+arkusz+PARCEL_NR z F_PARCEL) występuje
+    więcej niż raz w podanych bazach. Jeśli podano obreby_wybrane, sprawdza
+    tylko działki w wybranych obrębach."""
     pobierz_klucze_fn = (
         _klucze_dzialek_z_filtrem(obreby_wybrane)
-        if obreby_wybrane else Baza.pobierz_klucze_dzialek)
+        if obreby_wybrane else Baza.pobierz_klucze_dzialek_z_arkuszem)
     return _kontrola_duplikatow_generic(
         katalog_raportu, sciezki, pobierz_klucze_fn,
         'duplikaty_dzialek_',
         'DUPLIKATY DZIAŁEK (COUNTY_CD+DISTRICT_CD+MUNICIPALITY_CD+'
-        'COMMUNITY_CD+PARCEL_NR) W BAZACH WEJŚCIOWYCH',
+        'COMMUNITY_CD+arkusz+PARCEL_NR) W BAZACH WEJŚCIOWYCH',
         'działek',
-        formatuj_klucz=lambda k: '.'.join(str(x) for x in k))
+        formatuj_klucz=lambda k: '.'.join(str(x) for x in k if x != ''))
 
 
 class PolaczBazy():
@@ -164,6 +166,11 @@ class PolaczBazy():
         self.kat_wyniku = ''     # <katalog>\Baza_polaczona - wynik i raporty
         self.bdo = False         # tryb: łączenie baz *_BDO
         self.utworz_bdo = False  # po połączeniu kopia zanonimizowana *_BDO
+        # kody do dopisania do słowników bazy wynikowej
+        # (kontrola_kodow_slownikowych) i wynik dopisania
+        self.braki_slownikowe = []
+        self.dopisane_kody = []
+        self.bledy_slownikow = []
         self.postep = PasekPostepu(self.iface).stworz_pasek(
             'Kopiowanie baz TPU')
         self.postep.setValue(0)
@@ -416,6 +423,67 @@ class PolaczBazy():
         msg.exec_()
         return msg.clickedButton() == tak
 
+    def _zrodla(self):
+        """Bazy kopiowane do docelowej: domyślnie lista[0] jest docelową,
+        przy ręcznie wskazanej źródłami są wszystkie znalezione."""
+        return (self.lista if self.baza_docelowa_wskazana
+                else self.lista[1:])
+
+    def kontrola_kodow_slownikowych(self):
+        """Szuka kodów użytków i klas spoza słowników bazy docelowej (relacje
+        odrzuciłyby te rekordy przy kopiowaniu) i pyta, czy je dopisać. Zwraca
+        False, gdy użytkownik przerwał łączenie."""
+        self.braki_slownikowe = []
+        if not self.wybrane.get('f_parcel_land_use'):
+            return True
+        cel_sc = self.baza_docelowa_wskazana or self.lista[0]
+        cel = Baza(cel_sc)
+        if not cel.polacz():
+            return self._blad('Kontrola słowników - nie udało się połączyć '
+                              'z bazą docelową: ' + cel_sc)
+        zrodla = []
+        niesprawdzone = []
+        for sc in self._zrodla():
+            baza = Baza(sc)
+            if baza.polacz():
+                zrodla.append((sc, baza))
+            else:
+                niesprawdzone.append(sc)
+        braki, nieodczytane = znajdz_braki(cel, zrodla, self.obreby_wybrane)
+        niesprawdzone += nieodczytane
+        for _sc, baza in zrodla:
+            baza.zamknij()
+        cel.zamknij()
+
+        if niesprawdzone:
+            QgsMessageLog.logMessage(
+                'Kontrola słowników przy łączeniu - nie sprawdzono: ' +
+                '; '.join(niesprawdzone), 'Las-R', Qgis.Warning)
+            self.iface.messageBar().pushMessage(
+                'Kontrola słowników',
+                'Nie sprawdzono ' + str(len(niesprawdzone)) + ' pozycji, '
+                'szczegóły w dzienniku Las-R.', Qgis.Warning, 10)
+        if not braki:
+            return True
+
+        tekst, szczegoly = tresc_pytania(braki, os.path.basename(cel_sc))
+        msg = QMessageBox(self.iface.mainWindow())
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle('Połącz bazy TPU — kody spoza słownika')
+        msg.setText(tekst)
+        msg.setDetailedText(szczegoly)
+        dopisz = msg.addButton('Dopisz i połącz', QMessageBox.AcceptRole)
+        bez = msg.addButton('Połącz bez dopisywania',
+                            QMessageBox.DestructiveRole)
+        przerwij = msg.addButton('Przerwij', QMessageBox.RejectRole)
+        msg.setDefaultButton(dopisz)
+        msg.setEscapeButton(przerwij)
+        msg.exec_()
+        if msg.clickedButton() == dopisz:
+            self.braki_slownikowe = braki
+            return True
+        return msg.clickedButton() == bez
+
     def stworz_docelowa(self):
         katalog = self.kat_wyniku
         self.czas = \
@@ -442,6 +510,8 @@ class PolaczBazy():
         self.baza0 = Baza(os.path.join(katalog, plikn))
 
         if self.baza0.polacz():
+            self.dopisane_kody, self.bledy_slownikow = dopisz_braki(
+                self.baza0, self.braki_slownikowe)
             self.postep.setValue(5)
             return True
         else:
@@ -461,11 +531,13 @@ class PolaczBazy():
         # domyslnie self.lista[0] jest baza docelowa wiec zrodlami sa tylko
         # pozostale; przy recznie wskazanej bazie docelowej (poza
         # self.lista) wszystkie znalezione bazy staja sie zrodlami
-        zrodla = (self.lista if self.baza_docelowa_wskazana
-                  else self.lista[1:])
+        zrodla = self._zrodla()
         proc = int(90/len(zrodla))
         ust = 10
-        bledy_wszystkie = []  # (baza_zrodlowa, tabela, opis_wiersza, blad)
+        # (baza_zrodlowa, tabela, opis_wiersza, blad)
+        bledy_wszystkie = [
+            (self.baza0.baza, tabela, 'dopisanie kodu ' + kod, blad)
+            for tabela, kod, blad in self.bledy_slownikow]
         for bsc in zrodla:
             ust = ust + proc
             self.postep.setValue(ust)
@@ -489,8 +561,13 @@ class PolaczBazy():
 
         self.baza0.zamknij()
         bdo_info = ''
+        if self.dopisane_kody:
+            bdo_info = ('; dopisano do słowników: ' +
+                        ', '.join(self.dopisane_kody))
+            QgsMessageLog.logMessage(
+                'Połącz bazy TPU' + bdo_info, 'Las-R', Qgis.Info)
         if self.utworz_bdo:
-            bdo_info = self._utworz_baze_bdo()
+            bdo_info += self._utworz_baze_bdo()
         self.postep.setValue(100)
         self.iface.messageBar().clearWidgets()
 
