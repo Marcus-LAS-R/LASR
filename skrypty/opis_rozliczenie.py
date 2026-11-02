@@ -29,6 +29,7 @@ MIN_PRZECIECIE = 1  # [m2]
 # [ha] - jak w pełnym rozliczeniu (sprawdz_rozlicz_graf)
 PROG_NIEROZLICZONEJ = 0.0005
 MAX_WIERSZY_PYTANIA = 30
+MAX_WIERSZY_BLOKADY = 20
 
 
 class Plan:
@@ -128,7 +129,17 @@ def zaplanuj(lyr_wydz, lyr_ls, baza, adr, wydz):
                      ', '.join(zdublowane))
         return plan
 
+    # opis w bazie bez poligonu: rozliczenie skasowałoby jego rekordy i dało
+    # SUB_AREA 0 (np. po połączeniu poligonów) - przed liczeniem geometrii
+    bez_poligonu = _bez_poligonu(
+        {(uzytki[uz][0], uzytki[uz][1]) for uz in dotyczy if uz in uzytki},
+        rekordy_bazy, wydz, _adresy_z_poligonem(lyr_wydz))
+    if bez_poligonu:
+        plan.blad = tresc_niezgodnosci(bez_poligonu, [])
+        return plan
+
     na_uzytkach = {adr.strip()}
+    spoza_bazy = set()
     for uz in sorted(dotyczy):
         if uz not in uzytki:
             plan.uwagi.append(f'Użytku {uz} nie ma w bazie - pominięty.')
@@ -148,9 +159,11 @@ def zaplanuj(lyr_wydz, lyr_ls, baza, adr, wydz):
             if ad in wydz:
                 plan.rekordy.append((pid, sh, wydz[ad], pow_ha))
             else:
-                plan.uwagi.append(f'Na użytku {uz} leży poligon '
-                                  f'{ad or "bez adresu"}, którego nie ma '
-                                  'w bazie.')
+                spoza_bazy.add(ad)
+
+    if spoza_bazy:
+        plan.blad = tresc_niezgodnosci([], spoza_bazy)
+        return plan
 
     duble = _zdublowane_adresy(lyr_wydz) & na_uzytkach
     if duble:
@@ -162,6 +175,45 @@ def zaplanuj(lyr_wydz, lyr_ls, baza, adr, wydz):
     _policz_zmiany(plan, rekordy_bazy, wydz, cur)
     _policz_nierozliczone(plan, lyr_wydz, ls_geom)
     return plan
+
+
+def _adresy_z_poligonem(lyr_wydz):
+    """Adresy poligonów warstwy, z niezapisanymi zmianami włącznie."""
+    zapytanie = QgsFeatureRequest().setSubsetOfAttributes(
+        ['ADR_LES'], lyr_wydz.fields())
+    return {_tekst(f['ADR_LES']) for f in lyr_wydz.getFeatures(zapytanie)
+            if f.hasGeometry()}
+
+
+def _bez_poligonu(klucze, rekordy_bazy, wydz, adresy_warstwy):
+    """Adresy wydzieleń rozliczonych na użytkach `klucze`, które nie mają
+    poligonu. rekordy_bazy: (działka, nr użytku, aint, pow.)."""
+    adresy = {aint: ad for ad, aint in wydz.items()}
+    wynik = {adresy[r[2]].strip() for r in rekordy_bazy
+             if (r[0], r[1]) in klucze and r[2] in adresy}
+    return sorted(wynik - adresy_warstwy)
+
+
+def tresc_niezgodnosci(bez_poligonu, spoza_bazy):
+    """Komunikat blokady: wydzielenia na rozliczanych użytkach, w których
+    grafika i baza się nie zgadzają."""
+    def lista(adresy):
+        adresy = sorted(a or '(poligon bez adresu)' for a in adresy)
+        wiersze = adresy[:MAX_WIERSZY_BLOKADY]
+        if len(adresy) > MAX_WIERSZY_BLOKADY:
+            wiersze.append(
+                f'... i {len(adresy) - MAX_WIERSZY_BLOKADY} kolejnych')
+        return '\n'.join(wiersze)
+
+    czesci = ['Rozliczenie zablokowane: grafika i baza są niezgodne na '
+              'użytkach tego wydzielenia. W bazie nic się nie zmieniło.']
+    if bez_poligonu:
+        czesci.append('Opisy w bazie bez poligonu na warstwie (usuń opis albo '
+                      'przywróć poligon):\n' + lista(bez_poligonu))
+    if spoza_bazy:
+        czesci.append('Poligony bez opisu w bazie (dodaj opis albo popraw '
+                      'ADR_LES):\n' + lista(spoza_bazy))
+    return '\n\n'.join(czesci)
 
 
 def _zdublowane_adresy(lyr_wydz):
@@ -249,8 +301,8 @@ def wykonaj(plan, baza):
 
 def tresc_pytania(plan, czytelny, niezgodnosc=''):
     """Krótkie pytanie przed rozliczeniem. czytelny(adres) -> tekst,
-    niezgodnosc - skrót niezgodności całej warstwy z bazą (nie blokuje, nie
-    zmienia wyniku tego rozliczenia)."""
+    niezgodnosc - skrót niezgodności całej warstwy z bazą: te poza rozliczanymi
+    użytkami nie blokują i nie zmieniają wyniku (blokada jest w zaplanuj)."""
     def pow_tekst(v):
         return 'brak' if v is None else _ha(v)
 

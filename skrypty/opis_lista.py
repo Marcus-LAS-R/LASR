@@ -6,7 +6,7 @@ import os
 import re
 
 from PyQt5 import sip
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QGridLayout, QHBoxLayout,
@@ -21,6 +21,8 @@ from . import waypointy
 from .znacznik_czasu import znacznik
 
 TYTUL = 'Lista wydzieleń'
+KLUCZ_SZEROKOSCI = 'LASR/opis_lista/szerokosci_kolumn'
+_SZEROKOSC_STANU = 44
 
 # (pole wiersza, nagłówek) - kolejność kolumn
 KOLUMNY = (('gmina', 'Gmina'), ('obreb', 'Obręb'), ('grupa', 'Grupa'),
@@ -237,12 +239,11 @@ class ListaWydzielen(QWidget):
         self.tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabela.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)
+        # szerokości zmienia użytkownik, startowe ustawia _ustaw_kolumny
         naglowek = self.tabela.horizontalHeader()
-        naglowek.setSectionResizeMode(_KOL_ADR, QHeaderView.Stretch)
+        naglowek.setSectionResizeMode(QHeaderView.Interactive)
         naglowek.setSectionResizeMode(_KOL_STATUS, QHeaderView.Fixed)
-        self.tabela.setColumnWidth(_KOL_STATUS, 44)
+        self.tabela.setColumnWidth(_KOL_STATUS, _SZEROKOSC_STANU)
         self.tabela.horizontalHeaderItem(_KOL_STATUS).setToolTip(
             'Reguły karty opisu (warstwy, gatunki, PNSW): czerwony - błędy, '
             'pomarańczowy - same ostrzeżenia. Kontrole SULMN i zabiegów nie '
@@ -282,6 +283,45 @@ class ListaWydzielen(QWidget):
         uklad.addLayout(h)
 
         self.odswiez()
+        # po ułożeniu okna, żeby znać faktyczną szerokość tabeli
+        self._kolumny_ustawione = False
+
+    # -------------------------------------------------- szerokości kolumn
+
+    def showEvent(self, zdarzenie):
+        super().showEvent(zdarzenie)
+        if not self._kolumny_ustawione:
+            self._kolumny_ustawione = True
+            QTimer.singleShot(0, self._ustaw_kolumny)
+
+    def closeEvent(self, zdarzenie):
+        if self._kolumny_ustawione:
+            QSettings().setValue(
+                KLUCZ_SZEROKOSCI,
+                [str(self.tabela.columnWidth(i)) for i in range(len(KOLUMNY))])
+        super().closeEvent(zdarzenie)
+
+    def _ustaw_kolumny(self):
+        """Szerokości z poprzedniego otwarcia, a przy pierwszym: dopasowane
+        do treści, z wolnym miejscem dla adresu leśnego."""
+        if sip.isdeleted(self):
+            return
+        zapisane = QSettings().value(KLUCZ_SZEROKOSCI)
+        try:
+            szerokosci = [int(x) for x in zapisane or []]
+        except (TypeError, ValueError):
+            szerokosci = []
+        t = self.tabela
+        if len(szerokosci) == len(KOLUMNY):
+            for i, szer in enumerate(szerokosci):
+                t.setColumnWidth(i, szer)
+            return
+        t.resizeColumnsToContents()
+        t.setColumnWidth(_KOL_STATUS, _SZEROKOSC_STANU)
+        zajete = sum(t.columnWidth(i) for i in range(len(KOLUMNY)))
+        wolne = t.viewport().width() - zajete
+        if wolne > 0:
+            t.setColumnWidth(_KOL_ADR, t.columnWidth(_KOL_ADR) + wolne)
 
     # ------------------------------------------------------------- dane
 
