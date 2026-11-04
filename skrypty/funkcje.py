@@ -99,15 +99,24 @@ def oblicz_azymut(A, B):
         return 90 + abs(kat)
 
 
+# maksymalna zmiana powierzchni pierscienia [m2] dopuszczalna w usun_wasy
+TOL_POW_WASY = 0.01
+
+
 def usun_wasy(geom):  # noqa
     """ Funkcja sprawdza czy w przekazanej geom mulitpoligonu
     znajdują się jakieś wąsy i ewentualne powtórzone pkt.
     Jeżeli tak, zostają pominięte w zwracanej nowej geom.
+
+    Czyszczenie nie może zmienić powierzchni: pierścień, którego powierzchnia
+    zmieniłaby się o TOL_POW_WASY m2 lub więcej, zostaje oryginalny. Odrzucany
+    jest tylko pierścień zdegenerowany (poniżej tego progu), a wielokąt bez
+    pierścienia zewnętrznego wypada w całości (bez pustych części).
     """
     pg = []  # tablica z poprawnym multi
 
-    for k, poly in enumerate(geom.asMultiPolygon()):
-        pg.append([])
+    for poly in geom.asMultiPolygon():
+        pierscienie = []
         for j, part in enumerate(poly):
             pp = []
             o1 = False  # ostatni pkt
@@ -125,8 +134,10 @@ def usun_wasy(geom):  # noqa
                     o1 = part[i+1]
                     o2 = part[i+2]
                 elif i == len(part) - 2:
+                    # part[i+1] to punkt domykajacy (== part[0]), wiec
+                    # kolejnym jest part[1]
                     o1 = part[i+1]
-                    o2 = part[0]
+                    o2 = part[1]
                 else:
                     pass
 
@@ -138,17 +149,30 @@ def usun_wasy(geom):  # noqa
                 # pomiń zdublowane wierzchołki
                 if len(pp) == 0:
                     pp.append(pkt)
-                elif round(pkt.x(), 7) != round(pp[-1].x(), 7) and \
+                elif round(pkt.x(), 7) != round(pp[-1].x(), 7) or \
                         round(pkt.y(), 7) != round(pp[-1].y(), 7):
                     pp.append(pkt)
 
-            # jezeli całość poligonu jest większa od 3 dodaj
+            pow_org = QgsGeometry.fromPolygonXY([part]).area()
             if len(pp) > 3:
-                # dodaj poprawne pkt do tabeli
                 # sprawdz czy pierwszy i ostatni pkt jest w tym samym miejscu
                 if pp[0] != pp[-1]:
                     pp.append(pp[0])
-                pg[k].append(pp)
+                pow_po = QgsGeometry.fromPolygonXY([pp]).area()
+                if abs(pow_org - pow_po) < TOL_POW_WASY:
+                    pierscienie.append(pp)
+                    continue
+
+            # po czyszczeniu nie ma poprawnego pierscienia albo zmienila sie
+            # powierzchnia - zostaje oryginal, chyba ze jest zdegenerowany
+            if pow_org >= TOL_POW_WASY:
+                pierscienie.append(part)
+            elif j == 0:
+                # zdegenerowany pierscien zewnetrzny - wypada caly wielokat
+                break
+
+        if pierscienie:
+            pg.append(pierscienie)
 
     return QgsGeometry().fromMultiPolygonXY(pg)
 

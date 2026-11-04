@@ -13,8 +13,6 @@ jaki jest w warstwie źródłowej, dostaje tylko przypisaną działkę
 geop_przetworz). Oryginalny przygotuj_ls.py i przygotuj_ls_test.py zostają
 bez zmian - to osobne, jednorazowe narzędzie."""
 
-import os
-
 from PyQt5.QtCore import QVariant
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsField, \
     QgsFeature, QgsSpatialIndex, QgsVectorLayer
@@ -105,11 +103,7 @@ class AnalizujKlusNaChama(AnalizujKlus):
         multipoligonów - nie pomogło (te same działki dalej się nie
         zgadzały), więc na wyraźne życzenie zrezygnowano z jakiejkolwiek
         ingerencji w geometrię."""
-        sciezka = self.klu.dataProvider().dataSourceUri().split("|")[0][:-4]
-        self.kat = os.path.dirname(sciezka)
-        self.tempkat = os.path.join(self.kat, 'temp')
-        if not os.path.isdir(self.tempkat):
-            os.mkdir(self.tempkat)
+        self.ustal_katalog_roboczy()
 
         # zaindeksuj dzialki do szybkiego wyszukiwania kandydatow
         indeks = QgsSpatialIndex()

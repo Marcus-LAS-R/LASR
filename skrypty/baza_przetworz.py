@@ -4,7 +4,11 @@ import re
 
 
 class Przetworz(object):
-    def __init__(self):
+    def __init__(self, wymagaj_wlasnosci=True):
+        # False - baza bez wlascicieli (puste V_ADDRESS) tez jest przetwarzana
+        # (Przygotuj Lsy: wlasnosci sluza tam tylko do raportu)
+        self.wymagaj_wlasnosci = wymagaj_wlasnosci
+
         # tabele z bazy podane przez uzytkownika
         self.baza_wlasnosci = []
         self.baza_uzytki = []
@@ -69,7 +73,9 @@ class Przetworz(object):
     def dane_z_bazy(metoda):
         def wrap(*args):
             self = args[0]
-            if len(self.baza_wlasnosci) > 0 and len(self.baza_uzytki) > 0:
+            if len(self.baza_uzytki) > 0 and (
+                    len(self.baza_wlasnosci) > 0 or
+                    not self.wymagaj_wlasnosci):
                 metoda(self)
             else:
                 print('Brak zaimportowanych wlasnosci albo uzytkow!')
@@ -109,7 +115,8 @@ class Przetworz(object):
                 if y[1] > 1]
             self.ls_podwojne_by_pid = {}
             for x in self.ls_podwojne:
-                pid = '.'.join(x.split('.')[:2])
+                # LANDID = PARCELID.AUSQ, PARCELID moze miec arkusz
+                pid = x.rsplit('.', 1)[0]
                 self.ls_podwojne_by_pid.setdefault(pid, []).append(x)
             return True
         except:  # noqa
@@ -155,6 +162,10 @@ class Przetworz(object):
         try:
             if len(self.sl_ls_na_dz.keys()) > 0:
                 for x in self.baza_uzytki:
+                    # tylko rekord Ls - inaczej wygrywalby ostatni uzytek
+                    # na dzialce, niezaleznie od tego czym jest
+                    if self.isNone(x[9]) != 'Ls':
+                        continue
                     if x[12] in self.sl_ls_na_dz:
                         if len(self.sl_ls_na_dz[x[12]]) == 1:
                             self.sl_pow_ls_dzkat[x[12]] = [x[11], x[7]]

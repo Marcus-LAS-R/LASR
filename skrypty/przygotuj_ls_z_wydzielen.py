@@ -11,7 +11,6 @@ from qgis.core import (
 )
 from PyQt5.QtCore import QVariant
 
-from .baza_wrapper import Baza
 from .funkcje import isNone
 from .ui.ui_wydzielenia_ls import Ui_Dialog
 from .przygotuj_ls import PrzygotujLs, AnalizujKlus, PrzetworzKlu
@@ -239,25 +238,11 @@ class AnalizujWydzielenia(AnalizujKlus):
 
         self.wl = self.dd.ui.comboBox_wlas.currentText()[:2]
 
-        self.uzytki = []
-        self.wlasnosci = []
+        self.wczytaj_bazy()
 
-        QgsMessageLog.logMessage(
-            'Znaleziono bazy: ' + ', '.join(self.bazy), "Las-R", Qgis.Info)
-        for baza in self.bazy:
-            b = Baza(baza)
-            if b.polacz():
-                b.kapitaliki_w_klasach()
-                b.napraw_area_use_myslnik()
-                self.uzytki += b.uzytki()
-                self.wlasnosci += b.wlasnosci()
-            else:
-                QgsMessageLog.logMessage(
-                    'Nie udało połączyć się z: ' + baza, "Las-R",
-                    Qgis.Warning)
-                self.iface.messageBar.pushWarning(
-                    'Uwaga', 'Nie udało się odczytać bazy: ' + baza,
-                    Qgis.Warning)
+    def sprawdz_kolumny_wejscia(self):
+        """Warstwa wydzielen niesie sam kontur - nie ma kolumn do wskazania."""
+        return True
 
     def przygotuj_do_analizy(self):
         """Nie derywujemy SQ/AU/KLU z warstwy wydzieleń - nie ma z czego
@@ -494,7 +479,7 @@ class AnalizujWydzielenia(AnalizujKlus):
         lyr.startEditing()
         lyr.dataProvider().addAttributes(self.kolumny_dz + self.kolumny_ls)
         lyr.updateFields()
-        lyr.dataProvider().addFeatures(do_przeciecia)
+        self.dodaj_do_warstwy(lyr, do_przeciecia)
         lyr.commitChanges()
 
         QgsVectorFileWriter.writeAsVectorFormat(

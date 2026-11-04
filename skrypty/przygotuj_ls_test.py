@@ -21,6 +21,10 @@ PROG_POW = 0.20
 
 UW_NIEJEDNOZNACZNE = 'Niejednoznaczne dopasowanie klas Ls do bazy - sprawdź; '
 
+# ponizej tej powierzchni [m2] kawalek Ls nie liczy sie przy porownaniu z
+# liczba rekordow w bazie (odlamki z przeciecia KLU z granicami dzialek)
+PROG_MIKRO = 21
+
 
 class PrzetworzKluTest(PrzetworzKlu):
     def _udzial_w_dzialce(self):
@@ -46,20 +50,44 @@ class PrzetworzKluTest(PrzetworzKlu):
             return abs(pow_graf / dz_graf - udz_rej) / udz_rej
         return roznica
 
+    def _jednostki_ls(self, graf_idx, ile_w_bazie):
+        """Dzieli kawalki Ls na jednostki dopasowania (listy indeksow), ktorych
+        jest tyle, ile rekordow Ls w bazie. Kolejno:
+        - kazdy kawalek osobno,
+        - kazdy kawalek osobno, bez odlamkow < PROG_MIKRO (odlamek nie moze
+          zablokowac dopasowania calej dzialki; zostaje w self.klus i idzie
+          zwykla sciezka, czyli s_dopisz_uzyt i sprawdz_mikro),
+        - cale klasy z KLU, bez odlamkow (klasa bywa w kilku kawalkach).
+        None, gdy zaden podzial nie daje wlasciwej liczby jednostek."""
+        if len(graf_idx) == ile_w_bazie:
+            return [[gi] for gi in graf_idx]
+
+        glowne = [gi for gi in graf_idx
+                  if self.klus[gi].geometry().area() >= PROG_MIKRO]
+        if len(glowne) == ile_w_bazie:
+            return [[gi] for gi in glowne]
+
+        klasy = {}
+        for gi in glowne:
+            klasy.setdefault(self.isNone(self.klus[gi]['SQ']), []).append(gi)
+        if len(klasy) == ile_w_bazie:
+            return list(klasy.values())
+        return None
+
     def s_dopasuj_ls_po_pow(self):  # noqa
-        """Rozszerzenie s_czy_jeden_ls na N-do-N: jesli liczba kawalkow Ls
-        w grafice (self.klus) rowna sie liczbie rekordow Ls w bazie na tej
-        dzialce:
-        1. kawalki, ktorych SQ z KLU jest w bazie na tej dzialce, zachowuja
-           go (przy kilku kawalkach o tym samym SQ - najblizsze
+        """Rozszerzenie s_czy_jeden_ls na N-do-N: jesli kawalki Ls w grafice
+        (self.klus) da sie podzielic na tyle jednostek, ile rekordow Ls jest
+        w bazie na tej dzialce (_jednostki_ls):
+        1. jednostki, ktorych SQ z KLU jest w bazie na tej dzialce, zachowuja
+           go (przy kilku jednostkach o tym samym SQ - najblizsze
            powierzchniowo); dopasowanie po powierzchni NIE nadpisuje
            zgodnych klas,
-        2. pozostale kawalki paruje z pozostalymi rekordami bazy po
+        2. pozostale jednostki paruje z pozostalymi rekordami bazy po
            powierzchni (globalnie najlepsze pary pierwsze), porownujac
            udzialy w dzialce (_udzial_w_dzialce), i koryguje SQ w
            granicach progu PROG_POW,
-        3. kawalek bez dopasowania, ktorego wlasne SQ zdublowaloby LANDID
-           juz przypisany innemu kawalkowi, podczas gdy jakis rekord bazy
+        3. jednostka bez dopasowania, ktorej wlasne SQ zdublowaloby LANDID
+           juz przypisany innej jednostce, podczas gdy jakis rekord bazy
            zostal bez grafiki, dostaje uwage UW_NIEJEDNOZNACZNE (wczesniej
            polacz_ostateczne po cichu scalal oba kawalki w jeden LANDID,
            a brakujacy trafial do raportu jako "brakujacy").
@@ -72,9 +100,13 @@ class PrzetworzKluTest(PrzetworzKlu):
 
         db_sq_lista = self.p.sl_ls_na_dz[self.pid]
         graf_idx = [i for i, k in enumerate(self.klus) if k['AU'] == 'Ls']
-
-        if len(db_sq_lista) != len(graf_idx) or len(graf_idx) == 0:
+        if not graf_idx:
             return False
+
+        jednostki = self._jednostki_ls(graf_idx, len(db_sq_lista))
+        if jednostki is None:
+            return False
+        graf_idx = list(range(len(jednostki)))  # dalej: indeksy jednostek
 
         # kandydaci z bazy: (sq, pow_rej) - pow_rej None, gdy brak pow.
         # rejestrowej (nie da sie ich dopasowac po powierzchni)
@@ -88,8 +120,12 @@ class PrzetworzKluTest(PrzetworzKlu):
 
         roznica_udz = self._udzial_w_dzialce()
         pow_graf = {
-            gi: round(self.klus[gi].geometry().area() / 10000, 4)
+            gi: round(sum(self.klus[k].geometry().area()
+                          for k in jednostki[gi]) / 10000, 4)
             for gi in graf_idx}
+
+        def sq_jednostki(gi):
+            return self.isNone(self.klus[jednostki[gi][0]]['SQ'])
 
         def roznica(gi, di):
             pow_rej = db_kandydaci[di][1]
@@ -104,7 +140,7 @@ class PrzetworzKluTest(PrzetworzKlu):
         # 1. zgodne klasy - SQ z KLU obecne w bazie na dzialce zostaje
         pary_zgodne = []
         for gi in graf_idx:
-            sq_klu = self.isNone(self.klus[gi]['SQ'])
+            sq_klu = sq_jednostki(gi)
             for di, (sq, _pow_rej) in enumerate(db_kandydaci):
                 if sq == sq_klu:
                     r = roznica(gi, di)
@@ -147,7 +183,7 @@ class PrzetworzKluTest(PrzetworzKlu):
             for gi in graf_idx:
                 if gi in graf_uzyte:
                     continue
-                sq_klu = self.isNone(self.klus[gi]['SQ'])
+                sq_klu = sq_jednostki(gi)
                 for gj, (sq, _pg, _pr) in dopasowania.items():
                     if sq == sq_klu:
                         niejednoznaczne.update([gi, gj])
@@ -157,8 +193,7 @@ class PrzetworzKluTest(PrzetworzKlu):
 
         self.do_usun = []
         for gi in graf_idx:
-            klu = self.klus[gi]
-            sq_klu = self.isNone(klu['SQ'])
+            sq_klu = sq_jednostki(gi)
             uw = ''
             if gi in dopasowania:
                 sq, pg, pr = dopasowania[gi]
@@ -176,10 +211,11 @@ class PrzetworzKluTest(PrzetworzKlu):
             if gi in niejednoznaczne:
                 uw += UW_NIEJEDNOZNACZNE
 
-            f = self.new_feat('Ls', sq, uw=uw)
-            f.setGeometry(klu.geometry())
-            self.klus_popr.append(f)
-            self.do_usun.append(gi)
+            for k in jednostki[gi]:
+                f = self.new_feat('Ls', sq, uw=uw)
+                f.setGeometry(self.klus[k].geometry())
+                self.klus_popr.append(f)
+                self.do_usun.append(k)
 
         self.s_do_usuniecia(self.do_usun, 'OK')
         return True
@@ -243,7 +279,7 @@ class AnalizujKlusTest(AnalizujKlus):
         baz (katalog z bazami z dialogu) - starsze raporty Ls (przygotowanie
         i kontrola) do Raporty/Archiwum; waypointy dla Nawigatora błędów
         (jak w Kontroli Ls z bazą) do Raporty."""
-        raport = GenerujRaport(self.strukt, self.wl, self.p)
+        raport = GenerujRaport(self.strukt, self.wl, self.p, self.bledne)
         raport.zestaw_dane()
         rap_out = raport.generuj_raport()
 
@@ -269,6 +305,14 @@ class AnalizujKlusTest(AnalizujKlus):
         dla Ls z nowej warstwy LS_<czas>."""
         zr = 'Przygotuj Lsy'
         wiersze = []
+        for pid in r.ls_poza_baza:
+            wiersze.append(waypointy.wiersz(
+                zr, 'LSy Z KLU NA DZIAŁKACH SPOZA BAZY', 'PARCELID', pid,
+                'Działka pominięta - Ls nie trafił do warstwy'))
+        for pid in r.bledne:
+            wiersze.append(waypointy.wiersz(
+                zr, 'DZIAŁKI Z NIEPOPRAWNYMI DANYMI', 'PARCELID', pid,
+                'Działka pominięta'))
         for landid, pow_rej in r.brakujace_ls_w_shp:
             wiersze.append(waypointy.wiersz(
                 zr, 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',

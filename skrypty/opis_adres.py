@@ -14,6 +14,7 @@ import re
 
 GRUPA_NOWEGO = '10'  # grupa nowego wydzielenia (prywatni)
 CZESCI = ('obreb', 'grp', 'oddz', 'wydz')
+WYDZ_LZ = 'Lz'  # zapis jak w literowaniu; "lz" nie ma na liście liter
 
 
 def skladowe(adr):
@@ -33,7 +34,8 @@ def zloz(prefiks, obreb, grp, oddz, wydz):
 
 def normalizuj(czesc, tekst):
     """Postać zapisywana w adresie: obręb 4 cyfry, grupa 2 cyfry (z
-    zerami), oddział bez zer wiodących, wydzielenie małymi literami."""
+    zerami), oddział bez zer wiodących, wydzielenie małymi literami (poza
+    Lz, wpisywanym w dowolnej wielkości liter)."""
     tekst = (tekst or '').strip()
     if czesc == 'obreb' and tekst.isdigit():
         return tekst.zfill(4)
@@ -42,7 +44,8 @@ def normalizuj(czesc, tekst):
     if czesc == 'oddz' and tekst.isdigit() and int(tekst):
         return str(int(tekst))
     if czesc == 'wydz':
-        return tekst.lower()
+        tekst = tekst.lower()
+        return WYDZ_LZ if tekst == WYDZ_LZ.lower() else tekst
     return tekst
 
 
@@ -91,8 +94,9 @@ def docelowy(prefiks, czesci, litery, adresy, adres_bazy=None,
         return None, 'grupa: 2 cyfry albo pusta', None
     if not re.fullmatch(r'\d{1,4}', c['oddz']) or not int(c['oddz']):
         return None, 'oddział: liczba 1-9999', None
-    if c['wydz'] and not re.fullmatch(r'[a-z]{1,2}', c['wydz']):
-        return None, 'wydzielenie: 1-2 małe litery', None
+    if c['wydz'] and c['wydz'] != WYDZ_LZ and \
+            not re.fullmatch(r'[a-z]{1,2}', c['wydz']):
+        return None, 'wydzielenie: 1-2 małe litery albo Lz', None
     if not any(a[:10] == prefiks + c['obreb'] for a in adresy):
         return None, f'obręb {c["obreb"]} nie istnieje w bazie', None
     auto = None

@@ -1415,8 +1415,8 @@ class OknoOpisu(QWidget):
                 ('grp', 'Gr.', r'\d{0,2}', 2, 'Grupa / forma własności '
                  '(10 - prywatni, 05 - gmina, 99 - współwłasność)'),
                 ('oddz', 'Oddz.', r'\d{0,4}', 4, 'Oddział (1-9999)'),
-                ('wydz', 'Wydz.', r'[a-zA-Z]{0,2}', 2, 'Litera wydzielenia; '
-                 'puste - następna wolna w oddziale')):
+                ('wydz', 'Wydz.', r'[a-zA-Z]{0,2}', 2, 'Litera wydzielenia '
+                 'albo Lz; puste - następna wolna w oddziale')):
             gora.addWidget(QLabel(nag))
             e = QLineEdit()
             e.setFont(f)
@@ -2602,7 +2602,8 @@ class OknoOpisu(QWidget):
             return
         przed = copy.deepcopy(self.dane)
         cz = dict(zip(oa.CZESCI, self.dane['ADRES_CZ']))
-        cz[czesc] = tekst.strip().lower() if czesc == 'wydz' else tekst.strip()
+        cz[czesc] = oa.normalizuj(czesc, tekst) if czesc == 'wydz' \
+            else tekst.strip()
         self.dane['ADRES_CZ'] = tuple(cz[k] for k in oa.CZESCI)
         if not self._adr_krok:
             self._do_historii('adres leśny', przed, wymus=True)
