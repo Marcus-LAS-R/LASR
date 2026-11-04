@@ -1,6 +1,34 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0y — 2026-11-04
+------------------------------------------------
+
+1. WAŻNA POPRAWKA: Przygotuj Lsy nie gubi już kawałków Ls przy łączeniu części
+   użytku. Dotąd znikały niektóre trójkątne kawałki, co dawało dziury w warstwie
+   LS i w wydzieleniach (w Bodzentynie do 251 m²), a raport o tym milczał. Błąd
+   był w programie od lat, więc te same dziury mogą być w starszych opracowaniach.
+2. POPRAWKA: Przygotuj Lsy - małe kawałki Ls (poniżej 21 m²) nie znikają bez
+   śladu: zostają w warstwie LS albo trafiają do LS_DO_SPRAWDZENIA.
+3. POPRAWKA: Przygotuj Lsy - lepsze dopasowanie klas do bazy. Mały odłamek albo
+   klasa w kilku kawałkach nie powodują już fałszywego "Brak w bazie". Poprawione
+   też kopiowanie Ls na całą działkę, gdy na działce są inne użytki.
+4. POPRAWKA: Przygotuj Lsy działa dla bazy bez danych o właścicielach (dotąd pusty
+   wynik bez komunikatu; teraz Ls powstają, a wtyczka ostrzega o braku właścicieli).
+5. ZMIANA: Przygotuj Lsy sprawdza dane przed startem i podaje powód przerwania:
+   brakujące pola w DZKAT, działka wpisana dwa razy lub bez PARCELID, brak użytków
+   w bazach, niewskazane kolumny KLU. Uwaga: dwa rekordy tej samej działki w DZKAT
+   teraz zatrzymują skrypt - wcześniej przechodziły i liczyła się tylko część działki.
+6. ZMIANA: Przygotuj Lsy pyta, czy kontynuować, gdy te same działki są w kilku
+   bazach z katalogu (np. kopia bazy), bo zdublowane rekordy psują dopasowanie.
+7. ZMIANA: Przygotuj Lsy nie zmienia już pliku KLU - kolumny AU, SQ i KLU nie są do
+   niego dopisywane ani nadpisywane.
+8. RAPORT Przygotuj Lsy: działają sekcje działek bez użytków i z podmienionymi Ls
+   oraz filtr działek OP; nowe sekcje: Ls na działkach spoza bazy i działki
+   z niepoprawnymi danymi (także w Nawigatorze błędów).
+9. POPRAWKA: Edytor opisu - w pasku adresu można wpisać "Lz" (także lz, LZ). Zapis
+   karty wydzielenia Lz nie zmienia już jego adresu na "lz".
+
 Wersja 2.0x — 2026-11-02
 ------------------------------------------------
 
