@@ -25,6 +25,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 from ..core import baza_finder
 from ..core import przetworz as logika
 from ...funkcje import katalog_startowy
+from ...funkcje import etykiety_warstw, indeks_domyslnej
 
 POLE_NAZWA_NADL = 'ins_name'
 
@@ -38,11 +39,14 @@ def _warstwy_poligonowe_z_toc():
 
 
 def _domyslny_indeks(warstwy, fragmenty):
+    # pierwszy fragment, do którego pasuje jakaś warstwa; spośród pasujących
+    # aktywna albo z obiektu aktywnej (funkcje.indeks_domyslnej); bez
+    # dopasowania - aktywna warstwa albo brak wyboru (-1) zamiast pierwszej
     for frag in fragmenty:
-        for i, lyr in enumerate(warstwy):
-            if frag in lyr.name().lower():
-                return i
-    return 0
+        if any(frag in lyr.name().lower() for lyr in warstwy):
+            return indeks_domyslnej(
+                warstwy, lambda lyr, f=frag: f in lyr.name().lower())
+    return indeks_domyslnej(warstwy, lambda lyr: False)
 
 
 class _WarstwaPicker:
@@ -59,7 +63,7 @@ class _WarstwaPicker:
         row.addWidget(QLabel(etykieta))
 
         self.combo = QComboBox()
-        self.combo.addItems([lyr.name() for lyr in self._warstwy])
+        self.combo.addItems(etykiety_warstw(self._warstwy))
         if self._warstwy:
             self.combo.setCurrentIndex(
                 _domyslny_indeks(self._warstwy, fragmenty_domyslne))

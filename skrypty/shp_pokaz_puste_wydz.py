@@ -16,7 +16,6 @@ Wywołanie:
 - z panelu Edytora opisu (podłączona baza i wybrana warstwa, bez okienka).
 Skrypt tylko czyta bazę.
 """
-import glob
 import os
 import platform
 from datetime import datetime
@@ -37,6 +36,8 @@ from qgis.gui import QgsMapLayerComboBox
 
 from . import waypointy
 from .baza_wrapper import Baza, baza_zajeta
+from .funkcje import znajdz_baze_przy, warstwy_o_nazwie, domyslna_warstwa
+from .funkcje import katalog_startowy
 
 TYTUL = 'Pokaż puste wydzielenia'
 ZRODLO_WP = 'Puste wydzielenia'
@@ -314,15 +315,14 @@ def uruchom_z_panelu(panel):
 # -------------------------------------------------------------- tryb menu
 
 def baza_glowna(lyr):
-    """Jedyna baza .mdb katalog wyżej niż pliki warstwy (jak
-    znajdz_baze_do_wydz z poz=1) albo ''."""
+    """Jedyna baza .mdb przy warstwie - katalog warstwy, poziom wyżej albo
+    dwa wyżej (funkcje.bazy_przy) - albo ''."""
     if lyr is None:
         return ''
     sc = lyr.dataProvider().dataSourceUri().split('|')[0]
     if not os.path.isfile(sc):
         return ''
-    bazy = glob.glob(os.path.join(os.path.dirname(sc), '..', '*.mdb'))
-    return os.path.normpath(bazy[0]) if len(bazy) == 1 else ''
+    return znajdz_baze_przy(sc, ('*.mdb',))
 
 
 class OknoPustychWydz(QDialog):
@@ -336,13 +336,11 @@ class OknoPustychWydz(QDialog):
         lay.addWidget(QLabel('Warstwa wydzieleń (pole ADR_LES):'))
         self.cbo = QgsMapLayerComboBox()
         self.cbo.setFilters(QgsMapLayerProxyModel.PolygonLayer)
-        wydz = [x for x in QgsProject.instance().mapLayersByName('WYDZ')
-                if isinstance(x, QgsVectorLayer)]
-        if not wydz:
-            wydz = [x for x in QgsProject.instance().mapLayers().values()
-                    if x.name().upper() == 'WYDZ']
+        # WYDZ aktywna albo z obiektu aktywnej warstwy (funkcje.
+        # domyslna_warstwa), a nie pierwsza z brzegu przy kilku obiektach
+        wydz = warstwy_o_nazwie('WYDZ')
         if wydz:
-            self.cbo.setLayer(wydz[0])
+            self.cbo.setLayer(domyslna_warstwa(wydz, iface) or wydz[0])
         lay.addWidget(self.cbo)
 
         lay.addWidget(QLabel('Baza Taksatora:'))
@@ -371,11 +369,8 @@ class OknoPustychWydz(QDialog):
     def _wskaz_baze(self):
         start = self.ed_baza.text()
         if not start:
-            lyr = self.cbo.currentLayer()
-            sc = lyr.dataProvider().dataSourceUri().split('|')[0] \
-                if lyr else ''
-            if os.path.isfile(sc):
-                start = os.path.dirname(os.path.dirname(sc))
+            start = katalog_startowy(self.cbo.currentLayer(),
+                                     szukaj_bazy=True)
         sc, _ = QFileDialog.getOpenFileName(
             self, 'Wskaż bazę Taksatora', start, 'Access MDB (*.mdb)')
         if sc:

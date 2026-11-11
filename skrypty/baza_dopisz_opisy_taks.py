@@ -37,7 +37,6 @@ automatycznie, jeśli naprawa jest jednoznaczna (opis_stl.napraw_kod, lista
 napraw w raporcie). Wartość, której nie da się naprawić, wstrzymuje cały
 zapis - jak konflikt AREA_TYPE_CD.
 """
-import glob
 import os
 
 from PyQt5.QtCore import QVariant
@@ -52,6 +51,8 @@ from qgis.core import (
 )
 
 from .baza_wrapper import Baza
+from .funkcje import znajdz_baze_przy
+from .funkcje import etykiety_warstw, indeks_domyslnej
 from . import opis_stl
 
 GRUPY_VALIDNE = (
@@ -540,20 +541,15 @@ class DopiszOpisyTaksDialog(QDialog):
         self._wydzielenia_lyr = _warstwy_wektorowe(QgsWkbTypes.PolygonGeometry)
         self._punkty_lyr = _warstwy_wektorowe(QgsWkbTypes.PointGeometry)
 
-        self.combo_wydz.addItems([lyr.name() for lyr in self._wydzielenia_lyr])
-        self.combo_pkt.addItems([lyr.name() for lyr in self._punkty_lyr])
+        self.combo_wydz.addItems(etykiety_warstw(self._wydzielenia_lyr))
+        self.combo_pkt.addItems(etykiety_warstw(self._punkty_lyr))
 
-        if self._wydzielenia_lyr:
-            i = next(
-                (i for i, lyr in enumerate(self._wydzielenia_lyr)
-                 if lyr.name().upper() == 'WYDZ'), 0)
-            self.combo_wydz.setCurrentIndex(i)
-
-        if self._punkty_lyr:
-            i = next(
-                (i for i, lyr in enumerate(self._punkty_lyr)
-                 if lyr.name().upper() == 'OPIS_PKT'), 0)
-            self.combo_pkt.setCurrentIndex(i)
+        # domyślnie warstwa aktywna albo z obiektu aktywnej (funkcje.
+        # indeks_domyslnej); bez dopasowania nazwy - brak wyboru
+        self.combo_wydz.setCurrentIndex(indeks_domyslnej(
+            self._wydzielenia_lyr, lambda lyr: lyr.name().upper() == 'WYDZ'))
+        self.combo_pkt.setCurrentIndex(indeks_domyslnej(
+            self._punkty_lyr, lambda lyr: lyr.name().upper() == 'OPIS_PKT'))
 
         self._zgadnij_baze()
 
@@ -569,9 +565,9 @@ class DopiszOpisyTaksDialog(QDialog):
             return
         if not sc or not os.path.isfile(sc):
             return
-        kandydaci = glob.glob(os.path.join(os.path.dirname(sc), '..', '*.mdb'))
-        if len(kandydaci) == 1:
-            self.line_baza.setText(os.path.abspath(kandydaci[0]))
+        baza = znajdz_baze_przy(sc, ('*.mdb',))
+        if baza:
+            self.line_baza.setText(baza)
 
     def _wybierz_baze(self):
         kat = os.path.dirname(self.line_baza.text().strip())

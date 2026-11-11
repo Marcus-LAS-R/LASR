@@ -4,7 +4,7 @@ from .przyciski import QMessageBox
 import os
 import processing
 
-from .funkcje import wyczysc_katalog_temp
+from .funkcje import wyczysc_katalog_temp, aktywna_warstwa_wektorowa
 
 
 class EksportujKML():
@@ -17,15 +17,11 @@ class EksportujKML():
         """Metoda wyświetla dialog dla użytkownika a następnie przepisuje
         podane dane"""
 
-        k = self.iface.activeLayer()
-        try:
-            if not k.isValid():
-                self.ls = False
-                return False
-            else:
-                self.ls = k
-        except:  # nopep8
-            pass
+        k = aktywna_warstwa_wektorowa(self.iface)
+        if k is None:
+            self.ls = False
+            return False
+        self.ls = k
 
         # nazwa warstwy
         self.nazwa = self.ls.name()

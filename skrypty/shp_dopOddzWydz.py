@@ -5,6 +5,7 @@ from PyQt5.QtCore import QVariant
 
 from .funkcje import wybierz_warstwe_z_kandydatow
 from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import warstwy_o_nazwie
 
 _PUSTE_WARTOSCI = ('', ' ', 'NULL', None)
 
@@ -27,8 +28,9 @@ def dopOddzWydz(iface, oddz=False):  # noqa
     go = False
 
     if oddz is False:
-        kandydaci = [x for x in QgsProject.instance().mapLayers().values()
-                     if x.name()[:4] == 'ODDZ']
+        # dokładnie ODDZ ma pierwszeństwo (ODDZ_stare nie wchodzi, gdy jest
+        # ODDZ); przy kilku - ODDZ z obiektu aktywnej warstwy
+        kandydaci = warstwy_o_nazwie('ODDZ', prefiks=True)
         oddz = wybierz_warstwe_z_kandydatow(iface, kandydaci, 'ODDZ')
 
     if isinstance(oddz, QgsVectorLayer):

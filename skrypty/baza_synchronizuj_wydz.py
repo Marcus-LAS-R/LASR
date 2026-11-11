@@ -1,5 +1,4 @@
 import os
-import glob
 
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer
 from PyQt5.QtWidgets import (
@@ -9,6 +8,8 @@ from PyQt5.QtWidgets import (
 from .przyciski import QDialogButtonBox, QMessageBox
 
 from .baza_wrapper import Baza
+from .funkcje import znajdz_baze_przy
+from .funkcje import etykiety_warstw, indeks_domyslnej
 from . import kopie_manipulacyjne
 
 # indeksy w 25-znakowym adresie lesnym (patrz shp_adr_les.zbuduj_adres):
@@ -47,7 +48,7 @@ class _WyborDialog(QDialog):
         warstwa_row = QHBoxLayout()
         warstwa_row.addWidget(QLabel('Warstwa WYDZ:'))
         self.combo_warstwa = QComboBox()
-        self.combo_warstwa.addItems([lyr.name() for lyr in self._warstwy])
+        self.combo_warstwa.addItems(etykiety_warstw(self._warstwy))
         warstwa_row.addWidget(self.combo_warstwa, 1)
         layout.addLayout(warstwa_row)
 
@@ -66,11 +67,10 @@ class _WyborDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-        if self._warstwy:
-            indeks = next(
-                (i for i, lyr in enumerate(self._warstwy)
-                 if lyr.name().upper() == 'WYDZ'), 0)
-            self.combo_warstwa.setCurrentIndex(indeks)
+        # WYDZ aktywna albo z obiektu aktywnej warstwy (funkcje.
+        # indeks_domyslnej), a nie pierwsza z brzegu przy kilku obiektach
+        self.combo_warstwa.setCurrentIndex(indeks_domyslnej(
+            self._warstwy, lambda lyr: lyr.name().upper() == 'WYDZ'))
 
         self.combo_warstwa.currentIndexChanged.connect(self._zgadnij_baze)
         self._zgadnij_baze()
@@ -79,15 +79,9 @@ class _WyborDialog(QDialog):
         lyr = self.warstwa()
         if lyr is None:
             return
-        try:
-            sc = lyr.dataProvider().dataSourceUri().split('|')[0]
-            kat = os.path.dirname(sc)
-            poziom = '..' if lyr.name().upper() == 'ODDZ' else os.path.join('..', '..')
-            kandydaci = glob.glob(os.path.join(kat, poziom, '*.mdb'))
-        except Exception:
-            kandydaci = []
-        if len(kandydaci) == 1:
-            self.edit_baza.setText(os.path.abspath(kandydaci[0]))
+        baza = znajdz_baze_przy(lyr, ('*.mdb',))
+        if baza:
+            self.edit_baza.setText(baza)
 
     def _wybierz_baze(self):
         kat_start = os.path.dirname(self.edit_baza.text().strip())

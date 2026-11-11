@@ -16,6 +16,15 @@ from . import kafelkowanie
 _KANDYDACI_POLE_ID = ('ADR_LES', 'ADRESS_FOREST', 'WYDZ')
 
 
+def _plik_warstwy(lyr):
+    """Znormalizowana ścieżka pliku warstwy ('' gdy brak)."""
+    try:
+        sc = lyr.dataProvider().dataSourceUri().split('|')[0]
+    except Exception:
+        return ''
+    return os.path.normcase(os.path.abspath(sc)) if sc else ''
+
+
 def _pole_identyfikatora(warstwa):
     nazwy = {p.name() for p in warstwa.fields()}
     for kandydat in _KANDYDACI_POLE_ID:
@@ -117,8 +126,12 @@ class ObszaryCiecia:
 
     def zapisz_warstwe(self):
         # usun poprzednia warstwe z TOC (zwalnia blokade pliku na Windows)
+        # tylko warstwy z nadpisywanego pliku - nie zamykamy OBSZARY_CIECIA
+        # innych obiektów otwartych w tym samym projekcie
+        plik = os.path.normcase(os.path.abspath(
+            os.path.join(self.kat, 'OBSZARY_CIECIA.shp')))
         stare = [l for l in QgsProject.instance().mapLayers().values()
-                 if l.name() == 'OBSZARY_CIECIA']
+                 if l.name() == 'OBSZARY_CIECIA' and _plik_warstwy(l) == plik]
         if stare:
             QgsProject.instance().removeMapLayers([l.id() for l in stare])
 

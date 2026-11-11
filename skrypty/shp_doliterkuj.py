@@ -1,5 +1,4 @@
 import os
-import glob
 from .znacznik_czasu import znacznik
 import processing
 from operator import itemgetter
@@ -14,6 +13,7 @@ from .ui.ui_shp_doliterkuj import Ui_Dialog
 from . import kopie_manipulacyjne
 from .funkcje import wyczysc_katalog_temp
 from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import znajdz_baze_przy
 from .edycja_atrybutow import zmien_atrybuty, odswiez_powiazane
 
 _Y_BAZA_ROW = 100
@@ -121,11 +121,8 @@ def _zgadnij_baze(warstwa_sc):
     razie pusty string (uzytkownik wskazuje baze recznie). """
     if not warstwa_sc or not os.path.isfile(warstwa_sc):
         return ''
-    kat = os.path.dirname(warstwa_sc)
-    kandydaci = glob.glob(os.path.join(kat, '..', '*.mdb'))
-    if len(kandydaci) == 1:
-        return os.path.abspath(kandydaci[0])
-    return ''
+    # katalog warstwy, poziom wyzej albo dwa wyzej (funkcje.bazy_przy)
+    return znajdz_baze_przy(warstwa_sc, ('*.mdb',))
 
 
 def _uzyte_z_bazy(baza_sc):

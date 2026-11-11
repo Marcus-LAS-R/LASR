@@ -18,7 +18,6 @@ Rozliczenia powierzchni:
   przerywana z komunikatem błędu zamiast cichego nadpisania.
 """
 import os
-import glob
 from .znacznik_czasu import znacznik
 import processing
 from operator import itemgetter
@@ -35,6 +34,7 @@ from . import kopie_manipulacyjne
 from . import warstwa_opisow_dock as opis
 from .funkcje import wyczysc_katalog_temp
 from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import znajdz_baze_przy
 from .edycja_atrybutow import zmien_atrybuty, odswiez_powiazane
 
 GRUPA_LZ = 'LZ-Ł'
@@ -94,11 +94,8 @@ def _zgadnij_baze(warstwa_sc):
     bezpieczenstwa. """
     if not warstwa_sc or not os.path.isfile(warstwa_sc):
         return ''
-    kat = os.path.dirname(warstwa_sc)
-    kandydaci = glob.glob(os.path.join(kat, '..', '*.mdb'))
-    if len(kandydaci) == 1:
-        return os.path.abspath(kandydaci[0])
-    return ''
+    # katalog warstwy, poziom wyzej albo dwa wyzej (funkcje.bazy_przy)
+    return znajdz_baze_przy(warstwa_sc, ('*.mdb',))
 
 
 def _sciezka_opis_pkt(warstwa_sc):

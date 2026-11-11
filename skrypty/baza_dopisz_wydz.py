@@ -1,5 +1,6 @@
 from qgis.core import Qgis, QgsMessageLog, QgsFeatureRequest
 from .baza_wrapper import znajdz_baze_do_wydz, Baza
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 class DopiszWydzielenia():
@@ -42,9 +43,8 @@ class DopiszWydzielenia():
                 }
 
     def sprawdz_dane(self):
-        try:
-            self.wydz = self.iface.activeLayer()
-        except:  # nopep8
+        self.wydz = aktywna_warstwa_wektorowa(self.iface)
+        if self.wydz is None:
             return False
 
         if 'ADR_LES' not in [x.name() for x in

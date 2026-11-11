@@ -13,6 +13,7 @@ from qgis.core import QgsVectorLayer, QgsMessageLog, QgsField, \
 import processing
 from collections import Counter, namedtuple
 from .baza_wrapper import znajdz_baze_do_wydz, Baza
+from .funkcje import aktywna_warstwa_wektorowa
 from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
@@ -108,8 +109,10 @@ class KontrolaDzKat(object):
         )
 
     def sprawdz_dane(self):
+        self.dzkat = aktywna_warstwa_wektorowa(self.iface)
+        if self.dzkat is None:
+            return False
         try:
-            self.dzkat = self.iface.activeLayer()
             self.kat = os.path.dirname(
                 self.dzkat.dataProvider().dataSourceUri().split("|")[0]
             )

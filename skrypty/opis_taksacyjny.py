@@ -117,6 +117,7 @@ from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 from .warstwa_opisow_dock import PRESETY_INF_ROZNE
 from .waypointy import katalog_raportow
+from .funkcje import etykiety_warstw, indeks_domyslnej
 
 SZARY = QColor(225, 225, 225)
 ZMIENIONE = QColor(214, 234, 255)   # zmienione, niezapisane
@@ -4131,12 +4132,15 @@ class PanelOpisu(QDockWidget):
             return
         self._warstwy = _warstwy_poligonowe()
         self.combo.clear()
-        for lyr in self._warstwy:
-            self.combo.addItem(lyr.name())
+        for lyr, etykieta in zip(self._warstwy,
+                                 etykiety_warstw(self._warstwy)):
+            self.combo.addItem(etykieta)
             sc = lyr.dataProvider().dataSourceUri().split('|')[0]
             self.combo.setItemData(self.combo.count() - 1, sc, Qt.ToolTipRole)
-        i = next((i for i, lyr in enumerate(self._warstwy)
-                  if lyr.name().upper() == 'WYDZ'), 0)
+        # WYDZ aktywna albo z obiektu aktywnej warstwy (funkcje.
+        # indeks_domyslnej), a nie pierwsza z brzegu przy kilku obiektach
+        i = indeks_domyslnej(
+            self._warstwy, lambda lyr: lyr.name().upper() == 'WYDZ')
         if self._warstwy:
             self.combo.setCurrentIndex(i)
 

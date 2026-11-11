@@ -23,6 +23,7 @@ from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import utworz_klon_txt as logika
+from ...funkcje import etykiety_warstw, indeks_domyslnej
 
 
 def _warstwy_wektorowe(typ_geometrii):
@@ -90,27 +91,18 @@ class UtworzKlonTxtDialog(QDialog):
         self._notatki = _warstwy_wektorowe(QgsWkbTypes.PointGeometry)
         self._wydzielenia = _warstwy_wektorowe(QgsWkbTypes.PolygonGeometry)
 
-        self.combo_klon.addItems([lyr.name() for lyr in self._odcinki])
-        self.combo_notatki.addItems([lyr.name() for lyr in self._notatki])
-        self.combo_wydz.addItems([lyr.name() for lyr in self._wydzielenia])
+        self.combo_klon.addItems(etykiety_warstw(self._odcinki))
+        self.combo_notatki.addItems(etykiety_warstw(self._notatki))
+        self.combo_wydz.addItems(etykiety_warstw(self._wydzielenia))
 
-        if self._odcinki:
-            i = next(
-                (i for i, lyr in enumerate(self._odcinki)
-                 if lyr.name().upper() == 'OPIS_KLON'), 0)
-            self.combo_klon.setCurrentIndex(i)
-
-        if self._notatki:
-            i = next(
-                (i for i, lyr in enumerate(self._notatki)
-                 if lyr.name().upper() == 'OPIS_NOTATKI'), 0)
-            self.combo_notatki.setCurrentIndex(i)
-
-        if self._wydzielenia:
-            i = next(
-                (i for i, lyr in enumerate(self._wydzielenia)
-                 if lyr.name().upper() == 'WYDZ'), 0)
-            self.combo_wydz.setCurrentIndex(i)
+        # domyślnie warstwa aktywna albo z obiektu aktywnej (funkcje.
+        # indeks_domyslnej); bez dopasowania nazwy - brak wyboru
+        self.combo_klon.setCurrentIndex(indeks_domyslnej(
+            self._odcinki, lambda lyr: lyr.name().upper() == 'OPIS_KLON'))
+        self.combo_notatki.setCurrentIndex(indeks_domyslnej(
+            self._notatki, lambda lyr: lyr.name().upper() == 'OPIS_NOTATKI'))
+        self.combo_wydz.setCurrentIndex(indeks_domyslnej(
+            self._wydzielenia, lambda lyr: lyr.name().upper() == 'WYDZ'))
 
     def _wybrany_klon(self):
         i = self.combo_klon.currentIndex()

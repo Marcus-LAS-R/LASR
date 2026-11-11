@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import QDialog
 from .przyciski import QMessageBox
 from .ui.ui_atlasuj import Ui_Dialog
 from .edycja_atrybutow import zmien_atrybuty
+from .funkcje import wybierz_warstwe_z_kandydatow, obiekt_warstwy
+from .funkcje import aktywna_warstwa_wektorowa
 
 
 class GenerujAtlas():
@@ -16,11 +18,12 @@ class GenerujAtlas():
         self.rozm = []  # tablica z rozmiarem pola atlasowego w metrach x, y
 
     def wybierz_warstwe(self, lyr=False):
+        if lyr is False:
+            lyr = aktywna_warstwa_wektorowa(self.iface)
+            if lyr is None:
+                return False
         try:
-            if lyr is False:
-                self.lyr = self.iface.activeLayer()
-            else:
-                self.lyr = lyr
+            self.lyr = lyr
             self.kat = os.path.dirname(
                 self.lyr.dataProvider().dataSourceUri().split("|")[0])
         except:  # nopep8
@@ -157,7 +160,19 @@ class Zanumeruj():
             lin = [x for x in lyrs if
                    x.name()[:8] == 'AtlasLin']
 
-            if len(pola) != 1 or len(lin) != 1:
+            # kilka obiektów w projekcie: ATLAS_AFT aktywna/z obiektu
+            # aktywnej albo wybór użytkownika, AtlasLinia z tego samego
+            # obiektu co wybrana ATLAS_AFT (wcześniej: wymagana dokładnie
+            # jedna warstwa każdego rodzaju w całym projekcie)
+            self.pola = wybierz_warstwe_z_kandydatow(
+                self.iface, pola, 'ATLAS_AFT')
+            if self.pola is not None:
+                ob = obiekt_warstwy(self.pola)
+                lin = [x for x in lin if obiekt_warstwy(x) == ob] or lin
+            self.lin = wybierz_warstwe_z_kandydatow(
+                self.iface, lin, 'AtlasLinia')
+
+            if self.pola is None or self.lin is None:
                 self.iface.messageBar().pushMessage(
                     "BŁĄD",
                     'Nie odnalazłem ATLAS_AFT i/lub AtlasLinia',
@@ -165,9 +180,6 @@ class Zanumeruj():
                     0
                 )
                 return False
-
-            self.pola = pola[0]
-            self.lin = lin[0]
             return True
         except:  # nopep8
             pass

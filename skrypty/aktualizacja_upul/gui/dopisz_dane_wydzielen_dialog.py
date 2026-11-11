@@ -25,6 +25,7 @@ from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import dopisz_dane_wydzielen as logika
+from ...funkcje import etykiety_warstw, indeks_domyslnej
 
 _POLA_DOPISYWANE = [
     ('ODDZ', logika.TRYB_PUSTE),
@@ -85,21 +86,17 @@ class DopiszDaneWydzielenDialog(QDialog):
         self._zrodla = _warstwy_wektorowe(QgsWkbTypes.PointGeometry)
         self._cele = _warstwy_wektorowe(QgsWkbTypes.PolygonGeometry)
 
-        self.combo_zrodlo.addItems([lyr.name() for lyr in self._zrodla])
-        self.combo_cel.addItems([lyr.name() for lyr in self._cele])
+        self.combo_zrodlo.addItems(etykiety_warstw(self._zrodla))
+        self.combo_cel.addItems(etykiety_warstw(self._cele))
 
-        if self._zrodla:
-            indeks_zrodlo = next(
-                (i for i, lyr in enumerate(self._zrodla)
-                 if 'stare' in lyr.name().lower()), 0)
-            self.combo_zrodlo.setCurrentIndex(indeks_zrodlo)
-
-        if self._cele:
-            indeks_cel = next(
-                (i for i, lyr in enumerate(self._cele)
-                 if lyr.name().upper().startswith('WYDZ')
-                 and 'stare' not in lyr.name().lower()), 0)
-            self.combo_cel.setCurrentIndex(indeks_cel)
+        # domyślnie warstwa aktywna albo z obiektu aktywnej (funkcje.
+        # indeks_domyslnej); bez dopasowania - brak wyboru zamiast
+        # przypadkowej pierwszej warstwy z projektu
+        self.combo_zrodlo.setCurrentIndex(indeks_domyslnej(
+            self._zrodla, lambda lyr: 'stare' in lyr.name().lower()))
+        # dokładnie WYDZ - startswith łapał też WYDZ_POL_stare/WYDZ_DOPISANE
+        self.combo_cel.setCurrentIndex(indeks_domyslnej(
+            self._cele, lambda lyr: lyr.name().upper() == 'WYDZ'))
 
     def _wybrane_zrodlo(self):
         i = self.combo_zrodlo.currentIndex()

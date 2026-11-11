@@ -340,6 +340,157 @@ def katalog_startowy(sciezka=None, szukaj_bazy=False, iface=None):
     return kat
 
 
+def _domyslny_iface(iface=None):
+    if iface is not None:
+        return iface
+    try:
+        from qgis.utils import iface as _iface
+        return _iface
+    except Exception:
+        return None
+
+
+def bazy_przy(sciezka, wzorce=('*.mdb', '*.sqlite')):
+    """Bazy (*.mdb/*.sqlite) leżące przy pliku/warstwie/katalogu: z
+    pierwszego z (ten katalog, poziom wyżej, dwa poziomy wyżej), w którym
+    jakaś baza jest. Typowo warstwy są w <obiekt>\\SHP (albo głębiej), a
+    baza w <obiekt>. Lista posortowana, pusta gdy brak."""
+    if sciezka is not None and not isinstance(sciezka, str):
+        try:
+            sciezka = sciezka.dataProvider().dataSourceUri()
+        except Exception:
+            sciezka = None
+    kat = _katalog_z_sciezki(sciezka)
+    if not kat:
+        return []
+    for poziom in ('.', '..', os.path.join('..', '..')):
+        kandydat = os.path.normpath(os.path.join(kat, poziom))
+        bazy = [b for w in wzorce
+                for b in glob.glob(os.path.join(kandydat, w))]
+        if bazy:
+            return sorted(os.path.abspath(b) for b in bazy)
+    return []
+
+
+def znajdz_baze_przy(sciezka, wzorce=('*.mdb', '*.sqlite')):
+    """Jedyna baza przy pliku/warstwie (patrz bazy_przy) albo '' - przy
+    kilku bazach w tym samym folderze nie zgadujemy."""
+    bazy = bazy_przy(sciezka, wzorce)
+    return bazy[0] if len(bazy) == 1 else ''
+
+
+def _folder_obiektu(lyr):
+    """Folder obiektu warstwy (oryginalna wielkość liter) - katalog, w
+    którym leży jej baza (patrz bazy_przy), a bez bazy katalog samej
+    warstwy. '' gdy warstwa nie ma pliku."""
+    bazy = bazy_przy(lyr)
+    if bazy:
+        return os.path.dirname(bazy[0])
+    kat = katalog_startowy(lyr) if lyr is not None else ''
+    return os.path.abspath(kat) if kat else ''
+
+
+def obiekt_warstwy(lyr):
+    """Znormalizowany folder obiektu warstwy (patrz _folder_obiektu) - do
+    porównania, czy dwie warstwy są z tego samego obiektu."""
+    ob = _folder_obiektu(lyr)
+    return os.path.normcase(ob) if ob else ''
+
+
+def _id_warstwy(lyr):
+    try:
+        return lyr.id()
+    except Exception:
+        return None
+
+
+def domyslna_warstwa(kandydaci, iface=None):
+    """Warstwa do podstawienia domyślnie spośród kandydatów (np. warstw o
+    nazwie WYDZ): aktywna, jeśli jest wśród kandydatów; inaczej jedyny
+    kandydat z tego samego obiektu co aktywna warstwa; inaczej jedyny
+    kandydat w ogóle. None, gdy nie da się wskazać jednoznacznie."""
+    kandydaci = [k for k in kandydaci if k is not None]
+    if not kandydaci:
+        return None
+    iface = _domyslny_iface(iface)
+    try:
+        akt = iface.activeLayer() if iface is not None else None
+    except Exception:
+        akt = None
+    if akt is not None:
+        akt_id = _id_warstwy(akt)
+        for k in kandydaci:
+            if _id_warstwy(k) == akt_id:
+                return k
+        ob = obiekt_warstwy(akt)
+        if ob:
+            ten_sam = [k for k in kandydaci if obiekt_warstwy(k) == ob]
+            if len(ten_sam) == 1:
+                return ten_sam[0]
+    return kandydaci[0] if len(kandydaci) == 1 else None
+
+
+def etykiety_warstw(warstwy):
+    """Nazwy warstw do list wyboru; gdy ta sama nazwa powtarza się, dopisuje
+    w nawiasie folder obiektu (np. "WYDZ (Wspolnota_Lesna_Cikowka)"), a gdy
+    to nie wystarcza - pełną ścieżkę pliku."""
+    nazwy = [w.name() for w in warstwy]
+    etykiety = []
+    for w, n in zip(warstwy, nazwy):
+        if nazwy.count(n) == 1:
+            etykiety.append(n)
+            continue
+        ob = _folder_obiektu(w)
+        etykiety.append(n + ' (' + (os.path.basename(ob) if ob else '?') + ')')
+    for i, e in enumerate(etykiety):
+        if etykiety.count(e) > 1:
+            try:
+                sc = warstwy[i].dataProvider().dataSourceUri().split('|')[0]
+            except Exception:
+                sc = '?'
+            etykiety[i] = nazwy[i] + '   (' + sc + ')'
+    return etykiety
+
+
+def warstwy_o_nazwie(nazwa, prefiks=False):
+    """Warstwy wektorowe projektu o nazwie `nazwa` (bez rozróżniania
+    wielkości liter). prefiks=True - gdy żadna nie nazywa się dokładnie
+    tak, warstwy, których nazwa się od tego zaczyna (np. ODDZ_nowe); nazwa
+    dokładna ma pierwszeństwo, więc ODDZ_stare nie wchodzi, gdy jest ODDZ."""
+    warstwy = [x for x in QgsProject.instance().mapLayers().values()
+               if isinstance(x, QgsVectorLayer)]
+    n = nazwa.upper()
+    dokladne = [x for x in warstwy if x.name().upper() == n]
+    if dokladne or not prefiks:
+        return dokladne
+    return [x for x in warstwy if x.name().upper().startswith(n)]
+
+
+def indeks_domyslnej(warstwy, pasuje, iface=None):
+    """Indeks warstwy do ustawienia w liście wyboru: domyślna (patrz
+    domyslna_warstwa) spośród warstw spełniających `pasuje(lyr)`, a gdy
+    się nie da - pierwsza pasująca. Gdy żadna nie pasuje: aktywna warstwa,
+    jeśli jest na liście (użytkownik ją zaznaczył), inaczej -1 (lista bez
+    zaznaczenia zamiast przypadkowej warstwy)."""
+    kandydaci = [w for w in warstwy if pasuje(w)]
+    if not kandydaci:
+        iface = _domyslny_iface(iface)
+        try:
+            akt_id = _id_warstwy(iface.activeLayer())
+        except Exception:
+            akt_id = None
+        for i, w in enumerate(warstwy):
+            if akt_id is not None and _id_warstwy(w) == akt_id:
+                return i
+        return -1
+    wybrana = domyslna_warstwa(kandydaci, iface) or kandydaci[0]
+    wid = _id_warstwy(wybrana)
+    for i, w in enumerate(warstwy):
+        if _id_warstwy(w) == wid:
+            return i
+    return -1
+
+
 def ustaw_utf8(iface):
     # metoda ustawia kodowanie utf aktywnej warstwy
     try:
@@ -593,14 +744,29 @@ def wybierz_warstwe_z_kandydatow(iface, kandydaci, etykieta):
       komunikat o braku warstwy, bez zmian)
     - dokladnie 1 kandydat -> zwracany od razu, bez pytania (ciche
       dzialanie jak dotychczas w jednoznacznym przypadku)
-    - 2+ kandydatow -> uzytkownik musi jawnie wybrac wlasciwa warstwe z
-      listy (nazwa + sciezka zrodlowa dla odroznienia identycznie
-      nazwanych warstw); anulowanie wyboru zwraca None, tak samo jak brak
+    - 2+ kandydatow -> jesli jeden z nich jest aktywna warstwa albo jako
+      jedyny lezy w tym samym obiekcie co aktywna (patrz domyslna_warstwa)
+      - zwracany bez pytania; inaczej uzytkownik musi jawnie wybrac
+      wlasciwa warstwe z listy (nazwa + sciezka zrodlowa dla odroznienia
+      identycznie nazwanych warstw, warstwy z obiektu aktywnej na
+      poczatku); anulowanie wyboru zwraca None, tak samo jak brak
       kandydatow w ogole. """
     if len(kandydaci) == 0:
         return None
     if len(kandydaci) == 1:
         return kandydaci[0]
+
+    domyslna = domyslna_warstwa(kandydaci, iface)
+    if domyslna is not None:
+        return domyslna
+
+    try:
+        akt = iface.activeLayer()
+        ob = obiekt_warstwy(akt) if akt is not None else ''
+    except Exception:
+        ob = ''
+    if ob:
+        kandydaci = sorted(kandydaci, key=lambda k: obiekt_warstwy(k) != ob)
 
     opisy = []
     for lyr in kandydaci:

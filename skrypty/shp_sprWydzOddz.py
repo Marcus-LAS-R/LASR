@@ -1,8 +1,8 @@
 from qgis.core import Qgis, QgsProject, QgsMessageLog, QgsSpatialIndex, \
     QgsVectorLayer, QgsField, QgsFeature
-from collections import Counter
 from PyQt5.QtCore import QVariant
 from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import wybierz_warstwe_z_kandydatow, warstwy_o_nazwie
 
 
 def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
@@ -22,26 +22,22 @@ def spr_wydz_oddz(iface, wydz=False, oddz=False):  # noqa
         # SPRAWDZ WARUNKI POCZATKOWE ----------------------
         # Sprawdz czy w TOC jest tylko jedna warstwa z nazwa ODDZ
     if oddz is False:
-        spis_warstw = [x.name() for x in
-                       QgsProject.instance().mapLayers().values()]
-        go = False
-        policz_warstwy = Counter(spis_warstw)
-        if 'ODDZ' in policz_warstwy:
-            if policz_warstwy['ODDZ'] == 1:
-                go = True
-                oddz = [x for x in
-                        QgsProject.instance().mapLayers().values()
-                        if x.name() == 'ODDZ'][0]
+        # kilka warstw ODDZ (kilka obiektów w projekcie) - ODDZ z obiektu
+        # aktywnej warstwy albo wybór użytkownika (funkcje.
+        # wybierz_warstwe_z_kandydatow); wcześniej [0] - po cichu pierwsza
+        oddz = wybierz_warstwe_z_kandydatow(
+            iface, warstwy_o_nazwie('ODDZ'), 'ODDZ')
+        go = isinstance(oddz, QgsVectorLayer) and oddz.isValid()
 
         if not go:
             QgsMessageLog.logMessage(
-                'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
+                'W TOC musi być warstwa ODDZ (oddziały)',
                 'Las-R',
                 Qgis.Critical
             )
             iface.messageBar().pushMessage(
                 'ODDZ',
-                'W TOC może znajdować się tylko i aż jedna warstwa ODDZ',
+                'W TOC musi być warstwa ODDZ (oddziały)',
                 Qgis.Critical,
                 10)
             return False, -1, -1

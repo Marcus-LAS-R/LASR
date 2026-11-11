@@ -8,6 +8,7 @@ from PyQt5.QtCore import QVariant
 from qgis.core import Qgis, QgsMessageLog
 from .kopie_zip import spakuj
 from .znacznik_czasu import znacznik
+from .funkcje import bazy_przy, katalog_startowy
 from shutil import copyfile
 from collections import Counter
 
@@ -92,6 +93,13 @@ def pokaz_blokade_bazy(sc):
 
 
 def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
+    """Baza taksatora dla warstwy (domyślnie aktywnej). Szuka jej najpierw
+    na poziomie typowym dla warstwy (ODDZ albo poz=1: katalog wyżej,
+    inaczej dwa wyżej), a potem kolejno w katalogu warstwy, poziom wyżej i
+    dwa poziomy wyżej (funkcje.bazy_przy) - np. <obiekt>/SHP/WYDZ.shp
+    z bazą w <obiekt>. Jedna baza - zwracana bez pytania; kilka albo żadnej
+    - okno wyboru otwarte w katalogu, w którym są bazy (albo przy
+    warstwie). wskaz=True - zawsze pyta."""
     if wydzlyr is not False:
         wydz = wydzlyr
     else:
@@ -99,23 +107,31 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
 
     bTemp = []
     kat = ""
+    poziom = os.path.join("..", "..")
+    rozsz = "*.mdb" if platform.system()[:3] == "Win" else "*.sqlite"
 
     if wydz is not None:
-        wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
+        try:
+            wydz_sc = wydz.dataProvider().dataSourceUri().split("|")[0]
+        except Exception:
+            wydz_sc = ""
         kat = os.path.dirname(wydz_sc)
 
         if wydz.name() == "ODDZ" or poz == 1:
             poziom = ".."
-        else:
-            poziom = "../.."
+
+    if kat:
+        bTemp = glob.glob(os.path.join(kat, poziom, rozsz))
+        if len(bTemp) != 1:
+            bTemp = bazy_przy(kat, (rozsz,))
+    kat_start = os.path.dirname(bTemp[0]) if bTemp else         katalog_startowy(kat, iface=iface)
 
     # ma byc wskazana baza przez uzytkownika - pytamy zawsze, a dialog
-    # otwieramy w katalogu aktywnej warstwy, a nie tam, gdzie po raz ostatni
-    # byla otwierana jakakolwiek baza w tej sesji QGIS-a (natywny dialog
-    # Windows z pustym katalogiem startowym sam wraca do ostatnio
-    # uzywanego folderu, co wyglada jak "zapamietywanie" pierwotnej bazy)
-    if wskaz:
-        kat_start = os.path.normpath(os.path.join(kat, poziom)) if kat else ""
+    # otwieramy przy bazach warstwy, a nie tam, gdzie po raz ostatni byla
+    # otwierana jakakolwiek baza w tej sesji QGIS-a (natywny dialog Windows
+    # z pustym katalogiem startowym sam wraca do ostatnio uzywanego
+    # folderu, co wyglada jak "zapamietywanie" pierwotnej bazy)
+    if wskaz or len(bTemp) != 1:
         bTemp = [
             QFileDialog().getOpenFileName(
                 iface.mainWindow(),
@@ -125,52 +141,15 @@ def znajdz_baze_do_wydz(iface, wydzlyr=False, poz=2, wskaz=False):
             )[0]
         ]
 
-        if bTemp[0] != "":
-            baza = Baza(bTemp[0])
-            if baza.polacz():
-                baza.zamknij()
-                return os.path.abspath(bTemp[0])
-
-        iface.messageBar().pushMessage(
-            "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
-        )
-        return False
-
-    if wydz is not None:
-        try:
-            if platform.system()[:3] == "Win":
-                bTemp = glob.glob(os.path.join(kat, poziom, "*.mdb"))
-            else:
-                bTemp = glob.glob(os.path.join(kat, poziom, "*.sqlite"))
-        except:  # nopep8
-            iface.messageBar().pushMessage(
-                "BŁĄD", "Nie udało się odnaleźć bazy!", Qgis.Critical, 10
-            )
-            return False
-
-    if len(bTemp) != 1:
-        bTemp = [
-            QFileDialog().getOpenFileName(
-                iface.mainWindow(),
-                "Wskaż bazę Taksatora",
-                kat,
-                "Access MDB (*.mdb);;SQLite (*.sqlite)",
-            )[0]
-        ]
-
-    if len(bTemp) == 1:
+    if len(bTemp) == 1 and bTemp[0] != "":
         baza = Baza(bTemp[0])
         if baza.polacz():
             baza.zamknij()
             return os.path.abspath(bTemp[0])
-        else:
-            iface.messageBar().pushMessage(
-                "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
-            )
-    else:
-        iface.messageBar().pushMessage(
-            "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
-        )
+
+    iface.messageBar().pushMessage(
+        "Baza", "Nie udało się pobrać danych z bazy", Qgis.Critical, 10
+    )
     return False
 
 

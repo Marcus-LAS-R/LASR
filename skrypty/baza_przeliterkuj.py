@@ -12,6 +12,7 @@ from .shp_literkuj import Literkuj
 from .shp_adr_les import Zaadresuj
 from .baza_dopisz_wydz import DopiszWydzielenia
 from .funkcje import wybierz_warstwe_z_kandydatow
+from .funkcje import warstwy_o_nazwie, aktywna_warstwa_wektorowa
 from .waypointy import katalog_raportow
 from . import kopie_manipulacyjne
 from .edycja_atrybutow import zmien_atrybuty
@@ -59,11 +60,8 @@ class Przeliterkuj(SprawdzWydzielenia):
         """ Sprawdzenie czy wszystkie niezbędne pola znajdują się w warstwie,
         oraz czy nie ma nierozbitych wydzieleń.
         """
-        try:
-            self.wydz = self.iface.activeLayer()
-        except:  # nopep8
-            self.iface.messageBar().pushMessage(
-                'BRAK WARSTWY', 'Zaznacz coś!', Qgis.Critical, 10)
+        self.wydz = aktywna_warstwa_wektorowa(self.iface)
+        if self.wydz is None:
             return False
 
         baza_sc = znajdz_baze_do_wydz(self.iface, self.wydz)
@@ -90,8 +88,9 @@ class Przeliterkuj(SprawdzWydzielenia):
         przerywają skrypt (warstwa błędów, bez cięcia). Gdy oddziały się
         zmieniły (nowy oddział, zmiana numeracji, puste ODDZ) - monit
         Kontynuuj/Porzuć; Kontynuuj nadpisuje atrybuty wg geometrii. """
-        kandydaci = [x for x in QgsProject.instance().mapLayers().values()
-                     if x.name()[:4] == 'ODDZ']
+        # dokładnie ODDZ ma pierwszeństwo (ODDZ_stare nie wchodzi, gdy jest
+        # ODDZ); przy kilku - ODDZ z obiektu aktywnej warstwy
+        kandydaci = warstwy_o_nazwie('ODDZ', prefiks=True)
         oddz = wybierz_warstwe_z_kandydatow(self.iface, kandydaci, 'ODDZ')
         if not isinstance(oddz, QgsVectorLayer) or not oddz.isValid():
             self.iface.messageBar().pushMessage(

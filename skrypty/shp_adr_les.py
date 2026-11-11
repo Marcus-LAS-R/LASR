@@ -8,6 +8,7 @@ from qgis.core import (
     NULL, Qgis, QgsFeatureRequest, QgsMessageLog, QgsProject, QgsVectorLayer,
 )
 from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import etykiety_warstw, indeks_domyslnej
 from .edycja_atrybutow import zmien_atrybuty
 
 
@@ -199,7 +200,7 @@ class _WyborWarstwyDialog(QDialog):
         row = QHBoxLayout()
         row.addWidget(QLabel('Warstwa:'))
         self.combo = QComboBox()
-        self.combo.addItems([lyr.name() for lyr in self._warstwy])
+        self.combo.addItems(etykiety_warstw(self._warstwy))
         row.addWidget(self.combo, 1)
         layout.addLayout(row)
 
@@ -209,11 +210,10 @@ class _WyborWarstwyDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-        if self._warstwy:
-            indeks = next(
-                (i for i, lyr in enumerate(self._warstwy)
-                 if lyr.name().upper() == 'WYDZ'), 0)
-            self.combo.setCurrentIndex(indeks)
+        # WYDZ aktywna albo z obiektu aktywnej warstwy (funkcje.
+        # indeks_domyslnej), a nie pierwsza z brzegu przy kilku obiektach
+        self.combo.setCurrentIndex(indeks_domyslnej(
+            self._warstwy, lambda lyr: lyr.name().upper() == 'WYDZ'))
 
     def warstwa(self):
         i = self.combo.currentIndex()

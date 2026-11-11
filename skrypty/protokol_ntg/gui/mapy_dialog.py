@@ -19,6 +19,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import mapa_ogolna, mapy_gmin
 from ...funkcje import katalog_startowy
+from ...funkcje import etykiety_warstw, indeks_domyslnej
 
 KLUCZ = "LASR/protokol_ntg/"
 TYTUL = "NTG - Generuj mapy"
@@ -44,7 +45,7 @@ class _Picker:
         self._klucz = klucz_pliku
         siatka.addWidget(QLabel(etykieta), wiersz, 0)
         self.combo = QComboBox()
-        self.combo.addItems([lyr.name() for lyr in self._warstwy])
+        self.combo.addItems(etykiety_warstw(self._warstwy))
         siatka.addWidget(self.combo, wiersz, 1)
         btn = QPushButton("Z pliku...")
         btn.clicked.connect(self._z_pliku)
@@ -61,14 +62,18 @@ class _Picker:
                 self._dodaj(zapisany)
 
     def _domyslny(self, wzorce):
+        # spośród pasujących: aktywna albo z obiektu aktywnej warstwy
+        # (funkcje.indeks_domyslnej), a nie pierwsza z brzegu
         nazwy = [lyr.name().lower() for lyr in self._warstwy]
         for wz in wzorce:
             if wz in nazwy:
-                return nazwy.index(wz)
+                return indeks_domyslnej(
+                    self._warstwy, lambda lyr, w=wz: lyr.name().lower() == w)
         for wz in wzorce:
-            for i, n in enumerate(nazwy):
-                if n.startswith(wz):
-                    return i
+            if any(n.startswith(wz) for n in nazwy):
+                return indeks_domyslnej(
+                    self._warstwy,
+                    lambda lyr, w=wz: lyr.name().lower().startswith(w))
         return None
 
     def _dodaj(self, sciezka):

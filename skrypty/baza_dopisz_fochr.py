@@ -1,5 +1,4 @@
 import os
-import glob
 from qgis.core import QgsVectorLayer, Qgis, QgsMessageLog, QgsSpatialIndex, \
     QgsFeatureRequest, QgsProject
 from PyQt5.QtWidgets import QFileDialog, QDialog
@@ -7,7 +6,8 @@ from .przyciski import QMessageBox
 
 from .baza_wrapper import Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
-from .funkcje import wybierz_warstwe_z_kandydatow, katalog_startowy
+from .funkcje import wybierz_warstwe_z_kandydatow, katalog_startowy, \
+    znajdz_baze_przy
 from .ui.ui_baza_dopiszFO import Ui_Dialog
 
 
@@ -335,9 +335,10 @@ class PobierzDane(QDialog):
                 os.path.join(os.path.dirname(wydz_sc), '..')
             )
 
-            baza_kandydaci = glob.glob(os.path.join(self.kat, '*.mdb'))
-            if len(baza_kandydaci) == 1:
-                self.ui.lineEdit_baza.setText(baza_kandydaci[0])
+            baza = znajdz_baze_przy(wydz_sc, ('*.mdb',))
+            if baza:
+                self.ui.lineEdit_baza.setText(baza)
+                self.kat = os.path.dirname(baza)
 
         if fochr is not None:
             fochr_sc = fochr.dataProvider().dataSourceUri().split('|')[0]
