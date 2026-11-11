@@ -11,8 +11,47 @@ _PUSTE_WARTOSCI = ('', ' ', 'NULL', None)
 
 
 def _puste(wartosc):
+    # NULL z SHP to QVariant (nie None), ale NULL == None daje True, więc
+    # łapie go test "in"; tekst "NULL" - pozostałość po str(NULL)
     return wartosc in _PUSTE_WARTOSCI or (
-        isinstance(wartosc, str) and wartosc.strip() == '')
+        isinstance(wartosc, str) and wartosc.strip().upper() in ('', 'NULL'))
+
+
+def _puste_pola(warstwa, pola):
+    """{pole: [fid, ...]} obiektów z pustą wartością w każdym z `pola`
+    (tylko pola, w których coś jest puste)."""
+    wynik = {}
+    for f in warstwa.getFeatures():
+        for p in pola:
+            if _puste(f[p]):
+                wynik.setdefault(p, []).append(f.id())
+    return wynik
+
+
+def _zglos_puste(iface, puste):
+    """Komunikat i log dla pustych atrybutów; puste = [(warstwa, {pole:
+    [fid]})]. Zwraca True, gdy było co zgłosić (skrypt ma przerwać)."""
+    czesci = []
+    for warstwa, pola in puste:
+        if not pola:
+            continue
+        czesci.append(warstwa.name() + ' (' + ', '.join(
+            f'{p}: {len(fidy)}' for p, fidy in pola.items()) + ')')
+        for p, fidy in pola.items():
+            QgsMessageLog.logMessage(
+                f'W warstwie {warstwa.name()} puste pole {p} w obiektach '
+                f'(fid): ' + ', '.join(str(x) for x in fidy),
+                'Las-R', Qgis.Critical)
+    if not czesci:
+        return False
+    iface.messageBar().pushMessage(
+        'PUSTE ATRYBUTY',
+        'Puste pola atrybutów: ' + '; '.join(czesci) + ' - uzupełnij je i '
+        'uruchom ponownie, nic nie zmieniono (lista obiektów w logu Las-R)',
+        Qgis.Critical, 15)
+    QgsMessageLog.logMessage('------ KONIEC (puste atrybuty) --------- \n',
+                             'Las-R', Qgis.Info)
+    return True
 
 
 def dopOddzWydz(iface, oddz=False):  # noqa
@@ -97,6 +136,17 @@ def dopOddzWydz(iface, oddz=False):  # noqa
             '(Sprawdź log Las-R)',
             Qgis.Critical,
             10)
+        return
+
+    # puste atrybuty - przerwij, zanim cokolwiek się zmieni: w ODDZ numer
+    # oddziału i kody gminy/obrębu (str(NULL) wpisywał do WYDZ tekst
+    # "NULL"), w WYDZ kody gminy/obrębu (sklejanie z NULL wywracało skrypt
+    # w trakcie edycji). Pustego WYDZ.ODDZ nie sprawdzamy - ten skrypt go
+    # uzupełnia.
+    if _zglos_puste(iface, [
+            (oddz, _puste_pola(oddz, ['ODDZ', 'MUNICIP', 'COMMUNITY'])),
+            (wydz, _puste_pola(wydz, ['MUNICIP', 'COMMUNITY'])),
+    ]):
         return
 
     # ------ KONIEC WARUNKOW POCZATKOWYCH ---------------
