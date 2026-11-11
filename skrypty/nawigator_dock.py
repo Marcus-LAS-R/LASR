@@ -8,7 +8,7 @@ całą warstwę, nawigator idzie po gotowej liście kluczy z pliku waypointów.
 """
 from datetime import datetime
 
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtGui import QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction, QApplication, QButtonGroup, QCheckBox, QComboBox, QDockWidget,
@@ -17,7 +17,9 @@ from qgis.PyQt.QtWidgets import (
 )
 from .przyciski import QMessageBox
 from qgis.core import (
-    Qgis, QgsFeatureRequest, QgsMapLayerProxyModel, QgsRectangle,
+    Qgis, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+    QgsFeatureRequest, QgsGeometry, QgsMapLayerProxyModel, QgsPointXY,
+    QgsProject, QgsRectangle,
 )
 from qgis.gui import QgsMapLayerComboBox
 
@@ -25,6 +27,7 @@ from . import waypointy
 from .funkcje import katalog_startowy
 
 STATUS_ZROBIONE = 'ZROBIONE'
+KLUCZ_MIGNIJ = 'LAS-R/nawigator/mignij'
 
 
 class NawigatorDock(QDockWidget):
@@ -123,6 +126,17 @@ class NawigatorDock(QDockWidget):
             'kluczem - przydatne zwłaszcza przy kilku obiektach naraz '
             '(np. ZDUBLOWANE LANDID), żeby od razu widzieć, które to.')
         lay.addWidget(self.chk_zaznacz)
+
+        self.chk_mignij = QCheckBox('Mignij obiektem')
+        self.chk_mignij.setChecked(
+            QSettings().value(KLUCZ_MIGNIJ, True, type=bool))
+        self.chk_mignij.setToolTip(
+            'Po przesunięciu/przybliżeniu mapy obiekt (albo miejsce) '
+            'bieżącej pozycji miga kilka razy na czerwono, żeby od razu '
+            'było go widać. Ustawienie jest zapamiętywane.')
+        self.chk_mignij.toggled.connect(
+            lambda wl: QSettings().setValue(KLUCZ_MIGNIJ, wl))
+        lay.addWidget(self.chk_mignij)
 
         fra_nav = QFrame(glowny)
         lay_nav = QHBoxLayout(fra_nav)
@@ -299,7 +313,11 @@ class NawigatorDock(QDockWidget):
         znacznik = ' [ZROBIONE]' if wiersz['status'] == STATUS_ZROBIONE else ''
         self.lbl_licznik.setText(
             f'{self.pozycja + 1} z {n} ({pozostalo} pozostało){znacznik}')
-        self.txt_wartosc.setText(f"{wiersz['klucz']}   {wiersz['opis']}")
+        if wiersz['typ_klucza'] == waypointy.TYP_XY:
+            # klucz XY to współrzędne - dla użytkownika liczy się opis
+            self.txt_wartosc.setText(wiersz['opis'])
+        else:
+            self.txt_wartosc.setText(f"{wiersz['klucz']}   {wiersz['opis']}")
 
         do_skopiowania = wiersz.get('do_skopiowania', '')
         self.txt_kopiuj.setText(do_skopiowania)
@@ -320,6 +338,10 @@ class NawigatorDock(QDockWidget):
         # PARCELID (warstwa działek) = działka katastralna.
         # ADR_LES (warstwa wydzieleń) = adres leśny (oddział-pododdział) -
         # to zupełnie inny byt niż LANDID, mimo pozornie podobnej roli klucza.
+        # XY = miejsce na mapie (bez warstwy) - np. kontrole cięcia.
+        if wiersz['typ_klucza'] == waypointy.TYP_XY:
+            self._pokaz_xy(wiersz)
+            return
         if wiersz['typ_klucza'] == 'LANDID':
             warstwa = self.cbo_ls.currentLayer()
             pole = 'LANDID'
@@ -396,3 +418,53 @@ class NawigatorDock(QDockWidget):
                 Qgis.Info, 4)
 
         canvas.refresh()
+        if self.chk_mignij.isChecked():
+            try:
+                canvas.flashFeatureIds(warstwa, [f.id() for f in obiekty])
+            except Exception:
+                pass
+
+    def _pokaz_xy(self, wiersz):
+        """Klucz XY (waypointy.klucz_xy): przybliża/przesuwa mapę do
+        prostokąta (punkt - z marginesem 50 m) i miga nim, bez szukania
+        obiektu w warstwie."""
+        rozbity = waypointy.rozbij_klucz_xy(wiersz['klucz'])
+        if rozbity is None:
+            self.iface.messageBar().pushMessage(
+                self.tytul, f'Niepoprawny klucz XY: {wiersz["klucz"]}',
+                Qgis.Warning, 4)
+            return
+        crs_authid, (xmin, ymin, xmax, ymax) = rozbity
+        canvas = self.iface.mapCanvas()
+        crs = QgsCoordinateReferenceSystem(crs_authid)
+        tr = QgsCoordinateTransform(
+            crs, canvas.mapSettings().destinationCrs(), QgsProject.instance())
+
+        prostokat = QgsRectangle(xmin, ymin, xmax, ymax)
+        try:
+            if prostokat.width() == 0 and prostokat.height() == 0:
+                # punkt - środek mapy, a przy powiększaniu skala 1:2000
+                # (niezależnie od jednostek układu mapy)
+                geom = QgsGeometry.fromPointXY(QgsPointXY(xmin, ymin))
+                canvas.setCenter(tr.transform(QgsPointXY(xmin, ymin)))
+                if not self.rad_pan.isChecked():
+                    canvas.zoomScale(2000)
+            else:
+                geom = QgsGeometry.fromRect(prostokat)
+                prostokat_mapy = tr.transformBoundingBox(prostokat)
+                if self.rad_pan.isChecked():
+                    canvas.setCenter(prostokat_mapy.center())
+                else:
+                    canvas.setExtent(prostokat_mapy)
+                    canvas.zoomByFactor(1.1)
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                self.tytul, f'Nie udało się pokazać miejsca: {e}',
+                Qgis.Warning, 4)
+            return
+        canvas.refresh()
+        if self.chk_mignij.isChecked():
+            try:
+                canvas.flashGeometries([geom], crs)
+            except Exception:
+                pass

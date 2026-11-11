@@ -44,6 +44,31 @@ def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania=''):
     }
 
 
+TYP_XY = 'XY'
+
+
+def klucz_xy(prostokat, crs_authid):
+    """Klucz typu XY - miejsce na mapie zamiast atrybutu warstwy, dla
+    błędów bez stałego identyfikatora (punkty poza wydzieleniami, świeżo
+    pocięte WYDZ bez ADR_LES). `prostokat` to obiekt z xMinimum()/
+    yMinimum()/xMaximum()/yMaximum() (np. QgsRectangle - bbox geometrii;
+    dla punktu zerowej wielkości). Format: "EPSG:2180|xmin,ymin,xmax,ymax"."""
+    return '{}|{:.2f},{:.2f},{:.2f},{:.2f}'.format(
+        crs_authid, prostokat.xMinimum(), prostokat.yMinimum(),
+        prostokat.xMaximum(), prostokat.yMaximum())
+
+
+def rozbij_klucz_xy(klucz):
+    """(crs_authid, [xmin, ymin, xmax, ymax]) z klucza klucz_xy(); None
+    przy niepoprawnym formacie."""
+    try:
+        crs, wsp = str(klucz).split('|', 1)
+        liczby = [float(x) for x in wsp.split(',')]
+    except (ValueError, AttributeError):
+        return None
+    return (crs, liczby) if len(liczby) == 4 else None
+
+
 def zapisz(sciezka, wiersze):
     """Zapisuje listę wierszy do pliku CSV. Nadpisuje atomowo (plik
     tymczasowy w tym samym katalogu + podmiana), żeby przerwanie zapisu

@@ -2296,10 +2296,12 @@ class LasR:
         sp.przetworz()
         sp.raport_rozbieznosci()
         sp.sprawdz_pnsw()
+        self.wczytaj_do_nawigatora(sp.zapisz_waypointy())
 
     def sprawdz_polozenie_opisow(self):
-        shp_sprawdz_polozenie_opisow.SprawdzPolozenieOpisow(
-            self.iface).uruchom()
+        self.wczytaj_do_nawigatora(
+            shp_sprawdz_polozenie_opisow.SprawdzPolozenieOpisow(
+                self.iface).uruchom())
 
     def raport_kart_ciecia(self):
         sp = shp_sprawdz_ciecie.SprawdzCiecie(self.iface)

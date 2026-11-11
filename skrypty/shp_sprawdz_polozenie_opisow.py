@@ -42,8 +42,51 @@ from qgis.core import (
     QgsVectorLayer, QgsWkbTypes,
 )
 
-from .funkcje import wybierz_warstwe_z_kandydatow
+from .funkcje import wybierz_warstwe_z_kandydatow, folder_obiektu
+from .znacznik_czasu import znacznik
 from . import warstwa_opisow_dock as opis
+from . import waypointy
+
+ZRODLO_WP = 'Sprawdź cięcie starych WYDZ'
+
+
+def adres_lesny(feat):
+    """ADR_LES obiektu ('' gdy brak pola albo pusty) - do skopiowania w
+    Nawigatorze."""
+    for p in feat.fields().names():
+        if p.upper() == 'ADR_LES':
+            v = feat[p]
+            if v is not None and str(v).strip() not in ('', 'NULL'):
+                return str(v)
+    return ''
+
+
+def opis_punktu(feat):
+    """Krótki opis punktu/linii do Nawigatora: adres leśny albo
+    oddział-wydzielenie (WYDZ_PKT_stare, opis_*: ODDZ/WYDZ, adr_upul:
+    oddz/wydz) i grupa opisu, jeśli są."""
+    pola = feat.fields().names()
+
+    def wart(nazwa):
+        for p in pola:
+            if p.upper() == nazwa:
+                v = feat[p]
+                if v is not None and str(v).strip() not in ('', 'NULL'):
+                    return str(v).strip()
+        return ''
+
+    czesci = []
+    adr = wart('ADR_LES')
+    oddz, wydz = wart('ODDZ'), wart('WYDZ')
+    if adr:
+        czesci.append(adr)
+    elif oddz or wydz:
+        czesci.append(f'{oddz}-{wydz}')
+    if wart('GRUPA'):
+        czesci.append(wart('GRUPA'))
+    if wart('TAKSATOR'):
+        czesci.append(wart('TAKSATOR'))
+    return ' '.join(czesci) or f'fid {feat.id()}'
 
 GRUPA_LZ = 'LZ-Ł'
 
@@ -65,6 +108,31 @@ _WARSTWY_ADRESOWE = ['WYDZ_PKT_stare', opis.NAZWA_PUNKTY, 'adr_upul']
 class SprawdzPolozenieOpisow:
     def __init__(self, iface):
         self.iface = iface
+        self.wiersze_wp = []  # pozycje dla Nawigatora błędów (klucz XY)
+        self.waypointy_sc = None
+
+    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania=''):
+        self.wiersze_wp.append(waypointy.wiersz(
+            ZRODLO_WP, sekcja, waypointy.TYP_XY,
+            waypointy.klucz_xy(geom.boundingBox(), crs.authid()),
+            opis_wp, do_skopiowania))
+
+    def _zapisz_waypointy(self, wydz):
+        """Plik dla Nawigatora w Raporty folderu obiektu (przy bazie)."""
+        if not self.wiersze_wp:
+            return
+        kat = folder_obiektu(wydz)
+        if not kat:
+            return
+        try:
+            sc = os.path.join(waypointy.katalog_raportow(kat),
+                              'kontrola_ciecia_starych_' + znacznik() + '.csv')
+            waypointy.zapisz(sc, self.wiersze_wp)
+            self.waypointy_sc = sc
+        except Exception as e:
+            self.iface.messageBar().pushWarning(
+                'Nawigator', 'Nie udało się zapisać pliku waypointów: ' +
+                str(e))
 
     def uruchom(self):
         lyrs = list(QgsProject.instance().mapLayers().values())
@@ -99,6 +167,11 @@ class SprawdzPolozenieOpisow:
             poza = self._szukaj_poza_wydz(zrodlo, si, sl_wydz)
             if poza:
                 self._utworz_warstwe_poza(zrodlo, poza, nazwa)
+            for feat, pkt in poza:
+                opis_pkt = opis_punktu(feat)
+                self._dodaj_wp(
+                    f'{nazwa} poza WYDZ', pkt, zrodlo.crs(),
+                    f'{nazwa}: {opis_pkt} - poza WYDZ', adres_lesny(feat))
             podsumowanie.append(f'{nazwa}: {len(poza)} poza WYDZ')
 
         # kontrola liczby punktow adresowych na poligon WYDZ - laczna suma
@@ -159,6 +232,25 @@ class SprawdzPolozenieOpisow:
             podsumowanie.append(
                 f'WYDZ_sieroty: {len(sieroty)} poligonów bez punktu')
 
+            for wfid in sorted(sieroty):
+                wf = sl_wydz[wfid]
+                adr = adres_lesny(wf)
+                self._dodaj_wp(
+                    'WYDZ_sieroty', wf.geometry(), wydz.crs(),
+                    f'WYDZ {adr or "fid " + str(wfid)} '
+                    f'({wf.geometry().area() / 10000:.2f} ha) - bez punktu '
+                    'adresowego', adr)
+            for wfid in sorted(wiele):
+                wf = sl_wydz[wfid]
+                adr = adres_lesny(wf)
+                punkty = [f'{nazwa} {opis_punktu(f)}'
+                          for nazwa, mapa in per_poligon.items()
+                          for f in mapa.get(wfid, [])]
+                self._dodaj_wp(
+                    'WYDZ_wiele_opisow', wf.geometry(), wydz.crs(),
+                    f'WYDZ {adr or "fid " + str(wfid)}: ' + ' + '.join(punkty),
+                    adr)
+
         komunikat_pnsw = self._sprawdz_pnsw(kat)
         if komunikat_pnsw:
             podsumowanie.append(komunikat_pnsw)
@@ -171,9 +263,13 @@ class SprawdzPolozenieOpisow:
                 'pomiary\\pnsw.shp do kontroli PNSW')
             return
 
+        # wyniki dla Nawigatora błędów (las_r wczytuje self.waypointy_sc)
+        self._zapisz_waypointy(wydz)
+
         self.iface.messageBar().pushMessage(
             'OK', 'Sprawdzanie położenia zakończone: ' +
             '; '.join(podsumowanie), Qgis.Success, 10)
+        return self.waypointy_sc
 
     def _sprawdz_pnsw(self, kat):
         """Kontrola wrysowania pnsw: dla każdej geometrii pnsw wrysowanej
@@ -211,6 +307,9 @@ class SprawdzPolozenieOpisow:
             ids = si_pnsw.intersects(pkt.boundingBox())
             if not any(sl_pnsw[it].geometry().intersects(pkt) for it in ids):
                 brak.append(feat)
+                self._dodaj_wp(
+                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(),
+                    f'pnsw z terenu {opis_punktu(feat)} - brak w SHP\\PNSW')
 
         if brak:
             plug = os.path.dirname(__file__)

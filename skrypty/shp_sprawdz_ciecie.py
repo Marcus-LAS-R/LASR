@@ -16,6 +16,11 @@ from .funkcje import wybierz_warstwe_z_kandydatow
 from .aktualizacja_upul.core.utworz_klon_txt import zapisz_plik
 from .funkcje import aktywna_warstwa_wektorowa, katalog_startowy
 from .edycja_atrybutow import zmien_atrybuty
+from .funkcje import folder_obiektu
+from .znacznik_czasu import znacznik
+from . import waypointy
+
+ZRODLO_WP = 'Sprawdź cięcie'
 
 
 def _pusty(wartosc):
@@ -40,6 +45,34 @@ class SprawdzCiecie:
         self.slkart = {}  # {adr: [[oddz, wydz], [oddz, wydz]],
         self.zdublowane_adr = []
         self.l_pkt_przec = []  # lista z pkt ktore przecinaja sie z wydz
+        self.wiersze_wp = []  # pozycje dla Nawigatora błędów (klucz XY)
+        self.waypointy_sc = None
+
+    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania=''):
+        self.wiersze_wp.append(waypointy.wiersz(
+            ZRODLO_WP, sekcja, waypointy.TYP_XY,
+            waypointy.klucz_xy(geom.boundingBox(), crs.authid()),
+            opis_wp, do_skopiowania))
+
+    def zapisz_waypointy(self):
+        """Wyniki raport_rozbieznosci/sprawdz_pnsw jako plik dla Nawigatora
+        błędów (Raporty w folderze obiektu, przy bazie). Zwraca ścieżkę
+        albo None, gdy nie ma czego zapisać."""
+        if not self.wiersze_wp or not self.wydz:
+            return None
+        kat = folder_obiektu(self.wydz)
+        if not kat:
+            return None
+        try:
+            sc = os.path.join(waypointy.katalog_raportow(kat),
+                              'kontrola_ciecia_' + znacznik() + '.csv')
+            waypointy.zapisz(sc, self.wiersze_wp)
+            self.waypointy_sc = sc
+        except Exception as e:
+            self.iface.messageBar().pushWarning(
+                'Nawigator', 'Nie udało się zapisać pliku waypointów: ' +
+                str(e))
+        return self.waypointy_sc
 
     def zalozenia_poczatkowe(self):
         lyrs = [x for x in QgsProject.instance().mapLayers().values()]
@@ -332,6 +365,27 @@ class SprawdzCiecie:
             lyrp.loadNamedStyle(os.path.join(
                 plug, '..', 'qml', 'point_drop_shadow_red.qml'))
 
+        # pozycje dla Nawigatora błędów
+        crs = self.wydz.crs()
+        for k in wydz_bez:
+            wf = self.slwydz[int(k)]
+            self._dodaj_wp(
+                'WYDZ bez kart', wf.geometry(), crs,
+                f'WYDZ ID {k} ({wf.geometry().area() / 10000:.2f} ha) - '
+                'bez karty pomiarowej')
+        for k in wydz_wiela:
+            wf = self.slwydz[int(k)]
+            karty = ', '.join('-'.join(x[:2]) for x in self.slkart[int(k)])
+            self._dodaj_wp(
+                'WYDZ z wieloma kartami', wf.geometry(), crs,
+                f'WYDZ ID {k}: karty {karty}')
+        for f in lpoz:
+            karta = f'{f["oddz"]}-{f["wydz"]}' \
+                if 'oddz' in [x.lower() for x in f.fields().names()] else ''
+            self._dodaj_wp(
+                'Karty poza WYDZ', f.geometry(), self.akt.crs(),
+                f'karta {karta or "fid " + str(f.id())} - poza wydzieleniami')
+
         self.iface.messageBar().pushSuccess(
             'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +
             str(len(wydz_bez)) + ', wydz z wieloma kartami: ' +
@@ -373,6 +427,9 @@ class SprawdzCiecie:
             ids = si_pnsw.intersects(pkt.boundingBox())
             if not any(sl_pnsw[it].geometry().intersects(pkt) for it in ids):
                 brak.append(feat)
+                self._dodaj_wp(
+                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(),
+                    f'pnsw z terenu fid {feat.id()} - brak w SHP\\PNSW')
 
         if len(brak) > 0:
             lyr = QgsVectorLayer(

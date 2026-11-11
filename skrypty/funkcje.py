@@ -390,6 +390,12 @@ def _folder_obiektu(lyr):
     return os.path.abspath(kat) if kat else ''
 
 
+def folder_obiektu(lyr):
+    """Folder obiektu warstwy (katalog z bazą, a bez bazy katalog warstwy)
+    - np. na podkatalog Raporty dla wyników kontroli. '' gdy brak pliku."""
+    return _folder_obiektu(lyr)
+
+
 def obiekt_warstwy(lyr):
     """Znormalizowany folder obiektu warstwy (patrz _folder_obiektu) - do
     porównania, czy dwie warstwy są z tego samego obiektu."""
