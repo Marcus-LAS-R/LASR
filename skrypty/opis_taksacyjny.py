@@ -4199,6 +4199,41 @@ class PanelOpisu(QDockWidget):
 
     # ------------------------------------------------------- połączenie
 
+    def _zapytaj_o_blokade(self, baza_sc):
+        """Plik blokady .ldb/.laccdb obok bazy (np. otwarta w Taksatorze):
+        okno z wyborem "Sprawdź ponownie" (po zamknięciu bazy w innym
+        programie - bez blokady łączy do edycji) / "Tylko podgląd" /
+        "Anuluj". Zwraca '' - brak blokady (edycja), ścieżkę pliku blokady
+        - tryb tylko do podglądu, None - anulowano połączenie."""
+        blokada = _plik_blokady(baza_sc)
+        ponownie = False
+        while blokada:
+            okno = QMessageBox(self)
+            okno.setIcon(QMessageBox.Warning)
+            okno.setWindowTitle('Baza zablokowana')
+            okno.setText(
+                ('Blokada nadal istnieje.\n\n' if ponownie else '') +
+                f'Obok bazy jest plik blokady:\n{blokada}\n\nBaza jest '
+                'prawdopodobnie otwarta w innym programie (np. Taksatorze). '
+                'Zamknij ją tam i kliknij "Sprawdź ponownie" albo otwórz '
+                'kartę TYLKO DO PODGLĄDU.\n\nJeśli żaden program nie używa '
+                'bazy, plik mógł zostać po awarii - usuń go ręcznie.')
+            btn_ponownie = okno.addButton('Sprawdź ponownie',
+                                          QMessageBox.AcceptRole)
+            btn_podglad = okno.addButton('Tylko podgląd',
+                                         QMessageBox.ActionRole)
+            okno.addButton('Anuluj', QMessageBox.RejectRole)
+            okno.setDefaultButton(btn_ponownie)
+            okno.exec_()
+            klik = okno.clickedButton()
+            if klik is btn_podglad:
+                return blokada
+            if klik is not btn_ponownie:
+                return None
+            ponownie = True
+            blokada = _plik_blokady(baza_sc)
+        return ''
+
     def polacz(self):
         i = self.combo.currentIndex()
         if not (0 <= i < len(self._warstwy)) or sip.isdeleted(self._warstwy[i]):
@@ -4222,15 +4257,9 @@ class PanelOpisu(QDockWidget):
         baza_sc = os.path.normpath(baza_sc)
 
         # blokada sprawdzana PRZED własnym połączeniem (które też tworzy .ldb)
-        blokada = _plik_blokady(baza_sc)
-        if blokada:
-            QMessageBox.warning(
-                self, 'Baza zablokowana',
-                f'Obok bazy jest plik blokady:\n{blokada}\n\nBaza jest '
-                'prawdopodobnie otwarta w innym programie (np. Taksatorze). '
-                'Karta będzie TYLKO DO PODGLĄDU.\n\nJeśli żaden program '
-                'nie używa bazy, plik mógł zostać po awarii - usuń go '
-                'ręcznie.')
+        blokada = self._zapytaj_o_blokade(baza_sc)
+        if blokada is None:
+            return
 
         baza = Baza(baza_sc, pomin_blokade=True)
         try:
