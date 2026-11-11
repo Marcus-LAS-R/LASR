@@ -1,6 +1,38 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0z — 2026-11-11
+------------------------------------------------
+
+1. POPRAWKA: otwarta tabela atrybutów od razu pokazuje zmiany zrobione przez
+   skrypty (Zaadresuj, literowanie, doliterowanie, numerowanie, Przeliterkuj,
+   Czyść kolumny, Dopisz PNSW i inne) - nie trzeba jej już zamykać i otwierać.
+2. ZMIANA: okna wyboru bazy, warstw i folderów otwierają się w folderze
+   bieżącego obiektu, a okna bazy - tam, gdzie leży baza (zwykle folder nad
+   SHP), zamiast w ostatnio używanym folderze.
+3. ZMIANA: przy kilku obiektach otwartych w jednym projekcie wtyczka
+   podstawia warstwy i bazę z obiektu zaznaczonej warstwy; listy warstw
+   pokazują przy powtórzonych nazwach folder obiektu, np. "WYDZ (Cikówka)".
+   Bazę przy warstwie w <obiekt>\SHP znajduje bez pytania.
+4. POPRAWKA: Atlasuj automatycznie i Obszary cięcia nie zamykają już warstw
+   ATLAS_AFT/OBSZARY_CIECIA innych obiektów otwartych w projekcie.
+5. NOWOŚĆ: wyniki "Sprawdź cięcie" i "Sprawdź cięcie starych WYDZ" trafiają
+   do Nawigatora błędów (punkty poza wydzieleniami, wydzielenia bez punktu
+   albo z kilkoma, niewrysowane PNSW).
+6. NOWOŚĆ: Aktualizacja UPUL -> "Sprawdź poprawność grupy" - porównuje grupę
+   (formę własności) w adresach leśnych bazy z grafiką z nowej ewidencji
+   i po potwierdzeniu przemianowuje adresy w bazie (z kopią). Wydzielenia na
+   dwóch grupach LS zatrzymują operację do poprawienia grafiki.
+7. POPRAWKA: Dopisz ODDZ do WYDZ zatrzymuje się z komunikatem, gdy oddział
+   nie ma numeru albo brakuje kodu gminy/obrębu (dotąd wpisywał "NULL").
+8. ZMIANA: Edytor opisu - przy zablokowanej bazie (otwartej np.
+   w Taksatorze) przycisk "Sprawdź ponownie": po zamknięciu bazy połączysz
+   się do edycji bez rozłączania.
+9. ZMIANA: Nawigator błędów - osobne pola Obiekt i Błąd, szczegóły pod
+   przyciskiem "i" (przytrzymaj), warstwy dobierane automatycznie z obiektu
+   (jedna linia zamiast trzech pól), miganie obiektem po przejściu
+   (wyłączane), bardziej zwarte okno.
+
 Wersja 2.0y — 2026-11-04
 ------------------------------------------------
 
