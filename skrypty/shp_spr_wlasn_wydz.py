@@ -9,6 +9,29 @@ from .ui.ui_wlasn_wydz import Ui_Dialog
 from .funkcje import katalog_startowy
 
 
+def przeciecia_wydz_ls(wydz, ls, prog=1.0):
+    """Przecięcia wydzieleń z Ls o powierzchni > prog [m2]: lista
+    (feat_wydz, feat_ls, geometria_przeciecia). Wspólny rdzeń kontroli
+    grup/własności (Sprawdź własności w wydzieleniach, Sprawdź poprawność
+    grupy)."""
+    ls_si = QgsSpatialIndex()
+    sl_ls = {}
+    for f in ls.getFeatures():
+        ls_si.insertFeature(f)
+        sl_ls[f.id()] = f
+
+    wynik = []
+    for fw in wydz.getFeatures():
+        gw = fw.geometry()
+        if gw is None or gw.isEmpty():
+            continue
+        for id in ls_si.intersects(gw.boundingBox()):
+            inter = sl_ls[id].geometry().intersection(gw)
+            if inter.area() > prog:
+                wynik.append((fw, sl_ls[id], inter))
+    return wynik
+
+
 class SprawdzWlasnosciWydzielen():
     def __init__(self, iface):
         self.iface = iface
@@ -82,35 +105,17 @@ class SprawdzWlasnosciWydzielen():
         powierzchnię większą od 1m2 oraz własność z wydzielenia jest inna niż
         z klu zwraca poligon z błędnym kodowaniem """
 
-        # SpatialIndexy
-        ls_si = QgsSpatialIndex()
-
-        # slowniki wydz
-        sl_wydz = {}
-        sl_ls = {}
-
-        # zbuduj struktury
-        for f in self.wydz.getFeatures():
-            sl_wydz[f.id()] = f
-
-        for f in self.ls.getFeatures():
-            ls_si.insertFeature(f)
-            sl_ls[f.id()] = f
-
         self.feat_bl = []
-        for key, val in sl_wydz.items():
-            ids = ls_si.intersects(val.geometry().boundingBox())
-            for id in ids:
-                inter = sl_ls[id].geometry().intersection(val.geometry())
-                if inter.area() > 1 and val['GRP'] != sl_ls[id]['GRP']:
-                    nf = self.new_feat(
-                        val['ADR_LES'],
-                        sl_ls[id]['LANDID'],
-                        val['GRP'],
-                        sl_ls[id]['GRP'],
-                    )
-                    nf.setGeometry(inter)
-                    self.feat_bl.append(nf)
+        for val, fls, inter in przeciecia_wydz_ls(self.wydz, self.ls, 1):
+            if val['GRP'] != fls['GRP']:
+                nf = self.new_feat(
+                    val['ADR_LES'],
+                    fls['LANDID'],
+                    val['GRP'],
+                    fls['GRP'],
+                )
+                nf.setGeometry(inter)
+                self.feat_bl.append(nf)
 
         if len(self.feat_bl) > 0:
             self.lyrbl = QgsVectorLayer(

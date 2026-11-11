@@ -166,6 +166,9 @@ INDEKS = {
                              dawne=['Dopisz dane do wydzieleń']),
     'a_dop_adrles_stare_wydz': _w('adres leśny ADR_LES stare wydzielenia '
                                   'utwórz zaadresuj'),
+    'a_sprawdz_grupe': _w('grupa forma własności GRP 99 10 adres leśny '
+                          'ADR_LES przemianuj zmień grupę baza grafika LS '
+                          'wspólnota współwłasność BDL kontrola'),
     'a_synchronizuj_wydz': _w('usuń nadmiarowe WYDZ baza synchronizuj '
                               'adresy grupa porównanie'),
     'a_dop_w_o_upul': _w('dopisz ODDZ oddział WYDZ wydzielenia uzupełnij '

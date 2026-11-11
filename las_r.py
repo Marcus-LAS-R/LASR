@@ -97,6 +97,7 @@ from .skrypty import (
     baza_kontrola_dzkat,
     baza_usun_wydz,
     baza_synchronizuj_wydz,
+    baza_sprawdz_grupe,
     shp_usun_wydz,
     baza_kontrola_slownikow_wgSULMN,
     baza_kontrola_opisow_wgSULMN,
@@ -847,6 +848,19 @@ class LasR:
         self.m_aktualizacja_upul.addAction(self.a_dop_adrles_stare_wydz)
         self.a_dop_adrles_stare_wydz.triggered.connect(
             self.utworz_adrles_stare_wydz)
+
+        self.a_sprawdz_grupe = QAction(
+            QIcon(None), "Sprawdź poprawność grupy",
+            self.iface.mainWindow()
+        )
+        self.a_sprawdz_grupe.setToolTip(
+            "Porównuje grupę (formę własności) w adresach leśnych bazy z "
+            "grupą w grafice (WYDZ z nowej ewidencji). Najpierw sprawdza, "
+            "czy każde wydzielenie leży na jednej grupie LS - jeśli nie, "
+            "przerywa. Potem pyta, czy przemianować adresy w bazie na "
+            "grupę z grafiki. Wyniki w Nawigatorze błędów.")
+        self.m_aktualizacja_upul.addAction(self.a_sprawdz_grupe)
+        self.a_sprawdz_grupe.triggered.connect(self.sprawdz_grupe)
 
         self.a_synchronizuj_wydz = QAction(
             QIcon(None), "Usuń nadmiarowe WYDZ w bazie",
@@ -2105,6 +2119,10 @@ class LasR:
 
     def utworz_adrles_stare_wydz(self):
         shp_adr_les.ZaadresujStareWydz(self.iface)
+
+    def sprawdz_grupe(self):
+        self.wczytaj_do_nawigatora(
+            baza_sprawdz_grupe.sprawdz_grupe(self.iface))
 
     def synchronizuj_wydz_z_baza(self):
         baza_synchronizuj_wydz.synchronizuj_wydz(self.iface)
