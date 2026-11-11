@@ -295,12 +295,15 @@ def _zbierz_waypointy(wyniki):
             for adr_les, arodes_int_num, wartosc in bledy:
                 wiersze.append(waypointy.wiersz(
                     'Kontrola słownikowa SULMN', opis, 'ADR_LES', adr_les,
-                    f'wartość={wartosc!r}'))
+                    f'wartość w bazie: {wartosc!r}',
+                    obiekt=''.join(str(adr_les).split()),
+                    blad=opis))
         elif typ == 'parcel':
             for adr_dzialki, wartosc in bledy:
                 wiersze.append(waypointy.wiersz(
                     'Kontrola słownikowa SULMN', opis, 'PARCELID', adr_dzialki,
-                    f'wartość={wartosc!r}'))
+                    f'wartość w bazie: {wartosc!r}',
+                    obiekt=f'działka {adr_dzialki}', blad=opis))
 
     return wiersze
 

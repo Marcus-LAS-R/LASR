@@ -10,10 +10,14 @@ from datetime import datetime
 
 from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtGui import QKeySequence
+import os
+import re
+
 from qgis.PyQt.QtWidgets import (
     QAction, QApplication, QButtonGroup, QCheckBox, QComboBox, QDockWidget,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QRadioButton, QSizePolicy, QVBoxLayout, QWidget,
+    QPlainTextEdit, QPushButton, QRadioButton, QSizePolicy, QToolButton,
+    QToolTip, QVBoxLayout, QWidget,
 )
 from .przyciski import QMessageBox
 from qgis.core import (
@@ -24,7 +28,17 @@ from qgis.core import (
 from qgis.gui import QgsMapLayerComboBox
 
 from . import waypointy
-from .funkcje import katalog_startowy
+from .funkcje import (
+    katalog_startowy, obiekt_warstwy, warstwy_o_nazwie, domyslna_warstwa,
+)
+
+# rodzaj klucza -> nazwy warstw, w których Nawigator go szuka
+NAZWY_WARSTW = {
+    'LANDID': ('LS',),
+    'PARCELID': ('DZKAT',),
+    'ADR_LES': ('WYDZ',),
+}
+OPIS_WARSTW = {'LANDID': 'Ls', 'PARCELID': 'działek', 'ADR_LES': 'wydzieleń'}
 
 STATUS_ZROBIONE = 'ZROBIONE'
 KLUCZ_MIGNIJ = 'LAS-R/nawigator/mignij'
@@ -55,23 +69,51 @@ class NawigatorDock(QDockWidget):
         self.setWidget(glowny)
         lay = QVBoxLayout(glowny)
 
-        fra_warstwy = QFrame(glowny)
-        lay_warstwy = QFormLayout(fra_warstwy)
-        self.cbo_ls = QgsMapLayerComboBox()
-        self.cbo_ls.setFilters(QgsMapLayerProxyModel.VectorLayer)
-        self.cbo_ls.setAllowEmptyLayer(True)
-        lay_warstwy.addRow(QLabel('Warstwa Ls:'), self.cbo_ls)
+        # warstwy dla kluczy z atrybutów - dobierane automatycznie po
+        # wczytaniu pliku (_dobierz_warstwy); zwinięte do jednej linii,
+        # "Zmień" rozwija pola tylko dla rodzajów kluczy z bieżącego pliku
+        fra_warstwy_lin = QFrame(glowny)
+        lay_warstwy_lin = QHBoxLayout(fra_warstwy_lin)
+        lay_warstwy_lin.setContentsMargins(0, 0, 0, 0)
+        self.lbl_warstwy = QLabel('Warstwy: -')
+        self.lbl_warstwy.setWordWrap(True)
+        self.btn_warstwy = QToolButton()
+        self.btn_warstwy.setText('Zmień')
+        self.btn_warstwy.setCheckable(True)
+        self.btn_warstwy.setToolTip(
+            'Pokaż/ukryj wybór warstw, w których Nawigator szuka obiektów '
+            '(dobierane automatycznie z obiektu, z którego pochodzi plik).')
+        lay_warstwy_lin.addWidget(self.lbl_warstwy, 1)
+        lay_warstwy_lin.addWidget(self.btn_warstwy)
+        lay.addWidget(fra_warstwy_lin)
 
-        self.cbo_dz = QgsMapLayerComboBox()
-        self.cbo_dz.setFilters(QgsMapLayerProxyModel.VectorLayer)
-        self.cbo_dz.setAllowEmptyLayer(True)
-        lay_warstwy.addRow(QLabel('Warstwa działek:'), self.cbo_dz)
-
-        self.cbo_wydz = QgsMapLayerComboBox()
-        self.cbo_wydz.setFilters(QgsMapLayerProxyModel.VectorLayer)
-        self.cbo_wydz.setAllowEmptyLayer(True)
-        lay_warstwy.addRow(QLabel('Warstwa wydzieleń:'), self.cbo_wydz)
-        lay.addWidget(fra_warstwy)
+        self.fra_warstwy = QFrame(glowny)
+        lay_warstwy = QFormLayout(self.fra_warstwy)
+        lay_warstwy.setContentsMargins(0, 0, 0, 0)
+        self._pola_warstw = {}  # typ_klucza -> (etykieta, combo)
+        self._wymuszona_wydz = False
+        self._reczne = set()  # typy kluczy z warstwą wybraną ręcznie
+        for typ, etykieta in (('LANDID', 'Warstwa Ls:'),
+                              ('PARCELID', 'Warstwa działek:'),
+                              ('ADR_LES', 'Warstwa wydzieleń:')):
+            cbo = QgsMapLayerComboBox()
+            cbo.setFilters(QgsMapLayerProxyModel.VectorLayer)
+            cbo.setAllowEmptyLayer(True)
+            # bez tego combo podstawia pierwszą warstwę projektu
+            cbo.setLayer(None)
+            cbo.layerChanged.connect(self._opisz_warstwy)
+            # wybór ręczny (activated = tylko akcja użytkownika) - ma
+            # pierwszeństwo przed doborem po nazwie
+            cbo.activated.connect(lambda _i, t=typ: self._reczne.add(t))
+            lbl = QLabel(etykieta)
+            lay_warstwy.addRow(lbl, cbo)
+            self._pola_warstw[typ] = (lbl, cbo)
+        self.cbo_ls = self._pola_warstw['LANDID'][1]
+        self.cbo_dz = self._pola_warstw['PARCELID'][1]
+        self.cbo_wydz = self._pola_warstw['ADR_LES'][1]
+        self.fra_warstwy.setVisible(False)
+        self.btn_warstwy.toggled.connect(self.fra_warstwy.setVisible)
+        lay.addWidget(self.fra_warstwy)
 
         self.btn_wczytaj = QPushButton('Wczytaj waypointy...')
         self.btn_wczytaj.clicked.connect(self.wczytaj_dialog)
@@ -86,9 +128,33 @@ class NawigatorDock(QDockWidget):
 
         fra_info = QFrame(glowny)
         lay_info = QFormLayout(fra_info)
-        self.txt_wartosc = QLineEdit()
-        self.txt_wartosc.setReadOnly(True)
-        lay_info.addRow(QLabel('Bieżący błąd:'), self.txt_wartosc)
+        self.txt_obiekt = QLineEdit()
+        self.txt_obiekt.setReadOnly(True)
+        lay_info.addRow(QLabel('Obiekt:'), self.txt_obiekt)
+
+        # błąd - kilka linii (np. kilka uwag z kontroli opisów); szczegóły
+        # (wartości, powierzchnie) w dymku po przytrzymaniu "i"
+        wid_blad = QWidget(fra_info)
+        lay_blad = QHBoxLayout(wid_blad)
+        lay_blad.setContentsMargins(0, 0, 0, 0)
+        self.txt_blad = QPlainTextEdit()
+        self.txt_blad.setReadOnly(True)
+        wys_linii = self.txt_blad.fontMetrics().lineSpacing()
+        self.txt_blad.setFixedHeight(int(wys_linii * 3.6) + 8)
+        self.btn_info = QToolButton()
+        self.btn_info.setText('i')
+        f = self.btn_info.font()
+        f.setBold(True)
+        f.setItalic(True)
+        self.btn_info.setFont(f)
+        self.btn_info.setToolTip('Przytrzymaj, żeby zobaczyć szczegóły')
+        self.btn_info.pressed.connect(self._pokaz_szczegoly)
+        self.btn_info.released.connect(QToolTip.hideText)
+        lay_blad.addWidget(self.txt_blad, 1)
+        lay_blad.addWidget(self.btn_info, 0, Qt.AlignTop)
+        lay_info.addRow(QLabel('Błąd:'), wid_blad)
+        self._szczegoly = ''
+
         self.lbl_licznik = QLabel('- z -')
         lay_info.addRow(QLabel('Pozycja:'), self.lbl_licznik)
         lay.addWidget(fra_info)
@@ -198,6 +264,103 @@ class NawigatorDock(QDockWidget):
         pozycja pokazywana jest od razu."""
         self.cbo_wydz.setLayer(warstwa)
         self.chk_zaznacz.setChecked(True)
+        # jawnie wskazana warstwa - _dobierz_warstwy jej nie podmienia
+        self._wymuszona_wydz = True
+
+    @staticmethod
+    def _obiekt_pliku(sciezka):
+        """Folder obiektu, z którego pochodzi plik waypointów - kontrole
+        zapisują je w <obiekt>\\Raporty (przy bazie)."""
+        kat = os.path.dirname(os.path.abspath(sciezka))
+        if os.path.basename(kat).lower() == 'raporty':
+            kat = os.path.dirname(kat)
+        return os.path.normcase(kat)
+
+    def _dobierz_warstwy(self):
+        """Po wczytaniu pliku: dla każdego rodzaju klucza z pliku warstwa o
+        typowej nazwie (LS, DZKAT, WYDZ) z obiektu, z którego pochodzi
+        plik (a gdy takiej nie ma - z obiektu aktywnej warstwy). Warstwa
+        już ustawiona z tego obiektu i wskazana jawnie (lista z Edytora)
+        zostaje. Pola wyboru widoczne tylko dla rodzajów kluczy z pliku;
+        brak warstwy - rozwinięte."""
+        typy = {w['typ_klucza'] for w in self.wiersze} & set(NAZWY_WARSTW)
+        ob = self._obiekt_pliku(self.sciezka) if self.sciezka else ''
+        for typ, (lbl, cbo) in self._pola_warstw.items():
+            lbl.setVisible(typ in typy)
+            cbo.setVisible(typ in typy)
+            if typ not in typy:
+                continue
+            if typ == 'ADR_LES' and self._wymuszona_wydz:
+                continue
+            obecna = cbo.currentLayer()
+            if obecna is not None and obiekt_warstwy(obecna) == ob and (
+                    typ in self._reczne or
+                    obecna.name().upper() in NAZWY_WARSTW[typ]):
+                continue
+            kandydaci = [x for n in NAZWY_WARSTW[typ]
+                         for x in warstwy_o_nazwie(n)]
+            z_obiektu = [x for x in kandydaci if obiekt_warstwy(x) == ob]
+            wybrana = z_obiektu[0] if z_obiektu else \
+                domyslna_warstwa(kandydaci, self.iface)
+            if wybrana is not None:
+                cbo.setLayer(wybrana)
+        self._wymuszona_wydz = False
+        brak = [t for t in typy if self._pola_warstw[t][1].currentLayer()
+                is None]
+        if brak:
+            self.btn_warstwy.setChecked(True)
+        self._opisz_warstwy()
+
+    def _opisz_warstwy(self, *_):
+        typy = [t for t in NAZWY_WARSTW
+                if self._pola_warstw[t][1].isVisibleTo(self.fra_warstwy)]
+        if not self.wiersze:
+            self.lbl_warstwy.setText('Warstwy: -')
+            return
+        if not typy:
+            self.lbl_warstwy.setText(
+                'Warstwy: niepotrzebne (pozycje to miejsca na mapie)')
+            return
+        czesci, brak, obiekty = [], [], set()
+        for t in typy:
+            lyr = self._pola_warstw[t][1].currentLayer()
+            if lyr is None:
+                brak.append(OPIS_WARSTW[t])
+                continue
+            czesci.append(lyr.name())
+            ob = obiekt_warstwy(lyr)
+            if ob:
+                obiekty.add(os.path.basename(ob))
+        tekst = 'Warstwy: ' + (', '.join(czesci) or '-')
+        if obiekty:
+            tekst += ' (' + ', '.join(sorted(obiekty)) + ')'
+        if brak:
+            tekst += ('  <span style="color:#c00000">brak warstwy: ' +
+                      ', '.join(brak) + '</span>')
+        self.lbl_warstwy.setText(tekst)
+
+    def _pokaz_szczegoly(self):
+        """Dymek ze szczegółami bieżącej pozycji - widoczny, dopóki
+        przycisk "i" jest wciśnięty (released -> QToolTip.hideText)."""
+        if self._szczegoly:
+            QToolTip.showText(
+                self.btn_info.mapToGlobal(self.btn_info.rect().bottomLeft()),
+                self._szczegoly, self.btn_info, self.btn_info.rect(), 600000)
+
+    @staticmethod
+    def _opis_obiektu(wiersz):
+        if wiersz.get('obiekt'):
+            return wiersz['obiekt']
+        typ, klucz = wiersz['typ_klucza'], wiersz['klucz']
+        if typ == waypointy.TYP_XY:
+            return ''
+        if typ == 'ADR_LES':
+            return re.sub(r'\s+', '', klucz)
+        if typ == 'LANDID':
+            return f'Ls {klucz}'
+        if typ == 'PARCELID':
+            return f'działka {klucz}'
+        return klucz
 
     def wczytaj_plik(self, sciezka):
         try:
@@ -219,6 +382,7 @@ class NawigatorDock(QDockWidget):
         self.cbo_sekcja.addItems(sekcje)
         self.cbo_sekcja.blockSignals(False)
 
+        self._dobierz_warstwy()
         self._zmien_sekcje()
 
     # -------------------------------------------------------- stan ----
@@ -301,7 +465,10 @@ class NawigatorDock(QDockWidget):
         n = len(wiersze)
 
         if n == 0 or self.pozycja < 0:
-            self.txt_wartosc.setText('-')
+            self.txt_obiekt.setText('-')
+            self.txt_blad.setPlainText('')
+            self._szczegoly = ''
+            self.btn_info.setEnabled(False)
             self.txt_kopiuj.setText('')
             self.btn_kopiuj.setEnabled(False)
             self.lbl_licznik.setText('- z -')
@@ -313,11 +480,15 @@ class NawigatorDock(QDockWidget):
         znacznik = ' [ZROBIONE]' if wiersz['status'] == STATUS_ZROBIONE else ''
         self.lbl_licznik.setText(
             f'{self.pozycja + 1} z {n} ({pozostalo} pozostało){znacznik}')
-        if wiersz['typ_klucza'] == waypointy.TYP_XY:
-            # klucz XY to współrzędne - dla użytkownika liczy się opis
-            self.txt_wartosc.setText(wiersz['opis'])
-        else:
-            self.txt_wartosc.setText(f"{wiersz['klucz']}   {wiersz['opis']}")
+        # pliki sprzed kolumn obiekt/blad: błąd = nazwa sekcji, szczegóły =
+        # opis (dla XY opis był też jedynym opisem obiektu)
+        blad = wiersz.get('blad') or wiersz['sekcja']
+        self.txt_obiekt.setText(self._opis_obiektu(wiersz))
+        self.txt_obiekt.setCursorPosition(0)
+        self.txt_blad.setPlainText(
+            '\n'.join(x.strip() for x in blad.split(' | ') if x.strip()))
+        self._szczegoly = (wiersz.get('opis') or '').strip()
+        self.btn_info.setEnabled(bool(self._szczegoly))
 
         do_skopiowania = wiersz.get('do_skopiowania', '')
         self.txt_kopiuj.setText(do_skopiowania)

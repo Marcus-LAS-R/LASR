@@ -131,14 +131,17 @@ class SprawdzGrupe:
 
     # ------------------------------------------------------ pomocnicze
 
-    def _wp_xy(self, sekcja, prostokat, crs, opis, kopiuj=''):
+    def _wp_xy(self, sekcja, prostokat, crs, opis, kopiuj='', obiekt='',
+               blad=''):
         self.wiersze_wp.append(waypointy.wiersz(
             TYTUL, sekcja, waypointy.TYP_XY,
-            waypointy.klucz_xy(prostokat, crs.authid()), opis, kopiuj))
+            waypointy.klucz_xy(prostokat, crs.authid()), opis, kopiuj,
+            obiekt=obiekt, blad=blad))
 
-    def _wp_adres(self, sekcja, adres, opis):
+    def _wp_adres(self, sekcja, adres, opis, blad=''):
         self.wiersze_wp.append(waypointy.wiersz(
-            TYTUL, sekcja, 'ADR_LES', adres, opis, adres))
+            TYTUL, sekcja, 'ADR_LES', adres, opis, adres,
+            obiekt=''.join(str(adres).split()), blad=blad))
 
     def _zapisz_wyniki(self, wydz):
         kat = folder_obiektu(wydz)
@@ -242,16 +245,22 @@ class SprawdzGrupe:
             opis = 'na kilku grupach LS: ' + ', '.join(sorted(grupy))
             bledy.append((fw, 'wydzielenie na kilku grupach LS', grupy))
             self._wp_xy('WYDZ na kilku grupach LS',
-                        fw.geometry().boundingBox(), wydz.crs(),
-                        f'{fw["ADR_LES"]} {opis}', str(fw['ADR_LES']))
+                        fw.geometry().boundingBox(), wydz.crs(), '',
+                        str(fw['ADR_LES']),
+                        obiekt=''.join(str(fw['ADR_LES']).split()),
+                        blad='Wydzielenie na kilku grupach LS: ' +
+                        ', '.join(sorted(grupy)))
             self.raport.append(f'  {fw["ADR_LES"]}: {opis}')
         for fid, (gw, grupy) in rozne.items():
             fw = sl_wydz[fid]
             opis = f'grupa w adresie {gw}, w LS {", ".join(sorted(grupy))}'
             bledy.append((fw, 'grupa WYDZ inna niż LS', grupy))
             self._wp_xy('Grupa WYDZ inna niż LS',
-                        fw.geometry().boundingBox(), wydz.crs(),
-                        f'{fw["ADR_LES"]} {opis}', str(fw['ADR_LES']))
+                        fw.geometry().boundingBox(), wydz.crs(), '',
+                        str(fw['ADR_LES']),
+                        obiekt=''.join(str(fw['ADR_LES']).split()),
+                        blad=f'Grupa w adresie {gw}, w LS '
+                        f'{", ".join(sorted(grupy))}')
             self.raport.append(f'  {fw["ADR_LES"]}: {opis}')
         self._warstwa_bledow(wydz, bledy)
         self.iface.messageBar().pushMessage(
@@ -310,22 +319,27 @@ class SprawdzGrupe:
             r = prostokat(n)
             if r is not None:
                 self._wp_xy('Kolizje adresów', r, wydz.crs(),
-                            f'{s} -> {n}: adres z nową grupą już jest w bazie',
-                            n)
+                            f'{s} -> {n}', n,
+                            obiekt=''.join(s.split()) + ' -> ' +
+                            ''.join(n.split()),
+                            blad='Adres z grupą z grafiki już jest w bazie')
         self.raport.append(f'Niejednoznaczne: {len(plan["niejednoznaczne"])}')
         for s, kand in plan['niejednoznaczne']:
             self.raport.append(f'  {s}  ->  {", ".join(kand)}')
             r = prostokat(kand[0])
             if r is not None:
                 self._wp_xy('Niejednoznaczne', r, wydz.crs(),
-                            f'{s}: kilka adresów grafiki - {", ".join(kand)}',
-                            s)
+                            'kandydaci: ' + ', '.join(kand), s,
+                            obiekt=''.join(s.split()),
+                            blad='Kilka adresów w grafice pasuje bez grupy')
         self.raport.append(f'W bazie bez pary w grafice: '
                            f'{len(plan["bez_pary"])}')
         for s in plan['bez_pary']:
             self.raport.append(f'  {s}')
             self._wp_adres('W bazie bez pary w grafice', s,
-                           'brak w grafice (pokaż na WYDZ_POL_stare)')
+                           'pokaż na warstwie starych wydzieleń '
+                           '(WYDZ_POL_stare)',
+                           blad='Jest w bazie, brak w grafice')
 
         podsumowanie = (
             f'do przemianowania: {len(plan["zmiany"])}, kolizje: '

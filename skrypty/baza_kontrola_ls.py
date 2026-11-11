@@ -331,27 +331,32 @@ class KontrolaLs:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',
                 self._parcelid_z_landid(k),
-                f'LANDID={k} pow_rej={pow_rej}', do_skopiowania=k))
+                f'LANDID={k} pow_rej={pow_rej}', do_skopiowania=k,
+                obiekt=f'Ls {k}', blad='Brak Ls w grafice (jest w bazie)'))
 
         for x in self.brakujace_ls_w_bazie:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'BRAKUJĄCE LSy [W BAZIE]', 'PARCELID',
-                self.d_ls[x]['PARCELID'], f'LANDID={x}', do_skopiowania=x))
+                self.d_ls[x]['PARCELID'], f'LANDID={x}', do_skopiowania=x,
+                obiekt=f'Ls {x}', blad='Brak Ls w bazie (jest w grafice)'))
 
         for k in sorted(self.p.ls_podwojne):
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'POWÓJNE LS [BAZA]', 'LANDID', k,
-                'Ls występuje w bazie więcej niż raz na tej działce'))
+                'Ls występuje w bazie więcej niż raz na tej działce',
+                obiekt=f'Ls {k}', blad='Ls podwójny w bazie'))
 
         for k in sorted(self.pow_zerowe_baza):
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'LSy z ZEROWĄ POW', 'LANDID', k,
-                'Zerowa powierzchnia Ls w bazie'))
+                '', obiekt=f'Ls {k}', blad='Zerowa powierzchnia Ls w bazie'))
 
         for k, pow_graf, pow_rej, roznica in self.rozb_pow:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', k,
-                f'pow_graf={pow_graf} pow_rej={pow_rej} różnica={roznica}'))
+                f'pow. graficzna {pow_graf}, rejestrowa {pow_rej}, '
+                f'różnica {roznica}', obiekt=f'Ls {k}',
+                blad='Duża różnica pow. graficznej i rejestrowej'))
 
         # self.zdublowane_lid ma wpis za KAŻDY dodatkowy poligon ponad
         # pierwszy (więc przy 3 poligonach z tym samym LANDID pojawi się tu
@@ -361,7 +366,9 @@ class KontrolaLs:
         for k in sorted(set(self.zdublowane_lid)):
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'ZDUBLOWANE LANDID [SHP]', 'LANDID', k,
-                'Najprawdopodobniej niepołączone w multipoligony'))
+                'Najprawdopodobniej niepołączone w multipoligony',
+                obiekt=f'Ls {k}', blad='Ten sam LANDID w kilku obiektach '
+                'grafiki'))
 
         return wiersze
 

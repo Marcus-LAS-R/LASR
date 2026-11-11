@@ -111,11 +111,12 @@ class SprawdzPolozenieOpisow:
         self.wiersze_wp = []  # pozycje dla Nawigatora błędów (klucz XY)
         self.waypointy_sc = None
 
-    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania=''):
+    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania='',
+                  obiekt='', blad=''):
         self.wiersze_wp.append(waypointy.wiersz(
             ZRODLO_WP, sekcja, waypointy.TYP_XY,
             waypointy.klucz_xy(geom.boundingBox(), crs.authid()),
-            opis_wp, do_skopiowania))
+            opis_wp, do_skopiowania, obiekt=obiekt, blad=blad))
 
     def _zapisz_waypointy(self, wydz):
         """Plik dla Nawigatora w Raporty folderu obiektu (przy bazie)."""
@@ -170,8 +171,9 @@ class SprawdzPolozenieOpisow:
             for feat, pkt in poza:
                 opis_pkt = opis_punktu(feat)
                 self._dodaj_wp(
-                    f'{nazwa} poza WYDZ', pkt, zrodlo.crs(),
-                    f'{nazwa}: {opis_pkt} - poza WYDZ', adres_lesny(feat))
+                    f'{nazwa} poza WYDZ', pkt, zrodlo.crs(), '',
+                    adres_lesny(feat), obiekt=f'{nazwa} {opis_pkt}',
+                    blad='Poza wydzieleniami WYDZ')
             podsumowanie.append(f'{nazwa}: {len(poza)} poza WYDZ')
 
         # kontrola liczby punktow adresowych na poligon WYDZ - laczna suma
@@ -237,9 +239,10 @@ class SprawdzPolozenieOpisow:
                 adr = adres_lesny(wf)
                 self._dodaj_wp(
                     'WYDZ_sieroty', wf.geometry(), wydz.crs(),
-                    f'WYDZ {adr or "fid " + str(wfid)} '
-                    f'({wf.geometry().area() / 10000:.2f} ha) - bez punktu '
-                    'adresowego', adr)
+                    f'pow. {wf.geometry().area() / 10000:.2f} ha', adr,
+                    obiekt=f'WYDZ {adr or "fid " + str(wfid)}',
+                    blad='Brak punktu adresowego (WYDZ_PKT_stare, opis_pkt, '
+                    'adr_upul)')
             for wfid in sorted(wiele):
                 wf = sl_wydz[wfid]
                 adr = adres_lesny(wf)
@@ -248,8 +251,10 @@ class SprawdzPolozenieOpisow:
                           for f in mapa.get(wfid, [])]
                 self._dodaj_wp(
                     'WYDZ_wiele_opisow', wf.geometry(), wydz.crs(),
-                    f'WYDZ {adr or "fid " + str(wfid)}: ' + ' + '.join(punkty),
-                    adr)
+                    f'pow. {wf.geometry().area() / 10000:.2f} ha', adr,
+                    obiekt=f'WYDZ {adr or "fid " + str(wfid)}',
+                    blad=f'Kilka punktów adresowych ({len(punkty)}): | ' +
+                    ' | '.join(punkty))
 
         komunikat_pnsw = self._sprawdz_pnsw(kat)
         if komunikat_pnsw:
@@ -308,8 +313,9 @@ class SprawdzPolozenieOpisow:
             if not any(sl_pnsw[it].geometry().intersects(pkt) for it in ids):
                 brak.append(feat)
                 self._dodaj_wp(
-                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(),
-                    f'pnsw z terenu {opis_punktu(feat)} - brak w SHP\\PNSW')
+                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(), '',
+                    obiekt=f'pnsw z terenu {opis_punktu(feat)}',
+                    blad='Nie wrysowane do SHP\\PNSW')
 
         if brak:
             plug = os.path.dirname(__file__)

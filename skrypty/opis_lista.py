@@ -163,10 +163,11 @@ def wiersze_nawigatora(wiersze, sekcja):
     """(wiersze waypointów, ile pominięto) - bez poligonów Nawigator nie ma
     czego pokazać na mapie."""
     wyn = [waypointy.wiersz(
-        TYTUL, sekcja, 'ADR_LES', w['adr'].strip(),
-        ', '.join(x for x in (
+        TYTUL, sekcja, 'ADR_LES', w['adr'].strip(), '',
+        obiekt=''.join(w['adr'].split()),
+        blad=', '.join(x for x in (
             w['rodzaj'], _pow_tekst(w['pow']) and
-            f"{_pow_tekst(w['pow'])} ha") if x))
+            f"{_pow_tekst(w['pow'])} ha") if x) or sekcja)
         for w in wiersze if w['poligon']]
     return wyn, len(wiersze) - len(wyn)
 

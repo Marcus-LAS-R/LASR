@@ -207,8 +207,9 @@ def zbierz_waypointy(wynik):
                           (SEKCJA_PUSTY_OPIS, wynik['pusty_opis'])):
         for adr, prz, _g in lista:
             wiersze.append(waypointy.wiersz(
-                ZRODLO_WP, sekcja, 'ADR_LES', adr,
-                f'{rozbij_adres(adr)} - {prz}'))
+                ZRODLO_WP, sekcja, 'ADR_LES', adr, '',
+                obiekt=f'{"".join(str(adr).split())} ({rozbij_adres(adr)})',
+                blad=f'{sekcja}: {prz}' if prz else sekcja))
     return wiersze
 
 

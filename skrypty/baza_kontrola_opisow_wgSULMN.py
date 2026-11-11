@@ -208,15 +208,17 @@ def _zapisz_waypointy(kontrole: list, arkusze: dict, baza_sc: str,
     wiersze = []
     for adres in sorted(wydz, key=klucz_adresu):
         wiersze.append(waypointy.wiersz(
-            zr, 'Wydzielenia', 'ADR_LES', adres,
-            ' | '.join(dict.fromkeys(wydz[adres]))))
+            zr, 'Wydzielenia', 'ADR_LES', adres, '',
+            obiekt=''.join(str(adres).split()),
+            blad=' | '.join(dict.fromkeys(wydz[adres]))))
     for adres in sorted(dzialki, key=klucz_adresu):
         # bez wpisu w F_PARCEL - przeliczenie bez arkusza
         cz = adres.split('-', 4)
         pid = arkusze.get(adres) or parcelid(*cz[:4], None, cz[4])
         wiersze.append(waypointy.wiersz(
-            zr, 'Działki', 'PARCELID', pid,
-            ' | '.join(dict.fromkeys(dzialki[adres]))))
+            zr, 'Działki', 'PARCELID', pid, '',
+            obiekt=f'działka {pid} ({adres})',
+            blad=' | '.join(dict.fromkeys(dzialki[adres]))))
     if not wiersze:
         return None
     nazwa_bazy = os.path.splitext(os.path.basename(baza_sc))[0]

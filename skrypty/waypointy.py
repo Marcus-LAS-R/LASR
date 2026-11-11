@@ -12,7 +12,7 @@ import tempfile
 
 NAGLOWEK = [
     'zrodlo', 'sekcja', 'typ_klucza', 'klucz', 'opis', 'do_skopiowania',
-    'status', 'data_oznaczenia',
+    'status', 'data_oznaczenia', 'obiekt', 'blad',
 ]
 
 
@@ -25,9 +25,17 @@ def katalog_raportow(katalog_bazy):
     return kat
 
 
-def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania=''):
+def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania='',
+           obiekt='', blad=''):
     """Buduje jeden świeży wiersz waypointów (bez oznaczenia).
 
+    obiekt: czego dotyczy błąd, czytelnie (adres leśny, działka, Ls,
+    punkt) - pole "Obiekt" w Nawigatorze; pusty -> klucz.
+    blad: krótki opis błędu ("Brak Ls w grafice", kilka uwag rozdzielonych
+    " | " - w Nawigatorze w osobnych liniach) - pole "Błąd"; pusty ->
+    nazwa sekcji.
+    opis: szczegóły (wartości, powierzchnie...) - w Nawigatorze pod
+    przyciskiem "i".
     do_skopiowania: opcjonalna wartość do wklejenia wprost w atrybut
     nowo utworzonego obiektu (np. LANDID przy ręcznym dorysowywaniu
     brakującego Ls) - pokazywana w nawigatorze w osobnym, łatwym do
@@ -41,6 +49,8 @@ def wiersz(zrodlo, sekcja, typ_klucza, klucz, opis, do_skopiowania=''):
         'do_skopiowania': str(do_skopiowania),
         'status': '',
         'data_oznaczenia': '',
+        'obiekt': str(obiekt),
+        'blad': str(blad),
     }
 
 
@@ -92,4 +102,7 @@ def wczytaj(sciezka):
     """Wczytuje listę wierszy (dict) z pliku CSV zapisanego przez zapisz()."""
     with open(sciezka, 'r', newline='', encoding='utf-8') as plik:
         reader = csv.DictReader(plik, delimiter=';')
-        return [dict(w) for w in reader]
+        # starsze pliki bez nowszych kolumn (obiekt, blad) - puste
+        return [{k: (w.get(k) or '') for k in NAGLOWEK} | {
+            k: v for k, v in w.items() if k not in NAGLOWEK and k}
+            for w in reader]

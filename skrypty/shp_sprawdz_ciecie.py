@@ -48,11 +48,12 @@ class SprawdzCiecie:
         self.wiersze_wp = []  # pozycje dla Nawigatora błędów (klucz XY)
         self.waypointy_sc = None
 
-    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania=''):
+    def _dodaj_wp(self, sekcja, geom, crs, opis_wp, do_skopiowania='',
+                  obiekt='', blad=''):
         self.wiersze_wp.append(waypointy.wiersz(
             ZRODLO_WP, sekcja, waypointy.TYP_XY,
             waypointy.klucz_xy(geom.boundingBox(), crs.authid()),
-            opis_wp, do_skopiowania))
+            opis_wp, do_skopiowania, obiekt=obiekt, blad=blad))
 
     def zapisz_waypointy(self):
         """Wyniki raport_rozbieznosci/sprawdz_pnsw jako plik dla Nawigatora
@@ -371,20 +372,23 @@ class SprawdzCiecie:
             wf = self.slwydz[int(k)]
             self._dodaj_wp(
                 'WYDZ bez kart', wf.geometry(), crs,
-                f'WYDZ ID {k} ({wf.geometry().area() / 10000:.2f} ha) - '
-                'bez karty pomiarowej')
+                f'pow. {wf.geometry().area() / 10000:.2f} ha',
+                obiekt=f'WYDZ ID {k}', blad='Brak karty pomiarowej')
         for k in wydz_wiela:
             wf = self.slwydz[int(k)]
-            karty = ', '.join('-'.join(x[:2]) for x in self.slkart[int(k)])
+            karty = ['-'.join(x[:2]) for x in self.slkart[int(k)]]
             self._dodaj_wp(
                 'WYDZ z wieloma kartami', wf.geometry(), crs,
-                f'WYDZ ID {k}: karty {karty}')
+                f'pow. {wf.geometry().area() / 10000:.2f} ha',
+                obiekt=f'WYDZ ID {k}',
+                blad=f'Kilka kart pomiarowych: {", ".join(karty)}')
         for f in lpoz:
             karta = f'{f["oddz"]}-{f["wydz"]}' \
                 if 'oddz' in [x.lower() for x in f.fields().names()] else ''
             self._dodaj_wp(
-                'Karty poza WYDZ', f.geometry(), self.akt.crs(),
-                f'karta {karta or "fid " + str(f.id())} - poza wydzieleniami')
+                'Karty poza WYDZ', f.geometry(), self.akt.crs(), '',
+                obiekt=f'karta {karta or "fid " + str(f.id())}',
+                blad='Karta poza wydzieleniami')
 
         self.iface.messageBar().pushSuccess(
             'OK', 'Sprawdzanie kart zakończone, znaleziono wydz bez kart: ' +
@@ -428,8 +432,9 @@ class SprawdzCiecie:
             if not any(sl_pnsw[it].geometry().intersects(pkt) for it in ids):
                 brak.append(feat)
                 self._dodaj_wp(
-                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(),
-                    f'pnsw z terenu fid {feat.id()} - brak w SHP\\PNSW')
+                    'PNSW niewrysowane w SHP', pkt, pnsw_pomiary.crs(), '',
+                    obiekt=f'pnsw z terenu fid {feat.id()}',
+                    blad='Nie wrysowane do SHP\\PNSW')
 
         if len(brak) > 0:
             lyr = QgsVectorLayer(

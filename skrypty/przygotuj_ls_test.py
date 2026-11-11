@@ -305,56 +305,59 @@ class AnalizujKlusTest(AnalizujKlus):
         dla Ls z nowej warstwy LS_<czas>."""
         zr = 'Przygotuj Lsy'
         wiersze = []
+
+        def wp(sekcja, typ, klucz, blad, obiekt, opis='', kopiuj=''):
+            wiersze.append(waypointy.wiersz(
+                zr, sekcja, typ, klucz, opis, do_skopiowania=kopiuj,
+                obiekt=obiekt, blad=blad))
+
         for pid in r.ls_poza_baza:
-            wiersze.append(waypointy.wiersz(
-                zr, 'LSy Z KLU NA DZIAŁKACH SPOZA BAZY', 'PARCELID', pid,
-                'Działka pominięta - Ls nie trafił do warstwy'))
+            wp('LSy Z KLU NA DZIAŁKACH SPOZA BAZY', 'PARCELID', pid,
+               'Działka spoza bazy - Ls nie trafił do warstwy',
+               f'działka {pid}')
         for pid in r.bledne:
-            wiersze.append(waypointy.wiersz(
-                zr, 'DZIAŁKI Z NIEPOPRAWNYMI DANYMI', 'PARCELID', pid,
-                'Działka pominięta'))
+            wp('DZIAŁKI Z NIEPOPRAWNYMI DANYMI', 'PARCELID', pid,
+               'Niepoprawne dane działki - pominięta', f'działka {pid}')
         for landid, pow_rej in r.brakujace_ls_w_shp:
-            wiersze.append(waypointy.wiersz(
-                zr, 'BRAKUJĄCE LSy [W SHP]', 'PARCELID',
-                '.'.join(landid.split('.')[:-1]),
-                f'LANDID={landid} pow_rej={pow_rej}', do_skopiowania=landid))
+            wp('BRAKUJĄCE LSy [W SHP]', 'PARCELID',
+               '.'.join(landid.split('.')[:-1]),
+               'Brak Ls w grafice (jest w bazie)', f'Ls {landid}',
+               f'pow. rejestrowa {pow_rej}', landid)
         for landid, pow_graf in r.brakujace_ls_w_bazie:
-            wiersze.append(waypointy.wiersz(
-                zr, 'BRAKUJĄCE LSy [W BAZIE]', 'LANDID', landid,
-                f'pow_graf={pow_graf}'))
+            wp('BRAKUJĄCE LSy [W BAZIE]', 'LANDID', landid,
+               'Brak Ls w bazie (jest w grafice)', f'Ls {landid}',
+               f'pow. graficzna {pow_graf}')
         for landid in sorted(self.p.ls_podwojne):
-            wiersze.append(waypointy.wiersz(
-                zr, 'POWÓJNE LS [BAZA]', 'LANDID', landid,
-                'Ls występuje w bazie więcej niż raz na tej działce'))
+            wp('POWÓJNE LS [BAZA]', 'LANDID', landid,
+               'Ls podwójny w bazie', f'Ls {landid}',
+               'Ls występuje w bazie więcej niż raz na tej działce')
         for landid, stary, nowy, pow_rej, pow_graf in sorted(r.lista_zm_sq):
-            wiersze.append(waypointy.wiersz(
-                zr, 'PODMIENIONE KLASY LS [W SHP]', 'LANDID', landid,
-                f'SQ {stary} -> {nowy} pow_rej={pow_rej} pow_graf={pow_graf}'))
+            wp('PODMIENIONE KLASY LS [W SHP]', 'LANDID', landid,
+               f'Podmieniona klasa {stary} -> {nowy}', f'Ls {landid}',
+               f'pow. rejestrowa {pow_rej}, graficzna {pow_graf}')
         for landid, stary, nowy, pow_rej, pow_graf in sorted(r.lista_zm_au):
-            wiersze.append(waypointy.wiersz(
-                zr, 'PRZEMIANOWANE NA LS [W SHP]', 'LANDID', landid,
-                f'AU {stary} -> {nowy} pow_rej={pow_rej} pow_graf={pow_graf}'))
+            wp('PRZEMIANOWANE NA LS [W SHP]', 'LANDID', landid,
+               f'Użytek {stary} -> {nowy}', f'Ls {landid}',
+               f'pow. rejestrowa {pow_rej}, graficzna {pow_graf}')
         niejedn = sorted({
             landid for ob in self.strukt.values()
             for landid, f in ob.zwroc_ostateczne()[0].items()
             if UW_NIEJEDNOZNACZNE in str(f['SPRAWDZ'] or '')})
         for landid in niejedn:
-            wiersze.append(waypointy.wiersz(
-                zr, 'NIEJEDNOZNACZNE DOPASOWANIE KLAS', 'LANDID', landid,
-                'Kilka kawałków z tą samą klasą, a rekord bazy bez grafiki'))
+            wp('NIEJEDNOZNACZNE DOPASOWANIE KLAS', 'LANDID', landid,
+               'Niejednoznaczne dopasowanie klas', f'Ls {landid}',
+               'Kilka kawałków z tą samą klasą, a rekord bazy bez grafiki')
         for landid in sorted(r.pow_zerowe_baza):
-            wiersze.append(waypointy.wiersz(
-                zr, 'LSy z ZEROWĄ POW', 'LANDID', landid,
-                'Zerowa powierzchnia Ls w bazie'))
+            wp('LSy z ZEROWĄ POW', 'LANDID', landid,
+               'Zerowa powierzchnia Ls w bazie', f'Ls {landid}')
         for landid in sorted(set(r.lista_mikro)):
-            wiersze.append(waypointy.wiersz(
-                zr, 'MIKRO LSy (<21 m2)', 'LANDID', landid,
-                'Mikro Ls po rozbiciu na poligony'))
+            wp('MIKRO LSy (<21 m2)', 'LANDID', landid,
+               'Mikro Ls (< 21 m2) po rozbiciu na poligony', f'Ls {landid}')
         for landid, pow_graf, pow_rej in sorted(r.rozb_pow):
-            wiersze.append(waypointy.wiersz(
-                zr, 'LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', landid,
-                f'pow_graf={pow_graf} pow_rej={pow_rej} '
-                f'różnica={round(pow_graf - pow_rej, 4)}'))
+            wp('LS ZE ZNACZNĄ RÓŻNICĄ POW.', 'LANDID', landid,
+               'Duża różnica pow. graficznej i rejestrowej', f'Ls {landid}',
+               f'pow. graficzna {pow_graf}, rejestrowa {pow_rej}, '
+               f'różnica {round(pow_graf - pow_rej, 4)}')
         return wiersze
 
 
