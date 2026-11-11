@@ -16,7 +16,7 @@ import re
 from qgis.PyQt.QtWidgets import (
     QAction, QApplication, QButtonGroup, QCheckBox, QComboBox, QDockWidget,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QRadioButton, QSizePolicy, QToolButton,
+    QPushButton, QRadioButton, QSizePolicy, QToolButton,
     QToolTip, QVBoxLayout, QWidget,
 )
 from .przyciski import QMessageBox
@@ -42,6 +42,7 @@ OPIS_WARSTW = {'LANDID': 'Ls', 'PARCELID': 'działek', 'ADR_LES': 'wydzieleń'}
 
 STATUS_ZROBIONE = 'ZROBIONE'
 KLUCZ_MIGNIJ = 'LAS-R/nawigator/mignij'
+LICZBA_MIGNIEC = 2  # QGIS domyślnie 3
 
 
 class NawigatorDock(QDockWidget):
@@ -132,15 +133,14 @@ class NawigatorDock(QDockWidget):
         self.txt_obiekt.setReadOnly(True)
         lay_info.addRow(QLabel('Obiekt:'), self.txt_obiekt)
 
-        # błąd - kilka linii (np. kilka uwag z kontroli opisów); szczegóły
-        # (wartości, powierzchnie) w dymku po przytrzymaniu "i"
-        wid_blad = QWidget(fra_info)
-        lay_blad = QHBoxLayout(wid_blad)
-        lay_blad.setContentsMargins(0, 0, 0, 0)
-        self.txt_blad = QPlainTextEdit()
+        # błąd - jedna linia; kilka uwag (np. kontrola opisów) rozdzielone
+        # " | " z liczbą na początku, pełna lista w dymku po najechaniu
+        self.txt_blad = QLineEdit()
         self.txt_blad.setReadOnly(True)
-        wys_linii = self.txt_blad.fontMetrics().lineSpacing()
-        self.txt_blad.setFixedHeight(int(wys_linii * 3.6) + 8)
+        lay_info.addRow(QLabel('Błąd:'), self.txt_blad)
+
+        # szczegóły (wartości, powierzchnie) w dymku po przytrzymaniu "i" -
+        # przycisk w linii "Pozycja", przy prawej krawędzi
         self.btn_info = QToolButton()
         self.btn_info.setText('i')
         f = self.btn_info.font()
@@ -150,13 +150,15 @@ class NawigatorDock(QDockWidget):
         self.btn_info.setToolTip('Przytrzymaj, żeby zobaczyć szczegóły')
         self.btn_info.pressed.connect(self._pokaz_szczegoly)
         self.btn_info.released.connect(QToolTip.hideText)
-        lay_blad.addWidget(self.txt_blad, 1)
-        lay_blad.addWidget(self.btn_info, 0, Qt.AlignTop)
-        lay_info.addRow(QLabel('Błąd:'), wid_blad)
         self._szczegoly = ''
 
+        wid_poz = QWidget(fra_info)
+        lay_poz = QHBoxLayout(wid_poz)
+        lay_poz.setContentsMargins(0, 0, 0, 0)
         self.lbl_licznik = QLabel('- z -')
-        lay_info.addRow(QLabel('Pozycja:'), self.lbl_licznik)
+        lay_poz.addWidget(self.lbl_licznik, 1)
+        lay_poz.addWidget(self.btn_info)
+        lay_info.addRow(QLabel('Pozycja:'), wid_poz)
         lay.addWidget(fra_info)
 
         fra_kopiuj = QFrame(glowny)
@@ -191,7 +193,6 @@ class NawigatorDock(QDockWidget):
             'Zaznacza na warstwie wszystkie obiekty znalezione pod bieżącym '
             'kluczem - przydatne zwłaszcza przy kilku obiektach naraz '
             '(np. ZDUBLOWANE LANDID), żeby od razu widzieć, które to.')
-        lay.addWidget(self.chk_zaznacz)
 
         self.chk_mignij = QCheckBox('Mignij obiektem')
         self.chk_mignij.setChecked(
@@ -202,7 +203,14 @@ class NawigatorDock(QDockWidget):
             'było go widać. Ustawienie jest zapamiętywane.')
         self.chk_mignij.toggled.connect(
             lambda wl: QSettings().setValue(KLUCZ_MIGNIJ, wl))
-        lay.addWidget(self.chk_mignij)
+
+        fra_chk = QFrame(glowny)
+        lay_chk = QHBoxLayout(fra_chk)
+        lay_chk.setContentsMargins(0, 0, 0, 0)
+        lay_chk.addWidget(self.chk_zaznacz)
+        lay_chk.addWidget(self.chk_mignij)
+        lay_chk.addStretch(1)
+        lay.addWidget(fra_chk)
 
         fra_nav = QFrame(glowny)
         lay_nav = QHBoxLayout(fra_nav)
@@ -466,7 +474,8 @@ class NawigatorDock(QDockWidget):
 
         if n == 0 or self.pozycja < 0:
             self.txt_obiekt.setText('-')
-            self.txt_blad.setPlainText('')
+            self.txt_blad.setText('')
+            self.txt_blad.setToolTip('')
             self._szczegoly = ''
             self.btn_info.setEnabled(False)
             self.txt_kopiuj.setText('')
@@ -485,8 +494,19 @@ class NawigatorDock(QDockWidget):
         blad = wiersz.get('blad') or wiersz['sekcja']
         self.txt_obiekt.setText(self._opis_obiektu(wiersz))
         self.txt_obiekt.setCursorPosition(0)
-        self.txt_blad.setPlainText(
-            '\n'.join(x.strip() for x in blad.split(' | ') if x.strip()))
+        uwagi = [x.strip() for x in blad.split(' | ') if x.strip()]
+        if len(uwagi) > 1 and uwagi[0].endswith(':'):
+            # nagłówek z listą ("Kilka punktów adresowych (2): | a | b")
+            tekst = uwagi[0] + ' ' + ' | '.join(uwagi[1:])
+        elif len(uwagi) > 1:
+            tekst = f'({len(uwagi)}) ' + ' | '.join(uwagi)
+        else:
+            tekst = ''.join(uwagi)
+        self.txt_blad.setText(tekst)
+        self.txt_blad.setCursorPosition(0)
+        # pełna lista uwag (jedna pod drugą) w dymku po najechaniu
+        self.txt_blad.setToolTip('\n'.join(uwagi) if len(uwagi) > 1 else
+                                 tekst)
         self._szczegoly = (wiersz.get('opis') or '').strip()
         self.btn_info.setEnabled(bool(self._szczegoly))
 
@@ -591,7 +611,8 @@ class NawigatorDock(QDockWidget):
         canvas.refresh()
         if self.chk_mignij.isChecked():
             try:
-                canvas.flashFeatureIds(warstwa, [f.id() for f in obiekty])
+                canvas.flashFeatureIds(warstwa, [f.id() for f in obiekty],
+                                       flashes=LICZBA_MIGNIEC)
             except Exception:
                 pass
 
@@ -636,6 +657,6 @@ class NawigatorDock(QDockWidget):
         canvas.refresh()
         if self.chk_mignij.isChecked():
             try:
-                canvas.flashGeometries([geom], crs)
+                canvas.flashGeometries([geom], crs, flashes=LICZBA_MIGNIEC)
             except Exception:
                 pass
