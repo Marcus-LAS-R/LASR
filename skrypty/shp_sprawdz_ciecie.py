@@ -14,7 +14,8 @@ from PyQt5.QtWidgets import QFileDialog
 from .baza_wrapper import Baza
 from .funkcje import wybierz_warstwe_z_kandydatow
 from .aktualizacja_upul.core.utworz_klon_txt import zapisz_plik
-from .funkcje import aktywna_warstwa_wektorowa
+from .funkcje import aktywna_warstwa_wektorowa, katalog_startowy
+from .edycja_atrybutow import zmien_atrybuty
 
 
 def _pusty(wartosc):
@@ -76,7 +77,6 @@ class SprawdzCiecie:
             self.wydz.commitChanges()
 
         # uaktualnij na nowo kolumn ID
-        self.wydz.startEditing()
         request = QgsFeatureRequest().setFlags(
             QgsFeatureRequest.NoGeometry).setSubsetOfAttributes(
                 ['ID'], self.wydz.fields()
@@ -85,8 +85,7 @@ class SprawdzCiecie:
         fnm = self.wydz.dataProvider().fieldNameMap()
         for feat in self.wydz.getFeatures(request):
             sl[feat.id()] = {fnm['ID']: feat.id()}
-        self.wydz.dataProvider().changeAttributeValues(sl)
-        self.wydz.commitChanges()
+        zmien_atrybuty(self.wydz, sl)
 
         if len([x.name() for x in self.akt.dataProvider().fields().toList()
                 if x.name().upper() in ['ODDZ', 'WYDZ']]) != 2:
@@ -155,17 +154,17 @@ class SprawdzCiecie:
                                                 ]]
 
     def raport_spis_kart(self):
+        rozszerzenie = '*.mdb' if platform.system()[:3] == 'Win' \
+            else '*.sqlite'
         bazy_kat = QFileDialog().getExistingDirectory(
             None,
             "Katalog z bazami danych",
-            self.kat)
+            katalog_startowy(self.kat, szukaj_bazy=True))
+        if not bazy_kat:
+            return
 
-        if platform.system()[:3] == 'Win':
-            bazy = glob.glob(os.path.join(bazy_kat, '*.mdb'))
-            self.ile_baz = len(bazy)
-        else:
-            bazy = glob.glob(os.path.join(bazy_kat, '*.sqlite'))
-            self.ile_baz = len(bazy)
+        bazy = glob.glob(os.path.join(bazy_kat, rozszerzenie))
+        self.ile_baz = len(bazy)
 
         if self.ile_baz == 0:
             self.iface.messageBar().pushCritical(

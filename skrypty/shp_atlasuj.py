@@ -6,6 +6,7 @@ from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDialog
 from .przyciski import QMessageBox
 from .ui.ui_atlasuj import Ui_Dialog
+from .edycja_atrybutow import zmien_atrybuty
 
 
 class GenerujAtlas():
@@ -250,6 +251,7 @@ class Zanumeruj():
 
     def zanumeruj_pola(self):
         fnm = self.pola.dataProvider().fieldNameMap()
+        zmiany = {}
         for i, feat in enumerate(self.pola.getFeatures()):
             bbox = feat.geometry().boundingBox()
             szer = bbox.width() / 2
@@ -298,8 +300,9 @@ class Zanumeruj():
             if len(D) > 0:
                 val[fnm['D']] = str(self.slp[D[0]])
 
-            self.pola.dataProvider().changeAttributeValues({feat.id(): val})
+            zmiany[feat.id()] = val
             self.zanum += 1
+        zmien_atrybuty(self.pola, zmiany)
 
     def wyswietl_info(self):
         self.iface.messageBar().pushMessage(

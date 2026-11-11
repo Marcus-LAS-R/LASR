@@ -3,6 +3,7 @@ import os
 import processing
 from PyQt5.QtWidgets import QFileDialog
 from .przyciski import QMessageBox
+from .funkcje import katalog_startowy
 
 _WARSTWY = [
     'adr_upul',
@@ -44,7 +45,8 @@ def polacz_warstwy(iface):
     )
 
     projects_folder = QFileDialog.getExistingDirectory(
-        iface.mainWindow(), "Wybierz katalog: ")
+        iface.mainWindow(), "Wybierz katalog: ",
+        katalog_startowy(iface=iface))
 
     if not projects_folder:
         return

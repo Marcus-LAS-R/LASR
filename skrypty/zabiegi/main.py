@@ -9,6 +9,7 @@ from qgis.core import Qgis, QgsMessageLog
 
 from .wydzielenie import Wydzielenie
 from ..baza_wrapper import Baza
+from ..funkcje import katalog_startowy
 from .. import raporty
 
 # uwagi do osobnej (dolnej) grupy raportu - początek tekstu z sprawdz.py
@@ -342,7 +343,7 @@ class PobierzDane(QDialog):
         sc = QFileDialog().getOpenFileName(
             self,
             'Wskaż baze Taksatora',
-            '',
+            katalog_startowy(szukaj_bazy=True),
             "Access MDB (*.mdb);;SQLite (*.sqlite)")[0]
         if sc != '':
             self.ui.lineEdit_baza.setText(sc)

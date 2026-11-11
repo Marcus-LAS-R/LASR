@@ -39,6 +39,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+from ...edycja_atrybutow import zmien_atrybuty
+
 _QML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'qml')
 
 
@@ -188,10 +190,7 @@ def wykonaj(klon_lyr, wydz_lyr):
         zmiany[klon_fid] = {fnm['ADR_Z']: adr_z, fnm['ADR_DO']: adr_do}
         pary.append((adr_z, adr_do))
 
-    klon_lyr.startEditing()
-    for fid, wpis in zmiany.items():
-        klon_lyr.dataProvider().changeAttributeValues({fid: wpis})
-    klon_lyr.commitChanges()
+    zmien_atrybuty(klon_lyr, zmiany)
 
     return {'ok': True, 'pary': pary}
 

@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QDialog
 from qgis.core import QgsVectorLayer, QgsFeatureRequest, Qgis
 from .ui.ui_czysc_kolumny import Ui_Dialog
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import zmien_atrybuty
 
 
 def czysc_kolumny(iface):
@@ -23,8 +24,6 @@ def czysc_kolumny(iface):
             ['ODDZ', 'WYDZ', 'ADR_LES'], w.fields()
         )
 
-    w.startEditing()
-
     sla = {}
     for feat in w.getFeatures(request):
         sl = {}
@@ -39,8 +38,7 @@ def czysc_kolumny(iface):
                 sl[fnm['WYDZ']] = ' '
         sla[feat.id()] = sl
 
-    w.dataProvider().changeAttributeValues(sla)
-    w.commitChanges()
+    zmien_atrybuty(w, sla)
 
     omit = True
     if d.ui.checkBox_oddz_warstwa.isEnabled():
@@ -63,13 +61,11 @@ def czysc_kolumny(iface):
         )
 
     oid = o.dataProvider().fieldNameIndex('ODDZ')
-    o.startEditing()
     sl = {}
     for feat in o.getFeatures(request):
         sl[feat.id()] = {oid: ' '}
 
-    o.dataProvider().changeAttributeValues(sl)
-    o.commitChanges()
+    zmien_atrybuty(o, sl)
 
     iface.messageBar().pushMessage(
         'OK', 'Skasowana zawartość w wybranych kolumnach', Qgis.Success, 10

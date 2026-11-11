@@ -289,6 +289,57 @@ def aktywna_warstwa_wektorowa(iface, lyr=None):
     return None
 
 
+def _katalog_z_sciezki(sciezka):
+    """Katalog ze ścieżki do pliku/katalogu albo źródła warstwy (uri z
+    '|layername=...'); '' gdy nie istnieje."""
+    if not sciezka:
+        return ''
+    sciezka = str(sciezka).split('|')[0].strip()
+    if not sciezka:
+        return ''
+    kat = sciezka if os.path.isdir(sciezka) else os.path.dirname(sciezka)
+    return kat if kat and os.path.isdir(kat) else ''
+
+
+def katalog_startowy(sciezka=None, szukaj_bazy=False, iface=None):
+    """Katalog, w którym otwiera się okno wyboru pliku/katalogu.
+
+    Kolejność: katalog podanej `sciezka` (plik, katalog albo źródło warstwy;
+    może być też QgsMapLayer), a gdy go brak - katalog aktywnej warstwy.
+    Bez żadnego z nich '' (wtedy Windows otwiera ostatnio używany folder).
+
+    szukaj_bazy=True - okno bazy taksatora: pierwszy z (ten katalog, poziom
+    wyżej, dwa poziomy wyżej), w którym leży *.mdb/*.sqlite. Baza jest
+    zwykle w folderze obiektu, a warstwy w jego podfolderze SHP. Bez bazy
+    zwracany jest sam katalog wyjściowy."""
+    if sciezka is not None and not isinstance(sciezka, str):
+        try:
+            sciezka = sciezka.dataProvider().dataSourceUri()
+        except Exception:
+            sciezka = None
+    kat = _katalog_z_sciezki(sciezka)
+    if not kat:
+        if iface is None:
+            try:
+                from qgis.utils import iface
+            except Exception:
+                iface = None
+        try:
+            lyr = iface.activeLayer() if iface is not None else None
+            if lyr is not None:
+                kat = _katalog_z_sciezki(lyr.dataProvider().dataSourceUri())
+        except Exception:
+            kat = ''
+    if not kat or not szukaj_bazy:
+        return kat
+    for poziom in ('.', '..', os.path.join('..', '..')):
+        kandydat = os.path.normpath(os.path.join(kat, poziom))
+        if glob.glob(os.path.join(kandydat, '*.mdb')) or \
+                glob.glob(os.path.join(kandydat, '*.sqlite')):
+            return kandydat
+    return kat
+
+
 def ustaw_utf8(iface):
     # metoda ustawia kodowanie utf aktywnej warstwy
     try:
@@ -366,13 +417,14 @@ def oblicz_pow_graf(iface):
     bledy = 0
     tabb = []   # tab z featurami z bledna geometria
     print('obliczam pow')
+    zmiany = {}
     for feat in iface.activeLayer().getFeatures():
-        iface.activeLayer().dataProvider().changeAttributeValues({
-            feat.id(): {ind: feat.geometry().area()/10000}
-        })
+        zmiany[feat.id()] = {ind: feat.geometry().area()/10000}
         if not feat.geometry().isGeosValid():
             tabb.append(feat)
             bledy += 1
+    from .edycja_atrybutow import zmien_atrybuty
+    zmien_atrybuty(iface.activeLayer(), zmiany)
 
     if bledy == 0:
         wyps_gl = 'OK'

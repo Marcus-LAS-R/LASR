@@ -4,13 +4,14 @@ from PyQt5.QtWidgets import QFileDialog
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from .funkcje import katalog_startowy
 
 
 def UsunKwerendy(iface):
     bazy_kat = QFileDialog().getExistingDirectory(
         iface.mainWindow(),
         "Katalog z bazami danych",
-        '')
+        katalog_startowy(szukaj_bazy=True, iface=iface))
     bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))
     if len(bazy_sc) == 0:
         iface.messageBar().pushMessage(

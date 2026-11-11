@@ -9,7 +9,7 @@ from qgis.gui import QgsMapToolEmitPoint
 
 from .ui.ui_baza_klonuj import Ui_Ui_Dialog as Ui_Dialog
 from .baza_wrapper import Baza
-from .funkcje import isNone
+from .funkcje import isNone, katalog_startowy
 
 from qgis.PyQt.uic import loadUiType
 
@@ -472,8 +472,9 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
         pass
 
     def kat_baza(self):
+        start = katalog_startowy(self.kat, szukaj_bazy=True)
         sc = QFileDialog().getOpenFileName(
-            self, 'Wskaż bazę Taksatora', self.kat, "Access MDB (*.mdb)")[0]
+            self, 'Wskaż bazę Taksatora', start, "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
             self.lineEdit_baza.setText(sc)
@@ -481,7 +482,7 @@ class PobierzDaneDock(QDockWidget, FORM_CLASS):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż plik z instrukcjami',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "instrukcje (*.txt)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -725,9 +726,10 @@ class PobierzDane(QDialog):
             message.exec_()
 
     def kat_baza(self):
+        start = katalog_startowy(self.kat, szukaj_bazy=True)
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż bazę Taksatora',
-                                           self.kat,
+                                           start,
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -736,7 +738,7 @@ class PobierzDane(QDialog):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż plik z instrukcjami',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "instrukcje (*.txt)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

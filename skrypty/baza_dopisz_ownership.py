@@ -4,13 +4,14 @@ import glob
 from qgis.core import Qgis, QgsMessageLog
 from PyQt5.QtWidgets import QFileDialog
 from .baza_wrapper import Baza
+from .funkcje import katalog_startowy
 
 
 def dopisz_ownership_do_bazy(iface):
     bazy_kat = QFileDialog().getExistingDirectory(
         iface.mainWindow(),
         "Katalog z bazami danych",
-        '')
+        katalog_startowy(szukaj_bazy=True, iface=iface))
 
     if platform.system()[:3] == 'Win':
         bazy_sc = glob.glob(os.path.join(bazy_kat, '*.mdb'))

@@ -10,6 +10,7 @@ from . import shp_wyszukaj_lz
 from . import shp_obszary_ciecia
 from .funkcje import zapisz_shp_utf8
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import odswiez_powiazane
 
 
 def stworz_linie(kat):
@@ -403,6 +404,9 @@ def przygotuj_wydz_do_ciecia(iface):  # noqa
             bledy_zerowe = True
 
     wydz.commitChanges()
+    # warstwa zapisana od nowa wprost przez dostawcę - jeśli WYDZ z tego
+    # pliku jest otwarta w projekcie, przeładuj ją (tabela atrybutów)
+    odswiez_powiazane(wydz)
 
     # dodaj warstwe PNSW do katalogu
     stworz_pnsw(kat)

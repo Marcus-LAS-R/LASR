@@ -7,6 +7,7 @@ from qgis.core import (
 from qgis.PyQt.uic import loadUiType
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QTableWidgetItem
 from .przyciski import QMessageBox
+from .funkcje import katalog_startowy
 from qgis.PyQt.QtCore import Qt
 import processing
 from qgis.utils import iface
@@ -45,7 +46,7 @@ class KonwertujWarstwy(QDialog, FORM_CLASS):
 
     def pobierz_sciezke(self, typ):
         sc = QFileDialog.getExistingDirectory(
-            self, "Wybierz katalog")
+            self, "Wybierz katalog", katalog_startowy())
         if not sc:
             return
 

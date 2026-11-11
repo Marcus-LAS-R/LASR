@@ -6,6 +6,7 @@ from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 
 from .ui.ui_wlasn_wydz import Ui_Dialog
+from .funkcje import katalog_startowy
 
 
 class SprawdzWlasnosciWydzielen():
@@ -213,7 +214,7 @@ class PobierzDane(QDialog):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę wydzielen',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -222,7 +223,7 @@ class PobierzDane(QDialog):
     def kat_fochr(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę ls',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

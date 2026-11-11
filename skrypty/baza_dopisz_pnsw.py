@@ -8,6 +8,8 @@ from .baza_wrapper import znajdz_baze_do_wydz, Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
 from .ui.ui_baza_dopisz_pnsw import Ui_Ui_Dialog as Ui_Dialog
 from .funkcje import isNone, wybierz_warstwe_z_kandydatow
+from .funkcje import katalog_startowy
+from .edycja_atrybutow import zmien_atrybuty
 
 
 class DopiszPnsw(SprawdzWydzielenia):
@@ -199,12 +201,10 @@ class DopiszPnsw(SprawdzWydzielenia):
                 inter = self.sl_wydz[id].geometry().intersection(geom)
                 if inter.area() / geom.area() >= 0.999:
                     # jeżeli podmieniamy geometrię wpisujemy też rozpoznany adr
-                    self.pnsw.startEditing()
-                    self.pnsw.dataProvider().changeAttributeValues({
+                    zmien_atrybuty(self.pnsw, {
                         pnsw.id(): {self.fnm['ADR_BDL']:
                                     self.sl_wydz[id]['ADR_LES']}
                     })
-                    self.pnsw.commitChanges()
                     break
 
                 elif inter.area() / geom.area() < 0.2:
@@ -262,6 +262,7 @@ class DopiszPnsw(SprawdzWydzielenia):
                 self.sl_pnsw[p[0]] = []
             self.sl_pnsw[p[0]].append(p[1:])
 
+        zmiany_pnsw = {}  # {fid: {indeks_pola: wartosc}} - zapis po pętli
         for p in self.pnsw.getFeatures():
             geom = p.geometry()
             ids = self.si.intersects(geom.boundingBox())
@@ -307,7 +308,7 @@ class DopiszPnsw(SprawdzWydzielenia):
 
                 # uzupełnij warstwę PNSW
                 # ADR_BDL uzupełniono już wcześniej przy sprawdzaniu zawierania
-                self.pnsw.dataProvider().changeAttributeValues({
+                zmiany_pnsw.update({
                     p.id(): {
                         self.fnm['NR_PNSW']: nrpnsw_wpisu,
                         self.fnm['POW_GRAF']:
@@ -325,6 +326,9 @@ class DopiszPnsw(SprawdzWydzielenia):
                     self.update.append(wpis)
                 else:
                     self.wpis.append(wpis)
+
+        # zapis po pętli - nie zmieniamy warstwy w trakcie iteracji po niej
+        zmien_atrybuty(self.pnsw, zmiany_pnsw)
 
     def dopisz_do_bazy(self):
         """ Dopisanie do bazy tablicy pnsw """
@@ -478,9 +482,10 @@ class PobierzDane(QDialog):
             message.exec_()
 
     def kat_baza(self):
+        start = katalog_startowy(self.kat, szukaj_bazy=True)
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż bazę Taksatora',
-                                           self.kat,
+                                           start,
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -489,7 +494,7 @@ class PobierzDane(QDialog):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę wydzieleń',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -498,7 +503,7 @@ class PobierzDane(QDialog):
     def kat_fochr(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę PNSW',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

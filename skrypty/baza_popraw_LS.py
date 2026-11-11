@@ -9,6 +9,7 @@ from .przyciski import QMessageBox
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from .funkcje import katalog_startowy
 from .ui.ui_baza_popraw_ls import Ui_Dialog
 
 
@@ -386,7 +387,8 @@ class PobierzDane(QDialog):
 
     def pobierz_bazy(self):
         bazy_kat = QFileDialog().getExistingDirectory(
-            self, "Katalog z bazami danych", ""
+            self, "Katalog z bazami danych",
+            katalog_startowy(szukaj_bazy=True)
         )
 
         if platform.system()[:3] == "Win":

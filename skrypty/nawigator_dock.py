@@ -22,6 +22,7 @@ from qgis.core import (
 from qgis.gui import QgsMapLayerComboBox
 
 from . import waypointy
+from .funkcje import katalog_startowy
 
 STATUS_ZROBIONE = 'ZROBIONE'
 
@@ -172,7 +173,8 @@ class NawigatorDock(QDockWidget):
 
     def wczytaj_dialog(self):
         sc = QFileDialog.getOpenFileName(
-            self, 'Wskaż plik waypointów', '', 'Waypointy (*.csv)')[0]
+            self, 'Wskaż plik waypointów', katalog_startowy(),
+            'Waypointy (*.csv)')[0]
         if sc:
             self.wczytaj_plik(sc)
 

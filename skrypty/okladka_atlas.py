@@ -15,6 +15,7 @@ from .pw import PasekPostepu
 from .baza_wrapper import Baza
 
 from qgis.PyQt.uic import loadUiType
+from .funkcje import katalog_startowy
 
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui',  'ui_okladki_dialog.ui'))
@@ -526,7 +527,7 @@ class PobierzDane(QDialog, FORM_CLASS):
         plik, _ = QFileDialog.getOpenFileName(
             self,
             'plik z herbem',
-            self.kat,
+            katalog_startowy(self.kat),
             "obrazy (*.png *.jpg *.bmp *.tif)"
         )
 
@@ -537,7 +538,7 @@ class PobierzDane(QDialog, FORM_CLASS):
         plik = QFileDialog.getExistingDirectory(
             self,
             'Katalog z bazami TPU',
-            self.kat,
+            katalog_startowy(self.kat, szukaj_bazy=True),
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
 

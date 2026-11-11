@@ -45,6 +45,8 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 from ..przyciski import QMessageBox
+# alias - w module jest już zmienna/parametr katalog_startowy
+from ..funkcje import katalog_startowy as _katalog_startowy
 
 _LOG = 'Las-R'
 EPSG_DOCELOWY = 'EPSG:2180'
@@ -563,7 +565,8 @@ class EksportSHPzGML(QDialog):
 
     def _wybierz_folder(self):
         sc = QFileDialog.getExistingDirectory(
-            self, 'Wybierz folder z geodezja')
+            self, 'Wybierz folder z geodezja',
+            _katalog_startowy(self.pole_folder.text().strip()))
         if not sc:
             return
         self.pole_folder.setText(sc)

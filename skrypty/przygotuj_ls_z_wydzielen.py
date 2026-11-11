@@ -11,7 +11,7 @@ from qgis.core import (
 )
 from PyQt5.QtCore import QVariant
 
-from .funkcje import isNone
+from .funkcje import isNone, katalog_startowy
 from .ui.ui_wydzielenia_ls import Ui_Dialog
 from .przygotuj_ls import PrzygotujLs, AnalizujKlus, PrzetworzKlu
 
@@ -62,7 +62,7 @@ class PobierzDaneWydzielenia(QDialog):
                 self.lyrd.dataProvider().dataSourceUri().split("|")[0])
 
         warstwa = QFileDialog().getOpenFileName(
-            self, 'Wskaż warstwę wydzieleń', self.kat,
+            self, 'Wskaż warstwę wydzieleń', katalog_startowy(self.kat),
             "ESRI shp (*.shp)")[0]
         if warstwa == '':
             return
@@ -86,7 +86,8 @@ class PobierzDaneWydzielenia(QDialog):
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
 
         warstwa = QFileDialog().getOpenFileName(
-            self, 'Wskaż warstwę', self.kat, "ESRI shp (*.shp)")[0]
+            self, 'Wskaż warstwę', katalog_startowy(self.kat),
+            "ESRI shp (*.shp)")[0]
         if warstwa == '':
             return
         try:
@@ -109,7 +110,8 @@ class PobierzDaneWydzielenia(QDialog):
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
 
         bazy_kat = QFileDialog().getExistingDirectory(
-            self, "Katalog z bazami danych", self.kat)
+            self, "Katalog z bazami danych",
+            katalog_startowy(self.kat, szukaj_bazy=True))
         if bazy_kat == '':
             return
 

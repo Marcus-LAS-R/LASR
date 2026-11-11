@@ -4,6 +4,7 @@ from operator import itemgetter
 from qgis.core import Qgis, QgsMessageLog
 
 from . import kopie_manipulacyjne
+from .edycja_atrybutow import zmien_atrybuty
 from .przyciski import QMessageBox
 
 TYTUL = 'Zanumeruj oddziały'
@@ -141,10 +142,7 @@ def Numeruj(iface):  # noqa
             sl[t[0]] = {fnm['ODDZ']: str(oddz)}
             oddz += 1
 
-    lyr.startEditing()
-    for key, val in sl.items():
-        lyr.dataProvider().changeAttributeValues({key: val})
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
 
     opis = ('przenumerowano: ' if tryb == 'calosc' else 'zanumerowano: ') + \
         str(len(sl)) + ' oddziałów'

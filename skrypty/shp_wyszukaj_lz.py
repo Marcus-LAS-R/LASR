@@ -11,6 +11,7 @@ import processing
 
 from .ui.ui_wyszukaj_lz import Ui_Dialog
 from .funkcje import wyczysc_katalog_temp
+from .funkcje import katalog_startowy
 
 
 class WyszukajLz():
@@ -642,7 +643,7 @@ class PobierzDane(QDialog):
     def wybierz_oddz(self):
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę ODDZ PGLLP',
-                                                self.kat,
+                                                katalog_startowy(self.kat),
                                                 "ESRI shp (*.shp)")[0]
 
         self.oddz = QgsVectorLayer(warstwa, "oddz_pgllp", "ogr")
@@ -658,7 +659,7 @@ class PobierzDane(QDialog):
     def wybierz_ls(self):
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę Ls',
-                                                self.kat,
+                                                katalog_startowy(self.kat),
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.ls = QgsVectorLayer(warstwa, "ls", "ogr")
@@ -675,7 +676,7 @@ class PobierzDane(QDialog):
     def wybierz_uz(self):
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę użytków',
-                                                self.kat,
+                                                katalog_startowy(self.kat),
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.uz = QgsVectorLayer(warstwa, "uzytki", "ogr")

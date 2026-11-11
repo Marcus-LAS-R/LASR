@@ -14,6 +14,7 @@ from qgis.core import QgsSpatialIndex, QgsField, QgsFeature, Qgis, \
 from .baza_wrapper import Baza
 from .baza_przetworz import Przetworz
 from .funkcje import usun_wasy, isNone, wyczysc_katalog_temp
+from .funkcje import katalog_startowy
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
 # import processing  # import przeniesiony do metody - pytest probemy!
@@ -2477,7 +2478,7 @@ class PobierzDane(QDialog):
 
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                self.kat,
+                                                katalog_startowy(self.kat),
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrk = QgsVectorLayer(warstwa, "klu", "ogr")
@@ -2505,7 +2506,7 @@ class PobierzDane(QDialog):
                 self.lyrk.dataProvider().dataSourceUri().split("|")[0])
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                self.kat,
+                                                katalog_startowy(self.kat),
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyrd = QgsVectorLayer(warstwa, "dz", "ogr")
@@ -2530,7 +2531,7 @@ class PobierzDane(QDialog):
         bazy_kat = QFileDialog().getExistingDirectory(
             self,
             "Katalog z bazami danych",
-            self.kat)
+            katalog_startowy(self.kat, szukaj_bazy=True))
 
         if platform.system()[:3] == 'Win':
             self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))

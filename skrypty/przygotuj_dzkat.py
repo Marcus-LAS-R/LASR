@@ -16,7 +16,7 @@ from .baza_przetworz import Przetworz
 from .ui.ui_sprawdz_dzkat import Ui_Dialog
 from .pw import PasekPostepu
 from . import raporty
-from .funkcje import zapisz_shp_utf8
+from .funkcje import zapisz_shp_utf8, katalog_startowy
 
 
 class PrzygotujDzKat(object):
@@ -747,7 +747,7 @@ class PobierzDane(QDialog):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
         warstwa = QFileDialog().getOpenFileName(self,
                                                 'Wskaż warstwę',
-                                                '',
+                                                katalog_startowy(),
                                                 "ESRI shp (*.shp)")[0]
         try:
             self.lyr = QgsVectorLayer(warstwa, "dz_ewid", "ogr")
@@ -770,7 +770,7 @@ class PobierzDane(QDialog):
         bazy_kat = QFileDialog().getExistingDirectory(
             self,
             "Katalog z bazami danych",
-            kat
+            katalog_startowy(kat, szukaj_bazy=True)
         )
         if platform.system()[:3] == 'Win':
             self.ile_baz = len(glob.glob(os.path.join(bazy_kat, '*.mdb')))

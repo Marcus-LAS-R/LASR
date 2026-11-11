@@ -7,6 +7,7 @@ from .baza_wrapper import Baza, znajdz_baze_do_wydz
 from .baza_przetworz import Przetworz
 from .pw import PasekPostepu
 from . import raporty, waypointy
+from .edycja_atrybutow import zmien_atrybuty
 
 
 class KontrolaLs:
@@ -141,9 +142,7 @@ class KontrolaLs:
         print(uzup)
         fnm = self.ls.dataProvider().fieldNameMap()
         dopis = {k: {fnm[x]: y for x, y in v.items()} for k, v in uzup.items()}
-        self.ls.startEditing()
-        self.ls.dataProvider().changeAttributeValues(dopis)
-        self.ls.commitChanges()
+        zmien_atrybuty(self.ls, dopis)
 
     def sprawdz_puste(self, lid):  # noqa
         # metoda sprawdza czy wpis w sl o podanym landid posiada uzupelnione

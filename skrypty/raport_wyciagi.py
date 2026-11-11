@@ -18,7 +18,7 @@ import processing
 
 from .baza_wrapper import Baza
 from .ui.ui_raport_wyciagi import Ui_Dialog
-from .funkcje import wyczysc_katalog_temp
+from .funkcje import wyczysc_katalog_temp, katalog_startowy
 
 # kolumna podpisu wspolwlasciciela ma box 51mm, ale realnie miesci ok.
 # 49mm tekstu (marginesy etykiety) - zmierzone empirycznie na czcionce
@@ -1734,7 +1734,7 @@ class PobierzDane(QDialog):
         sc = QFileDialog().getOpenFileName(
             self,
             'Wskaż bazę Taksatora',
-            '',
+            katalog_startowy(szukaj_bazy=True),
             "Access MDB (*.mdb);;SQLite (*.sqlite)")[0]
 
         if sc != '':

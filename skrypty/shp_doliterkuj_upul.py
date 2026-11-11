@@ -35,6 +35,7 @@ from . import kopie_manipulacyjne
 from . import warstwa_opisow_dock as opis
 from .funkcje import wyczysc_katalog_temp
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import zmien_atrybuty, odswiez_powiazane
 
 GRUPA_LZ = 'LZ-Ł'
 
@@ -411,9 +412,7 @@ def Doliterkuj(iface, lyr=False, wykryj_lz=True):  # noqa
 
     if do_lz_id:
         aktualizacja_lz = {fid: {fnm['WYDZ']: 'Lz'} for fid in do_lz_id}
-        lyr.startEditing()
-        lyr.dataProvider().changeAttributeValues(aktualizacja_lz)
-        lyr.commitChanges()
+        zmien_atrybuty(lyr, aktualizacja_lz)
         QgsMessageLog.logMessage(
             'Ustawiono WYDZ="Lz" wg punktów opisowych LZ-Ł dla ' +
             str(len(aktualizacja_lz)) + ' wydzieleń',
@@ -497,10 +496,7 @@ def Doliterkuj(iface, lyr=False, wykryj_lz=True):  # noqa
         )
         return True
 
-    lyr.startEditing()
-    for key, val in sl.items():
-        lyr.dataProvider().changeAttributeValues({key: val})
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
 
     if message_trig == 0:
         # zrob dissolva na warstwie wydz (scala fragmenty Lz) - kopia
@@ -523,6 +519,8 @@ def Doliterkuj(iface, lyr=False, wykryj_lz=True):  # noqa
             [x for x in wydz_diss.dataProvider().getFeatures()]
         )
         lyr.commitChanges()
+        # obiekty podmienione wprost przez dostawcę - odśwież widoki
+        odswiez_powiazane(lyr, takze_ta=True)
 
         # zwolnij uchwyt do warstwy posredniej przed czyszczeniem temp
         del wydz_diss

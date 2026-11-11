@@ -24,6 +24,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import baza_finder
 from ..core import przetworz as logika
+from ...funkcje import katalog_startowy
 
 POLE_NAZWA_NADL = 'ins_name'
 
@@ -72,7 +73,8 @@ class _WarstwaPicker:
 
     def _z_pliku(self):
         sciezka, _ = QFileDialog.getOpenFileName(
-            self._parent, 'Wskaż warstwę', '', 'ESRI shp (*.shp)')
+            self._parent, 'Wskaż warstwę', katalog_startowy(),
+            'ESRI shp (*.shp)')
         if not sciezka:
             return
 

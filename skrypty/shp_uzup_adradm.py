@@ -4,6 +4,7 @@ from qgis.utils import iface
 from qgis.core import QgsField, QgsFeatureRequest
 
 from .funkcje import rozbij_adres_gmina_obreb
+from .edycja_atrybutow import zmien_atrybuty
 
 _KANDYDACI_POLA_ZRODLOWEGO = ['G5IDD', 'IDENTYFIKA', 'G5NRO']
 
@@ -61,9 +62,7 @@ def DodajIUzupelnijAdm():
             fnm['MUNICIP']: gmina.replace('_', '')
         }
 
-    lyr.startEditing()
-    lyr.dataProvider().changeAttributeValues(sl)
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
 
     iface.messageBar().pushSuccess(
         'Sukces', f'Uzupełniono {len(sl)} rekordów.'

@@ -40,6 +40,7 @@ from .przyciski import QMessageBox
 from .funkcje import rozbij_adres_gmina_obreb
 
 from .pw import PasekPostepu
+from .funkcje import katalog_startowy
 
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'ui_scal_walidacja_crs.ui'))
@@ -525,7 +526,8 @@ class ScalWalidacjaCRS(QDialog, FORM_CLASS):
         self.pushButton_wykonaj.clicked.connect(self.wykonaj_klik)
 
     def _wybierz_katalog(self, docelowy_lineedit):
-        sc = QFileDialog.getExistingDirectory(self, 'Wybierz katalog')
+        sc = QFileDialog.getExistingDirectory(
+            self, 'Wybierz katalog', katalog_startowy())
         if not sc:
             return
         docelowy_lineedit.setText(sc)
@@ -535,7 +537,8 @@ class ScalWalidacjaCRS(QDialog, FORM_CLASS):
 
     def _wybierz_referencje(self):
         sc, _ = QFileDialog.getOpenFileName(
-            self, 'Wybierz warstwę referencyjną', '', 'Shapefile (*.shp)')
+            self, 'Wybierz warstwę referencyjną', katalog_startowy(),
+            'Shapefile (*.shp)')
         if sc:
             self.lineEdit_ref.setText(sc)
 

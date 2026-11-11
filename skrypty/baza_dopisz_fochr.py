@@ -7,7 +7,7 @@ from .przyciski import QMessageBox
 
 from .baza_wrapper import Baza
 from .sprawdzenia_warstw import SprawdzWydzielenia
-from .funkcje import wybierz_warstwe_z_kandydatow
+from .funkcje import wybierz_warstwe_z_kandydatow, katalog_startowy
 from .ui.ui_baza_dopiszFO import Ui_Dialog
 
 
@@ -360,9 +360,10 @@ class PobierzDane(QDialog):
             msbx.exec_()
 
     def kat_baza(self):
+        start = katalog_startowy(self.kat, szukaj_bazy=True)
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż baze Taksatora',
-                                           self.kat,
+                                           start,
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -371,7 +372,7 @@ class PobierzDane(QDialog):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę wydzielen',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -380,7 +381,7 @@ class PobierzDane(QDialog):
     def kat_fochr(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę form ochrony',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

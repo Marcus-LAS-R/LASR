@@ -4,6 +4,8 @@ from collections import Counter
 from .przyciski import QMessageBox
 from PyQt5.QtCore import QVariant
 
+from .edycja_atrybutow import zmien_atrybuty
+
 
 class SprawdzWydzielenia():
     """Klasa poboczna wymaga aby klasa dziedzicząca miałą już dodany wskaznik
@@ -521,8 +523,8 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
         si.insertFeature(wfeat)
         sl_w[wfeat.id()] = wfeat
 
-    pnsw.startEditing()
     podm_adr = 0
+    zmiany_adr = {}  # zapis po pętli, nie w trakcie iteracji po warstwie
     for feat in pnsw.getFeatures():
         ids = si.intersects(feat.geometry().boundingBox())
         for id in ids:
@@ -531,17 +533,14 @@ def sprawdz_pnsw(wydz, pnsw, baza=False):  # noqa
                 # jeżeli pnsw lezy w wiekszosci na tym wydz dopisz adr_les
                 if (inter.area()/feat.geometry().area()) > 0.6:
                     if sl_w[id]['ADR_LES'] != feat['ADR_BDL']:
-                        pnsw.dataProvider().changeAttributeValues(
-                            {feat.id():
-                                {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}}
-                            )
+                        zmiany_adr[feat.id()] =                             {fmi['ADR_BDL']: sl_w[id]['ADR_LES']}
                         podm_adr += 1
 
                 if 0.1 < (inter.area()/feat.geometry().area()) < 0.98999:
                     wyps += sl_w[id]['ADR_LES'] + \
                         ' PNSW nie zawiera sie w wydzieleniu\n'
 
-    pnsw.commitChanges()
+    zmien_atrybuty(pnsw, zmiany_adr)
 
     for feat in pnsw.getFeatures():
         # zbuduj slownik ze struktura porownawcza dla bazy

@@ -5,11 +5,13 @@ from PyQt5.QtWidgets import QFileDialog
 
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from .funkcje import katalog_startowy
 
 
 def UsunNieLs(iface):
     bazy_kat = QFileDialog().getExistingDirectory(
-        iface.mainWindow(), "Katalog z bazami danych", ""
+        iface.mainWindow(), "Katalog z bazami danych",
+        katalog_startowy(szukaj_bazy=True, iface=iface)
     )
 
     if platform.system()[:3] == "Win":

@@ -18,6 +18,7 @@ from .ui.ui_naklejki_dialog import Ui_DialogNaklejki
 from .ui.ui_naklejki_tomy import Ui_DialogTomy
 
 from qgis.PyQt.uic import loadUiType
+from .funkcje import katalog_startowy
 
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui',  'ui_naklejki_dialog.ui'))
@@ -1142,7 +1143,7 @@ class PobierzDane(QDialog, FORM_CLASS):
         plik, _ = QFileDialog.getOpenFileName(
             self,
             'plik z herbem',
-            self.kat,
+            katalog_startowy(self.kat),
             "obrazy (*.png *.jpg *.bmp *.tif)"
         )
 
@@ -1164,7 +1165,7 @@ class PobierzDane(QDialog, FORM_CLASS):
         plik = QFileDialog.getExistingDirectory(
             self,
             'Katalog z bazami TPU',
-            self.kat,
+            katalog_startowy(self.kat, szukaj_bazy=True),
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
 

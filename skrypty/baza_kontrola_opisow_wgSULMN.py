@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import QFileDialog
 from .przyciski import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from .baza_wrapper import Baza
+from .funkcje import katalog_startowy
 from .pw import PasekPostepu
 from . import waypointy
 from .baza_kontrola_slownikow_wgSULMN import zapisz_grupy, \
@@ -348,7 +349,7 @@ def KontrolaOpisow(iface):
     baza_sc = QFileDialog().getOpenFileName(
         iface.mainWindow(),
         'Wskaż bazę Taksatora (UPUL)',
-        '',
+        katalog_startowy(szukaj_bazy=True, iface=iface),
         'Access MDB (*.mdb)',
     )[0]
     if not baza_sc:

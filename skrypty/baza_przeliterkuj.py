@@ -14,6 +14,7 @@ from .baza_dopisz_wydz import DopiszWydzielenia
 from .funkcje import wybierz_warstwe_z_kandydatow
 from .waypointy import katalog_raportow
 from . import kopie_manipulacyjne
+from .edycja_atrybutow import zmien_atrybuty
 
 # wydzielenie należy do oddziału, jeśli leży w nim w co najmniej 99% -
 # drzazgi poniżej 1% (niedociągnięte granice) nie są traktowane jako
@@ -214,8 +215,7 @@ class Przeliterkuj(SprawdzWydzielenia):
                 if _norm(fw[p]) != _norm(fo[p]):
                     attr[fnm[p]] = str(fo[p]).strip()
             nowe[fid] = attr
-        self.wydz.dataProvider().changeAttributeValues(nowe)
-        self.wydz.reload()
+        zmien_atrybuty(self.wydz, nowe)
 
         QgsMessageLog.logMessage(
             'Przeliterkuj: nadpisano oddział wg geometrii w ' +
@@ -312,7 +312,7 @@ class Przeliterkuj(SprawdzWydzielenia):
         # skopiuj wart do uprzednio dodanych kolumn i wyczyść kolumny WYDZ I
         # ADR_LES do literkacji, pomijając Lz
         fnm = self.wydz.dataProvider().fieldNameMap()
-        self.wydz.startEditing()
+        zmiany = {}
         for feat in self.wydz.getFeatures(self.request):
             attr = {
                 fnm['ST_ADR_LES']: feat['ADR_LES'],
@@ -323,11 +323,9 @@ class Przeliterkuj(SprawdzWydzielenia):
                 attr[fnm['WYDZ']] = ''
                 attr[fnm['ADR_LES']] = ''
 
-            self.wydz.dataProvider().changeAttributeValues(
-                {feat.id(): attr}
-            )
+            zmiany[feat.id()] = attr
 
-        self.wydz.commitChanges()
+        zmien_atrybuty(self.wydz, zmiany)
 
     def zaliterkuj(self):
         """ Literkuje na nowo uprzednio wyczyszczoną kolumnę WYDZ"""

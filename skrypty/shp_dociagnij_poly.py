@@ -11,6 +11,7 @@ import processing
 from .ui.ui_shp_dosnapuj import Ui_Dialog
 from .pw import PasekPostepu
 from .funkcje import wyczysc_katalog_temp
+from .funkcje import katalog_startowy
 
 
 class Dosnapuj:
@@ -910,7 +911,7 @@ class PobierzDane(QDialog):
     def kat_snap(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż plik z dz ewid',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -919,7 +920,7 @@ class PobierzDane(QDialog):
     def kat_dz(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż plik z dz ewid',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

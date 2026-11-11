@@ -17,7 +17,7 @@ from .pw import PasekPostepu
 from . import raporty
 from . import raporty_ls
 from . import rozliczenie_uzytku as ru
-from .funkcje import wyczysc_katalog_temp
+from .funkcje import wyczysc_katalog_temp, katalog_startowy
 
 from .ui.ui_baza_rozlicz_pow import Ui_Ui_Dialog
 
@@ -1161,9 +1161,10 @@ class PobierzDane(QDialog):
                 'Nie udało się odnaleźć wszystkich podanych plików!')
 
     def kat_baza(self):
+        start = katalog_startowy(self.kat, szukaj_bazy=True)
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż baze Taksatora',
-                                           self.kat,
+                                           start,
                                            "Access MDB (*.mdb)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -1172,7 +1173,7 @@ class PobierzDane(QDialog):
     def kat_warstwa(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę wydzielen',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)
@@ -1181,7 +1182,7 @@ class PobierzDane(QDialog):
     def kat_fochr(self):
         sc = QFileDialog().getOpenFileName(self,
                                            'Wskaż warstwę ls',
-                                           self.kat,
+                                           katalog_startowy(self.kat),
                                            "ESRI Shapefile (*.shp)")[0]
         if sc != '':
             self.kat = os.path.dirname(sc)

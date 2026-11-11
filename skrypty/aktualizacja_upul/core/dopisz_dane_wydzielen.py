@@ -17,6 +17,8 @@ from qgis.core import (
     QgsFeature, QgsField, QgsProject, QgsSpatialIndex, QgsVectorLayer,
 )
 
+from ...edycja_atrybutow import zmien_atrybuty
+
 _QML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'qml')
 
 TRYB_PUSTE = 'puste'
@@ -263,10 +265,7 @@ def wykonaj(zrodlo_lyr, cel_lyr, wybor_pol):
             zmiany[f.id()] = wpis
 
     if zmiany:
-        cel_lyr.startEditing()
-        for fid, wpis in zmiany.items():
-            cel_lyr.dataProvider().changeAttributeValues({fid: wpis})
-        cel_lyr.commitChanges()
+        zmien_atrybuty(cel_lyr, zmiany)
 
     raport['zaktualizowane'] = len(zmiany)
     raport['zmiany_na_pole'] = zmiany_na_pole

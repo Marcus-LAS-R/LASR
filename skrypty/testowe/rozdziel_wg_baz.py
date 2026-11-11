@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (
 from ..przyciski import QMessageBox
 
 from ..baza_wrapper import Baza
-from ..funkcje import rozbij_adres_gmina_obreb
+from ..funkcje import rozbij_adres_gmina_obreb, katalog_startowy
 
 _LOG = 'Las-R'
 
@@ -253,7 +253,8 @@ class RozdzielWgBaz(QDialog):
 
     def _wybierz_folder(self):
         sc = QFileDialog.getExistingDirectory(
-            self, 'Wybierz folder nadrzędny')
+            self, 'Wybierz folder nadrzędny',
+            katalog_startowy(self.pole_folder.text().strip()))
         if sc:
             self.pole_folder.setText(sc)
 

@@ -13,6 +13,7 @@ from operator import itemgetter
 from . import kopie_manipulacyjne
 from .funkcje import wyczysc_katalog_temp
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import zmien_atrybuty, odswiez_powiazane
 
 
 def _zgadnij_baze(warstwa_sc):
@@ -322,10 +323,7 @@ def Literkuj(iface, lyr=False):  # noqa
             )
             return False
 
-    lyr.startEditing()
-    for key, val in sl.items():
-        lyr.dataProvider().changeAttributeValues({key: val})
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
 
     if message_trig == 0:
         sciezka = lyr.dataProvider().dataSourceUri().split("|")[0][:-4]
@@ -373,6 +371,8 @@ def Literkuj(iface, lyr=False):  # noqa
             [x for x in wydz_diss.dataProvider().getFeatures()]
         )
         lyr.commitChanges()
+        # obiekty podmienione wprost przez dostawcę - odśwież widoki
+        odswiez_powiazane(lyr, takze_ta=True)
 
         # zwolnij uchwyt do warstwy posredniej przed czyszczeniem temp
         del wydz_diss

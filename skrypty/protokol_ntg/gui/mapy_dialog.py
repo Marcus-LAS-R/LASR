@@ -18,6 +18,7 @@ from ...przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
 
 from ..core import mapa_ogolna, mapy_gmin
+from ...funkcje import katalog_startowy
 
 KLUCZ = "LASR/protokol_ntg/"
 TYTUL = "NTG - Generuj mapy"
@@ -85,7 +86,8 @@ class _Picker:
 
     def _z_pliku(self):
         sciezka, _ = QFileDialog.getOpenFileName(
-            self._dialog, "Wskaż warstwę", "", "ESRI shp (*.shp)")
+            self._dialog, "Wskaż warstwę", katalog_startowy(),
+            "ESRI shp (*.shp)")
         if sciezka:
             self._dodaj(sciezka)
 

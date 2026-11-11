@@ -8,6 +8,7 @@ from qgis.core import (
     NULL, Qgis, QgsFeatureRequest, QgsMessageLog, QgsProject, QgsVectorLayer,
 )
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import zmien_atrybuty
 
 
 def zbuduj_adres(county_l, district, municip, community, grp, oddz, wydz):
@@ -127,7 +128,6 @@ def Zaadresuj(iface, lyr=False):
         return False
 
     fnm = lyr.dataProvider().fieldNameMap()  # slownik kolejnosci nazw w shp
-    lyr.startEditing()
     request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry
                                            ).setSubsetOfAttributes(
                                                pola, lyr.fields())
@@ -157,9 +157,7 @@ def Zaadresuj(iface, lyr=False):
                 Qgis.Warning
             )
 
-        lyr.dataProvider().changeAttributeValues({key: adr})
-
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
     if message_trig == 0:
         iface.messageBar().pushMessage(
             'OK',
@@ -250,7 +248,6 @@ def ZaadresujStareWydz(iface):
         return False
 
     fnm = lyr.dataProvider().fieldNameMap()
-    lyr.startEditing()
     request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry
                                            ).setSubsetOfAttributes(
                                                pola, lyr.fields())
@@ -272,7 +269,6 @@ def ZaadresujStareWydz(iface):
         wydz_by_id[f.id()] = wydz
 
     if len(sl) == 0:
-        lyr.rollBack()
         iface.messageBar().pushMessage(
             'BRAK', 'Nie ma wydzieleń z uzupełnionym ODDZ i WYDZ',
             Qgis.Warning, 10)
@@ -296,9 +292,7 @@ def ZaadresujStareWydz(iface):
                 Qgis.Warning
             )
 
-        lyr.dataProvider().changeAttributeValues({key: adr})
-
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
     if message_trig == 0:
         iface.messageBar().pushMessage(
             'OK',

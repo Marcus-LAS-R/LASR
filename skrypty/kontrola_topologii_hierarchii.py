@@ -31,6 +31,7 @@ from .przyciski import QMessageBox, QDialogButtonBox
 
 from .sprawdzenia_topo import SprawdzTopo
 from .napraw_topologie_hierarchii import kontrola_miedzywarstwowa, NAZWY_WARSTW
+from .funkcje import katalog_startowy
 
 CRS = QgsCoordinateReferenceSystem('EPSG:2180')
 
@@ -313,13 +314,14 @@ class PobierzDaneKontroli(QDialog):
 
     def _wybierz_plik(self, le):
         sc = QFileDialog.getOpenFileName(
-            self, 'Wskaż plik shp', '', 'ESRI Shapefile (*.shp)')[0]
+            self, 'Wskaż plik shp', katalog_startowy(),
+            'ESRI Shapefile (*.shp)')[0]
         if sc:
             le.setText(sc)
 
     def _wybierz_wyjscie(self):
         sc = QFileDialog.getExistingDirectory(
-            self, 'Wskaż folder wyjściowy')
+            self, 'Wskaż folder wyjściowy', katalog_startowy())
         if sc:
             self.le_wyjscie.setText(sc)
 

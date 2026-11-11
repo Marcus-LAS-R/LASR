@@ -14,6 +14,7 @@ from .ui.ui_shp_doliterkuj import Ui_Dialog
 from . import kopie_manipulacyjne
 from .funkcje import wyczysc_katalog_temp
 from .funkcje import aktywna_warstwa_wektorowa
+from .edycja_atrybutow import zmien_atrybuty, odswiez_powiazane
 
 _Y_BAZA_ROW = 100
 _ROW_H = 32
@@ -516,9 +517,7 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
             for f in lyr.getFeatures()
         }
         if do_uzupelnienia:
-            lyr.startEditing()
-            lyr.dataProvider().changeAttributeValues(do_uzupelnienia)
-            lyr.commitChanges()
+            zmien_atrybuty(lyr, do_uzupelnienia)
             QgsMessageLog.logMessage(
                 'Nadpisano ODDZ="' + oddz_reczny + '" dla ' +
                 str(len(do_uzupelnienia)) + ' wydzieleń',
@@ -624,10 +623,7 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
         )
         return True
 
-    lyr.startEditing()
-    for key, val in sl.items():
-        lyr.dataProvider().changeAttributeValues({key: val})
-    lyr.commitChanges()
+    zmien_atrybuty(lyr, sl)
 
     if message_trig == 0:
         # zrob dissolva na warstwie wydz (scala fragmenty Lz) - kopia
@@ -650,6 +646,8 @@ def Doliterkuj(iface, lyr=False, od_litery=None, oddz_reczny=None,
             [x for x in wydz_diss.dataProvider().getFeatures()]
         )
         lyr.commitChanges()
+        # obiekty podmienione wprost przez dostawcę - odśwież widoki
+        odswiez_powiazane(lyr, takze_ta=True)
 
         # zwolnij uchwyt do warstwy posredniej przed czyszczeniem temp
         del wydz_diss
