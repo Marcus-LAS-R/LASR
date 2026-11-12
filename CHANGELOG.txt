@@ -1,6 +1,22 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0bx — 2026-11-12
+------------------------------------------------
+
+1. POPRAWKA: wtyczka uruchamia się poprawnie bez zainstalowanej wtyczki
+   DigitizingTools. Wcześniej przy starcie pojawiał się błąd ("no attribute
+   'msplit'"), a Edytor opisów, Nawigator i panel Klonowania nie działały.
+2. ZMIANA: okno Edytora opisów nie wymaga już przewijania w bok (szerokość
+   okna bez zmian):
+   - "Zmień warstwę" i "Usuń warstwę" są jeden pod drugim, obok tabeli
+     gatunków,
+   - prawa krawędź opisu drzewostanu i "Informacji różnych" jest równo
+     z tabelą "Opis wydzielenia",
+   - przyciski gotowych fraz pod "Informacjami różnymi" w trzech kolumnach.
+3. NOWOŚĆ: przycisk "Lukowaty" w "Informacjach różnych" Edytora - dopisuje
+   "Drzewostan miejscami lukowaty".
+
 Wersja 2.0ax — 2026-11-12
 ------------------------------------------------
 
