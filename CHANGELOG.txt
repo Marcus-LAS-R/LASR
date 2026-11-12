@@ -1,6 +1,27 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0ax — 2026-11-12
+------------------------------------------------
+
+1. NOWOŚĆ: klepanie opisów z kart pomiarowych w Edytorze opisów. Przycisk
+   "Wczytaj raport do klepania..." w panelu Edytora wczytuje raport kart
+   (raport_nr_robocze.xlsx) - Nawigator prowadzi po kartach po kolei
+   (kod taksatora i numer, np. "TK-12 → adres leśny"), a każda karta od
+   razu otwiera swoje wydzielenie w karcie opisu.
+   - Alt+Enter - zapisz opis i przejdź do następnej karty,
+   - Alt+Backspace - zapisz i wróć do poprzedniej.
+   Postęp jest zapamiętywany obok raportu - po przerwie wystarczy wczytać
+   raport ponownie. Po wklepaniu wszystkich kart wtyczka proponuje
+   sklonowanie opisów z pliku KLON_po_klepaniu.
+2. ZMIANA: raport kart do klepania ma kolumnę z adresem leśnym (ADR_LES).
+3. ZMIANA: w menu głównym "Edytor opisów" (dawniej "Podgląd/Edycja opisu
+   taksacyjnego"), pod nim "Nawigator" (dawniej "Nawigator błędów"
+   w menu Narzędziowe) i "Generator opisów" (dawniej "Edytor warstw do
+   opisów"). W Nawigatorze opcja "Mignij obiektem" to teraz "Mrugacz".
+4. ZMIANA: panele Edytora opisów i Nawigatora mają obramowanie - w ciemnym
+   motywie widać, gdzie kończy się jeden panel, a zaczyna drugi.
+
 Wersja 2.0z — 2026-11-11
 ------------------------------------------------
 
