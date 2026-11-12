@@ -120,6 +120,12 @@ from .warstwa_opisow_dock import PRESETY_INF_ROZNE
 from .waypointy import katalog_raportow
 from .funkcje import etykiety_warstw, indeks_domyslnej, katalog_startowy
 
+# frazy Informacji różnych w Edytorze: wspólne z generatorem (INNE WYL,
+# opis_stl.POKRYWA_INNE_WYL) + frazy tylko dla drzewostanów
+FRAZY_INF_ROZNE = PRESETY_INF_ROZNE + [
+    ('Lukowaty', 'Drzewostan miejscami lukowaty'),
+]
+
 # obramowanie panelu (format: nazwa obiektu ramki) - półprzezroczysty szary
 # widoczny w jasnym i ciemnym motywie
 RAMKA_PANELU = ('QFrame#{0} {{ border: 1px solid rgba(128, 128, 128, 170); '
@@ -912,10 +918,11 @@ class _GrupaWarstwy(QWidget):
         naglowek.addStretch(1)
         if not okno.tylko_odczyt:
             usun = QToolButton()
-            usun.setText('Usuń warstwę')
+            usun.setText('Usuń\nwarstwę')
             usun.setToolTip('Usuwa warstwę z gatunkami (do bazy po "Zapisz"; '
                             'Ctrl+Z - cofnij)')
-            usun.setStyleSheet('QToolButton { color: #c62828; border: none; }')
+            usun.setStyleSheet(
+                'QToolButton { color: #c62828; border: none; padding: 0px; }')
             usun.clicked.connect(lambda: okno.usun_warstwe(self.wi))
             self._btn_usun = usun  # wstawiany niżej, na wysokość nagłówków tabel
             self._btn_zmien = self._przycisk_zmiany()
@@ -923,8 +930,8 @@ class _GrupaWarstwy(QWidget):
 
         self.cialo = QWidget()
         hl = QHBoxLayout(self.cialo)
-        hl.setContentsMargins(14, 0, 0, 0)
-        hl.setSpacing(4)
+        hl.setContentsMargins(8, 0, 0, 0)
+        hl.setSpacing(2)
         self.tw = _tabela_edytowalna(
             KOLUMNY_WARSTWY, okno,
             lambda r, c, t: okno.ustaw_warstwe(self.wi, KOLUMNY_WARSTWY[c][1], t),
@@ -964,10 +971,26 @@ class _GrupaWarstwy(QWidget):
             # Enter bez otwartego edytora (drugi Enter na końcu wiersza)
             self.tw.installEventFilter(self)
             self.tg.installEventFilter(self)
-        hl.addStretch(1)
         if getattr(self, '_btn_usun', None) is not None:
-            hl.addWidget(self._btn_zmien, 0, Qt.AlignTop)
-            hl.addWidget(self._btn_usun, 0, Qt.AlignTop)
+            # jeden pod drugim, tuż za tabelą gatunków - obok siebie
+            # poszerzały okno (poziomy pasek przewijania)
+            przyciski = QVBoxLayout()
+            przyciski.setContentsMargins(0, 0, 0, 0)
+            przyciski.setSpacing(2)
+            przyciski.addWidget(self._btn_zmien, 0, Qt.AlignLeft)
+            przyciski.addWidget(self._btn_usun, 0, Qt.AlignLeft)
+            przyciski.addStretch(1)
+            hl.addLayout(przyciski)
+            # przyciski poszerzone do prawej krawędzi tabeli Opis wydzielenia
+            m = hl.contentsMargins()
+            zajete = (m.left() + pelna + self.tg.width()
+                      + 2 * hl.spacing())
+            szer = max(self._btn_zmien.sizeHint().width(),
+                       self._btn_usun.sizeHint().width(),
+                       okno.t_opis.width() - zajete)
+            for b in (self._btn_zmien, self._btn_usun):
+                b.setFixedWidth(szer)
+        hl.addStretch(1)
         lay.addWidget(self.cialo)
         self.odswiez()
         self.ustaw(True)
@@ -975,11 +998,14 @@ class _GrupaWarstwy(QWidget):
     def _przycisk_zmiany(self):
         """Lista warstw, których nie ma jeszcze w wydzieleniu."""
         btn = QToolButton()
-        btn.setText('Zmień warstwę')
+        btn.setText('Zmień\nwarstwę')
         btn.setToolTip('Zmienia kod warstwy, wpisane gatunki zostają. Pola, '
                        'których nowa warstwa zabrania (np. udział w ZADRZEW), '
                        'są czyszczone. Do bazy po "Zapisz"; Ctrl+Z - cofnij.')
-        btn.setStyleSheet('QToolButton { border: none; }')
+        # padding z prawej - miejsce na strzałkę menu, żeby nie zachodziła
+        # na tekst
+        btn.setStyleSheet('QToolButton { border: none; padding: 0px; '
+                          'padding-right: 10px; }')
         btn.setPopupMode(QToolButton.InstantPopup)
         wolne = ow.wolne_warstwy(self.okno.dane['WARSTWY'])
         btn.setEnabled(bool(wolne))
@@ -1188,7 +1214,7 @@ class _GrupaWarstwy(QWidget):
 
 # kolumna z przyciskiem usunięcia wiersza gatunku (✕)
 KOLUMNA_USUN = ('', '_USUN', 'usun', None, None, 18)
-SZEROKOSC_GRUPY = (14 + sum(k[5] for k in KOLUMNY_WARSTWY)
+SZEROKOSC_GRUPY = (8 + sum(k[5] for k in KOLUMNY_WARSTWY)
                    + sum(k[5] for k in KOLUMNY_GATUNKI) + KOLUMNA_USUN[5]
                    + 4 + 4 * 2)
 
@@ -1548,7 +1574,10 @@ class OknoOpisu(QWidget):
 
         # --- wskazania + informacje różne
         dol = QHBoxLayout()
-        lewa = QVBoxLayout()
+        dol.setSpacing(6)  # jawnie - liczona niżej szerokość prawej kolumny
+        lewa_w = QWidget()
+        lewa = QVBoxLayout(lewa_w)
+        lewa.setContentsMargins(0, 0, 0, 0)
         naglowek_zab = QHBoxLayout()
         naglowek_zab.addWidget(_sekcja('Wskazania gospodarcze'))
         naglowek_zab.addStretch(1)
@@ -1600,8 +1629,12 @@ class OknoOpisu(QWidget):
         self.t_pnsw.cellClicked.connect(self._klik_pnsw)
         lewa.addWidget(self.t_pnsw)
         lewa.addStretch(1)
-        dol.addLayout(lewa)
-        prawa = QVBoxLayout()
+        dol.addWidget(lewa_w)
+        # prawa kolumna o stałej szerokości (z przycisków fraz) - pole nie
+        # rozpycha się na całą wolną szerokość okna
+        prawa_w = QWidget()
+        prawa = QVBoxLayout(prawa_w)
+        prawa.setContentsMargins(0, 0, 0, 0)
         naglowek_info = QHBoxLayout()
         naglowek_info.addWidget(_sekcja('Informacje różne'))
         self.lbl_licznik = QLabel()
@@ -1619,17 +1652,30 @@ class OknoOpisu(QWidget):
         self.btn_frazy = []
         siatka_fraz = QGridLayout()
         siatka_fraz.setSpacing(4)
-        for nr, (etykieta, fraza) in enumerate(PRESETY_INF_ROZNE):
+        for etykieta, fraza in FRAZY_INF_ROZNE:
             btn = QPushButton(etykieta)
             btn.setToolTip(f'Dopisuje do Informacji różnych: {fraza}')
             btn.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             btn.clicked.connect(
                 lambda _zazn, f=fraza: self.wstaw_fraze(f))
             self.btn_frazy.append(btn)
-            siatka_fraz.addWidget(btn, nr // 3, nr % 3)
+        # prawa krawędź równo z tabelą Opis wydzielenia; trzy kolumny
+        # przycisków, gdy najdłuższa etykieta się mieści, inaczej dwie
+        # (wtedy kolumna co najmniej na dwa przyciski)
+        sp = siatka_fraz.spacing()
+        szer_btn = max(QFontMetrics(b.font()).horizontalAdvance(b.text())
+                       for b in self.btn_frazy) + 12
+        szer_prawej = max(
+            2 * szer_btn + sp,
+            self.t_opis.width() - lewa_w.sizeHint().width() - dol.spacing())
+        kolumny = 3 if 3 * szer_btn + 2 * sp <= szer_prawej else 2
+        for nr, btn in enumerate(self.btn_frazy):
+            siatka_fraz.addWidget(btn, nr // kolumny, nr % kolumny)
         prawa.addLayout(siatka_fraz)
         prawa.addStretch(1)
-        dol.addLayout(prawa, 1)
+        prawa_w.setFixedWidth(szer_prawej)
+        dol.addWidget(prawa_w, 0, Qt.AlignTop)
+        dol.addStretch(1)
         self.lay_tresc.addLayout(dol)
         self.lay_tresc.addStretch(1)
 

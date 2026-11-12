@@ -1570,12 +1570,14 @@ class LasR:
             self.a_pokaz_lay,
             self.iface.actionVertexTool(),
             self.iface.actionSplitFeatures(),
-            self.msplit,
             self.odzn,
             self.iface.actionAddRing(),
             self.iface.actionAddFeature(),
             self.iface.actionSelectRectangle(),
         ]
+        # "Rozbij multipoligony" istnieje tylko przy zainstalowanym DigitizingTools
+        if "DigitizingTools" in plugins:
+            self.akcje_toolbar_skr.append(self.msplit)
         # self.menu.addSeparator()
         # icon_path = ':/plugins/las_r/icon.png'
         # self.add_action(
