@@ -266,7 +266,7 @@ class ListaWydzielen(QWidget):
         self.btn_nawigator = QPushButton('Załaduj do Nawigatora')
         self.btn_nawigator.setToolTip(
             'Przerzuca aktualnie widoczną listę, w tej kolejności, do '
-            'Nawigatora błędów i ustawia go na warstwę Edytora: przechodzenie '
+            'Nawigatora i ustawia go na warstwę Edytora: przechodzenie '
             'po pozycjach przełącza kartę. Wydzielenia bez poligonu są '
             'pomijane.')
         self.btn_nawigator.clicked.connect(self.zaladuj_do_nawigatora)

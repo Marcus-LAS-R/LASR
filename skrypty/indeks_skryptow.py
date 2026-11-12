@@ -30,7 +30,10 @@ INDEKS = {
     'a_opis_taks': _w(
         'edytor opis taksacyjny karta wydzielenie taksator podgląd edycja '
         'klepanie wpisywanie warstwy gatunki masa zasobność zd zadrzewienie '
-        'nowe wydzielenie przeadresowanie adres leśny F_SUBAREA'),
+        'nowe wydzielenie przeadresowanie adres leśny F_SUBAREA '
+        'raport kart do klepania karty pomiarowe numer roboczy NR_ROBO '
+        'Alt+Enter zapisz i następna',
+        dawne=['Podgląd/Edycja opisu taksacyjnego', 'Edytor']),
     'a_przebieg_prac': _w('przebieg prac panel kroki proces kolejność '
                           'przygotowanie rozliczenie aktualizacja UPUL '
                           'postęp kreator'),
@@ -155,7 +158,8 @@ INDEKS = {
                'Utwórz/edytuj warstwy do opisów']),
     'a_warstwa_opisow_glowne': _w(
         'edytor warstwy opisów opisy generyczne Klon KLON.txt punkty grupy '
-        'INNE WYL notatki opis_pkt twórz edytuj'),
+        'INNE WYL notatki opis_pkt twórz edytuj generator',
+        dawne=['Edytor warstw do opisów']),
     'a_sprawdz_polozenie_opisow': _w(
         'sprawdź cięcie starych WYDZ położenie opis_pkt opis_klon notatki '
         'adr_upul WYDZ_PKT_stare PNSW kontrola',
@@ -277,8 +281,10 @@ INDEKS = {
                        'nawigator'),
     'a_nawigator': _w('nawigator błędów raporty przeskakuj błędy mapa '
                       'waypointy kontrola kangur kangurek kangurki '
-                      'kangurkuj kangurkowanie skakanie skacz po błędach',
-                      dawne=['Kangurkuj'], dawne_id=['a_kangurkuj']),
+                      'kangurkuj kangurkowanie skakanie skacz po błędach '
+                      'klepanie karty raport do klepania',
+                      dawne=['Kangurkuj', 'Nawigator błędów'],
+                      dawne_id=['a_kangurkuj']),
 
     # --- Generuj
     'nakl': _w('naklejki etykiety wydruk teczki akta adresowe generuj'),

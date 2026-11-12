@@ -259,16 +259,18 @@ class SprawdzCiecie:
         # jest wzorcem do klepania, pozostale ida do KLON_po_klepaniu - osobno
         # dla kazdej bazy, bo Klonuj odrzuca plik z adresami spoza bazy
         wzorce = {}  # (baza, nr_robo) -> indeks wiersza wzorca w do_klepania
-        do_klepania = []  # [kolumny, ile_klonow]
+        do_klepania = []  # [kolumny, ile_klonow, adr_les]
         klony = []  # (kolumny, adr_celu, adr_wzorca, baza)
         for kolumny, adr, klonowalne in tout:
+            # ADR_LES w raporcie - Edytor opisu prowadzi po nim klepanie
+            adr_rap = adr if len(adr) > 20 else ''
             if not klonowalne:
-                do_klepania.append([kolumny, ''])
+                do_klepania.append([kolumny, '', adr_rap])
                 continue
             grupa = (adm_baza[adr[3:10]], kolumny[4])
             if grupa not in wzorce:
                 wzorce[grupa] = (len(do_klepania), adr)
-                do_klepania.append([kolumny, 0])
+                do_klepania.append([kolumny, 0, adr_rap])
                 continue
             idx, adr_wzorca = wzorce[grupa]
             do_klepania[idx][1] += 1
@@ -279,9 +281,9 @@ class SprawdzCiecie:
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = 'Raport kart'
-        ws.append(naglowki + ['ILE_KLONOW'])
-        for kolumny, ile in do_klepania:
-            ws.append(kolumny + [ile or ''])
+        ws.append(naglowki + ['ILE_KLONOW', 'ADR_LES'])
+        for kolumny, ile, adr_rap in do_klepania:
+            ws.append(kolumny + [ile or '', adr_rap])
         ws_kl = wb.create_sheet('Klony')
         ws_kl.append(naglowki + ['ADR_LES', 'ADR_WZORCA', 'BAZA'])
         for kolumny, adr, adr_wzorca, baza in klony:

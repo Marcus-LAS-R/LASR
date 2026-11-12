@@ -98,7 +98,7 @@ from PyQt5.QtWidgets import (
 )
 from .przyciski import QDialogButtonBox, QMessageBox
 from qgis.core import (
-    QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsExpression,
+    Qgis, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsExpression,
     QgsFeature, QgsFeatureRequest,
     QgsField, QgsFillSymbol, QgsGeometry, QgsProject, QgsRectangle,
     QgsVectorLayer, QgsWkbTypes,
@@ -106,6 +106,7 @@ from qgis.core import (
 from qgis.gui import QgsMapTool
 from PyQt5.QtCore import QVariant
 
+from . import klepanie, waypointy
 from . import kopie_manipulacyjne
 from . import opis_adres as oa
 from . import opis_bdl
@@ -117,7 +118,12 @@ from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 from .warstwa_opisow_dock import PRESETY_INF_ROZNE
 from .waypointy import katalog_raportow
-from .funkcje import etykiety_warstw, indeks_domyslnej
+from .funkcje import etykiety_warstw, indeks_domyslnej, katalog_startowy
+
+# obramowanie panelu (format: nazwa obiektu ramki) - półprzezroczysty szary
+# widoczny w jasnym i ciemnym motywie
+RAMKA_PANELU = ('QFrame#{0} {{ border: 1px solid rgba(128, 128, 128, 170); '
+                'border-radius: 3px; }}')
 
 SZARY = QColor(225, 225, 225)
 ZMIENIONE = QColor(214, 234, 255)   # zmienione, niezapisane
@@ -251,6 +257,14 @@ def _pusty(v):
 
 def _txt(v):
     return '' if _pusty(v) else str(v).strip()
+
+
+def skrot_klepania(event):
+    """Alt+Enter / Alt+Backspace - zapisz kartę i dalej (klepanie). Pola
+    tekstowe przejmują Alt+Backspace (cofnij w Windows) - dlatego filtry
+    odrzucają dla nich ShortcutOverride."""
+    return (event.modifiers() & ~Qt.KeypadModifier) == Qt.AltModifier and \
+        event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Backspace)
 
 
 def _fmt(v, miejsca):
@@ -640,6 +654,10 @@ class _DelegatTabeli(QStyledItemDelegate):
         sąsiednia komórka (w otwartej liście podpowiedzi ↑↓ chodzą po
         liście, ←/→ - komórki; rozwinięta pełna lista ▼/Alt+↓ - strzałki
         działają w liście); Esc - domyślnie: porzuć edycję komórki."""
+        if event.type() == QEvent.ShortcutOverride and \
+                skrot_klepania(event):
+            event.ignore()  # skrót karty (zapisz i dalej), nie pola
+            return True
         if self.po_strzalce is not None and event.type() == QEvent.KeyPress \
                 and event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right) \
                 and not event.modifiers() & Qt.AltModifier:
@@ -662,7 +680,8 @@ class _DelegatTabeli(QStyledItemDelegate):
             return True
         enter = self.po_enter is not None and \
             event.type() == QEvent.KeyPress and \
-            event.key() in (Qt.Key_Return, Qt.Key_Enter)
+            event.key() in (Qt.Key_Return, Qt.Key_Enter) and \
+            not skrot_klepania(event)
         if editor.property('edytor_komorki') is not None:
             # pole tekstowe / lista podpowiedzi to NIE edytor komórki - inne
             # klawisze (Esc, Tab) obsługuje sam edytor (lista); Enter od
@@ -1704,7 +1723,16 @@ class OknoOpisu(QWidget):
                   context=Qt.WidgetWithChildrenShortcut)
         QShortcut(QKeySequence('Ctrl+Y'), self, self.ponow_krok,
                   context=Qt.WidgetWithChildrenShortcut)
+        # klepanie z raportu: zapisz i następna / poprzednia karta
+        for klawisze, kierunek in (('Alt+Return', 1), ('Alt+Enter', 1),
+                                   ('Alt+Backspace', -1)):
+            QShortcut(QKeySequence(klawisze), self,
+                      lambda k=kierunek: self.zapisz_i_dalej(k),
+                      context=Qt.WidgetWithChildrenShortcut)
         self.info.installEventFilter(self)
+        for pole in self.findChildren((QLineEdit, QPlainTextEdit)):
+            if pole is not self.info:
+                pole.installEventFilter(self)
 
         szer_okna = max(
             self.t_opis.width(), SZEROKOSC_GRUPY,
@@ -2304,6 +2332,10 @@ class OknoOpisu(QWidget):
         super().keyPressEvent(event)
 
     def eventFilter(self, obiekt, event):
+        if event.type() == QEvent.ShortcutOverride and \
+                skrot_klepania(event):
+            event.ignore()  # Alt+Backspace w polu tekstowym to nie "cofnij"
+            return True
         if obiekt is getattr(self, 'info', None):
             if event.type() == QEvent.FocusOut:
                 self._info_krok = False
@@ -3890,6 +3922,43 @@ class OknoOpisu(QWidget):
             f'Rozliczono wydzielenia: {len(plan.zmiany)}. Przed oddaniem '
             'potrzebne jest pełne rozliczenie.')
 
+    def _zatwierdz_komorke(self):
+        """Otwarta komórka tabeli - zatwierdzona jak Enterem (także
+        podpowiedź bonitacji), żeby wpisana wartość trafiła do zapisu."""
+        w = QApplication.focusWidget()
+        if w is None:
+            return
+        ed = w.property('edytor_komorki') or w
+        t = ed.parentWidget()
+        while t is not None and not isinstance(t, QAbstractItemView):
+            t = t.parentWidget()
+        if t is None or not self.isAncestorOf(t) or \
+                t.state() != QAbstractItemView.EditingState:
+            return
+        deleg = t.itemDelegate()
+        if not isinstance(deleg, _DelegatTabeli):
+            return
+        ed.setProperty('enter', True)
+        deleg.commitData.emit(ed)
+        deleg.closeEditor.emit(ed, QAbstractItemDelegate.NoHint)
+
+    def zapisz_i_dalej(self, kierunek):
+        """Alt+Enter (1) / Alt+Backspace (-1): zapisz kartę i przejdź w
+        Nawigatorze do następnej / poprzedniej karty raportu do klepania.
+        Błędy w opisie - zapis odrzucony, zostajemy na karcie."""
+        self._zatwierdz_komorke()
+        # zmiana z komórki trafia do danych odroczona (callback delegata) -
+        # zapis po niej
+        QTimer.singleShot(0, lambda: self._zapisz_i_dalej(kierunek))
+
+    def _zapisz_i_dalej(self, kierunek):
+        if sip.isdeleted(self):
+            return
+        adr = self.adr or ''
+        if self.dane is not None and not self.zapisz():
+            return
+        self.panel.krokKlepania.emit(kierunek, adr)
+
     def _przeladuj(self):
         """Karta od nowa ze stanu bazy."""
         wynik = self._wczytaj(self.aint)
@@ -3964,6 +4033,8 @@ class PanelOpisu(QDockWidget):
     # "Załaduj do Nawigatora" z listy wydzieleń: ścieżka pliku + warstwa,
     # na którą Nawigator ma się ustawić
     listaDoNawigatora = pyqtSignal(str, object)
+    # klepanie: karta zapisana skrótem - (kierunek 1/-1, ADR_LES karty)
+    krokKlepania = pyqtSignal(int, str)
 
     def __init__(self, iface):
         super().__init__(self.TYTUL, iface.mainWindow())
@@ -4010,7 +4081,12 @@ class PanelOpisu(QDockWidget):
         return linia
 
     def _zbuduj(self):
-        w = QWidget()
+        # ramka - granica panelu widoczna przy sąsiednich panelach (także
+        # w ciemnym motywie); selektor po nazwie, żeby nie dziedziczyły jej
+        # ramki elementów w środku
+        w = QFrame()
+        w.setObjectName('ramkaPaneluOpisu')
+        w.setStyleSheet(RAMKA_PANELU.format('ramkaPaneluOpisu'))
         lay = QVBoxLayout(w)
         lay.setContentsMargins(6, 6, 6, 6)
 
@@ -4059,6 +4135,16 @@ class PanelOpisu(QDockWidget):
         self.btn_lista.clicked.connect(self.pokaz_liste)
         lay.addWidget(self.btn_lista)
 
+        self.btn_klepanie = QPushButton('Wczytaj raport\ndo klepania...')
+        self.btn_klepanie.setToolTip(
+            'Raport kart do klepania (raport_nr_robocze.xlsx) do Nawigatora: '
+            'karty po kolei (kod taksatora, numer), każda otwiera swoje '
+            'wydzielenie w karcie opisu.\n'
+            'Alt+Enter - zapisz i następna karta, Alt+Backspace - zapisz i '
+            'poprzednia. Postęp zapamiętany obok raportu - ponowne wczytanie '
+            'wraca do pierwszej niewklepanej karty.')
+        self.btn_klepanie.clicked.connect(self.wczytaj_raport_klepania)
+
         # dwa przyciski po pół szerokości, tekst w dwóch liniach - wąski
         # panel nie obetnie napisu
         wiersz = QHBoxLayout()
@@ -4076,13 +4162,17 @@ class PanelOpisu(QDockWidget):
             wiersz.addWidget(btn, 1)
         lay.addLayout(wiersz)
 
-        self.btn_kopia = QPushButton('Zapisz kopię bazy')
+        self.btn_kopia = QPushButton('Zapisz kopię\nbazy')
         self.btn_kopia.setToolTip(
             'Kopia bazy i plików warstwy wydzieleń do Kopie_manipulacyjne '
             f'(zostaje {ILE_KOPII} ostatnich kopii Edytora i pierwsze kopie '
             f'{ILE_KOPII_PIERWOTNYCH} ostatnich sesji)')
         self.btn_kopia.clicked.connect(self.zrob_kopie)
-        lay.addWidget(self.btn_kopia)
+        wiersz = QHBoxLayout()
+        for btn in (self.btn_klepanie, self.btn_kopia):
+            btn.setMinimumHeight(44)
+            wiersz.addWidget(btn, 1)
+        lay.addLayout(wiersz)
 
         # miejsce na kolejne funkcje panelu
         self.lay_dodatki = QVBoxLayout()
@@ -4162,6 +4252,7 @@ class PanelOpisu(QDockWidget):
         self.btn_szczegoly.setEnabled(pol)
         self.btn_nowe.setEnabled(pol and not self.tylko_odczyt)
         self.btn_lista.setEnabled(pol)
+        self.btn_klepanie.setEnabled(pol)
         self.btn_podglad.setEnabled(pol)
         if not pol and self.btn_podglad.isChecked():
             self.btn_podglad.setChecked(False)
@@ -4805,6 +4896,85 @@ class PanelOpisu(QDockWidget):
             else:
                 self.lyr.removeSelection()
             self.karta.wczytaj_adres(adr)
+
+    # ------------------------------------------------- klepanie z raportu
+
+    def wczytaj_raport_klepania(self):
+        """Raport kart do klepania -> plik postępu obok raportu -> Nawigator
+        (ustawiony na warstwę Edytora)."""
+        if not self.polaczona():
+            return
+        sc = QFileDialog.getOpenFileName(
+            self, 'Wskaż raport kart do klepania',
+            katalog_startowy(self.baza_sc), 'Raport kart (*.xlsx)')[0]
+        if not sc:
+            return
+        try:
+            karty = klepanie.czytaj_raport(sc)
+        except Exception as e:
+            QMessageBox.warning(self, 'Raport do klepania',
+                                f'Nie udało się wczytać raportu:\n{e}')
+            return
+        karty, bez_adresu = klepanie.dopasuj_adresy(
+            karty, self.poligony_adresow())
+        if not karty:
+            QMessageBox.warning(
+                self, 'Raport do klepania',
+                'W raporcie nie ma kart z adresem wydzielenia warstwy '
+                f'{self.lyr.name()}.')
+            return
+        w_bazie = {_txt(a) for a in self.wydz}
+        poza = [k for k in karty if _txt(k['adr']) not in w_bazie]
+        if len(poza) == len(karty):
+            QMessageBox.warning(
+                self, 'Raport do klepania',
+                'Żadne wydzielenie z raportu nie ma opisu w podłączonej '
+                f'bazie {os.path.basename(self.baza_sc)} - raport z innej '
+                'bazy?')
+            return
+        sciezka = klepanie.sciezka_postepu(sc)
+        stare = []
+        if os.path.isfile(sciezka):
+            try:
+                stare = waypointy.wczytaj(sciezka)
+            except Exception:
+                stare = []
+        wiersze = klepanie.wiersze_waypointow(karty, stare)
+        try:
+            waypointy.zapisz(sciezka, wiersze)
+        except Exception as e:
+            QMessageBox.warning(self, 'Raport do klepania',
+                                f'Nie udało się zapisać pliku postępu:\n{e}')
+            return
+        self.listaDoNawigatora.emit(sciezka, self.lyr)
+        zrobione = sum(1 for w in wiersze
+                       if w['status'] == klepanie.STATUS_ZROBIONE)
+        tekst = (f'Karty do klepania: {len(wiersze)} (wklepane: {zrobione}). '
+                 'Alt+Enter - zapisz i następna, Alt+Backspace - zapisz i '
+                 'poprzednia.')
+        if bez_adresu:
+            tekst += (f' Pominięto {len(bez_adresu)} kart bez adresu na '
+                      'warstwie: ' +
+                      ', '.join(k['nr'] for k in bez_adresu[:10]) +
+                      (' ...' if len(bez_adresu) > 10 else ''))
+        if poza:
+            tekst += (f' {len(poza)} wydz. bez opisu w bazie: ' +
+                      ', '.join(k['nr'] for k in poza[:10]) +
+                      (' ...' if len(poza) > 10 else ''))
+        self.iface.messageBar().pushMessage(
+            'Edytor opisu', tekst,
+            Qgis.Warning if bez_adresu or poza else Qgis.Info, 10)
+
+    def pokaz_do_klepania(self, adr):
+        """Nawigator (klepanie): wydzielenie karty w karcie opisu, przed
+        zaznaczeniem poligonu. False - karta została przy niezapisanych
+        zmianach."""
+        if not self.polaczona():
+            return True
+        self.pokaz_karte()
+        if not self._karta_otwarta():
+            return True
+        return self.karta.wczytaj_adres(_txt(adr))
 
     def nowe_wydzielenie(self):
         """Karta nowego wydzielenia (zapis po "Zapisz" w karcie)."""

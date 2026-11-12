@@ -8,7 +8,7 @@ całą warstwę, nawigator idzie po gotowej liście kluczy z pliku waypointów.
 """
 from datetime import datetime
 
-from qgis.PyQt.QtCore import QSettings, Qt
+from qgis.PyQt.QtCore import QSettings, Qt, pyqtSignal
 from qgis.PyQt.QtGui import QKeySequence
 import os
 import re
@@ -27,7 +27,7 @@ from qgis.core import (
 )
 from qgis.gui import QgsMapLayerComboBox
 
-from . import waypointy
+from . import klepanie, waypointy
 from .funkcje import (
     katalog_startowy, obiekt_warstwy, warstwy_o_nazwie, domyslna_warstwa,
 )
@@ -47,7 +47,10 @@ LICZBA_MIGNIEC = 2  # QGIS domyślnie 3
 
 class NawigatorDock(QDockWidget):
 
-    tytul = 'Nawigator błędów'
+    tytul = 'Nawigator'
+
+    # klepanie z raportu: wszystkie karty wklepane (ścieżka pliku postępu)
+    klepanieZakonczone = pyqtSignal(str)
 
     def __init__(self, iface, parent=None):
         super().__init__(parent)
@@ -59,6 +62,9 @@ class NawigatorDock(QDockWidget):
         self.wiersze = []   # wszystkie wczytane wiersze (wszystkie sekcje)
         self.sciezka = None  # ścieżka do wczytanego pliku CSV
         self.pozycja = -1    # indeks w obrębie bieżącej sekcji
+        # klepanie: pokaz_w_edytorze(adr) -> False, gdy karta Edytora
+        # została przy niezapisanych zmianach (ustawia las_r)
+        self.pokaz_w_edytorze = None
 
         self._zbuduj_ui()
         self._rejestruj_skroty()
@@ -66,7 +72,14 @@ class NawigatorDock(QDockWidget):
     # ------------------------------------------------------------ UI ----
 
     def _zbuduj_ui(self):
-        glowny = QWidget(self)
+        # ramka - granica panelu widoczna przy sąsiednich panelach (także
+        # w ciemnym motywie); selektor po nazwie - nie dziedziczą jej ramki
+        # elementów w środku
+        glowny = QFrame(self)
+        glowny.setObjectName('ramkaNawigatora')
+        glowny.setStyleSheet(
+            'QFrame#ramkaNawigatora { border: 1px solid '
+            'rgba(128, 128, 128, 170); border-radius: 3px; }')
         self.setWidget(glowny)
         lay = QVBoxLayout(glowny)
 
@@ -137,7 +150,8 @@ class NawigatorDock(QDockWidget):
         # " | " z liczbą na początku, pełna lista w dymku po najechaniu
         self.txt_blad = QLineEdit()
         self.txt_blad.setReadOnly(True)
-        lay_info.addRow(QLabel('Błąd:'), self.txt_blad)
+        self.lbl_blad = QLabel('Błąd:')
+        lay_info.addRow(self.lbl_blad, self.txt_blad)
 
         # szczegóły (wartości, powierzchnie) w dymku po przytrzymaniu "i" -
         # przycisk w linii "Pozycja", przy prawej krawędzi
@@ -194,7 +208,7 @@ class NawigatorDock(QDockWidget):
             'kluczem - przydatne zwłaszcza przy kilku obiektach naraz '
             '(np. ZDUBLOWANE LANDID), żeby od razu widzieć, które to.')
 
-        self.chk_mignij = QCheckBox('Mignij obiektem')
+        self.chk_mignij = QCheckBox('Mrugacz')
         self.chk_mignij.setChecked(
             QSettings().value(KLUCZ_MIGNIJ, True, type=bool))
         self.chk_mignij.setToolTip(
@@ -233,19 +247,19 @@ class NawigatorDock(QDockWidget):
 
     def _rejestruj_skroty(self):
         self.akcja_next = QAction(
-            'Nawigator błędów: następny', self.iface.mainWindow())
+            'Nawigator: następny', self.iface.mainWindow())
         self.akcja_next.setShortcut(QKeySequence(Qt.Key_F8))
         self.akcja_next.triggered.connect(self.nastepny)
         self.iface.registerMainWindowAction(self.akcja_next, 'F8')
 
         self.akcja_prev = QAction(
-            'Nawigator błędów: poprzedni', self.iface.mainWindow())
+            'Nawigator: poprzedni', self.iface.mainWindow())
         self.akcja_prev.setShortcut(QKeySequence(Qt.Key_F7))
         self.akcja_prev.triggered.connect(self.poprzedni)
         self.iface.registerMainWindowAction(self.akcja_prev, 'F7')
 
         self.akcja_oznacz = QAction(
-            'Nawigator błędów: oznacz i dalej', self.iface.mainWindow())
+            'Nawigator: oznacz i dalej', self.iface.mainWindow())
         self.akcja_oznacz.setShortcut(QKeySequence(Qt.Key_F9))
         self.akcja_oznacz.triggered.connect(self.oznacz_i_dalej)
         self.iface.registerMainWindowAction(self.akcja_oznacz, 'F9')
@@ -423,8 +437,54 @@ class NawigatorDock(QDockWidget):
         wiersze = self._wiersze_sekcji()
         if len(wiersze) == 0:
             return
+        stara = self.pozycja
         self.pozycja = max(0, min(self.pozycja + kierunek, len(wiersze) - 1))
+        if self._pokaz_biezacy() is False:
+            # karta Edytora została przy niezapisanych zmianach
+            self.pozycja = stara
+            self._pokaz_biezacy()
+
+    def _klepanie(self):
+        wiersze = self._wiersze_sekcji()
+        return bool(wiersze) and wiersze[0]['zrodlo'] == klepanie.ZRODLO
+
+    def krok_klepania(self, kierunek, adr):
+        """Po zapisie karty w Edytorze (Alt+Enter: kierunek 1, Alt+Backspace:
+        -1): bieżąca karta - wklepana (gdy to jej wydzielenie), dalej
+        następna niewklepana (po końcu listy - pominięte od początku) albo
+        poprzednia. Wszystkie wklepane - sygnał klepanieZakonczone."""
+        if not self._klepanie() or self.pozycja < 0:
+            self.iface.messageBar().pushMessage(
+                'Edytor opisu',
+                'Zapisano. Przejście do następnej karty działa po "Wczytaj '
+                'raport do klepania..." w panelu Edytora.', Qgis.Info, 5)
+            return
+        self.show()
+        wiersze = self._wiersze_sekcji()
+        biez = wiersze[self.pozycja]
+        if klepanie.bez_spacji(biez['klucz']) == klepanie.bez_spacji(adr)                 and biez['status'] != STATUS_ZROBIONE:
+            biez['status'] = STATUS_ZROBIONE
+            biez['data_oznaczenia'] =                 datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self._zapisz()
+        if kierunek < 0:
+            self.pozycja = max(0, self.pozycja - 1)
+            self._pokaz_biezacy()
+            return
+        n = len(wiersze)
+        dalej = [i for i in range(self.pozycja + 1, n)
+                 if wiersze[i]['status'] != STATUS_ZROBIONE]
+        pominiete = [i for i in range(0, self.pozycja + 1)
+                     if wiersze[i]['status'] != STATUS_ZROBIONE]
+        if dalej or pominiete:
+            self.pozycja = (dalej or pominiete)[0]
+            self._pokaz_biezacy()
+            if not dalej:
+                self.iface.messageBar().pushMessage(
+                    self.tytul, 'Koniec listy - wracam do pominiętych kart '
+                    f'({len(pominiete)}).', Qgis.Info, 5)
+            return
         self._pokaz_biezacy()
+        self.klepanieZakonczone.emit(self.sciezka or '')
 
     def oznacz_i_dalej(self):
         wiersze = self._wiersze_sekcji()
@@ -472,6 +532,7 @@ class NawigatorDock(QDockWidget):
         wiersze = self._wiersze_sekcji()
         n = len(wiersze)
 
+        self.lbl_blad.setText('Uwagi:' if self._klepanie() else 'Błąd:')
         if n == 0 or self.pozycja < 0:
             self.txt_obiekt.setText('-')
             self.txt_blad.setText('')
@@ -514,8 +575,9 @@ class NawigatorDock(QDockWidget):
         self.txt_kopiuj.setText(do_skopiowania)
         self.btn_kopiuj.setEnabled(bool(do_skopiowania))
 
-        self._pokaz_na_mapie(wiersz, cichy=cichy)
+        wynik = self._pokaz_na_mapie(wiersz, cichy=cichy)
         self._ustaw_stan_przyciskow()
+        return wynik
 
     def _ustaw_stan_przyciskow(self):
         n = len(self._wiersze_sekcji())
@@ -533,6 +595,8 @@ class NawigatorDock(QDockWidget):
         if wiersz['typ_klucza'] == waypointy.TYP_XY:
             self._pokaz_xy(wiersz)
             return
+        if wiersz['zrodlo'] == klepanie.ZRODLO and                 self.pokaz_w_edytorze is not None and                 not self.pokaz_w_edytorze(wiersz['klucz']):
+            return False
         if wiersz['typ_klucza'] == 'LANDID':
             warstwa = self.cbo_ls.currentLayer()
             pole = 'LANDID'

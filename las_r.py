@@ -66,6 +66,7 @@ from .skrypty import (
     baza_dopisz_pnsw,
     baza_klonuj_wydz,
     nawigator_dock,
+    klepanie,
     warstwa_opisow_dock,
     baza_dopisz_opisy_taks,
     shp_atlasuj,
@@ -346,8 +347,7 @@ class LasR:
         self.a_przebieg_prac.triggered.connect(self.pokaz_przebieg_prac)
 
         self.a_opis_taks = QAction(
-            QIcon(None), "Podgląd/Edycja opisu taksacyjnego",
-            self.iface.mainWindow()
+            QIcon(None), "Edytor opisów", self.iface.mainWindow()
         )
         self.a_opis_taks.setToolTip(
             "Karta opisu taksacyjnego zaznaczonego wydzielenia (układ jak w "
@@ -355,6 +355,17 @@ class LasR:
             "informacji różnych, wpisywanie kodami albo numerami.")
         self.menu.addAction(self.a_opis_taks)
         self.a_opis_taks.triggered.connect(self.opis_taksacyjny)
+
+        self.a_nawigator = QAction(
+            QIcon(None), "Nawigator", self.iface.mainWindow()
+        )
+        self.a_nawigator.setToolTip(
+            "Otwiera panel do przeskakiwania na mapie po pozycjach z pliku "
+            "waypointów: błędach z raportów kontrolnych (Kontrola Ls, "
+            "Kontrola słownikowa SULMN), liście wydzieleń i kartach "
+            "z raportu do klepania (Edytor opisów).")
+        self.menu.addAction(self.a_nawigator)
+        self.a_nawigator.triggered.connect(self.pokaz_nawigator)
 
         for m in (
             self.menu, self.m_przyg_danych, self.m_rozlicz_pow,
@@ -801,7 +812,7 @@ class LasR:
         # to samo narzędzie w menu głównym, pod Edytorem opisu taksacyjnego
         # (w tej chwili ostatnia pozycja menu głównego)
         self.a_warstwa_opisow_glowne = QAction(
-            QIcon(None), "Edytor warstw do opisów", self.iface.mainWindow()
+            QIcon(None), "Generator opisów", self.iface.mainWindow()
         )
         self.a_warstwa_opisow_glowne.setToolTip(tip_warstwa_opisow)
         self.menu.addAction(self.a_warstwa_opisow_glowne)
@@ -858,7 +869,7 @@ class LasR:
             "grupą w grafice (WYDZ z nowej ewidencji). Najpierw sprawdza, "
             "czy każde wydzielenie leży na jednej grupie LS - jeśli nie, "
             "przerywa. Potem pyta, czy przemianować adresy w bazie na "
-            "grupę z grafiki. Wyniki w Nawigatorze błędów.")
+            "grupę z grafiki. Wyniki w Nawigatorze.")
         self.m_aktualizacja_upul.addAction(self.a_sprawdz_grupe)
         self.a_sprawdz_grupe.triggered.connect(self.sprawdz_grupe)
 
@@ -1318,16 +1329,6 @@ class LasR:
         self.m_narzedzia.addAction(self.a_puste_wydz)
         self.a_puste_wydz.triggered.connect(self.pokaz_puste_wydzielenia)
 
-        self.a_nawigator = QAction(
-            QIcon(None), "Nawigator błędów", self.iface.mainWindow()
-        )
-        self.a_nawigator.setToolTip(
-            "Otwiera panel do przeskakiwania na mapie po błędach z raportów "
-            "kontrolnych (Kontrola Ls, Kontrola słownikowa SULMN) zapisanych "
-            "jako plik waypointów.")
-        self.m_narzedzia.addAction(self.a_nawigator)
-        self.a_nawigator.triggered.connect(self.pokaz_nawigator)
-
         self.nakl = QAction(QIcon(None), "Generuj naklejki", self.iface.mainWindow())
         self.nakl.setToolTip(
             "Tworzy do wydruku naklejki adresowe na akta/teczki wydzieleń.")
@@ -1599,6 +1600,13 @@ class LasR:
         self.dockOpisTaks.waypointyGotowe.connect(self.wczytaj_do_nawigatora)
         self.dockOpisTaks.listaDoNawigatora.connect(
             self.wczytaj_liste_do_nawigatora)
+        # klepanie z raportu: Nawigator otwiera wydzielenie karty w Edytorze,
+        # Alt+Enter / Alt+Backspace w karcie przesuwa Nawigatora
+        self.dockNawigator.pokaz_w_edytorze = \
+            self.dockOpisTaks.pokaz_do_klepania
+        self.dockOpisTaks.krokKlepania.connect(
+            self.dockNawigator.krok_klepania)
+        self.dockNawigator.klepanieZakonczone.connect(self.koniec_klepania)
         # QGIS po starcie odtwarza zapamiętaną widoczność paneli (także
         # naszego) - Edytor ma zawsze startować ukryty, otwierany z menu
         self.iface.initializationCompleted.connect(self._schowaj_panel_opisu)
@@ -1788,6 +1796,40 @@ class LasR:
         Edytora, żeby przechodzenie przełączało kartę."""
         self.dockNawigator.ustaw_wydzielenia(warstwa)
         self.wczytaj_do_nawigatora(waypointy_sc)
+
+    def koniec_klepania(self, sciezka_postepu):
+        """Wszystkie karty z raportu wklepane - propozycja klonowania z
+        KLON_po_klepaniu*.txt obok raportu (Klonuj nie połączy się z bazą
+        podłączoną do Edytora - najpierw rozłączenie)."""
+        from .skrypty.przyciski import QMessageBox
+        okno = self.iface.mainWindow()
+        kat = os.path.dirname(sciezka_postepu) if sciezka_postepu else ''
+        pliki = klepanie.pliki_klonow(kat) if kat else []
+        if not pliki:
+            QMessageBox.information(okno, 'Klepanie',
+                                    'Wszystkie karty z raportu wklepane.')
+            return
+        nazwy = '\n'.join(os.path.basename(x) for x in pliki)
+        if QMessageBox.question(
+                okno, 'Klepanie',
+                'Wszystkie karty z raportu wklepane.\n\n'
+                f'Obok raportu są wydzielenia do sklonowania:\n{nazwy}\n\n'
+                'Rozłączyć Edytor opisu i otworzyć "Klonuj opisy '
+                'wydzieleń" z tym plikiem?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes) != QMessageBox.Yes:
+            return
+        baza_sc = self.dockOpisTaks.baza_sc or ''
+        if self.dockOpisTaks.polaczona() and \
+                self.dockOpisTaks.rozlacz() is False:
+            return
+        dock = self.dockWidget
+        dock.radioButton_k.setChecked(True)
+        dock.lineEdit_baza.setText(baza_sc)
+        dock.lineEdit_plik.setText(pliki[0])
+        dock.kat = kat
+        dock.show()
+        dock.raise_()
 
     def przygotuj_ls_na_chama(self):
         spr = przygotuj_ls_na_chama.PrzygotujLsNaChama(self.iface)

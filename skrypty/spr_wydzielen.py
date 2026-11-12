@@ -176,7 +176,7 @@ class KontrolaWydzielen(SprawdzWydzielenia):
                 znacznik() + '.csv')
             waypointy.zapisz(self.waypointy_sc, zbierz_waypointy(
                 {'bez_opisu': [], 'pusty_opis': puste}))
-            wyps += 'Waypointy (Nawigator błędów): ' + self.waypointy_sc + '\n'
+            wyps += 'Waypointy (Nawigator): ' + self.waypointy_sc + '\n'
         else:
             wyps += 'Brak pustych wydzieleń - OK\n'
         if wynik['pusty_bez_poligonu']:
