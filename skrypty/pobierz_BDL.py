@@ -346,6 +346,9 @@ class _Dialog(QDialog):
     def folder(self):
         return self.ui.lineEdit_folder.text().strip()
 
+    def opisy(self):
+        return self.ui.checkBox_opisy.isChecked()
+
 
 def uruchom(iface):
     """ Pokazuje dialog wyboru warstwy zasiegu (OBR/GMIN), rozmiaru oczka
@@ -363,10 +366,11 @@ def uruchom(iface):
             10)
         return False
 
-    return PobierzBDL(iface, lyr, rozmiar=dlg.rozmiar(), folder=dlg.folder())
+    return PobierzBDL(iface, lyr, rozmiar=dlg.rozmiar(), folder=dlg.folder(),
+                      opisy=dlg.opisy())
 
 
-def PobierzBDL(iface, lyr, rozmiar=2000, folder=None):  # noqa
+def PobierzBDL(iface, lyr, rozmiar=2000, folder=None, opisy=True):  # noqa
     """ Sciaga z Banku Danych o Lasach (bdl.lasy.gov.pl) geometrie i opisy
     taksacyjne wydzielen przecinajacych sie z warstwa `lyr` (OBR lub GMIN,
     musi byc w EPSG:2180). Dzieli zasieg na siatke o boku `rozmiar` metrow
@@ -375,7 +379,8 @@ def PobierzBDL(iface, lyr, rozmiar=2000, folder=None):  # noqa
     folderu wyjsciowego: SHP/wszystko_BDL.shp (EPSG:2180, UTF-8) + po
     jednym XLSX na kazda kategorie opisu (headerLNP, generalData,
     generalData2, layer, layerSpecies, arodCues) - gotowe do
-    zaimportowania do bazy. """
+    zaimportowania do bazy. Przy opisy=False pobierana jest tylko
+    grafika (SHP), bez XLSX. """
     QgsMessageLog.logMessage(
         '------ ŚCIĄGNIJ DANE Z BDL --------- ',
         'Las-R',
@@ -477,22 +482,23 @@ def PobierzBDL(iface, lyr, rozmiar=2000, folder=None):  # noqa
         iface.messageBar().pushMessage(
             'PRZERWANO',
             'Pobrano geometrie dla ' + str(polaczona.featureCount()) +
-            ' wydzieleń przed przerwaniem - opisy (XLSX) NIE zostały '
-            'pobrane',
+            ' wydzieleń przed przerwaniem' +
+            (' - opisy (XLSX) NIE zostały pobrane' if opisy else ''),
             Qgis.Warning,
             10)
         QgsMessageLog.logMessage(
             '------ KONIEC (przerwano) -------- \n', 'Las-R', Qgis.Info)
         return True
 
-    wyniki = _pobierz_opisy(polaczona, _postep)
-    _zapisz_xlsx(wyniki, folder)
+    if opisy:
+        wyniki = _pobierz_opisy(polaczona, _postep)
+        _zapisz_xlsx(wyniki, folder)
     progress.close()
 
     iface.messageBar().pushMessage(
         'OK',
         'Pobrano ' + str(polaczona.featureCount()) + ' wydzieleń z BDL do ' +
-        folder,
+        folder + ('' if opisy else ' (tylko grafika, bez opisów)'),
         Qgis.Success,
         10)
     QgsMessageLog.logMessage('------ KONIEC -------- \n', 'Las-R', Qgis.Info)
