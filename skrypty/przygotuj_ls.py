@@ -17,6 +17,7 @@ from .funkcje import usun_wasy, isNone, wyczysc_katalog_temp
 from .funkcje import katalog_startowy
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
+from . import waypointy
 # import processing  # import przeniesiony do metody - pytest probemy!
 # import subprocess  # import niezbedny przy wysietleniu raportu na maszynach
 #                      bez windowsa
@@ -2097,6 +2098,25 @@ class GenerujRaport():
         self.policz_podm_ls()
         self.zestaw_liste_bez_uzytkow()
         self.zestaw_liste_ls_poza_baza()
+        self.uszereguj()
+
+    def uszereguj(self):
+        """Wszystkie listy raportu (i waypointów) naturalnie po PARCELID /
+        LANDID (LANDID = PARCELID + '.' + AU+SQ, więc po LANDID to po
+        działce, a w niej po użytku)."""
+        nat = waypointy.klucz_naturalny
+        pierwszy = lambda x: nat(x[0])  # noqa: E731
+        self.bledne = sorted(self.bledne, key=nat)
+        self.ls_poza_baza.sort(key=nat)
+        self.brakujace_ls_w_shp.sort(key=pierwszy)
+        self.brakujace_ls_w_bazie.sort(key=pierwszy)
+        self.pow_zerowe_baza.sort(key=nat)
+        self.lista_mikro.sort(key=nat)
+        self.lista_zm_sq.sort(key=pierwszy)
+        self.lista_zm_au.sort(key=pierwszy)
+        self.lista_bez_uzytkow.sort(key=nat)
+        self.lista_podm_ls.sort(key=lambda x: nat(x.pid))
+        self.rozb_pow.sort(key=pierwszy)
 
     def zestaw_uzytki(self):
         for ob in self.s.values():
@@ -2303,7 +2323,8 @@ class GenerujRaport():
             self.wypis += '---POWÓJNE LS [BAZA]----------\n'
             self.wypis += 'Podwójne Ls-y: ' + \
                 str(len(self.p.ls_podwojne)) + '\n\n'
-            sort_temp = sorted(self.p.ls_podwojne)
+            sort_temp = sorted(self.p.ls_podwojne,
+                               key=waypointy.klucz_naturalny)
             self.wypis += '\n'.join(sort_temp)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -2311,14 +2332,12 @@ class GenerujRaport():
             self.wypis += '---BRAKUJĄCE LSy [W SHP]----------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_shp)) + '\n\n'
-            sort_temp = sorted(self.brakujace_ls_w_shp, key=lambda x: x[0])
             self.wypis += '\n'.join([
                 '\t'.join(
                     [x[0],
                      str(x[1]),
                      '.'.join(x[0].split('.')[:-1]),
-                     ]) for x in
-                sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+                     ]) for x in self.brakujace_ls_w_shp
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -2332,9 +2351,7 @@ class GenerujRaport():
                     x[0],
                     str(x[1]),
                     '.'.join(x[0].split('.')[:-1]),
-                ]) for x in
-                # sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
-                self.brakujace_ls_w_bazie
+                ]) for x in self.brakujace_ls_w_bazie
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -2342,16 +2359,14 @@ class GenerujRaport():
             self.wypis += '---DZIALKI BEZ UŻYTKÓW------------\n'
             self.wypis += 'Dzialki z brakujacymi Ls-ami: ' + \
                 str(len(self.lista_bez_uzytkow)) + '\n\n'
-            self.wypis += '\n'.join([x for x in
-                                     sorted(self.lista_bez_uzytkow)])
+            self.wypis += '\n'.join(self.lista_bez_uzytkow)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if self.ile_podm_ls > 0:
             self.wypis += '---DZIALKI Z PODMIENIONYMI LSami--\n'
             self.wypis += 'Dzialki z zastąpionymi Ls-ami: ' + \
                 str(self.ile_podm_ls) + '\n\n'
-            self.wypis += '\n'.join(sorted(
-                x.pid for x in self.lista_podm_ls))
+            self.wypis += '\n'.join(x.pid for x in self.lista_podm_ls)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if len(self.lista_zm_sq) > 0:
@@ -2360,8 +2375,7 @@ class GenerujRaport():
                 str(len(self.lista_zm_sq)) + '\n\n'
             self.wypis += 'landid\tstary sq\tnowy sq\tpow.rej.\tpow.graf.\n'
             self.wypis += '\n'.join([
-                '\t'.join(x) for x in
-                sorted(self.lista_zm_sq, key=lambda x: x[0])
+                '\t'.join(x) for x in self.lista_zm_sq
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -2371,8 +2385,7 @@ class GenerujRaport():
                 str(len(self.lista_zm_au)) + '\n\n'
             self.wypis += 'landid\tstary aU\tnowy au\tpow.rej.\tpow.graf.\n'
             self.wypis += '\n'.join([
-                '\t'.join(x) for x in
-                sorted(self.lista_zm_au, key=lambda x: x[0])
+                '\t'.join(x) for x in self.lista_zm_au
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -2396,14 +2409,11 @@ class GenerujRaport():
                 str(len(self.rozb_pow)) + '\n\n'
             self.wypis += 'adr_adm\tpow_graf\tpow_rej\troznica\n'
 
-            # na zlecenie wiceprezesa Marka
+            # roznica ze znakiem (na zlecenie wiceprezesa Marka); kolejnosc
+            # po LANDID jak w pozostalych sekcjach (uszereguj)
             try:
-                rr = sorted([x + [
-                    dodaj_plus(round(x[1]-x[2], 4)),
-                    round(abs(x[1] - x[2]), 4)]
-                    for x in self.rozb_pow
-                ],
-                    reverse=True, key=lambda x: x[4])
+                rr = [x + [dodaj_plus(round(x[1]-x[2], 4))]
+                      for x in self.rozb_pow]
                 self.wypis += '\n'.join(["\t".join(map(str, x[:4]))
                                          for x in rr])
             except Exception:

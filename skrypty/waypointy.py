@@ -8,6 +8,7 @@ przeglądanie i wrócić do niego później.
 """
 import csv
 import os
+import re
 import tempfile
 
 NAGLOWEK = [
@@ -79,10 +80,40 @@ def rozbij_klucz_xy(klucz):
     return (crs, liczby) if len(liczby) == 4 else None
 
 
-def zapisz(sciezka, wiersze):
+def klucz_naturalny(tekst):
+    """Sortowanie naturalne identyfikatorów (PARCELID, LANDID, ADR_LES...):
+    liczby jako liczby (2 przed 10), białe znaki pomijane (spacje
+    wyrównujące w ADR_LES), litery bez rozróżniania wielkości."""
+    tekst = re.sub(r'\s+', '', '' if tekst is None else str(tekst))
+    return [(0, int(c), '') if c.isdigit() else (1, 0, c.lower())
+            for c in re.findall(r'\d+|\D+', tekst)]
+
+
+def uszereguj(wiersze):
+    """Szereguje waypointy w obrębie sekcji (źródło+sekcja, kolejność
+    sekcji jak w raporcie - wg pierwszego wystąpienia) naturalnie po
+    obiekcie (dla Ls "Ls <LANDID>", czyli po PARCELID, potem LANDID),
+    a przy równym - po kluczu i wartości do skopiowania."""
+    kolejnosc = {}
+    for w in wiersze:
+        kolejnosc.setdefault((w.get('zrodlo', ''), w.get('sekcja', '')),
+                             len(kolejnosc))
+    return sorted(wiersze, key=lambda w: (
+        kolejnosc[(w.get('zrodlo', ''), w.get('sekcja', ''))],
+        klucz_naturalny(w.get('obiekt') or w.get('klucz')),
+        klucz_naturalny(w.get('klucz')),
+        klucz_naturalny(w.get('do_skopiowania'))))
+
+
+def zapisz(sciezka, wiersze, szereguj=True):
     """Zapisuje listę wierszy do pliku CSV. Nadpisuje atomowo (plik
     tymczasowy w tym samym katalogu + podmiana), żeby przerwanie zapisu
-    (np. zamknięcie QGIS) nie uszkodziło już istniejącego pliku."""
+    (np. zamknięcie QGIS) nie uszkodziło już istniejącego pliku.
+    szereguj=False - kolejność wierszy bez zmian (zapis stanu Nawigatora,
+    lista w kolejności wybranej przez użytkownika, kolejność klepania
+    z raportu kart)."""
+    if szereguj:
+        wiersze = uszereguj(wiersze)
     kat = os.path.dirname(sciezka) or '.'
     fd, tmp_sc = tempfile.mkstemp(dir=kat, suffix='.tmp')
     try:

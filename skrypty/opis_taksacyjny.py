@@ -875,6 +875,9 @@ def _tabela_edytowalna(kolumny, okno, callback, po_enter=None,
     """Tabela warstwy/gatunków; kolumny: (nagłówek, pole, typ, słownik,
     miejsca, szerokość)."""
     t = _tabela([k[0] for k in kolumny], [k[5] for k in kolumny])
+    # kolumna ✕ nie rośnie przy poszerzaniu okna
+    t._stale = {i for i, k in enumerate(kolumny) if k[1] == '_USUN'}
+    _ustaw_szerokosci(t, okno.wsp)
     if not okno.tylko_odczyt:
         t.setItemDelegate(_DelegatTabeli(
             okno, [(k[2], k[3]) for k in kolumny], callback, po_enter,
@@ -939,17 +942,14 @@ class _GrupaWarstwy(QWidget):
             None, lambda r, c, k: self.strzalka('w', r, c, k))
         # zmieszania i zwarcia nie podaje się poza DRZEW (IP/IIP) - kolumny
         # ukryte, ale miejsce tabeli zostaje (tabele gatunków w jednej linii)
-        pelna = self.tw.width()
+        # - szerokości tabel, miejsca i przycisków ustawia skaluj()
         if self.kod not in ow.JAK_DRZEW:
             for c, k in enumerate(KOLUMNY_WARSTWY):
                 if k[1] in ('MIXTURE_CD', 'DENSITY_CD'):
                     self.tw.setColumnHidden(c, True)
-            self.tw.setFixedWidth(
-                sum(k[5] for k in KOLUMNY_WARSTWY
-                    if k[1] not in ('MIXTURE_CD', 'DENSITY_CD'))
-                + 2 * self.tw.frameWidth() + ZAPAS)
         miejsce = QWidget()
-        miejsce.setFixedWidth(pelna)
+        self.miejsce = miejsce
+        self.hl = hl
         ml = QVBoxLayout(miejsce)
         ml.setContentsMargins(0, 0, 0, 0)
         # prawa krawędź - Zd. pod Zd. warstwy DRZEW
@@ -981,19 +981,29 @@ class _GrupaWarstwy(QWidget):
             przyciski.addWidget(self._btn_usun, 0, Qt.AlignLeft)
             przyciski.addStretch(1)
             hl.addLayout(przyciski)
-            # przyciski poszerzone do prawej krawędzi tabeli Opis wydzielenia
-            m = hl.contentsMargins()
-            zajete = (m.left() + pelna + self.tg.width()
-                      + 2 * hl.spacing())
-            szer = max(self._btn_zmien.sizeHint().width(),
-                       self._btn_usun.sizeHint().width(),
-                       okno.t_opis.width() - zajete)
-            for b in (self._btn_zmien, self._btn_usun):
-                b.setFixedWidth(szer)
         hl.addStretch(1)
         lay.addWidget(self.cialo)
+        self.skaluj(okno.wsp)
         self.odswiez()
         self.ustaw(True)
+
+    def skaluj(self, wsp):
+        """Szerokości wg współczynnika poszerzenia okna (1 = minimalne):
+        tabela warstwy i gatunków rosną o ten sam procent, więc Zd. zostaje
+        pod Zd. warstwy DRZEW; przyciski do prawej krawędzi Opisu."""
+        pelna = _ustaw_szerokosci(self.tw, wsp)
+        self.miejsce.setFixedWidth(pelna)
+        _ustaw_szerokosci(self.tg, wsp)
+        if getattr(self, '_btn_usun', None) is not None:
+            # przyciski poszerzone do prawej krawędzi tabeli Opis wydzielenia
+            m = self.hl.contentsMargins()
+            zajete = (m.left() + pelna + self.tg.width()
+                      + 2 * self.hl.spacing())
+            szer = max(self._btn_zmien.sizeHint().width(),
+                       self._btn_usun.sizeHint().width(),
+                       self.okno.t_opis.width() - zajete)
+            for b in (self._btn_zmien, self._btn_usun):
+                b.setFixedWidth(szer)
 
     def _przycisk_zmiany(self):
         """Lista warstw, których nie ma jeszcze w wydzieleniu."""
@@ -1229,11 +1239,28 @@ def _tabela(naglowki, szerokosci):
     t.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
     t.verticalHeader().setDefaultSectionSize(20)
-    for i, s in enumerate(szerokosci):
-        t.setColumnWidth(i, s)
-    t.setFixedWidth(sum(szerokosci) + 2 * t.frameWidth() + ZAPAS)
+    t._bazowe = list(szerokosci)
+    t._stale = set()
+    _ustaw_szerokosci(t, 1.0)
     _bez_przewijania(t)
     return t
+
+
+def _ustaw_szerokosci(t, wsp):
+    """Kolumny = szerokość bazowa (t._bazowe) * wsp - poszerzenie okna Edytora
+    rozkłada się proporcjonalnie na kolumny; kolumny z t._stale (✕) bez
+    zmian. Szerokość tabeli = suma widocznych kolumn (bez przewijania).
+    Zaokrąglenie w dół - treść nie wychodzi poza okno (poziomy pasek).
+    Zwraca szerokość tabeli z ukrytymi kolumnami (miejsce w grupie
+    warstwy)."""
+    szer = [s if i in t._stale else int(s * wsp)
+            for i, s in enumerate(t._bazowe)]
+    for i, s in enumerate(szer):
+        t.setColumnWidth(i, s)
+    ramka = 2 * t.frameWidth() + ZAPAS
+    t.setFixedWidth(ramka + sum(s for i, s in enumerate(szer)
+                                if not t.isColumnHidden(i)))
+    return ramka + sum(szer)
 
 
 # kilka pikseli zapasu na różnice stylu/skalowania ekranu - bez niego tabela
@@ -1348,6 +1375,13 @@ class OknoOpisu(QWidget):
         # adres, i ADR_LES pozostałych poligonów warstwy
         self._poligon = None
         self._adr_warstwy = set()
+        # współczynnik poszerzenia okna ponad minimalną szerokość (1 -
+        # minimalna); tabele i kolumna Informacji rosną proporcjonalnie
+        self.wsp = 1.0
+        self._szer_min = None
+        # klepanie z raportu: (numer karty, ADR_LES bez spacji) - numer
+        # widoczny w pasku adresu tylko na wydzieleniu tej karty
+        self._karta_klepania = None
 
         self._ustaw_tytul()
         self._zbuduj()
@@ -1370,6 +1404,28 @@ class OknoOpisu(QWidget):
             czesci.append('[TYLKO PODGLĄD]')
         self.setWindowTitle(
             nazwa + (ODSTEP_TYTULU + '   '.join(czesci) if czesci else ''))
+        self._odswiez_nr_karty()
+
+    def ustaw_karte_klepania(self, nr, adr):
+        """Nawigator (klepanie): numer karty pomiarowej wczytywanego
+        wydzielenia; pusty nr - koniec trybu klepania."""
+        self._karta_klepania = (nr, re.sub(r'\s+', '', _txt(adr))) \
+            if nr else None
+        self._odswiez_nr_karty()
+
+    def _odswiez_nr_karty(self):
+        """Numer karty tylko na wydzieleniu karty klepania - po przejściu
+        (kliknięciu) na inne wydzielenie pole puste."""
+        if not hasattr(self, 'ed_nr_karty'):
+            return
+        nr = ''
+        if self._karta_klepania and self.dane is not None:
+            nr_k, adr_k = self._karta_klepania
+            biezacy = re.sub(r'\s+', '', _txt(self.adres_bazy or self.adr))
+            if biezacy == adr_k:
+                nr = nr_k
+        if self.ed_nr_karty.text() != nr:
+            self.ed_nr_karty.setText(nr)
 
     def _wiersze(self, sql, parametry):
         """Lista słowników {kolumna: wartość}."""
@@ -1505,6 +1561,23 @@ class OknoOpisu(QWidget):
         btn_kopiuj.clicked.connect(self._kopiuj_adres)
         gora.addWidget(btn_kopiuj)
         gora.addStretch(1)
+        # numer karty pomiarowej (NR_ROBO, np. TK-269) - tylko w trybie
+        # klepania z raportu (pokaz_karte_klepania), poza nim puste
+        gora.addWidget(QLabel('Karta'))
+        self.ed_nr_karty = QLineEdit()
+        self.ed_nr_karty.setReadOnly(True)
+        self.ed_nr_karty.setFocusPolicy(Qt.ClickFocus)
+        fk = QFont(f)
+        fk.setPointSize(f.pointSize() + 1)
+        self.ed_nr_karty.setFont(fk)
+        self.ed_nr_karty.setAlignment(Qt.AlignCenter)
+        # 10 znaków numeru w postaci kod taksatora + liczba (TK-269)
+        self.ed_nr_karty.setFixedWidth(
+            QFontMetrics(fk).width('MM-0000000') + 12)
+        self.ed_nr_karty.setToolTip(
+            'Numer klepanej karty pomiarowej (raport kart do klepania) - '
+            'zaznacz i skopiuj (Ctrl+C); poza klepaniem puste')
+        gora.addWidget(self.ed_nr_karty)
         glowny.addWidget(self.pasek_adr)
 
         self.przewijanie = QScrollArea()
@@ -1534,11 +1607,9 @@ class OknoOpisu(QWidget):
         self.t_opis.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.t_opis.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.t_opis.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
-        szer = self._szerokosci_opisu()
-        for i, w in enumerate(szer):
-            self.t_opis.setColumnWidth(i, w)
-        self.t_opis.setFixedWidth(
-            sum(szer) + 2 * self.t_opis.frameWidth() + ZAPAS)
+        self.t_opis._bazowe = self._szerokosci_opisu()
+        self.t_opis._stale = set()
+        _ustaw_szerokosci(self.t_opis, 1.0)
         _bez_przewijania(self.t_opis)
         self.t_opis.setItemDelegate(_DelegatTabeli(
             self, [('kod' if k[2] in ('kod', 'lista') else 'liczba', k[3])
@@ -1577,6 +1648,7 @@ class OknoOpisu(QWidget):
         dol.setSpacing(6)  # jawnie - liczona niżej szerokość prawej kolumny
         lewa_w = QWidget()
         lewa = QVBoxLayout(lewa_w)
+        self._lewa_w, self._dol = lewa_w, dol
         lewa.setContentsMargins(0, 0, 0, 0)
         naglowek_zab = QHBoxLayout()
         naglowek_zab.addWidget(_sekcja('Wskazania gospodarcze'))
@@ -1674,6 +1746,7 @@ class OknoOpisu(QWidget):
         prawa.addLayout(siatka_fraz)
         prawa.addStretch(1)
         prawa_w.setFixedWidth(szer_prawej)
+        self._prawa_w, self._szer_prawej_min = prawa_w, 2 * szer_btn + sp
         dol.addWidget(prawa_w, 0, Qt.AlignTop)
         dol.addStretch(1)
         self.lay_tresc.addLayout(dol)
@@ -1784,7 +1857,49 @@ class OknoOpisu(QWidget):
             self.t_opis.width(), SZEROKOSC_GRUPY,
             sum(k[5] for k in KOLUMNY_ZABIEGI) + KOLUMNA_USUN[5] + 260,
         ) + 12 + 20  # marginesy + ewentualny pasek przewijania
-        self.setFixedWidth(szer_okna)
+        # pasek adresu (z numerem karty) musi zmieścić się w minimalnej
+        # szerokości - nadmiar zabiera pole adresu leśnego (zapas ponad
+        # długość ADR_LES), nazwa obrębu i tak się ściska
+        nadmiar = self.pasek_adr.minimumSizeHint().width() - (szer_okna - 12)
+        if nadmiar > 0:
+            self.ed_adres.setFixedWidth(max(
+                self.ed_adres.maximumWidth() - nadmiar,
+                QFontMetrics(self.ed_adres.font()).width('W' * 22) + 12))
+        # szerokość z układu = minimalna; okno można płynnie poszerzać
+        # (resizeEvent -> _skaluj)
+        self._szer_min = szer_okna
+        self.setMinimumWidth(szer_okna)
+        self.resize(szer_okna, self.height())
+
+    # stała część szerokości okna (marginesy + pasek przewijania) - nie
+    # skaluje się razem z treścią
+    _MARGINES_OKNA = 12 + 20
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not self._szer_min:
+            return
+        wsp = max(1.0, (self.width() - self._MARGINES_OKNA)
+                  / (self._szer_min - self._MARGINES_OKNA))
+        if abs(wsp - self.wsp) > 0.001:
+            self.wsp = wsp
+            self._skaluj()
+
+    def _skaluj(self):
+        """Szerokości tabel karty i kolumny Informacji wg self.wsp
+        (proporcjonalnie, minimum - szerokości z budowy okna)."""
+        _ustaw_szerokosci(self.t_opis, self.wsp)
+        _ustaw_szerokosci(self.t_zab, self.wsp)
+        _ustaw_szerokosci(self.t_pnsw, self.wsp)
+        for g in self.grupy:
+            if not sip.isdeleted(g):
+                g.skaluj(self.wsp)
+        # Informacje różne - prawa krawędź równo z tabelą Opis wydzielenia
+        self._lewa_w.layout().invalidate()
+        self._prawa_w.setFixedWidth(max(
+            self._szer_prawej_min,
+            self.t_opis.width() - self._lewa_w.sizeHint().width()
+            - self._dol.spacing()))
 
     def _pokaz(self, tekst_statusu):
         """Czyści kartę (brak/nieznane wydzielenie)."""
@@ -4987,7 +5102,7 @@ class PanelOpisu(QDockWidget):
                 stare = []
         wiersze = klepanie.wiersze_waypointow(karty, stare)
         try:
-            waypointy.zapisz(sciezka, wiersze)
+            waypointy.zapisz(sciezka, wiersze, szereguj=False)
         except Exception as e:
             QMessageBox.warning(self, 'Raport do klepania',
                                 f'Nie udało się zapisać pliku postępu:\n{e}')
@@ -5011,16 +5126,19 @@ class PanelOpisu(QDockWidget):
             'Edytor opisu', tekst,
             Qgis.Warning if bez_adresu or poza else Qgis.Info, 10)
 
-    def pokaz_do_klepania(self, adr):
+    def pokaz_do_klepania(self, adr, nr=''):
         """Nawigator (klepanie): wydzielenie karty w karcie opisu, przed
-        zaznaczeniem poligonu. False - karta została przy niezapisanych
-        zmianach."""
+        zaznaczeniem poligonu; nr - numer karty pomiarowej (pasek adresu).
+        False - karta została przy niezapisanych zmianach."""
         if not self.polaczona():
             return True
         self.pokaz_karte()
         if not self._karta_otwarta():
             return True
-        return self.karta.wczytaj_adres(_txt(adr))
+        ok = self.karta.wczytaj_adres(_txt(adr))
+        if ok:
+            self.karta.ustaw_karte_klepania(nr, adr)
+        return ok
 
     def nowe_wydzielenie(self):
         """Karta nowego wydzielenia (zapis po "Zapisz" w karcie)."""

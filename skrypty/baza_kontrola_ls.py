@@ -271,6 +271,9 @@ class KontrolaLs:
                 [k, self.p.uzytki[k][2]] for k in self.p.ls
                 if k not in self.ls_w_shp
             ]
+        # LANDID = PARCELID + '.' + AU+SQ - naturalnie po LANDID to po
+        # PARCELID, a w działce po użytku
+        self.brakujace_ls_w_shp.sort(key=lambda x: waypointy.klucz_naturalny(x[0]))
 
     def zestaw_liste_brakujacych_ls_w_bazie(self):
         if self.wl == 'OF':
@@ -283,6 +286,7 @@ class KontrolaLs:
         else:
             self.brakujace_ls_w_bazie = [
                 x for x in self.ls_w_shp if x not in self.p.ls]
+        self.brakujace_ls_w_bazie.sort(key=waypointy.klucz_naturalny)
 
     def zestaw_liste_zerowych_ls_w_bazie(self):
         if self.wl == 'OF':
@@ -295,6 +299,7 @@ class KontrolaLs:
             # zestaw liste landid z powierzchniami zerowymi w bazie
             self.pow_zerowe_baza = [k for k in self.p.ls
                                     if self.p.uzytki[k][2] < 0.0001]
+        self.pow_zerowe_baza.sort(key=waypointy.klucz_naturalny)
 
     def zestaw_rozb_pow(self):
         for k, v in self.d_ls.items():
@@ -311,8 +316,7 @@ class KontrolaLs:
                 ])
 
         self.rozb_pow = sorted(
-            self.rozb_pow, key=lambda x: x[3], reverse=True
-        )
+            self.rozb_pow, key=lambda x: waypointy.klucz_naturalny(x[0]))
 
     def _parcelid_z_landid(self, lid):
         """Wylicza PARCELID z LANDID wg tej samej reguły co sprawdz_puste()
@@ -340,13 +344,13 @@ class KontrolaLs:
                 self.d_ls[x]['PARCELID'], f'LANDID={x}', do_skopiowania=x,
                 obiekt=f'Ls {x}', blad='Brak Ls w bazie (jest w grafice)'))
 
-        for k in sorted(self.p.ls_podwojne):
+        for k in sorted(self.p.ls_podwojne, key=waypointy.klucz_naturalny):
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'POWÓJNE LS [BAZA]', 'LANDID', k,
                 'Ls występuje w bazie więcej niż raz na tej działce',
                 obiekt=f'Ls {k}', blad='Ls podwójny w bazie'))
 
-        for k in sorted(self.pow_zerowe_baza):
+        for k in self.pow_zerowe_baza:
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'LSy z ZEROWĄ POW', 'LANDID', k,
                 '', obiekt=f'Ls {k}', blad='Zerowa powierzchnia Ls w bazie'))
@@ -363,7 +367,7 @@ class KontrolaLs:
         # 2 razy) - do nawigacji wystarczy raz na unikalny LANDID, bo
         # nawigator i tak pokazuje na mapie wszystkie obiekty pod danym
         # kluczem naraz (patrz nawigator_dock._pokaz_na_mapie).
-        for k in sorted(set(self.zdublowane_lid)):
+        for k in sorted(set(self.zdublowane_lid), key=waypointy.klucz_naturalny):
             wiersze.append(waypointy.wiersz(
                 'Kontrola Ls', 'ZDUBLOWANE LANDID [SHP]', 'LANDID', k,
                 'Najprawdopodobniej niepołączone w multipoligony',
@@ -408,7 +412,7 @@ class KontrolaLs:
             self.wypis += '(Najprawdopodobniej niepołączone w multipoligony)\n'
             self.wypis += 'Zdublowane LANDID: ' + \
                 str(len(self.zdublowane_lid)) + '\n\n'
-            sort_temp = sorted(self.zdublowane_lid)
+            sort_temp = sorted(self.zdublowane_lid, key=waypointy.klucz_naturalny)
             self.wypis += '\n'.join(sort_temp)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -416,7 +420,7 @@ class KontrolaLs:
             self.wypis += '---POWÓJNE LS [BAZA]----------\n'
             self.wypis += 'Podwójne Ls-y: ' + \
                 str(len(self.p.ls_podwojne)) + '\n\n'
-            sort_temp = sorted(self.p.ls_podwojne)
+            sort_temp = sorted(self.p.ls_podwojne, key=waypointy.klucz_naturalny)
             self.wypis += '\n'.join(sort_temp)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -424,10 +428,9 @@ class KontrolaLs:
             self.wypis += '---BRAKUJĄCE LSy [W SHP]----------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_shp)) + '\n\n'
-            sort_temp = sorted(self.brakujace_ls_w_shp, key=lambda x: x[0])
             self.wypis += '\n'.join([
-                '\t'.join([x[0], str(x[1])]) for x in
-                sorted(sort_temp, key=lambda x: 0 if 'Ls' in x[0] else 1)
+                '\t'.join([x[0], str(x[1])])
+                for x in self.brakujace_ls_w_shp
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
@@ -435,10 +438,7 @@ class KontrolaLs:
             self.wypis += '---BRAKUJĄCE LSy [W BAZIE]--------\n'
             self.wypis += 'Brakujących Ls-ów: ' + \
                 str(len(self.brakujace_ls_w_bazie)) + '\n\n'
-            # sort_temp = sorted(self.brakujace_ls_w_bazie, key=lambda x: x[0])
-            self.wypis += '\n'.join([
-                x for x in self.brakujace_ls_w_bazie
-            ])
+            self.wypis += '\n'.join(self.brakujace_ls_w_bazie)
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if len(self.pow_zerowe_baza) > 0:

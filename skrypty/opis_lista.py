@@ -456,7 +456,7 @@ class ListaWydzielen(QWidget):
             f'lista_wydzielen_waypointy_{os.path.splitext(plik)[0]}_'
             f'{znacznik()}.csv')
         try:
-            waypointy.zapisz(sciezka, wiersze)
+            waypointy.zapisz(sciezka, wiersze, szereguj=False)
         except OSError as e:
             bar.pushMessage(TYTUL, f'Nie udało się zapisać pliku: {e}',
                             Qgis.Critical, 8)

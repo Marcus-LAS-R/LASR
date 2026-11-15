@@ -62,7 +62,7 @@ class NawigatorDock(QDockWidget):
         self.wiersze = []   # wszystkie wczytane wiersze (wszystkie sekcje)
         self.sciezka = None  # ścieżka do wczytanego pliku CSV
         self.pozycja = -1    # indeks w obrębie bieżącej sekcji
-        # klepanie: pokaz_w_edytorze(adr) -> False, gdy karta Edytora
+        # klepanie: pokaz_w_edytorze(adr, nr_karty) -> False, gdy karta Edytora
         # została przy niezapisanych zmianach (ustawia las_r)
         self.pokaz_w_edytorze = None
 
@@ -439,6 +439,13 @@ class NawigatorDock(QDockWidget):
             return
         stara = self.pozycja
         self.pozycja = max(0, min(self.pozycja + kierunek, len(wiersze) - 1))
+        if self.pozycja == stara:
+            # koniec / początek listy (także jeden błąd) - ten sam błąd
+            # pokazany jeszcze raz (przesunięcie/zoom i mignięcie), bez
+            # przeskoku na drugi koniec
+            self.iface.messageBar().pushMessage(
+                self.tytul, 'Ostatni błąd w sekcji' if kierunek > 0
+                else 'Pierwszy błąd w sekcji', Qgis.Info, 2)
         if self._pokaz_biezacy() is False:
             # karta Edytora została przy niezapisanych zmianach
             self.pozycja = stara
@@ -512,7 +519,7 @@ class NawigatorDock(QDockWidget):
     def _zapisz(self):
         if self.sciezka:
             try:
-                waypointy.zapisz(self.sciezka, self.wiersze)
+                waypointy.zapisz(self.sciezka, self.wiersze, szereguj=False)
             except Exception as e:
                 QMessageBox.warning(
                     self, 'Błąd',
@@ -582,8 +589,10 @@ class NawigatorDock(QDockWidget):
     def _ustaw_stan_przyciskow(self):
         n = len(self._wiersze_sekcji())
         aktywne = n > 0 and self.pozycja >= 0
-        self.btn_prev.setEnabled(aktywne and self.pozycja > 0)
-        self.btn_next.setEnabled(aktywne and self.pozycja < n - 1)
+        # zawsze aktywne - na końcu listy pokazują bieżący błąd ponownie
+        # (jedyny błąd w sekcji też da się przybliżyć po przesunięciu mapy)
+        self.btn_prev.setEnabled(aktywne)
+        self.btn_next.setEnabled(aktywne)
         self.btn_oznacz.setEnabled(aktywne)
 
     def _pokaz_na_mapie(self, wiersz, cichy=False):
@@ -595,7 +604,9 @@ class NawigatorDock(QDockWidget):
         if wiersz['typ_klucza'] == waypointy.TYP_XY:
             self._pokaz_xy(wiersz)
             return
-        if wiersz['zrodlo'] == klepanie.ZRODLO and                 self.pokaz_w_edytorze is not None and                 not self.pokaz_w_edytorze(wiersz['klucz']):
+        if wiersz['zrodlo'] == klepanie.ZRODLO and                 self.pokaz_w_edytorze is not None and                 not self.pokaz_w_edytorze(
+                    wiersz['klucz'],
+                    klepanie.nr_z_obiektu(wiersz['obiekt'])):
             return False
         if wiersz['typ_klucza'] == 'LANDID':
             warstwa = self.cbo_ls.currentLayer()

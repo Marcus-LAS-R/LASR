@@ -124,13 +124,15 @@ def znajdz_puste(lyr, cur):
             lista.append(g)
 
     bez_opisu, pusty_opis = [], []
-    for adr in sorted(geom):
+    for adr in sorted(geom, key=waypointy.klucz_naturalny):
         if adr not in opisy:
             bez_opisu.append((adr, BRAK_OPISU, geom[adr]))
         elif opisy[adr]:
             pusty_opis.append((adr, opisy[adr], geom[adr]))
     pusty_bez_poligonu = sorted(
-        (adr, prz) for adr, prz in opisy.items() if prz and adr not in geom)
+        ((adr, prz) for adr, prz in opisy.items()
+         if prz and adr not in geom),
+        key=lambda x: waypointy.klucz_naturalny(x[0]))
     return {
         'bez_opisu': bez_opisu,
         'pusty_opis': pusty_opis,

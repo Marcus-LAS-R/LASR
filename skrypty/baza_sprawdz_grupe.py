@@ -240,7 +240,10 @@ class SprawdzGrupe:
         bledy = []
         self.raport.append('BŁĘDY GRAFIKI - przerwano, popraw i uruchom '
                            'ponownie:')
-        for fid, grupy in na_kilku.items():
+        nat = waypointy.klucz_naturalny
+        for fid, grupy in sorted(
+                na_kilku.items(),
+                key=lambda x: nat(sl_wydz[x[0]]['ADR_LES'])):
             fw = sl_wydz[fid]
             opis = 'na kilku grupach LS: ' + ', '.join(sorted(grupy))
             bledy.append((fw, 'wydzielenie na kilku grupach LS', grupy))
@@ -251,7 +254,9 @@ class SprawdzGrupe:
                         blad='Wydzielenie na kilku grupach LS: ' +
                         ', '.join(sorted(grupy)))
             self.raport.append(f'  {fw["ADR_LES"]}: {opis}')
-        for fid, (gw, grupy) in rozne.items():
+        for fid, (gw, grupy) in sorted(
+                rozne.items(),
+                key=lambda x: nat(sl_wydz[x[0]]['ADR_LES'])):
             fw = sl_wydz[fid]
             opis = f'grupa w adresie {gw}, w LS {", ".join(sorted(grupy))}'
             bledy.append((fw, 'grupa WYDZ inna niż LS', grupy))
@@ -293,6 +298,11 @@ class SprawdzGrupe:
             if not _puste(fw['ADR_LES']):
                 graf.setdefault(str(fw['ADR_LES']), []).append(fw.geometry())
         plan = plan_przemianowania(adresy_bazy, list(graf))
+        # raport i waypointy naturalnie po adresie (starym) - jak wszędzie
+        nat = waypointy.klucz_naturalny
+        for klucz in ('zmiany', 'kolizje', 'niejednoznaczne'):
+            plan[klucz] = sorted(plan[klucz], key=lambda x: nat(x[0]))
+        plan['bez_pary'] = sorted(plan['bez_pary'], key=nat)
 
         def prostokat(adres_graf):
             """bbox wydzieleń grafiki o adresie albo (dla ODDZ) prefiksie."""
