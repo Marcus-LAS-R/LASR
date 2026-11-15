@@ -1510,6 +1510,22 @@ class OknoOpisu(QWidget):
         f.setBold(True)
         f.setPointSize(f.pointSize() + 1)
         fm = QFontMetrics(f)
+        # etykiety nad polami, małą czcionką - pasek mieści się w minimalnej
+        # szerokości okna (etykiety obok pól zabierały ~150 px)
+        f_etyk = QFont(self.font())
+        f_etyk.setPointSize(max(6, self.font().pointSize() - 2))
+
+        def kolumna(nag, pole):
+            w = QWidget()
+            v = QVBoxLayout(w)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.setSpacing(0)
+            lbl = QLabel(nag)
+            lbl.setFont(f_etyk)
+            v.addWidget(lbl, 0, Qt.AlignLeft)
+            v.addWidget(pole)
+            gora.addWidget(w, 0, Qt.AlignBottom)
+
         self.pola_adr = {}
         for czesc, nag, wzor, znaki, tip in (
                 ('obreb', 'Obręb', r'\d{0,4}', 4, 'Obręb ewidencyjny '
@@ -1519,7 +1535,6 @@ class OknoOpisu(QWidget):
                 ('oddz', 'Oddz.', r'\d{0,4}', 4, 'Oddział (1-9999)'),
                 ('wydz', 'Wydz.', r'[a-zA-Z]{0,2}', 2, 'Litera wydzielenia '
                  'albo Lz; puste - następna wolna w oddziale')):
-            gora.addWidget(QLabel(nag))
             e = QLineEdit()
             e.setFont(f)
             e.setMaxLength(znaki)
@@ -1532,7 +1547,7 @@ class OknoOpisu(QWidget):
             e.editingFinished.connect(
                 lambda c=czesc: self._koniec_adresu(c))
             self.pola_adr[czesc] = e
-            gora.addWidget(e)
+            kolumna(nag, e)
             if czesc == 'obreb':
                 # nazwa obrębu z F_COMMUNITY - tylko do odczytu (zaznacz
                 # i Ctrl+C), nic z tego okna nie trafia do bazy
@@ -1543,7 +1558,8 @@ class OknoOpisu(QWidget):
                 self.ed_nazwa_obr.setToolTip(
                     'Nazwa obrębu (F_COMMUNITY) - zaznacz i skopiuj (Ctrl+C); '
                     'tylko podgląd, bez zapisu do bazy')
-                gora.addWidget(self.ed_nazwa_obr)
+                # pusta etykieta - pole w jednej linii z pozostałymi
+                kolumna('', self.ed_nazwa_obr)
         gora.addSpacing(8)
         self.ed_adres = QLineEdit()
         self.ed_adres.setReadOnly(True)
@@ -1554,16 +1570,15 @@ class OknoOpisu(QWidget):
         self.ed_adres.setFixedWidth(QFontMetrics(fa).width('W' * 25) + 12)
         self.ed_adres.setToolTip('Adres leśny - zaznacz i skopiuj (Ctrl+C) '
                                  'albo przycisk obok')
-        gora.addWidget(self.ed_adres)
+        gora.addWidget(self.ed_adres, 0, Qt.AlignBottom)
         btn_kopiuj = QToolButton()
         btn_kopiuj.setText('📋')
         btn_kopiuj.setToolTip('Kopiuj adres leśny do schowka')
         btn_kopiuj.clicked.connect(self._kopiuj_adres)
-        gora.addWidget(btn_kopiuj)
+        gora.addWidget(btn_kopiuj, 0, Qt.AlignBottom)
         gora.addStretch(1)
         # numer karty pomiarowej (NR_ROBO, np. TK-269) - tylko w trybie
         # klepania z raportu (pokaz_karte_klepania), poza nim puste
-        gora.addWidget(QLabel('Karta'))
         self.ed_nr_karty = QLineEdit()
         self.ed_nr_karty.setReadOnly(True)
         self.ed_nr_karty.setFocusPolicy(Qt.ClickFocus)
@@ -1577,7 +1592,7 @@ class OknoOpisu(QWidget):
         self.ed_nr_karty.setToolTip(
             'Numer klepanej karty pomiarowej (raport kart do klepania) - '
             'zaznacz i skopiuj (Ctrl+C); poza klepaniem puste')
-        gora.addWidget(self.ed_nr_karty)
+        kolumna('Karta', self.ed_nr_karty)
         glowny.addWidget(self.pasek_adr)
 
         self.przewijanie = QScrollArea()
