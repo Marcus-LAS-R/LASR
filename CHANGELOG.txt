@@ -1,6 +1,28 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0cx — 2026-11-15
+------------------------------------------------
+
+1. NOWOŚĆ: "Ściągnij dane z BDL" - można pobrać samą grafikę, bez opisów
+   taksacyjnych (checkbox "Pobierz opisy taksacyjne (XLSX)" na górze okna,
+   domyślnie zaznaczony).
+2. ZMIANA: raporty kontroli i listy w Nawigatorze są uporządkowane po
+   działce i użytku (PARCELID / LANDID), a wydzielenia po adresie leśnym -
+   liczby jak liczby (działka 2 przed 10). Dotyczy m.in. Kontroli Ls
+   z bazą, Przygotuj Lsy, Pokaż puste wydzielenia i Sprawdź poprawność
+   grupy. Sekcja "Ls ze znaczną różnicą pow." też jest teraz po LANDID.
+3. ZMIANA: okno Edytora opisów można poszerzać - dotychczasowa szerokość
+   jest minimalna, a przy poszerzaniu tabele (opis, warstwy, gatunki,
+   zabiegi, PNSW) i "Informacje różne" rozciągają się proporcjonalnie.
+4. NOWOŚĆ: w Edytorze opisów, w pasku adresu, pole "Karta" z numerem
+   klepanej karty (np. TK-269) - widoczne tylko przy klepaniu z raportu
+   kart. Etykiety pól adresu (Obręb, Gr., Oddz., Wydz., Karta) są teraz
+   nad polami.
+5. ZMIANA: w Nawigatorze "Następny" i "Poprzedni" są zawsze aktywne - na
+   końcu (albo przy jednym błędzie) pokazują bieżący błąd jeszcze raz
+   (przybliżenie i mrugnięcie), więc zawsze da się do niego wrócić.
+
 Wersja 2.0bx — 2026-11-12
 ------------------------------------------------
 
