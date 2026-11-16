@@ -8,6 +8,10 @@ Układ danych w folderze gminy/obrębu:
     PLOTOWANIE/<MUNICIP>_<nazwa>/Mapy/<COMMUNITY>_<nazwa>_*.pdf
     PLOTOWANIE/<MUNICIP>_<nazwa>/Atlasy/<COMMUNITY>_<nazwa>_*.pdf
                                      (atlas + legenda, np. *_ATLAS, *_LEG)
+    PLOTOWANIE/<MUNICIP>_<nazwa>/<COMMUNITY>_<nazwa>_*.pdf
+        - gdy gmina ma tylko mapy albo tylko atlasy (LCH nie dzieli wtedy
+          na Mapy/Atlasy); rodzaj po nazwie (rodzaj_z_nazwy)
+    PLOTOWANIE/<MUNICIP>_<nazwa>_x2 - pomijany (pary pasów do druku)
 
 Obręb to (folder, MUNICIP, COMMUNITY) - słownik z kluczami:
 folder, nazwa_folderu, municip, community, nazwa_gminy, nazwa_obrebu.
@@ -94,7 +98,8 @@ def _pdfy(katalog):
 
 
 def _foldery_plotowania(folder, municip=None):
-    """Podfoldery PLOTOWANIE; z municip - tylko <MUNICIP>_*."""
+    """Foldery gmin w PLOTOWANIE; z municip - tylko <MUNICIP>_*. Bez
+    <gmina>_x2 - tam są tylko pary pasów do druku tych samych map."""
     plot = os.path.join(folder, FOLDER_PLOTOWANIA)
     try:
         nazwy = sorted(os.listdir(plot))
@@ -102,7 +107,19 @@ def _foldery_plotowania(folder, municip=None):
         return []
     return [os.path.join(plot, n) for n in nazwy
             if os.path.isdir(os.path.join(plot, n)) and
+            not n.lower().endswith('_x2') and
             (municip is None or n.startswith(f'{municip}_'))]
+
+
+def rodzaj_z_nazwy(nazwa):
+    """Rodzaj PDF-u leżącego wprost w folderze gminy (bez podziału na
+    Mapy/Atlasy - LCH tak eksportuje, gdy gmina ma tylko mapy albo tylko
+    atlasy): człon ATLAS albo LEG w nazwie -> atlas, inaczej mapa
+    (0013_STOBIERNA_LEG_A3.pdf -> ATLASY, 0013_LEGNICA_MAPA.pdf -> MAPY)."""
+    czlony = os.path.splitext(nazwa)[0].upper().split('_')
+    if 'ATLAS' in czlony or 'LEG' in czlony:
+        return ATLASY
+    return MAPY
 
 
 def _operat(nazwa, municip, community):
@@ -112,14 +129,19 @@ def _operat(nazwa, municip, community):
 
 
 def pliki_obrebu(folder, municip, community):
-    """{rodzaj: [ścieżki PDF]} dla jednego obrębu. Foldery arch, Operaty
-    i pliki poza poniższymi lokalizacjami nie są w ogóle przeglądane."""
+    """{rodzaj: [ścieżki PDF]} dla jednego obrębu: Mapy/ i Atlasy/ folderu
+    gminy oraz PDF-y wprost w folderze gminy (rodzaj po nazwie). Foldery
+    arch, Operaty i pliki poza tymi lokalizacjami nie są w ogóle
+    przeglądane."""
     wyn = {r: [] for r in RODZAJE}
-    for podf, rodzaj in (('Mapy', MAPY), ('Atlasy', ATLASY)):
-        for plot in _foldery_plotowania(folder, municip):
+    for plot in _foldery_plotowania(folder, municip):
+        for podf, rodzaj in (('Mapy', MAPY), ('Atlasy', ATLASY)):
             kat = os.path.join(plot, podf)
             wyn[rodzaj] += [os.path.join(kat, p) for p in _pdfy(kat)
                             if p.startswith(f'{community}_')]
+        for p in _pdfy(plot):
+            if p.startswith(f'{community}_'):
+                wyn[rodzaj_z_nazwy(p)].append(os.path.join(plot, p))
     kat = os.path.join(folder, FOLDER_OPERATOW)
     wyn[OPERATY] = [os.path.join(kat, p) for p in _pdfy(kat)
                     if _operat(p, municip, community)]
@@ -135,6 +157,7 @@ def dostepne_rodzaje(foldery):
                 wyn.add(MAPY)
             if _pdfy(os.path.join(plot, 'Atlasy')):
                 wyn.add(ATLASY)
+            wyn.update(rodzaj_z_nazwy(p) for p in _pdfy(plot))
         if any(p.lower().endswith('_bdo.pdf')
                for p in _pdfy(os.path.join(folder, FOLDER_OPERATOW))):
             wyn.add(OPERATY)

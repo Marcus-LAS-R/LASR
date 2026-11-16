@@ -131,11 +131,65 @@ class TestPliki(unittest.TestCase):
         self.assertEqual(sp.dostepne_rodzaje([self.g]), set(sp.RODZAJE))
         self.assertEqual(sp.dostepne_rodzaje([]), set())
 
+    def test_x2_pominiety(self):
+        x2 = os.path.join(self.g, 'PLOTOWANIE', '042_DEBICA_x2')
+        _plik(os.path.join(x2, '0013_STOBIERNA_MAPA_PRZEGLADOWA.pdf'))
+        _plik(os.path.join(x2, 'Mapy', '0013_STOBIERNA_MAPA_PRZEGLADOWA.pdf'))
+        p = sp.pliki_obrebu(self.g, '042', '0013')
+        self.assertEqual(len(p[sp.MAPY]), 1)
+        self.assertNotIn('_x2', p[sp.MAPY][0])
+
     def test_nazwa_z_plikow(self):
         p = sp.pliki_obrebu(self.g, '042', '0013')
         self.assertEqual(sp.nazwa_obrebu_z_plikow(p, '0013'), 'Stobierna')
         p = sp.pliki_obrebu(self.g, '042', '0014')
         self.assertEqual(sp.nazwa_obrebu_z_plikow(p, '0014'), 'ZAWADA')
+
+
+class TestBezPodzialu(unittest.TestCase):
+    """LCH nie dzieli na Mapy/Atlasy, gdy gmina ma tylko jeden rodzaj -
+    PDF-y leżą wprost w folderze gminy."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.g = os.path.join(self.tmp.name, '042_Debica_OW')
+        self.plot = os.path.join(self.g, 'PLOTOWANIE', '042_DEBICA')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _nazwy(self, p, rodzaj):
+        return [os.path.basename(x) for x in p[rodzaj]]
+
+    def test_same_atlasy(self):
+        _plik(os.path.join(self.plot, '0013_STOBIERNA_ATLAS.pdf'))
+        _plik(os.path.join(self.plot, '0013_STOBIERNA_LEG.pdf'))
+        p = sp.pliki_obrebu(self.g, '042', '0013')
+        self.assertEqual(self._nazwy(p, sp.ATLASY),
+                         ['0013_STOBIERNA_ATLAS.pdf', '0013_STOBIERNA_LEG.pdf'])
+        self.assertEqual(p[sp.MAPY], [])
+        self.assertNotIn('atlas', sp.braki_obrebu(p, (sp.ATLASY,)))
+        self.assertNotIn('legenda', sp.braki_obrebu(p, (sp.ATLASY,)))
+        self.assertEqual(sp.dostepne_rodzaje([self.g]), {sp.ATLASY})
+
+    def test_same_mapy(self):
+        _plik(os.path.join(self.plot, '0013_STOBIERNA_MAPA_PRZEGLADOWA.pdf'))
+        _plik(os.path.join(self.plot, '0013_STOBIERNA_MAPA_TSL_A3.pdf'))
+        _plik(os.path.join(self.plot, 'wymiary.txt'))
+        p = sp.pliki_obrebu(self.g, '042', '0013')
+        self.assertEqual(len(p[sp.MAPY]), 2)
+        self.assertEqual(p[sp.ATLASY], [])
+        self.assertEqual(sp.dostepne_rodzaje([self.g]), {sp.MAPY})
+
+    def test_rodzaj_po_czlonie_nazwy(self):
+        self.assertEqual(sp.rodzaj_z_nazwy('0014_ZAWADA_LEG_A3.pdf'),
+                         sp.ATLASY)
+        self.assertEqual(sp.rodzaj_z_nazwy('0013_STOBIERNA_ATLAS.pdf'),
+                         sp.ATLASY)
+        # LEG/ATLAS jako fragment nazwy obrębu to nie legenda
+        self.assertEqual(sp.rodzaj_z_nazwy('0005_LEGNICA_MAPA.pdf'), sp.MAPY)
+        self.assertEqual(sp.rodzaj_z_nazwy('0005_ATLASOWO_MAPA.pdf'),
+                         sp.MAPY)
 
 
 class TestPlanIZip(unittest.TestCase):
