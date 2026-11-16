@@ -40,8 +40,8 @@ class _Dialog(QDialog):
 
 def anonimizuj_baze(sc, usun_kwerendy=False):
     """Anonimizuje bazę W MIEJSCU (bez kopii) - V_ADDRESS, usunięta
-    V_ADDRESS_second, wyczyszczone udziały SUB_OWNER, opcjonalnie usunięte
-    kwerendy. Zwraca True, gdy udało się połączyć z bazą."""
+    V_ADDRESS_second i tabele _LRT_*, wyczyszczone udziały SUB_OWNER,
+    opcjonalnie usunięte kwerendy. Zwraca True, gdy udało się połączyć z bazą."""
     baza = Baza(sc)
     if not baza.polacz():
         QgsMessageLog.logMessage('Nie mogłem połączyć się z bazą: ' + sc,
@@ -51,7 +51,10 @@ def anonimizuj_baze(sc, usun_kwerendy=False):
                              'Las-R', Qgis.Info)
     try:
         baza.anonimizuj_vaddress()
-        baza.usun_tabele(['V_ADDRESS_second'])
+        # _LRT_* - historia wersji modułu Aktualizacja UPUL (snapshoty
+        # starych wartości) - nie wychodzi poza Lab
+        baza.usun_tabele(['V_ADDRESS_second', '[_LRT_SNAPSHOTS]',
+                          '[_LRT_VERSIONS]'])
         # udziały właścicieli w wydzieleniach (tabela pomocnicza TPU) -
         # rekordy usuwane, pusta tabela zostaje jak w czystej bazie
         baza.wyczysc_tabele(['V_ARODES_PARTICIPATION_AREA_SUB_OWNER'])
