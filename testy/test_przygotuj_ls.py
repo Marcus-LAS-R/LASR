@@ -409,6 +409,132 @@ class TestRaport(unittest.TestCase):
         self.assertIn('24070620003.6666', tekst)
 
 
+class TestLsBezKlasy(unittest.TestCase):
+    """Ls bez klasy z UZYTKI: dzialka 100x100 z LsIV z KLU na lewej
+    polowie (juz w LS_<czas>) i sasiednia dzialka 2."""
+    POLA_DZ = ['PARCELNR', 'PARCELID', 'GRP', 'ARK', 'NIELES', 'UWAGI',
+               'PARCEL_AR', 'PARCEL_POW']
+
+    def warstwa_ls(self):
+        lyr = QgsVectorLayer('MultiPolygon?crs=epsg:2180', 'LS', 'memory')
+        a = AnalizujKlus(Iface(), False, False)
+        lyr.dataProvider().addAttributes(a.kolumny_dz + a.kolumny_ls)
+        lyr.updateFields()
+        return lyr
+
+    def dzkat(self, *dzialki):
+        lyr = QgsVectorLayer('Polygon?crs=epsg:2180', 'DZKAT', 'memory')
+        lyr.dataProvider().addAttributes(
+            [QgsField(x, QVariant.String) for x in self.POLA_DZ])
+        lyr.updateFields()
+        fs = []
+        for pid, geom in dzialki:
+            f = QgsFeature(lyr.fields())
+            f['PARCELID'] = pid
+            f['PARCELNR'] = pid.split('.')[-1]
+            f.setGeometry(geom)
+            fs.append(f)
+        lyr.dataProvider().addFeatures(fs)
+        return lyr
+
+    def uzytki(self, *wkt):
+        lyr = QgsVectorLayer('Polygon?crs=epsg:2180&field=G5OFU:string',
+                             'UZYTKI', 'memory')
+        fs = []
+        for w in wkt:
+            f = QgsFeature(lyr.fields())
+            f['G5OFU'] = 'Ls'
+            f.setGeometry(QgsGeometry.fromWkt(w))
+            fs.append(f)
+        lyr.dataProvider().addFeatures(fs)
+        return lyr
+
+    def setUp(self):
+        from lasr.skrypty import przygotuj_ls_bez_klasy as bk
+        self.bk = bk
+        self.pid2 = '24070620003.5822'
+        self.p = baza([wiersz('Ls', 'IV', .5), wiersz('Ls', None, .5),
+                       wiersz('Ls', None, .1, pid=self.pid2)],
+                      wlasnosci=WLASC + [[2, 'NOWAK', 'OF', '24', '07', '062',
+                                          '0003', None, '5822']])
+        self.ls = self.warstwa_ls()
+        f = QgsFeature(self.ls.fields())
+        f['PARCELID'] = PID
+        f['LANDID'] = PID + '.LsIV'
+        f['AU'] = 'Ls'
+        f['SQ'] = 'IV'
+        f.setGeometry(QgsGeometry.fromWkt(
+            'MULTIPOLYGON(((0 0,50 0,50 100,0 100,0 0)))'))
+        self.ls.dataProvider().addFeatures([f])
+        self.dz = self.dzkat((PID, kw(0, 0, 100)),
+                             (self.pid2, kw(200, 0, 100)))
+
+    def test_cele_tylko_bez_klasy_i_brakujace(self):
+        cele = self.bk.ls_bez_klasy_do_przygotowania(
+            self.p, 'Ws', {PID + '.LsIV'})
+        self.assertEqual(cele, {PID: PID + '.Ls', self.pid2: self.pid2 + '.Ls'})
+        cele = self.bk.ls_bez_klasy_do_przygotowania(
+            self.p, 'Ws', {PID + '.LsIV', PID + '.Ls'})
+        self.assertEqual(list(cele), [self.pid2])
+
+    def test_odjecie_wasy_i_szum(self):
+        uz = self.uzytki(
+            # Ls na calej dzialce 1 - lewa polowa to juz LsIV w LS_<czas>
+            'POLYGON((0 0,100 0,100 100,0 100,0 0))',
+            # szum 3x3 m na dzialce 2 (< 21 m2)
+            'POLYGON((210 10,213 10,213 13,210 13,210 10))')
+        cele = {PID: PID + '.Ls', self.pid2: self.pid2 + '.Ls'}
+        wyn = self.bk.przygotuj(cele, self.dz, self.ls, uz, 'G5OFU', self.p)
+
+        self.assertEqual([f['LANDID'] for f in wyn['dodane']], [PID + '.Ls'])
+        g = wyn['dodane'][0].geometry()
+        self.assertAlmostEqual(g.area(), 5000, delta=1)
+        self.assertFalse(g.intersects(QgsGeometry.fromWkt(
+            'POLYGON((1 1,49 1,49 99,1 99,1 1))')))
+        f = wyn['dodane'][0]
+        self.assertEqual(f['AU'], 'Ls')
+        self.assertIn(self.bk.UW_BEZ_KLASY, f['SPRAWDZ'])
+        self.assertEqual(f['LAND_AR'], .5)
+        self.assertEqual(self.ls.featureCount(), 2)
+        self.assertEqual(wyn['nieudane'], [
+            [self.pid2 + '.Ls', self.bk.POWOD_NIC_NIE_ZOSTALO, .1]])
+
+    def test_was_usuniety(self):
+        # Ls z UZYTKI: prawa polowa + pasek 0,4 m wchodzacy w LsIV
+        uz = self.uzytki(
+            'POLYGON((50 0,100 0,100 100,50 100,50 0))',
+            'POLYGON((10 50,50 50,50 50.4,10 50.4,10 50))')
+        ls = self.warstwa_ls()  # bez LsIV - pasek nie jest odjety
+        wyn = self.bk.przygotuj({PID: PID + '.Ls'}, self.dz, ls, uz,
+                                'G5OFU', self.p)
+        g = wyn['dodane'][0].geometry()
+        self.assertAlmostEqual(g.area(), 5000, delta=1)
+        self.assertFalse(g.intersects(QgsGeometry.fromWkt(
+            'POINT(20 50.2)')))
+
+    def test_brak_ls_w_uzytki(self):
+        uz = self.uzytki('POLYGON((500 500,600 500,600 600,500 600,500 500))')
+        wyn = self.bk.przygotuj({PID: PID + '.Ls'}, self.dz, self.ls, uz,
+                                'G5OFU', self.p)
+        self.assertEqual(wyn['dodane'], [])
+        self.assertEqual(wyn['nieudane'][0][1], self.bk.POWOD_BRAK_UZYTKI)
+
+    def test_raport(self):
+        uz = self.uzytki('POLYGON((0 0,100 0,100 100,0 100,0 0))')
+        wyn = self.bk.przygotuj(
+            {PID: PID + '.Ls', self.pid2: self.pid2 + '.Ls'},
+            self.dz, self.ls, uz, 'G5OFU', self.p)
+        r = GenerujRaport({}, 'Ws', self.p)
+        r.zestaw_dane()
+        self.assertIn([PID + '.Ls', .5], r.brakujace_ls_w_shp)
+        r.dolacz_ls_bez_klasy(wyn)
+        tekst = r.generuj_raport()
+        self.assertEqual(r.brakujace_ls_w_shp, [[PID + '.LsIV', .5]])
+        self.assertIn('LS BEZ KLASY Z UZYTKI [DOPISANE]', tekst)
+        self.assertIn('LS BEZ KLASY Z UZYTKI [NIEPRZYGOTOWANE]', tekst)
+        self.assertIn('Ls bez klasy z UZYTKI dopisane: 1', tekst)
+
+
 if __name__ == '__main__':
     wyn = unittest.main(exit=False, verbosity=1).result
     app.exitQgis()

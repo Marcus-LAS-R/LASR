@@ -18,6 +18,7 @@ from .funkcje import katalog_startowy
 from .ui.ui_sprawdz_ls import Ui_Dialog
 from .pw import PasekPostepu
 from . import waypointy
+from . import przygotuj_ls_bez_klasy as ls_bk
 # import processing  # import przeniesiony do metody - pytest probemy!
 # import subprocess  # import niezbedny przy wysietleniu raportu na maszynach
 #                      bez windowsa
@@ -83,6 +84,8 @@ class PrzygotujLs(object):
         self.postep.setValue(70)
         self.a.generuj_warstwy()
         self.postep.setValue(80)
+        self.a.dodaj_ls_bez_klasy()
+        self.postep.setValue(90)
         self.a.generuj_raport()
         self.postep.setValue(100)
 
@@ -159,6 +162,10 @@ class AnalizujKlus(object):
 
         # [[baza, baza, ile wspolnych dzialek], ...] - patrz wczytaj_bazy
         self.bazy_powtorzone = []
+
+        # wynik kroku Ls bez klasy z UZYTKI (None - krok nie wykonany),
+        # patrz dodaj_ls_bez_klasy
+        self.ls_bk = None
 
         self.kolumny_dz = [
             QgsField("COUNTY", QVariant.String, len=2),
@@ -852,6 +859,7 @@ class AnalizujKlus(object):
         """
         raport = GenerujRaport(self.strukt, self.wl, self.p, self.bledne)
         raport.zestaw_dane()
+        raport.dolacz_ls_bez_klasy(self.ls_bk)
         rap_out = raport.generuj_raport()
 
         self.rap_sc = os.path.join(
@@ -860,6 +868,48 @@ class AnalizujKlus(object):
         plik = open(self.rap_sc, 'w', encoding='cp1250')
         plik.write(rap_out)
         plik.close()
+
+    def dodaj_ls_bez_klasy(self):
+        """Ls bez klasy (w bazie PID.Ls, puste SQ) nie ma w KLU. Jesli sa w
+        bazie i brak ich w LS_<czas> - pyta, czy przygotowac je z warstwy
+        UZYTKI (przeciecie z DZKAT minus Ls z klasa z LS_<czas>, bez wasow i
+        szumu), patrz przygotuj_ls_bez_klasy. Wynik w self.ls_bk do raportu."""
+        lyrls = getattr(self, 'lyrls', None)
+        if lyrls is None or not lyrls.isValid():
+            return
+        w_ls = {x['LANDID'] for x in lyrls.getFeatures(
+            QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+            .setSubsetOfAttributes(['LANDID'], lyrls.fields()))}
+        cele = ls_bk.ls_bez_klasy_do_przygotowania(self.p, self.wl, w_ls)
+        if not cele:
+            return
+
+        odp = QMessageBox.question(
+            self.iface.mainWindow(), 'Ls bez klasy',
+            'Wykryto również użytki Ls bez klasy: ' + str(len(cele)) +
+            ' (są w bazie, nie ma ich w KLU).\n\n'
+            'Przygotować je dodatkowo z warstwy UZYTKI?',
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if odp != QMessageBox.Yes:
+            return
+
+        kat_klu = os.path.dirname(self.dd.ui.lineEdit_klu.text() or '')
+        uzytki, pole_au = ls_bk.znajdz_warstwe_uzytki(kat_klu)
+        if uzytki is None:
+            QgsMessageLog.logMessage(
+                'Ls bez klasy: brak warstwy UZYTKI (z polem AU/G5OFU/OFU) w '
+                'projekcie i pliku UZYTKI.shp obok KLU - krok pominięty.',
+                'Las-R', Qgis.Warning)
+            self.iface.messageBar().pushWarning(
+                'Uwaga', 'Nie znaleziono warstwy UZYTKI - Ls bez klasy nie '
+                'zostały przygotowane.')
+            return
+
+        QgsMessageLog.logMessage(
+            'Ls bez klasy: warstwa ' + uzytki.name() + ' (pole ' + pole_au +
+            ')', 'Las-R', Qgis.Info)
+        self.ls_bk = ls_bk.przygotuj(cele, self.dzkat, lyrls, uzytki,
+                                     pole_au, self.p)
 
     def dodaj_do_warstwy(self, lyr, feats):
         """Dodaje obiekty do warstwy w pamieci. Warstwa memory odrzuca obiekt
@@ -2082,6 +2132,11 @@ class GenerujRaport():
         # dzialki z Ls w KLU, ktorych nie ma w bazie - ten Ls nie trafia do
         # warstwy wynikowej
         self.ls_poza_baza = []
+        # Ls bez klasy z UZYTKI (dolacz_ls_bez_klasy): dopisane do LS_<czas>
+        # [[LANDID, pow_graf, pow_rej], ...] i nieprzygotowane
+        # [[LANDID, powod, pow_rej], ...]; None - krok nie wykonany
+        self.ls_bk_dodane = None
+        self.ls_bk_nieudane = []
 
     def zestaw_dane(self):
         """Metoda zbiorcza do zestawienia wszystkich niezbednych tablic
@@ -2274,6 +2329,25 @@ class GenerujRaport():
             if x.pid and x.pid not in self.p.dzialki and
             [k for k in x.klus if k['AU'] == 'Ls'])
 
+    def dolacz_ls_bez_klasy(self, ls_bk_wynik):
+        """Uwzglednia krok Ls bez klasy (wynik przygotuj_ls_bez_klasy.
+        przygotuj): dopisane trafiaja do Ls w shp, a dopisane i nieudane
+        wypadaja z BRAKUJACE LSy [W SHP] - maja wlasne sekcje."""
+        if not ls_bk_wynik:
+            return
+        nat = waypointy.klucz_naturalny
+        dodane = ls_bk_wynik['dodane']
+        self.ls_w_shp += dodane
+        self.ls_bk_dodane = sorted(
+            [[f['LANDID'], round(f.geometry().area() / 10000, 4),
+              f['LAND_AR']] for f in dodane], key=lambda x: nat(x[0]))
+        self.ls_bk_nieudane = sorted(ls_bk_wynik['nieudane'],
+                                     key=lambda x: nat(x[0]))
+        obsluzone = {x[0] for x in self.ls_bk_dodane} | \
+            {x[0] for x in self.ls_bk_nieudane}
+        self.brakujace_ls_w_shp = [x for x in self.brakujace_ls_w_shp
+                                   if x[0] not in obsluzone]
+
     def generuj_raport(self):  # noqa
         """Metoda generuj raport zapisany w zmiennej self.wypis"""
         self.wypis += 'Ls w shp: ' + str(len(self.ls_w_shp)) + '\n'
@@ -2303,7 +2377,32 @@ class GenerujRaport():
             str(len(self.brakujace_ls_w_shp)) + '\n'
 
         self.wypis += 'Brakujących Ls-ów [w bazie]: ' + \
-            str(len(self.brakujace_ls_w_bazie)) + '\n\n'
+            str(len(self.brakujace_ls_w_bazie)) + '\n'
+
+        if self.ls_bk_dodane is not None:
+            self.wypis += 'Ls bez klasy z UZYTKI dopisane: ' + \
+                str(len(self.ls_bk_dodane)) + ', nieprzygotowane: ' + \
+                str(len(self.ls_bk_nieudane)) + '\n'
+        self.wypis += '\n'
+
+        if self.ls_bk_dodane:
+            self.wypis += '---LS BEZ KLASY Z UZYTKI [DOPISANE]---\n'
+            self.wypis += 'Dopisane do warstwy Ls (sprawdź geometrię): ' + \
+                str(len(self.ls_bk_dodane)) + '\n\n'
+            self.wypis += 'landid\tpow.graf.\tpow.rej.\n'
+            self.wypis += '\n'.join(
+                '\t'.join(map(str, x)) for x in self.ls_bk_dodane)
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
+        if self.ls_bk_nieudane:
+            self.wypis += '---LS BEZ KLASY Z UZYTKI [NIEPRZYGOTOWANE]---\n'
+            self.wypis += 'Brak Ls w grafice (jest w bazie): ' + \
+                str(len(self.ls_bk_nieudane)) + '\n\n'
+            self.wypis += 'landid\tpow.rej.\tpowód\n'
+            self.wypis += '\n'.join(
+                '\t'.join([x[0], str(x[2]), x[1]])
+                for x in self.ls_bk_nieudane)
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
         if len(self.ls_poza_baza) > 0:
             self.wypis += '---LSy Z KLU NA DZIAŁKACH SPOZA BAZY---\n'

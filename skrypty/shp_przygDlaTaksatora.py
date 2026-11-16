@@ -320,7 +320,7 @@ class PrzygotujDlaTaksatora:
         QgsMessageLog.logMessage('--- PRZYGOTUJ DLA TAKSATORA ---', 'Las-R', Qgis.Info)
         kat_shp_wyj = os.path.join(kat_wyj, 'SHP')
         os.makedirs(kat_shp_wyj, exist_ok=True)
-        spakowane = self._kopiuj_warstwy(folder_proj, kat_shp_wyj)
+        spakowane = self._kopiuj_warstwy(folder_proj, kat_shp_wyj, nazwa)
         self._eksportuj_uzytki(baza_sc, kat_wyj, nazwa)
         QgsMessageLog.logMessage(
             f'Spakowano {spakowane} warstw(y) do zip w {kat_shp_wyj}', 'Las-R', Qgis.Info)
@@ -383,7 +383,7 @@ class PrzygotujDlaTaksatora:
                 kat_wyj = os.path.join(kat_powiat_wyj, nazwa_folderu)
                 kat_shp_wyj = os.path.join(kat_wyj, 'SHP')
                 os.makedirs(kat_shp_wyj, exist_ok=True)
-                self._kopiuj_warstwy(folder_proj, kat_shp_wyj)
+                self._kopiuj_warstwy(folder_proj, kat_shp_wyj, nazwa)
                 self._eksportuj_uzytki(baza_sc, kat_wyj, nazwa)
                 QgsMessageLog.logMessage(
                     f'OK: {os.path.basename(folder_proj)}', 'Las-R', Qgis.Info)
@@ -455,36 +455,38 @@ class PrzygotujDlaTaksatora:
         except Exception:
             return ''
 
-    def _kopiuj_warstwy(self, folder_proj, kat_shp_wyj):
+    def _kopiuj_warstwy(self, folder_proj, kat_shp_wyj, sufiks=''):
         spakowane = 0
         kat_shp = os.path.join(folder_proj, 'SHP')
         for nazwa in _WARSTWY_SHP:
-            if self._spakuj_shp(kat_shp, nazwa, kat_shp_wyj):
+            if self._spakuj_shp(kat_shp, nazwa, kat_shp_wyj, sufiks):
                 spakowane += 1
         kat_dotaks = os.path.join(folder_proj, 'SHP_dotaks')
         if os.path.isdir(kat_dotaks):
             for nazwa in _WARSTWY_DOTAKS:
-                if self._spakuj_shp(kat_dotaks, nazwa, kat_shp_wyj):
+                if self._spakuj_shp(kat_dotaks, nazwa, kat_shp_wyj, sufiks):
                     spakowane += 1
         kat_stare = os.path.join(folder_proj, 'SHP_stare')
         if os.path.isdir(kat_stare):
             for nazwa in _WARSTWY_STARE:
-                if self._spakuj_shp(kat_stare, nazwa, kat_shp_wyj):
+                if self._spakuj_shp(kat_stare, nazwa, kat_shp_wyj, sufiks):
                     spakowane += 1
         return spakowane
 
-    def _spakuj_shp(self, kat_zrodlo, nazwa, kat_wyj):
+    def _spakuj_shp(self, kat_zrodlo, nazwa, kat_wyj, sufiks=''):
         shp_zrodlo = os.path.join(kat_zrodlo, nazwa + '.shp')
         if not os.path.isfile(shp_zrodlo):
             QgsMessageLog.logMessage(
                 f'Brak pliku: {shp_zrodlo}', 'Las-R', Qgis.Warning)
             return False
-        zip_sc = os.path.join(kat_wyj, nazwa + '.zip')
+        # nazwa wyjściowa z dopiskiem jednostki, np. LS_Witkowo
+        nazwa_wyj = f'{nazwa}_{sufiks}' if sufiks else nazwa
+        zip_sc = os.path.join(kat_wyj, nazwa_wyj + '.zip')
         with zipfile.ZipFile(zip_sc, 'w', zipfile.ZIP_DEFLATED) as zf:
             for ext in _ROZSZERZENIA:
                 src = os.path.join(kat_zrodlo, nazwa + ext)
                 if os.path.isfile(src):
-                    zf.write(src, nazwa + ext)
+                    zf.write(src, nazwa_wyj + ext)
         return True
 
     def _eksportuj_uzytki(self, baza_sc, kat_wyj, nazwa):

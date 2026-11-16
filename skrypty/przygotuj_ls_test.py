@@ -281,6 +281,7 @@ class AnalizujKlusTest(AnalizujKlus):
         (jak w Kontroli Ls z bazą) do Raporty."""
         raport = GenerujRaport(self.strukt, self.wl, self.p, self.bledne)
         raport.zestaw_dane()
+        raport.dolacz_ls_bez_klasy(self.ls_bk)
         rap_out = raport.generuj_raport()
 
         kat_bazy = os.path.abspath(
@@ -323,6 +324,15 @@ class AnalizujKlusTest(AnalizujKlus):
                '.'.join(landid.split('.')[:-1]),
                'Brak Ls w grafice (jest w bazie)', f'Ls {landid}',
                f'pow. rejestrowa {pow_rej}', landid)
+        for landid, pow_graf, pow_rej in r.ls_bk_dodane or []:
+            wp('LS BEZ KLASY Z UZYTKI [DOPISANE]', 'LANDID', landid,
+               'Ls bez klasy dopisany z UZYTKI - sprawdź geometrię',
+               f'Ls {landid}',
+               f'pow. graficzna {pow_graf}, rejestrowa {pow_rej}')
+        for landid, powod, pow_rej in r.ls_bk_nieudane:
+            wp('LS BEZ KLASY Z UZYTKI [NIEPRZYGOTOWANE]', 'PARCELID',
+               '.'.join(landid.split('.')[:-1]),
+               powod, f'Ls {landid}', f'pow. rejestrowa {pow_rej}', landid)
         for landid, pow_graf in r.brakujace_ls_w_bazie:
             wp('BRAKUJĄCE LSy [W BAZIE]', 'LANDID', landid,
                'Brak Ls w bazie (jest w grafice)', f'Ls {landid}',
