@@ -3,6 +3,7 @@ import os
 from qgis.core import (
     QgsField, QgsVectorLayer, QgsGeometry, QgsRectangle, QgsFeature,
     QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsProject,
+    QgsSpatialIndex, QgsWkbTypes,
 )
 from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDialog
@@ -12,10 +13,16 @@ from . import kafelkowanie
 from .ui.ui_atlasuj_auto import Ui_Dialog
 
 
-# kandydaci na pole z czytelnym identyfikatorem wydzielenia do raportu
-# "przeciete" - sprawdzane w tej kolejnosci, pierwsze obecne w warstwie
-# wygrywa; brak zadnego -> uzywany numer fid
-_KANDYDACI_POLE_ID = ('ADR_LES', 'ADRESS_FOREST', 'WYDZ')
+# nachodzenie sasiednich stron atlasu (czesc wspolna do nawiazania) -
+# ulamek wymiaru strony, z kazdej strony kafla
+ZAKLADKA = 0.05
+
+# wydzielenia odlegle od siebie najwyzej o tyle metrow tworza kompleks
+# (droga czy row, ktore nie sa wydzieleniem, nie rozbijaja kompleksu)
+PROG_KOMPLEKSU = 20.0
+
+# pola numeracji wymagane w warstwie ATLAS_AFT
+_POLA_NUMERACJI = ('STRONA', 'L', 'G', 'P', 'D')
 
 
 def _plik_warstwy(lyr):
@@ -27,24 +34,19 @@ def _plik_warstwy(lyr):
     return os.path.normcase(os.path.abspath(sc)) if sc else ''
 
 
-def _pole_identyfikatora(warstwa):
-    nazwy = {p.name() for p in warstwa.fields()}
-    for kandydat in _KANDYDACI_POLE_ID:
-        if kandydat in nazwy:
-            return kandydat
-    return None
+def _prostokat(bb):
+    return (bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum())
 
 
 class GenerujAtlasAuto:
     """ Automatycznie generuje pola atlasowe (jak "Rysuj pola atlasowe"),
-    ale korzysta z kafelkowanie.pokryj_kaflami: każdy kolejny kafel
-    pokrywa maksymalną liczbę jeszcze nieobsłużonych obiektów warstwy
-    wejściowej i jest na nich wycentrowany. Obiekt, który sam w sobie nie
-    mieści się w kaflu (rzadkie - duże wydzielenie przy drobnej skali/
-    małym formacie strony), dostaje kafel wycentrowany na sobie i zostaje
-    przecięty krawędzią - zgłaszane w podsumowaniu (self.przeciete).
-    Numeracja STRONA powstaje automatycznie, bez ręcznego digitalizowania
-    linii (jak w "Numeruj pola atlasu").
+    kafelkowanie.pokryj_atlas: rozproszone wydzielenia i kompleksy
+    mieszczące się na jednej stronie - każde wydzielenie w całości na
+    stronie; kompleks większy niż strona - regularna siatka stron
+    nachodzących na siebie o ZAKLADKA wymiaru (pas wspólny do nawiązania),
+    wydzielenia kompleksu są cięte krawędzią strony. Numeracja STRONA
+    i sąsiedzi L/G/P/D powstają automatycznie (kafelkowanie.numeruj_kafle),
+    bez ręcznego digitalizowania linii (jak w "Numeruj pola atlasu").
     """
 
     def __init__(self, iface):
@@ -53,7 +55,6 @@ class GenerujAtlasAuto:
         self.kat = ''
         self.rozm = []  # rozmiar kafla w metrach [szer, wys]
         self.pola = False
-        self.przeciete = []  # identyfikatory (albo fid) obiektow przecietych
 
     def wybierz_warstwe(self):
         self.lyr = self.iface.activeLayer()
@@ -85,6 +86,79 @@ class GenerujAtlasAuto:
         self.rozm = self.d.wynik
         return True
 
+    def _kompleksy(self):
+        """ Zwraca (bboxy wydzieleń, kompleksy) dla
+        kafelkowanie.pokryj_atlas. Kompleks to wydzielenia oddalone od
+        siebie najwyżej o PROG_KOMPLEKSU (łącznie przez łańcuch sąsiadów),
+        więc droga albo rów, które nie są wydzieleniem, nie rozbijają
+        kompleksu. Każdy kompleks to (bbox, przecina, [indeksy wydzieleń]),
+        gdzie przecina(strona) sprawdza faktyczną geometrię wydzieleń
+        kompleksu (przygotowanym silnikiem GEOS). """
+        geometrie = []
+        bboxy = []
+        indeks = QgsSpatialIndex()
+        for f in self.lyr.getFeatures():
+            g = f.geometry()
+            if g is None or g.isEmpty():
+                continue
+            indeks.addFeature(len(geometrie), g.boundingBox())
+            geometrie.append(g)
+            bboxy.append(_prostokat(g.boundingBox()))
+
+        n = len(geometrie)
+        rodzic = list(range(n))
+
+        def korzen(i):
+            while rodzic[i] != i:
+                rodzic[i] = rodzic[rodzic[i]]
+                i = rodzic[i]
+            return i
+
+        for i, g in enumerate(geometrie):
+            x0, y0, x1, y1 = bboxy[i]
+            okolica = QgsRectangle(x0 - PROG_KOMPLEKSU, y0 - PROG_KOMPLEKSU,
+                                   x1 + PROG_KOMPLEKSU, y1 + PROG_KOMPLEKSU)
+            for j in indeks.intersects(okolica):
+                if j <= i:
+                    continue
+                ri, rj = korzen(i), korzen(j)
+                if ri != rj and g.distance(geometrie[j]) <= PROG_KOMPLEKSU:
+                    rodzic[ri] = rj
+
+        grupy = {}
+        for i in range(n):
+            grupy.setdefault(korzen(i), []).append(i)
+
+        silniki = {}
+
+        def silnik(i):
+            if i not in silniki:
+                s = QgsGeometry.createGeometryEngine(geometrie[i].constGet())
+                s.prepareGeometry()
+                silniki[i] = s
+            return silniki[i]
+
+        def funkcja_przecina(czlonkowie):
+            def przecina(strona):
+                geom = QgsGeometry.fromRect(QgsRectangle(*strona))
+                for i in czlonkowie:
+                    b = bboxy[i]
+                    if b[0] <= strona[2] and strona[0] <= b[2] and \
+                            b[1] <= strona[3] and strona[1] <= b[3] and \
+                            silnik(i).intersects(geom.constGet()):
+                        return True
+                return False
+            return przecina
+
+        kompleksy = []
+        for czlonkowie in grupy.values():
+            bbox = (min(bboxy[i][0] for i in czlonkowie),
+                    min(bboxy[i][1] for i in czlonkowie),
+                    max(bboxy[i][2] for i in czlonkowie),
+                    max(bboxy[i][3] for i in czlonkowie))
+            kompleksy.append((bbox, funkcja_przecina(czlonkowie), czlonkowie))
+        return bboxy, kompleksy
+
     def generuj_pola(self):
         self.pola = QgsVectorLayer(
             "Polygon?crs=epsg:2180&index=yes", "ATLAS_AFT", "memory")
@@ -99,68 +173,26 @@ class GenerujAtlasAuto:
         ])
         self.pola.updateFields()
 
-        pole_id = _pole_identyfikatora(self.lyr)
-        bboxy = []
-        identyfikatory = []
-        for f in self.lyr.getFeatures():
-            bb = f.geometry().boundingBox()
-            bboxy.append(
-                (bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
-            identyfikatory.append(f[pole_id] if pole_id else f.id())
-
-        kafle, przeciete = kafelkowanie.pokryj_kaflami(
-            bboxy, self.rozm[0], self.rozm[1])
-        self.przeciete = [identyfikatory[i] for i in przeciete]
-        sasiedzi = self._sasiedzi_lgpd(kafle)
+        bboxy, kompleksy = self._kompleksy()
+        kafle = kafelkowanie.pokryj_atlas(
+            kompleksy, bboxy, self.rozm[0], self.rozm[1], ZAKLADKA)
+        strony, sasiedzi = kafelkowanie.numeruj_kafle(kafle)
 
         nowe = []
-        for nr, (x0, y0, x1, y1) in enumerate(kafle, start=1):
+        for i in sorted(range(len(kafle)), key=lambda i: strony[i]):
+            x0, y0, x1, y1 = kafle[i]
             feat = QgsFeature()
             feat.setFields(self.pola.fields())
             feat.setGeometry(QgsGeometry.fromRect(
                 QgsRectangle(x0, y0, x1, y1)))
-            feat['STRONA'] = nr
-            s = sasiedzi[nr - 1]
-            feat['L'] = s['L']
-            feat['G'] = s['G']
-            feat['P'] = s['P']
-            feat['D'] = s['D']
+            feat['STRONA'] = strony[i]
+            for kierunek in 'LGPD':
+                feat[kierunek] = sasiedzi[i][kierunek]
             nowe.append(feat)
 
         self.pola.dataProvider().addFeatures(nowe)
         self.pola.commitChanges()
         return len(kafle)
-
-    def _sasiedzi_lgpd(self, kafle):
-        """ Dla kazdego kafla wyznacza najblizszego sasiada w kazdym z 4
-        kierunkow (L/G/P/D - lewo/gora/prawo/dol), do strzalek nawigacyjnych
-        w atlasie (jak L/G/P/D w shp_atlasuj.Zanumeruj, ale tam sasiedztwo
-        czyta sie z kolejnosci wierzcholkow recznie zdigitalizowanej linii -
-        automatyczne kafelkowanie nie tworzy regularnej siatki ani takiej
-        linii, wiec sasiada trzeba wyznaczyc geometrycznie: najblizszy
-        (po srodku kafla) w danym kierunku wg dominujacej osi. Zwraca liste
-        (rownolegla do `kafle`, indeksy 0-based) slownikow {'L':nr,'G':nr,
-        'P':nr,'D':nr} z numerami STRONA (1-based) sasiadow, 0 gdy brak. """
-        srodki = [((x0 + x1) / 2, (y0 + y1) / 2) for x0, y0, x1, y1 in kafle]
-        wyniki = []
-        for i, (cx, cy) in enumerate(srodki):
-            najblizszy = {'L': 0, 'G': 0, 'P': 0, 'D': 0}
-            odleglosc = {'L': None, 'G': None, 'P': None, 'D': None}
-            for j, (cx2, cy2) in enumerate(srodki):
-                if i == j:
-                    continue
-                dx = cx2 - cx
-                dy = cy2 - cy
-                if abs(dx) >= abs(dy):
-                    kierunek = 'P' if dx > 0 else 'L'
-                else:
-                    kierunek = 'G' if dy > 0 else 'D'
-                dist = (dx * dx + dy * dy) ** 0.5
-                if odleglosc[kierunek] is None or dist < odleglosc[kierunek]:
-                    odleglosc[kierunek] = dist
-                    najblizszy[kierunek] = j + 1  # numer STRONA (1-based)
-            wyniki.append(najblizszy)
-        return wyniki
 
     def zapisz_warstwe(self):
         # usun poprzednia warstwe z TOC (zwalnia blokade pliku na Windows)
@@ -214,16 +246,101 @@ class GenerujAtlasAuto:
             'OK',
             'Utworzono warstwę ATLAS_AFT z ' + str(ile) + ' polami'
         )
-        if self.przeciete:
-            lista = ', '.join(str(x) for x in self.przeciete[:10])
-            if len(self.przeciete) > 10:
-                lista += ', … (+' + str(len(self.przeciete) - 10) + ')'
+
+
+class PrzenumerujAtlas:
+    """ Ponownie numeruje całą warstwę pól atlasu (STRONA i sąsiedzi
+    L/G/P/D) po ręcznych poprawkach - przesunięciu, dorysowaniu albo
+    usunięciu pól. Numeracja jak w "Atlasuj automatycznie"
+    (kafelkowanie.numeruj_kafle): zespoły stykających się pól od góry,
+    w zespole wierszami od góry, w wierszu od lewej. Pole bierze się pod
+    uwagę po jego zasięgu (bbox). """
+
+    TYTUL = 'Przenumeruj atlasy'
+
+    def __init__(self, iface):
+        self.iface = iface
+        self.lyr = None
+        self.ile = 0
+        self.byla_edycja = False
+
+    @staticmethod
+    def _pasuje(lyr):
+        return isinstance(lyr, QgsVectorLayer) and \
+            lyr.geometryType() == QgsWkbTypes.PolygonGeometry and \
+            all(lyr.fields().indexOf(p) != -1 for p in _POLA_NUMERACJI)
+
+    def wybierz_warstwe(self):
+        """ Aktywna warstwa, jeśli ma pola numeracji; w przeciwnym razie
+        jedyna warstwa ATLAS_AFT w projekcie. """
+        aktywna = self.iface.activeLayer()
+        if self._pasuje(aktywna):
+            self.lyr = aktywna
+            return True
+
+        atlasy = [l for l in QgsProject.instance().mapLayers().values()
+                  if l.name() == 'ATLAS_AFT' and self._pasuje(l)]
+        if len(atlasy) == 1:
+            self.lyr = atlasy[0]
+            return True
+
+        self.iface.messageBar().pushWarning(
+            self.TYTUL,
+            'Zaznacz warstwę pól atlasu (poligony z polami '
+            + ', '.join(_POLA_NUMERACJI) + ')'
+        )
+        return False
+
+    def przenumeruj(self):
+        fidy = []
+        kafle = []
+        for f in self.lyr.getFeatures():
+            g = f.geometry()
+            if g is None or g.isEmpty():
+                continue
+            fidy.append(f.id())
+            kafle.append(_prostokat(g.boundingBox()))
+        self.ile = len(kafle)
+        if not kafle:
             self.iface.messageBar().pushWarning(
-                'Atlasuj automatycznie',
-                str(len(self.przeciete)) + ' wydzielenie(a) nie zmieściło '
-                'się w całości na jednej stronie i zostało przecięte '
-                'krawędzią (zbyt duże przy tej skali/formacie): ' + lista
-            )
+                self.TYTUL, 'Warstwa nie zawiera żadnych pól')
+            return False
+
+        strony, sasiedzi = kafelkowanie.numeruj_kafle(kafle)
+        indeksy = {p: self.lyr.fields().indexOf(p) for p in _POLA_NUMERACJI}
+
+        # w trybie edycji zmiany ida do bufora edycji (z cofaniem),
+        # zapisuje je uzytkownik razem ze swoimi poprawkami
+        byla_edycja = self.lyr.isEditable()
+        if not byla_edycja and not self.lyr.startEditing():
+            self.iface.messageBar().pushCritical(
+                self.TYTUL, 'Nie można włączyć edycji warstwy')
+            return False
+
+        self.lyr.beginEditCommand(self.TYTUL)
+        for i, fid in enumerate(fidy):
+            wartosci = {indeksy['STRONA']: strony[i]}
+            for kierunek in 'LGPD':
+                wartosci[indeksy[kierunek]] = sasiedzi[i][kierunek]
+            self.lyr.changeAttributeValues(fid, wartosci)
+        self.lyr.endEditCommand()
+
+        if not byla_edycja and not self.lyr.commitChanges():
+            self.iface.messageBar().pushCritical(
+                self.TYTUL, 'Nie udało się zapisać numeracji: '
+                + '; '.join(self.lyr.commitErrors()))
+            self.lyr.rollBack()
+            return False
+
+        self.lyr.triggerRepaint()
+        self.byla_edycja = byla_edycja
+        return True
+
+    def wyswietl_info(self):
+        tekst = 'Przenumerowano ' + str(self.ile) + ' pól atlasu'
+        if self.byla_edycja:
+            tekst += ' - warstwa jest w trybie edycji, zapisz zmiany'
+        self.iface.messageBar().pushSuccess(self.TYTUL, tekst)
 
 
 class PobierzDane(QDialog):

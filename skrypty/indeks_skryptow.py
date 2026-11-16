@@ -323,7 +323,10 @@ INDEKS = {
     'pg': _w('powierzchnia graficzna oblicz pow area'),
     'rys_atl': _w('atlas pola atlasowe rysuj siatka arkusze'),
     'num_atl': _w('atlas numeruj pola numeracja arkusze'),
-    'atl_auto': _w('atlas automatycznie pola siatka kafelkowanie arkusze'),
+    'atl_auto': _w('atlas automatycznie pola siatka kafelkowanie arkusze '
+                   'zakładka nachodzenie'),
+    'przen_atl': _w('atlas przenumeruj numeruj ponownie pola numeracja '
+                    'strony arkusze sąsiedzi poprawki'),
 }
 
 # akcje poza wyszukiwarką i ulubionymi (techniczne, bez własnej funkcji)

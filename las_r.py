@@ -301,6 +301,8 @@ class LasR:
         ico_num_pola = QIcon(os.path.join(self.plugin_dir, "ico", "numPola.png"))
         ico_gen_pola_auto = QIcon(
             os.path.join(self.plugin_dir, "ico", "genPolaAuto.png"))
+        ico_przen_pola = QIcon(
+            os.path.join(self.plugin_dir, "ico", "przenumerujPola.png"))
         ico_pok_lay = QIcon(os.path.join(self.plugin_dir, "ico", "pokazLay.png"))
         # koniec ikon -----------------------
 
@@ -1499,6 +1501,15 @@ class LasR:
         self.toolbar.addAction(self.atl_auto)
         self.atl_auto.triggered.connect(self.atlasuj_automatycznie)
 
+        self.przen_atl = QAction(
+            ico_przen_pola, "Przenumeruj atlasy", self.iface.mainWindow()
+        )
+        self.przen_atl.setToolTip(
+            "Ponownie numeruje całą warstwę ATLAS_AFT (STRONA i L/G/P/D) "
+            "po ręcznych poprawkach pól.")
+        self.toolbar.addAction(self.przen_atl)
+        self.przen_atl.triggered.connect(self.przenumeruj_atlas)
+
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.a_znajdz_skrypt)
 
@@ -1516,6 +1527,7 @@ class LasR:
             self.rys_atl,
             self.num_atl,
             self.atl_auto,
+            self.przen_atl,
             self.a_znajdz_skrypt,
         ]
         # toolbar koniec ---------------------
@@ -1943,6 +1955,13 @@ class LasR:
         if not g.zapisz_warstwe():
             return
         g.wyswietl_info(ile)
+
+    def przenumeruj_atlas(self):
+        n = shp_atlasuj_auto.PrzenumerujAtlas(self.iface)
+        if not n.wybierz_warstwe():
+            return
+        if n.przenumeruj():
+            n.wyswietl_info()
 
     def sprawdz_topologie(self):
         if funkcje.aktywna_warstwa_wektorowa(self.iface) is None:
