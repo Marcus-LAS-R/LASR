@@ -24,6 +24,7 @@ dopasowaniu do obrębu (DISTRICT+MUNICIP+COMMUNITY).
 import os
 import re
 import shutil
+from collections import Counter
 from datetime import datetime
 from ...znacznik_czasu import znacznik
 
@@ -197,7 +198,8 @@ def analizuj_wydzielenia(baza, przydzial):
     arodes_grupa = {}
     adresy = {}
     nieprzypisane = []
-    liczba_wydz = {UPUL: 0, ISL: 0, BEZ_LS: 0}
+    # grupy dowolne (UPUL/ISL albo gminy - Podziel na gminy)
+    liczba_wydz = {g: 0 for g in set(przydzial.values()) | {UPUL, ISL, BEZ_LS}}
     for arod, adr, typ in wiersze:
         typ = _txt(typ)
         if typ not in _TYPY_ADRESOWE:
@@ -438,6 +440,100 @@ def kompaktuj(sc):
         return False
 
 
+# --------------------------------------------------------------------------
+# słownik gmin (F_MUNICIPALITY)
+# --------------------------------------------------------------------------
+# F_MUNICIPALITY to słownik bazy - skrypty dzielące NIC z niego nie usuwają.
+# Gminy, których w nim brak (a są w F_COMMUNITY/F_PARCEL), są zgłaszane
+# użytkownikowi i - po potwierdzeniu - dopisywane do baz wynikowych.
+
+def _gminy_slownika(baza):
+    return {_klucz(c, d, m, '')[:3] for c, d, m in (baza.pobierz(
+        'select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD '
+        'from F_MUNICIPALITY;') or [])}
+
+
+def gminy_spoza_slownika(baza):
+    """{(COUNTY, DISTRICT, MUNICIP): liczba działek} - gminy obrębów
+    (F_COMMUNITY) i działek (F_PARCEL), których nie ma w F_MUNICIPALITY."""
+    slownik = _gminy_slownika(baza)
+    wynik = {}
+    for c, d, m in (baza.pobierz(
+            'select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD '
+            'from F_COMMUNITY;') or []):
+        k = _klucz(c, d, m, '')[:3]
+        if k not in slownik:
+            wynik.setdefault(k, 0)
+    for c, d, m, ile in (baza.pobierz(
+            'select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, count(*) '
+            'from F_PARCEL group by COUNTY_CD, DISTRICT_CD, '
+            'MUNICIPALITY_CD;') or []):
+        k = _klucz(c, d, m, '')[:3]
+        if k not in slownik:
+            wynik[k] = wynik.get(k, 0) + (ile or 0)
+    return wynik
+
+
+def podpowiedz_nazwy_gminy(klucz):
+    """Nazwa ze słownika TERYT w stylu F_MUNICIPALITY ('Ozimek Miasto',
+    '... Ob. wiej.') albo ''."""
+    county, district, municip = klucz
+    try:
+        from ...teryt_obreby import jednostka
+        jedn = jednostka(f'{county}{district}{municip[:2]}_{municip[2:]}')
+    except Exception:
+        jedn = None
+    if not jedn or not jedn[0]:
+        return ''
+    przyrostek = {'4': ' Miasto', '5': ' Ob. wiej.'}.get(municip[-1:], '')
+    return (jedn[0] + przyrostek)[:30]
+
+
+def dopisz_gminy(baza, gminy):
+    """Dopisuje do F_MUNICIPALITY gminy {klucz: nazwa}, których w nim
+    brak (TAX_REG - najczęstszy w gminach tego powiatu). Jedna transakcja;
+    zwraca listę dopisanych kluczy albo None przy błędzie (log Las-R)."""
+    try:
+        istn, tax = set(), {}
+        for c, d, m, t in baza.cur.execute(
+                'select COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, TAX_REG '
+                'from F_MUNICIPALITY').fetchall():
+            istn.add(_klucz(c, d, m, '')[:3])
+            if t:
+                tax.setdefault((_txt(c), _txt(d)), Counter())[t] += 1
+        dopisane = []
+        for (county, district, municip), nazwa in sorted(gminy.items()):
+            if (county, district, municip) in istn:
+                continue
+            t = tax.get((county, district))
+            baza.cur.execute(
+                'INSERT INTO F_MUNICIPALITY (COUNTY_CD, DISTRICT_CD, '
+                'MUNICIPALITY_CD, MUNICIPALITY_NAME, MUNICIPALITY_NR, '
+                'DISTRICT_NR, COUNTY_NR, TAX_REG) VALUES (?,?,?,?,?,?,?,?)',
+                (county, district, municip, (nazwa or '')[:30] or None,
+                 int(municip), int(district), int(county),
+                 t.most_common(1)[0][0] if t else None))
+            dopisane.append((county, district, municip))
+        baza.con.commit()
+        return dopisane
+    except Exception as e:
+        baza.con.rollback()
+        QgsMessageLog.logMessage(
+            f'Podziel obiekt: nie udało się dopisać gmin do F_MUNICIPALITY: '
+            f'{e}', 'Las-R', Qgis.Critical)
+        return None
+
+
+def dopisz_gminy_do_kopii(baza, nowe_gminy):
+    """Po czyszczeniu kopii: dopisuje z `nowe_gminy` tylko te, które
+    w kopii zostały (obręby/działki). Zwraca listę dopisanych albo None."""
+    if not nowe_gminy:
+        return []
+    brak = gminy_spoza_slownika(baza)
+    potrzebne = {k: n for k, n in nowe_gminy.items() if k in brak}
+    return dopisz_gminy(baza, potrzebne) if potrzebne else []
+
+
 def sciezki_wynikowe(baza_sc):
     rdzen, rozsz = os.path.splitext(baza_sc)
     return {UPUL: rdzen + '_UPUL' + rozsz, ISL: rdzen + '_ISL' + rozsz}
@@ -638,21 +734,27 @@ def _sekcja_obrebow(linie, obreby, przydzial, grupa, tytul):
     linie.append('')
 
 
-def zapisz_raport_konfliktow(katalog, konflikty):
+def zapisz_raport_konfliktow(katalog, konflikty, rodzaj='upul_isl',
+                             tytul='PODZIEL OBIEKT - NA UPUL I ISL',
+                             nazwy=None):
+    """Raport wydzieleń na granicy grup (przy rezygnacji z podziału).
+    nazwy: {grupa: etykieta} - np. folder gminy zamiast kodu."""
+    nazwy = nazwy or {}
     os.makedirs(katalog, exist_ok=True)
     czas = znacznik()
-    sc = os.path.join(katalog, f'rozdziel_UPUL_ISL_konflikty_{czas}.txt')
+    sc = os.path.join(katalog,
+                      f'raport_podzial_{rodzaj}_konflikty_{czas}.txt')
     linie = [
-        'ROZDZIEL BAZY NA UPUL I ISL - wydzielenia na granicy grup',
+        f'{tytul} - wydzielenia na granicy grup',
         '',
         'Rozliczenie powierzchni (F_AROD_LAND_USE) tych wydzieleń obejmuje '
         'działki z obrębów, które trafią do innej bazy (albo zostaną '
-        'usunięte jako obręby bez LS). Grupa wydzielenia wynika z obrębu '
-        'w adresie leśnym; w nawiasie grupa działki.',
+        'usunięte). Grupa wydzielenia wynika z obrębu w adresie leśnym; '
+        'w nawiasie grupa działki.',
         '',
     ]
     for adr, grupa, obce in konflikty:
-        linie.append(f'{adr}  [{grupa}]')
+        linie.append(f'{adr}  [{nazwy.get(grupa, grupa)}]')
         for p in obce:
             linie.append(f'    {p}')
     with open(sc, 'w', encoding='utf-8') as f:
@@ -661,12 +763,12 @@ def zapisz_raport_konfliktow(katalog, konflikty):
 
 
 def zapisz_raport(katalog, baza_sc, tryb, obreby, przydzial, analiza,
-                  wyniki_baz, raport_grafiki):
+                  wyniki_baz, raport_grafiki, uwagi=()):
     os.makedirs(katalog, exist_ok=True)
     czas = znacznik()
-    sc = os.path.join(katalog, f'rozdziel_UPUL_ISL_{czas}.txt')
+    sc = os.path.join(katalog, f'raport_podzial_upul_isl_{czas}.txt')
     linie = [
-        'ROZDZIEL BAZY NA UPUL I ISL',
+        'PODZIEL OBIEKT - NA UPUL I ISL',
         f'Baza źródłowa: {baza_sc}',
         f'Data: {datetime.now():%Y-%m-%d %H:%M}',
         f'Tryb: {tryb}' + (f' (próg {_pow(PROG_ISL)} ha)'
@@ -729,6 +831,12 @@ def zapisz_raport(katalog, baza_sc, tryb, obreby, przydzial, analiza,
             if spoza_bazy:
                 tekst += f', z obrębów spoza bazy (do obu): {spoza_bazy}'
             linie.append(f'  {nazwa} (wg {sposob}): {tekst}')
+        linie.append('')
+
+    if uwagi:
+        linie.append('UWAGI')
+        linie.append('-' * 70)
+        linie += ['  ' + u for u in uwagi]
         linie.append('')
 
     with open(sc, 'w', encoding='utf-8') as f:

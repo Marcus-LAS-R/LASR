@@ -20,9 +20,10 @@ from ..pw import PasekPostepu
 from ..waypointy import katalog_raportow
 
 from .gui.dialog import RozdzielUpulIslDialog
+from .gui.dialog_gmin import opis_dopisanych, zapytaj_o_gminy
 from .core import rozdziel as R
 
-_TYTUL = 'Rozdziel bazy na UPUL i ISL'
+_TYTUL = 'Podziel obiekt - na UPUL i ISL'
 
 
 def _blad(iface, tekst):
@@ -91,8 +92,12 @@ def _rozdziel(iface, wybor):  # noqa
         return False
     try:
         analiza = R.analizuj_wydzielenia(baza, przydzial)
+        # słownik gmin nie jest okrajany; brakujące gminy - pytanie
+        nowe_gminy = zapytaj_o_gminy(iface.mainWindow(), _TYTUL, baza)
     finally:
         baza.zamknij()
+    if nowe_gminy is None:
+        return False
 
     if analiza['konflikty'] and not _potwierdz_konflikty(
             iface, analiza['konflikty']):
@@ -109,6 +114,7 @@ def _rozdziel(iface, wybor):  # noqa
 
     # --- bazy wynikowe ---
     wyniki_baz = {}
+    uwagi = []
     for i, g in enumerate(grupy):
         sc = sciezki[g]
         try:
@@ -124,6 +130,11 @@ def _rozdziel(iface, wybor):  # noqa
             licz = R.wyczysc_kopie(kopia, przydzial, g,
                                    analiza['arodes_grupa'],
                                    analiza['obreby_adr'])
+            if licz is not None and nowe_gminy:
+                dop = R.dopisz_gminy_do_kopii(kopia, nowe_gminy)
+                if dop is None or dop:
+                    uwagi.append(opis_dopisanych(os.path.basename(sc), dop,
+                                                 nowe_gminy))
         finally:
             kopia.zamknij()
         if licz is None:
@@ -150,7 +161,7 @@ def _rozdziel(iface, wybor):  # noqa
 
     rap = R.zapisz_raport(
         katalog_raportow(katalog), baza_sc, wybor['tryb'], wybor['obreby'],
-        przydzial, analiza, wyniki_baz, raport_grafiki)
+        przydzial, analiza, wyniki_baz, raport_grafiki, uwagi)
     postep.setValue(100)
     iface.messageBar().clearWidgets()
 

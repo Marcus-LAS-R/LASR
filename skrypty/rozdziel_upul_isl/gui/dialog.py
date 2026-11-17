@@ -49,7 +49,7 @@ class RozdzielUpulIslDialog(QDialog):
         self._isl_reczne = set()  # klucze obrębów zaznaczonych jako ISL
         self._baza_sc = ''
 
-        self.setWindowTitle('Rozdziel bazy na UPUL i ISL')
+        self.setWindowTitle('Podziel obiekt - na UPUL i ISL')
         self.resize(950, 700)
         layout = QVBoxLayout(self)
 
@@ -124,7 +124,7 @@ class RozdzielUpulIslDialog(QDialog):
 
         # --- przyciski ---
         buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
-        self.btn_ok = buttons.addButton('Rozdziel', QDialogButtonBox.AcceptRole)
+        self.btn_ok = buttons.addButton('Podziel', QDialogButtonBox.AcceptRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

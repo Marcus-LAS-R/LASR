@@ -129,6 +129,7 @@ from .skrypty import shp_przygCiecieStUPUL
 from .skrypty import shp_przygDlaTaksatora
 from .skrypty import wydziel_wlascicieli
 from .skrypty import rozdziel_upul_isl
+from .skrypty import podziel_obiekt
 from .skrypty import zabiegi_podmien
 from .skrypty import shp_polacz_warstwy
 from .skrypty import spakuj_do_opiniowania
@@ -1230,15 +1231,40 @@ class LasR:
         self.m_narzedzia.addAction(self.a_wydziel_wlasc)
         self.a_wydziel_wlasc.triggered.connect(self.wydziel_wlascicieli)
 
+        # --- Podziel obiekt: UPUL/ISL, gminami, obrębami
+        self.m_podziel = QMenu("Podziel obiekt", self.m_narzedzia)
+        self.m_podziel.setToolTipsVisible(True)
+        self.m_narzedzia.addMenu(self.m_podziel)
+
         self.a_rozdziel_upul_isl = QAction(
-            QIcon(None), "Rozdziel bazy na UPUL i ISL", self.iface.mainWindow()
+            QIcon(None), "Na UPUL i ISL", self.iface.mainWindow()
         )
         self.a_rozdziel_upul_isl.setToolTip(
             "Dzieli bazę na dwie nowe bazy UPUL i ISL według sumy powierzchni "
             "użytku LS w obrębach (automatycznie: ISL poniżej 10 ha, albo "
             "ręcznie), razem z grafiką SHP.")
-        self.m_narzedzia.addAction(self.a_rozdziel_upul_isl)
+        self.m_podziel.addAction(self.a_rozdziel_upul_isl)
         self.a_rozdziel_upul_isl.triggered.connect(self.rozdziel_upul_isl)
+
+        self.a_podziel_gminy = QAction(
+            QIcon(None), "Gminami", self.iface.mainWindow()
+        )
+        self.a_podziel_gminy.setToolTip(
+            "Dzieli bazę i/lub warstwy SHP na gminy (MUNICIPALITY - miasto "
+            "i obszar wiejski osobno): dla każdej gminy folder "
+            "<TERYT>_<typ>_<Nazwa> obok bazy z kopią bazy i podfolderem SHP.")
+        self.m_podziel.addAction(self.a_podziel_gminy)
+        self.a_podziel_gminy.triggered.connect(self.podziel_gminami)
+
+        self.a_podziel_obreby = QAction(
+            QIcon(None), "Obrębami", self.iface.mainWindow()
+        )
+        self.a_podziel_obreby.setToolTip(
+            "Dzieli bazę i/lub warstwy SHP na obręby ewidencyjne: dla "
+            "każdego obrębu folder <TERYT>_<typ>.<obręb>_<Nazwa> obok bazy "
+            "z kopią bazy i podfolderem SHP.")
+        self.m_podziel.addAction(self.a_podziel_obreby)
+        self.a_podziel_obreby.triggered.connect(self.podziel_obrebami)
 
         self.a_zab_podmien = QAction(
             QIcon(None), "Podmień wybrane zabiegi", self.iface.mainWindow()
@@ -2217,6 +2243,12 @@ class LasR:
 
     def rozdziel_upul_isl(self):
         rozdziel_upul_isl.uruchom(self.iface)
+
+    def podziel_gminami(self):
+        podziel_obiekt.uruchom_gminami(self.iface)
+
+    def podziel_obrebami(self):
+        podziel_obiekt.uruchom_obrebami(self.iface)
 
     def lacz_bazy(self):
         p = baza_polacz.PolaczBazy(self.iface)

@@ -255,8 +255,14 @@ INDEKS = {
     'a_copy': _w('połącz scal bazy TPU taksatorzy folder BDO jedna baza'),
     'a_wydziel_wlasc': _w('wydziel właścicieli nowa baza eksport działki '
                           'współwłaściciele grupy rejestrowe'),
-    'a_rozdziel_upul_isl': _w('rozdziel bazy UPUL ISL inwentaryzacja '
-                              'obręby podział'),
+    'a_rozdziel_upul_isl': _w('podziel obiekt rozdziel bazy UPUL ISL '
+                              'inwentaryzacja obręby podział',
+                              dawne=['Rozdziel bazy na UPUL i ISL']),
+    'a_podziel_gminy': _w('podziel obiekt rozdziel bazę SHP na gminy gmina '
+                          'municipality miasto obszar wiejski TERYT '
+                          'foldery gmin'),
+    'a_podziel_obreby': _w('podziel obiekt rozdziel bazę SHP na obręby '
+                           'obręb community foldery obrębów'),
     'a_zab_podmien': _w('podmień zamień usuń zabiegi IVDU IVD baza obręby '
                         'forma własności'),
     'dop_wydz': _w('dopisz metadane wydzielenia atrybuty',
