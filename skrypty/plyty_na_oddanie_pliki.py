@@ -624,8 +624,8 @@ def gb(bajty):
 def opis_planu(plan, czesci, uwagi=(), rozmiary=None, limit=LIMIT_DVD):
     """rozmiary: {płyta: bajty} faktyczne (po utworzeniu); bez - szacunek.
     limit None - brak limitu (bez ostrzeżeń)."""
-    L = [f'Wielkość płyty: mniej niż {gb(limit)} (DVD)' if limit
-         else 'Wielkość płyty: brak limitu', '']
+    L = [f'Wielkość nośnika: mniej niż {gb(limit)} (DVD)' if limit
+         else 'Wielkość nośnika: brak limitu', '']
     for p in plan:
         rozm = (rozmiary or {}).get(p['nazwa'])
         szac = rozm is None

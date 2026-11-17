@@ -416,21 +416,39 @@ def wyczysc_kopie(baza, przydzial, grupa_zostaje, arodes_grupa, obreby_adr):
     }
 
 
+_LOCALE_KOMPAKT = ';LANGID=0x0409;CP=1252;COUNTRY=0'
+_HASLO_BAZ = 'pw'  # jak baza_wrapper (PWD=pw)
+
+
+def _haslo_bazy(silnik, sc):
+    """'' - baza bez hasła, 'pw' - baza z hasłem pw (wyjątek DAO, gdy
+    żadne nie pasuje)."""
+    try:
+        silnik.OpenDatabase(sc).Close()
+        return ''
+    except Exception:
+        silnik.OpenDatabase(sc, False, False, f';pwd={_HASLO_BAZ}').Close()
+        return _HASLO_BAZ
+
+
 def kompaktuj(sc):
     """Kompaktowanie kopii .mdb przez DAO (po usunięciu dużej części
-    danych plik nie zmniejsza się sam). Błąd nie jest krytyczny - zwraca
-    True/False."""
+    danych plik nie zmniejsza się sam). Hasło wyniku takie jak bazy przed
+    kompaktowaniem - baza bez hasła zostaje bez hasła (dawniej każda
+    dostawała hasło pw przez ;pwd=pw w ustawieniach nowego pliku). Błąd nie
+    jest krytyczny - zwraca True/False."""
     if not sc.lower().endswith('.mdb'):
         return False
     try:
         import win32com.client
-        silnik = win32com.client.Dispatch('DAO.DBEngine.120')
+        # dynamic.Dispatch - jak baza_wrapper.usun_kwerendy (bez cache gen_py)
+        silnik = win32com.client.dynamic.Dispatch('DAO.DBEngine.120')
         tymcz = sc + '.kompakt.mdb'
         if os.path.exists(tymcz):
             os.remove(tymcz)
-        silnik.CompactDatabase(
-            sc, tymcz, ';LANGID=0x0409;CP=1252;COUNTRY=0;pwd=pw', 0,
-            ';pwd=pw')
+        haslo = _haslo_bazy(silnik, sc)
+        pwd = f';pwd={haslo}' if haslo else ''
+        silnik.CompactDatabase(sc, tymcz, _LOCALE_KOMPAKT + pwd, 0, pwd)
         os.replace(tymcz, sc)
         return True
     except Exception as e:

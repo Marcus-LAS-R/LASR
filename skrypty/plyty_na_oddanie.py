@@ -189,11 +189,10 @@ class PlytyDialog(QDialog):
         lay.addLayout(h)
         uklad.addWidget(box)
 
-        box = QGroupBox('Wielkość płyty')
+        box = QGroupBox('Wielkość nośnika')
         lay = QVBoxLayout(box)
         self.rb_limit = QRadioButton(
-            f'Mniej niż {pp.gb(pp.LIMIT_DVD)} (DVD) - większą płytę '
-            'zgłoś i zaproponuj podział')
+            f'Mniej niż {pp.gb(pp.LIMIT_DVD)} (DVD)')
         self.rb_bez_limitu = QRadioButton('Brak limitu')
         self.rb_limit.setChecked(True)
         lay.addWidget(self.rb_limit)
