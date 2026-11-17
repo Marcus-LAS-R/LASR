@@ -1,6 +1,38 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0dx — 2026-11-17
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> "Przygotuj na wyłożenia" - wskazujesz folder obiektu,
+   a skrypt dla każdej gminy tworzy w _Na_wylozenia folder pUPUL_<gmina>
+   z podfolderami Mapy, Atlasy, Operaty i Operaty_BDO (pliki są kopiowane,
+   nie pakowane). Miasto i obszar wiejski tej samej gminy trafiają do
+   jednego folderu. Folder gminy ma mniej niż 490 MB - większa gmina jest
+   dzielona na pUPUL_<gmina>_1, _2... (obręb zawsze w całości). Raport
+   pokazuje brakujące mapy, atlasy i operaty.
+2. NOWOŚĆ: "Spakuj do opiniowania" może dołączyć warstwy SHP obrębu
+   (WYDZ_POL, PNSW, ODDZ) z folderu mapy obrębu (_MAPY) - trafiają do
+   podfolderu SHP obrębu w ZIP-ie.
+3. POPRAWKA: "Spakuj do opiniowania" znajduje mapy i atlasy leżące wprost
+   w folderze gminy w PLOTOWANIE (bez podfolderów Mapy/Atlasy) i pomija
+   pary pasów do druku (_x2) - także te leżące obok zwykłych map.
+4. ZMIANA: "Spakuj do opiniowania" i "Przygotuj na wyłożenia" szukają
+   operatów BDO w Operaty_BDO i w Operaty/Operaty_BDO; gdy operat jest
+   w obu, brany jest nowszy.
+5. ZMIANA: "Atlasuj automatycznie" - duże zwarte kompleksy wydzieleń są
+   pokrywane regularną siatką stron z zakładką (wcześniej wydzielenie
+   większe od strony miało tylko jedną stronę). Nowa akcja "Przenumeruj
+   atlasy" - ponowna numeracja stron i sąsiadów po ręcznych poprawkach.
+6. NOWOŚĆ: "Przygotuj Lsy" - wykrywa też użytki Ls bez klasy (Ls z bazy,
+   których brakuje w warstwie LS) i po potwierdzeniu dorysowuje je
+   z warstwy UZYTKI; w raporcie osobne sekcje dopisanych
+   i nieprzygotowanych.
+7. ZMIANA: "Spakuj taksatorowi" - nazwy spakowanych warstw z nazwą
+   jednostki, np. LS_Witkowo.zip, DZKAT_Witkowo.zip.
+8. ZMIANA: "Anonimizuj bazy TPU" usuwa też tabele historii zmian modułu
+   Aktualizacja UPUL (_LRT_SNAPSHOTS, _LRT_VERSIONS).
+
 Wersja 2.0cx — 2026-11-15
 ------------------------------------------------
 
