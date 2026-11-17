@@ -30,7 +30,7 @@ import re
 import unicodedata
 import zipfile
 
-FOLDER_WYNIKOWY = 'N-ctwa_do_opiniowania'
+FOLDER_WYNIKOWY = '_Do_opiniowania'
 PLIK_XLSX = 'Nadlesnictwa_obreby.xlsx'
 FOLDER_PLOTOWANIA = 'PLOTOWANIE'
 FOLDER_OPERATOW = 'Operaty_BDO'
