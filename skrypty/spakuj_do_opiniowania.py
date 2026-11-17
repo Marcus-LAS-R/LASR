@@ -302,6 +302,8 @@ class SpakujDialog(QDialog):
             sp.MAPY: QCheckBox('Mapy'),
             sp.ATLASY: QCheckBox('Atlasy z legendami'),
             sp.OPERATY: QCheckBox('Operaty BDO (tylko *_BDO.pdf)'),
+            sp.SHP: QCheckBox('Warstwy SHP z map obrębu (%s)'
+                              % ', '.join(sp.WARSTWY_SHP)),
         }
         for cb in self.cb_rodzaje.values():
             lay.addWidget(cb)

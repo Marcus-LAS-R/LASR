@@ -116,7 +116,8 @@ class TestPliki(unittest.TestCase):
     def test_zwykly_operat_nigdy_nie_wchodzi(self):
         p = sp.pliki_obrebu(self.g, '042', '0014')
         self.assertEqual(p[sp.OPERATY], [])
-        self.assertEqual(sp.braki_obrebu(p, sp.RODZAJE), ['operat BDO'])
+        self.assertEqual(sp.braki_obrebu(p, (sp.MAPY, sp.ATLASY, sp.OPERATY)),
+                         ['operat BDO'])
 
     def test_legenda_ze_starym_przyrostkiem_a3(self):
         p = sp.pliki_obrebu(self.g, '042', '0014')
@@ -125,11 +126,22 @@ class TestPliki(unittest.TestCase):
 
     def test_inna_gmina_nie_pasuje(self):
         p = sp.pliki_obrebu(self.g, '011', '0013')
-        self.assertEqual(p, {sp.MAPY: [], sp.ATLASY: [], sp.OPERATY: []})
+        self.assertEqual(p, {r: [] for r in sp.RODZAJE})
 
     def test_dostepne_rodzaje(self):
-        self.assertEqual(sp.dostepne_rodzaje([self.g]), set(sp.RODZAJE))
+        self.assertEqual(sp.dostepne_rodzaje([self.g]),
+                         set(sp.RODZAJE) - {sp.SHP})
         self.assertEqual(sp.dostepne_rodzaje([]), set())
+
+    def test_x2_obok_zwyklych_pominiety(self):
+        plot = os.path.join(self.g, 'PLOTOWANIE', '042_DEBICA')
+        _plik(os.path.join(plot, '0013_STOBIERNA_MAPA_PRZEGLADOWA_x2.pdf'))
+        _plik(os.path.join(plot, 'Mapy',
+                           '0013_STOBIERNA_MAPA_PRZEGLADOWA_X2.pdf'))
+        p = sp.pliki_obrebu(self.g, '042', '0013')
+        self.assertEqual([os.path.basename(x) for x in p[sp.MAPY]],
+                         ['0013_STOBIERNA_MAPA_PRZEGLADOWA.pdf'])
+        self.assertFalse(sp.czy_x2('0013_X2OWO_MAPA.pdf'))
 
     def test_x2_pominiety(self):
         x2 = os.path.join(self.g, 'PLOTOWANIE', '042_DEBICA_x2')
@@ -190,6 +202,68 @@ class TestBezPodzialu(unittest.TestCase):
         self.assertEqual(sp.rodzaj_z_nazwy('0005_LEGNICA_MAPA.pdf'), sp.MAPY)
         self.assertEqual(sp.rodzaj_z_nazwy('0005_ATLASOWO_MAPA.pdf'),
                          sp.MAPY)
+
+
+def _warstwy(katalog, nazwy=sp.WARSTWY_SHP, rozsz=('shp', 'shx', 'dbf')):
+    for n in nazwy:
+        for r in rozsz:
+            _plik(os.path.join(katalog, f'{n}.{r}'))
+
+
+class TestWarstwySHP(unittest.TestCase):
+    """WYDZ_POL/PNSW/ODDZ z _MAPY/<gmina>/<obręb>/SHP."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.g = _obiekt(self.tmp.name)
+        self.mapy = os.path.join(self.g, '_MAPY', '042_DEBICA')
+        _warstwy(os.path.join(self.mapy, '0013_STOBIERNA', 'SHP'))
+        # nie do wzięcia: inne warstwy, SHP całej gminy, inny obręb
+        _warstwy(os.path.join(self.mapy, '0013_STOBIERNA', 'SHP'),
+                 ('WYDZ', 'WYDZ_POL_stare'))
+        _warstwy(os.path.join(self.g, '_MAPY', 'SHP'))
+        _warstwy(os.path.join(self.mapy, '0014_ZAWADA', 'SHP'), ('ODDZ',))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _nazwy(self, com):
+        p = sp.pliki_obrebu(self.g, '042', com)
+        return p, [os.path.basename(x) for x in p[sp.SHP]]
+
+    def test_tylko_trzy_warstwy_obrebu(self):
+        _, nazwy = self._nazwy('0013')
+        self.assertEqual(len(nazwy), 9)
+        self.assertEqual({os.path.splitext(n)[0] for n in nazwy},
+                         set(sp.WARSTWY_SHP))
+
+    def test_braki_warstw(self):
+        p, _ = self._nazwy('0014')
+        self.assertEqual(sp.braki_obrebu(p, (sp.SHP,)),
+                         ['WYDZ_POL.shp', 'PNSW.shp'])
+        p, _ = self._nazwy('0013')
+        self.assertEqual(sp.braki_obrebu(p, (sp.SHP,)), [])
+
+    def test_robocze_gdy_brak_glownego(self):
+        rob = os.path.join(self.g, '_MAPY', '_ROBOCZE', '042_DEBICA',
+                           '0015_LUBZINA', 'SHP')
+        _warstwy(rob, ('PNSW',))
+        _, nazwy = self._nazwy('0015')
+        self.assertEqual(nazwy, ['PNSW.dbf', 'PNSW.shp', 'PNSW.shx'])
+
+    def test_dostepne(self):
+        self.assertIn(sp.SHP, sp.dostepne_rodzaje([self.g]))
+
+    def test_w_zipie_podfolder_shp(self):
+        ob = _ob(self.g, '0013', 'Stobierna')
+        plan = sp.zaplanuj({'A': {'k'}}, {'k': ob},
+                           {'A': {'nazwa': 'DĘBICA', 'rdlp': ''}},
+                           (sp.MAPY, sp.SHP))
+        sciezki = [a for _, a in plan[0]['czesci'][0]['pliki']]
+        self.assertIn('042_Debica_OW/0013_STOBIERNA/SHP/WYDZ_POL.shp',
+                      sciezki)
+        self.assertIn('042_Debica_OW/0013_STOBIERNA/'
+                      '0013_STOBIERNA_MAPA_PRZEGLADOWA.pdf', sciezki)
 
 
 class TestPlanIZip(unittest.TestCase):

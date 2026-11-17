@@ -132,6 +132,7 @@ from .skrypty import rozdziel_upul_isl
 from .skrypty import zabiegi_podmien
 from .skrypty import shp_polacz_warstwy
 from .skrypty import spakuj_do_opiniowania
+from .skrypty import przygotuj_na_wylozenia
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1377,6 +1378,18 @@ class LasR:
         self.a_kontrola_terenowa.triggered.connect(
             self.materialy_do_kontroli_terenowej)
 
+        self.a_przygotuj_wylozenia = QAction(
+            QIcon(None), "Przygotuj na wyłożenia",
+            self.iface.mainWindow()
+        )
+        self.a_przygotuj_wylozenia.setToolTip(
+            "Kopiuje mapy, atlasy, operaty i operaty BDO do folderów "
+            "pUPUL_<gmina> (po gminach, każdy poniżej 490 MB) w "
+            "_Na_wylozenia.")
+        self.m_raporty.addAction(self.a_przygotuj_wylozenia)
+        self.a_przygotuj_wylozenia.triggered.connect(
+            self.przygotuj_na_wylozenia)
+
         self.a_spakuj_opiniowanie = QAction(
             QIcon(None), "Spakuj do opiniowania przez Nadleśnictwo",
             self.iface.mainWindow()
@@ -2440,6 +2453,9 @@ class LasR:
 
     def spakuj_do_opiniowania(self):
         spakuj_do_opiniowania.uruchom(self.iface)
+
+    def przygotuj_na_wylozenia(self):
+        przygotuj_na_wylozenia.uruchom(self.iface)
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DodajIUzupelnijAdm()

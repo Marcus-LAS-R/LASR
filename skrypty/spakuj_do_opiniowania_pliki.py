@@ -5,13 +5,19 @@ podział na ZIP-y, pakowanie, zestawienie XLSX, raport.
 
 Układ danych w folderze gminy/obrębu:
     Operaty_BDO/<woj>-<MUNICIP>-<COMMUNITY>-<nazwa>_BDO.pdf
+    Operaty/Operaty_BDO/<to samo> - druga lokalizacja; gdy operat jest
+        w obu, brany jest nowszy (data modyfikacji)
     PLOTOWANIE/<MUNICIP>_<nazwa>/Mapy/<COMMUNITY>_<nazwa>_*.pdf
     PLOTOWANIE/<MUNICIP>_<nazwa>/Atlasy/<COMMUNITY>_<nazwa>_*.pdf
                                      (atlas + legenda, np. *_ATLAS, *_LEG)
     PLOTOWANIE/<MUNICIP>_<nazwa>/<COMMUNITY>_<nazwa>_*.pdf
         - gdy gmina ma tylko mapy albo tylko atlasy (LCH nie dzieli wtedy
           na Mapy/Atlasy); rodzaj po nazwie (rodzaj_z_nazwy)
-    PLOTOWANIE/<MUNICIP>_<nazwa>_x2 - pomijany (pary pasów do druku)
+    PLOTOWANIE/<MUNICIP>_<nazwa>_x2 - pomijany (pary pasów do druku),
+        tak samo PDF-y z członem _x2 w nazwie leżące obok zwykłych map
+    _MAPY/<MUNICIP>_<nazwa>/<COMMUNITY>_<nazwa>/SHP/{WYDZ_POL,PNSW,ODDZ}.*
+        - warstwy z projektu mapy obrębu (gdy go nie ma: to samo pod
+          _MAPY/_ROBOCZE); w ZIP-ie w podfolderze SHP obrębu
 
 Obręb to (folder, MUNICIP, COMMUNITY) - słownik z kluczami:
 folder, nazwa_folderu, municip, community, nazwa_gminy, nazwa_obrebu.
@@ -28,13 +34,23 @@ FOLDER_WYNIKOWY = 'N-ctwa_do_opiniowania'
 PLIK_XLSX = 'Nadlesnictwa_obreby.xlsx'
 FOLDER_PLOTOWANIA = 'PLOTOWANIE'
 FOLDER_OPERATOW = 'Operaty_BDO'
+FOLDER_OPERATOW_ZWYKLYCH = 'Operaty'
+FOLDERY_BDO = (FOLDER_OPERATOW,
+               os.path.join(FOLDER_OPERATOW_ZWYKLYCH, FOLDER_OPERATOW))
+FOLDER_MAP = '_MAPY'
+FOLDER_ROBOCZY = '_ROBOCZE'
+FOLDER_SHP = 'SHP'
+WARSTWY_SHP = ('WYDZ_POL', 'PNSW', 'ODDZ')
 LIMIT_ZIP = 500 * 1024 * 1024
 
 MAPY = 'Mapy'
 ATLASY = 'Atlasy'
 OPERATY = 'Operaty BDO'
-RODZAJE = (MAPY, ATLASY, OPERATY)
+SHP = 'Warstwy SHP'
+RODZAJE = (MAPY, ATLASY, OPERATY, SHP)
 
+_ETYKIETY_RODZAJOW = {ATLASY: 'Atlasy z legendami',
+                      SHP: 'Warstwy SHP (' + ', '.join(WARSTWY_SHP) + ')'}
 _POLSKIE = str.maketrans('ąćęłńóśźżĄĆĘŁŃÓŚŹŻ', 'acelnoszzACELNOSZZ')
 _NAGLOWKI_XLSX = ('Nr gminy', 'Nazwa gminy', 'Nr obrębu', 'Nazwa obrębu')
 
@@ -88,13 +104,66 @@ def etykieta_obrebu(obreb):
 
 # ---------------------------------------------------------- pliki obrębu
 
+def czy_x2(nazwa):
+    """Para pasów do druku: człon _x2 w nazwie (..._PRZEGLADOWA_x2.pdf)."""
+    return 'X2' in os.path.splitext(nazwa)[0].upper().split('_')
+
+
 def _pdfy(katalog):
+    """PDF-y katalogu bez par pasów do druku (*_x2)."""
     try:
         return sorted(p for p in os.listdir(katalog)
-                      if p.lower().endswith('.pdf') and
+                      if p.lower().endswith('.pdf') and not czy_x2(p) and
                       os.path.isfile(os.path.join(katalog, p)))
     except OSError:
         return []
+
+
+def _podfoldery(katalog, przedrostek=None):
+    try:
+        nazwy = sorted(os.listdir(katalog))
+    except OSError:
+        return []
+    return [os.path.join(katalog, n) for n in nazwy
+            if os.path.isdir(os.path.join(katalog, n)) and
+            (przedrostek is None or n.startswith(przedrostek))]
+
+
+def _foldery_shp_obrebu(folder, municip, community):
+    """Foldery SHP projektów mapy obrębu:
+    _MAPY/<MUNICIP>_*/<COMMUNITY>_*/SHP, a gdy żadnego nie ma - to samo
+    pod _MAPY/_ROBOCZE."""
+    mapy = os.path.join(folder, FOLDER_MAP)
+    for baza in (mapy, os.path.join(mapy, FOLDER_ROBOCZY)):
+        wyn = [os.path.join(ob, FOLDER_SHP)
+               for gm in _podfoldery(baza, f'{municip}_')
+               for ob in _podfoldery(gm, f'{community}_')
+               if os.path.isdir(os.path.join(ob, FOLDER_SHP))]
+        if wyn:
+            return wyn
+    return []
+
+
+def _pliki_warstw(katalog):
+    """Wszystkie pliki warstw WARSTWY_SHP (shp, shx, dbf, prj, cpg...)."""
+    try:
+        nazwy = sorted(os.listdir(katalog))
+    except OSError:
+        return []
+    warstwy = {w.upper() for w in WARSTWY_SHP}
+    return [os.path.join(katalog, n) for n in nazwy
+            if os.path.splitext(n)[0].upper() in warstwy and
+            os.path.isfile(os.path.join(katalog, n))]
+
+
+def warstwy_shp_obrebu(folder, municip, community):
+    """Pliki WYDZ_POL/PNSW/ODDZ z pierwszego folderu SHP mapy obrębu, który
+    je ma (jeden komplet - bez dubli z kilku projektów)."""
+    for kat in _foldery_shp_obrebu(folder, municip, community):
+        pliki = _pliki_warstw(kat)
+        if pliki:
+            return pliki
+    return []
 
 
 def _foldery_plotowania(folder, municip=None):
@@ -128,6 +197,27 @@ def _operat(nazwa, municip, community):
     return re.match(wzor, nazwa, re.IGNORECASE) is not None
 
 
+def _mtime(sciezka):
+    try:
+        return os.path.getmtime(sciezka)
+    except OSError:
+        return 0
+
+
+def wersje_bdo(folder, municip, community):
+    """{nazwa pliku: [ścieżki od najnowszej]} operatów *_BDO.pdf obrębu
+    z obu lokalizacji (FOLDERY_BDO)."""
+    wyn = {}
+    for podf in FOLDERY_BDO:
+        kat = os.path.join(folder, podf)
+        for p in _pdfy(kat):
+            if _operat(p, municip, community):
+                wyn.setdefault(p, []).append(os.path.join(kat, p))
+    for lista in wyn.values():
+        lista.sort(key=_mtime, reverse=True)
+    return dict(sorted(wyn.items()))
+
+
 def pliki_obrebu(folder, municip, community):
     """{rodzaj: [ścieżki PDF]} dla jednego obrębu: Mapy/ i Atlasy/ folderu
     gminy oraz PDF-y wprost w folderze gminy (rodzaj po nazwie). Foldery
@@ -142,9 +232,9 @@ def pliki_obrebu(folder, municip, community):
         for p in _pdfy(plot):
             if p.startswith(f'{community}_'):
                 wyn[rodzaj_z_nazwy(p)].append(os.path.join(plot, p))
-    kat = os.path.join(folder, FOLDER_OPERATOW)
-    wyn[OPERATY] = [os.path.join(kat, p) for p in _pdfy(kat)
-                    if _operat(p, municip, community)]
+    wyn[OPERATY] = [w[0] for w in wersje_bdo(folder, municip,
+                                             community).values()]
+    wyn[SHP] = warstwy_shp_obrebu(folder, municip, community)
     return wyn
 
 
@@ -159,8 +249,15 @@ def dostepne_rodzaje(foldery):
                 wyn.add(ATLASY)
             wyn.update(rodzaj_z_nazwy(p) for p in _pdfy(plot))
         if any(p.lower().endswith('_bdo.pdf')
-               for p in _pdfy(os.path.join(folder, FOLDER_OPERATOW))):
+               for podf in FOLDERY_BDO
+               for p in _pdfy(os.path.join(folder, podf))):
             wyn.add(OPERATY)
+        mapy = os.path.join(folder, FOLDER_MAP)
+        if any(_pliki_warstw(os.path.join(ob, FOLDER_SHP))
+               for baza in (mapy, os.path.join(mapy, FOLDER_ROBOCZY))
+               for gm in _podfoldery(baza)
+               for ob in _podfoldery(gm)):
+            wyn.add(SHP)
     return wyn
 
 
@@ -196,6 +293,10 @@ def braki_obrebu(pliki, rodzaje):
             wyn.append('legenda')
     if OPERATY in rodzaje and not pliki[OPERATY]:
         wyn.append('operat BDO')
+    if SHP in rodzaje:
+        sa = {os.path.splitext(os.path.basename(p))[0].upper()
+              for p in pliki[SHP] if p.lower().endswith('.shp')}
+        wyn += [f'{w}.shp' for w in WARSTWY_SHP if w.upper() not in sa]
     return wyn
 
 
@@ -244,18 +345,17 @@ def zaplanuj(przypisania, obreby, nadlesnictwa, rodzaje, limit=LIMIT_ZIP):
                        key=klucz_sortowania_obrebu)
         pozycje = []
         for ob in lista:
-            pliki = [p for r in rodzaje for p in ob['pliki'][r]]
+            pliki = [(r, p) for r in rodzaje for p in ob['pliki'][r]]
             if pliki:
                 pozycje.append(((ob, pliki),
-                                sum(_rozmiar(p) for p in pliki)))
+                                sum(_rozmiar(p) for _, p in pliki)))
         podzial = podziel_na_czesci(pozycje, limit)
         czesci = []
         for i, czesc in enumerate(podzial, 1):
             stem = stemy[klucz] if len(podzial) == 1 \
                 else f'{stemy[klucz]}_{i}'
-            pary = [(p, '/'.join((ob['nazwa_folderu'], etykieta_obrebu(ob),
-                                  os.path.basename(p))))
-                    for ob, pliki in czesc for p in pliki]
+            pary = [(p, sciezka_w_zipie(ob, r, p))
+                    for ob, pliki in czesc for r, p in pliki]
             rozmiar = sum(_rozmiar(p) for p, _ in pary)
             czesci.append({'plik': f'{stem}.zip',
                            'obreby': [ob for ob, _ in czesc],
@@ -264,6 +364,14 @@ def zaplanuj(przypisania, obreby, nadlesnictwa, rodzaje, limit=LIMIT_ZIP):
         plan.append({'klucz': klucz, 'nazwa': nadlesnictwa[klucz]['nazwa'],
                      'stem': stemy[klucz], 'obreby': lista, 'czesci': czesci})
     return plan
+
+
+def sciezka_w_zipie(obreb, rodzaj, sciezka):
+    """<folder gminy>/<obręb>/[SHP/]<plik>."""
+    czlony = [obreb['nazwa_folderu'], etykieta_obrebu(obreb)]
+    if rodzaj == SHP:
+        czlony.append(FOLDER_SHP)
+    return '/'.join(czlony + [os.path.basename(sciezka)])
 
 
 def _rozmiar(sciezka):
@@ -363,8 +471,8 @@ def _opis_obrebu(ob):
 
 def opis_planu(plan, poza, uwagi, rodzaje):
     """Tekst podglądu przed pakowaniem i początek raportu."""
-    linie = ['Zawartość: ' + ', '.join(
-        'Atlasy z legendami' if r == ATLASY else r for r in rodzaje), '']
+    linie = ['Zawartość: ' + ', '.join(_ETYKIETY_RODZAJOW.get(r, r)
+                                       for r in rodzaje), '']
     for poz in plan:
         linie.append(f"{poz['nazwa']}: {len(poz['obreby'])} obr.")
         if not poz['czesci']:
