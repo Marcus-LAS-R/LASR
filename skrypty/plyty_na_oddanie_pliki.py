@@ -73,7 +73,8 @@ ZAWARTOSC = (
     ('raporty', 'Folder Raporty (na razie pusty)'),
 )
 KLUCZE = tuple(k for k, _ in ZAWARTOSC)
-_PELNE = {k: k not in ('sulmn', 'raporty') for k in KLUCZE}
+_PELNE = {k: k not in ('sulmn', 'raporty', 'docx', 'ogolne')
+          for k in KLUCZE}
 DOMYSLNE_PLYT = {
     CALOSC: dict(_PELNE),
     GMINY: dict(_PELNE),
@@ -199,16 +200,70 @@ def zrodla_shp(foldery_shp):
 
 
 def pliki_ogolne(folder, municip):
-    """Pliki z _MAPY/<MUNICIP>_*/OGOLNE (warstwy wspólne gminy)."""
+    """Pliki z _MAPY/<MUNICIP>_*/OGOLNE (warstwy wspólne gminy), a gdy
+    tam nic nie ma - z _MAPY/_ROBOCZE/<MUNICIP>_*/OGOLNE."""
+    mapy = os.path.join(folder, sp.FOLDER_MAP)
+    for baza in (mapy, os.path.join(mapy, sp.FOLDER_ROBOCZY)):
+        wyn = []
+        for gm in sp._podfoldery(baza, f'{municip}_'):
+            kat = os.path.join(gm, OGOLNE)
+            try:
+                wyn += [os.path.join(kat, p) for p in sorted(os.listdir(kat))
+                        if os.path.isfile(os.path.join(kat, p))]
+            except OSError:
+                pass
+        if wyn:
+            return wyn
+    return []
+
+
+def _katalogi_mapy_plotowania(folder, municip=None):
+    """_MAPY/PLOTOWANIE i jego foldery gmin (<MUNICIP>_*, bez _x2)."""
+    plot = os.path.join(folder, sp.FOLDER_MAP, sp.FOLDER_PLOTOWANIA)
+    if not os.path.isdir(plot):
+        return []
+    return [plot] + [d for d in sp._podfoldery(
+        plot, f'{municip}_' if municip else None)
+        if not d.lower().endswith('_x2')]
+
+
+def _pdfy_mapy_plotowania(folder, municip=None):
+    """[(ścieżka, nazwa, rodzaj)] PDF-ów z _MAPY/PLOTOWANIE: luzem i w
+    folderach gmin, także w ich podfolderach Mapy/Atlasy (bez _x2)."""
     wyn = []
-    for gm in sp._podfoldery(os.path.join(folder, sp.FOLDER_MAP),
-                             f'{municip}_'):
-        kat = os.path.join(gm, OGOLNE)
-        try:
-            wyn += [os.path.join(kat, p) for p in sorted(os.listdir(kat))
-                    if os.path.isfile(os.path.join(kat, p))]
-        except OSError:
-            pass
+    for baza in _katalogi_mapy_plotowania(folder, municip):
+        for podf, rodzaj in ((None, None), ('Mapy', sp.MAPY),
+                             ('Atlasy', sp.ATLASY)):
+            kat = baza if podf is None else os.path.join(baza, podf)
+            for p in sp._pdfy(kat):
+                wyn.append((os.path.join(kat, p), p,
+                            rodzaj or sp.rodzaj_z_nazwy(p)))
+    return wyn
+
+
+def mapy_z_mapy_plotowania(folder, municip, communities):
+    """Mapy/atlasy z _MAPY/PLOTOWANIE (luzem albo w folderze gminy):
+    ({community: {MAPY: [...], ATLASY: [...]}} - pliki obrębów
+    (<COMMUNITY>_*.pdf), {MAPY: [...], ATLASY: [...]} - pliki całej gminy
+    (<MUNICIP>_*.pdf, np. 042_JAROSLAW_ATLAS.pdf, 042_JAROSLAW_LEG.pdf))."""
+    obreby = {c: {sp.MAPY: [], sp.ATLASY: []} for c in communities}
+    gmina = {sp.MAPY: [], sp.ATLASY: []}
+    for sc, p, rodzaj in _pdfy_mapy_plotowania(folder, municip):
+        przedrostek = p.split('_', 1)[0]
+        if przedrostek in obreby:
+            obreby[przedrostek][rodzaj].append(sc)
+        elif przedrostek == municip:
+            gmina[rodzaj].append(sc)
+    return obreby, gmina
+
+
+def dostepne_mapy(foldery):
+    """Czy są mapy/atlasy (pw.MAPY/pw.ATLASY) - PLOTOWANIE folderu gminy
+    i _MAPY/PLOTOWANIE."""
+    wyn = {r for r in pw.dostepne_rodzaje(foldery)
+           if r in (pw.MAPY, pw.ATLASY)}
+    for folder in foldery:
+        wyn.update(r for _, _, r in _pdfy_mapy_plotowania(folder))
     return wyn
 
 
@@ -253,6 +308,16 @@ def _bez_dubli(lista):
     return wyn
 
 
+def _bez_dubli_nazw(lista):
+    widziane, wyn = set(), []
+    for p in lista:
+        n = os.path.basename(p).lower()
+        if n not in widziane:
+            widziane.add(n)
+            wyn.append(p)
+    return wyn
+
+
 def uzupelnij_czesc(cz, opcje):
     """Pliki części dla opcji (suma list wszystkich płyt): baza, pliki
     {rodzaj z _PLIKI: [źródła]}, źródła SHP, pliki OGOLNE, braki."""
@@ -261,8 +326,16 @@ def uzupelnij_czesc(cz, opcje):
     cz['bazy_inne'] = bazy[1:]
     pliki = {r: [] for r, _, _ in _PLIKI}
     braki = []
+    dod_obreby, dod_gmina = mapy_z_mapy_plotowania(
+        cz['folder'], cz['municip'], [o['community'] for o in cz['obreby']])
+    # atlas/legenda całej gminy (<MUNICIP>_*_ATLAS/LEG.pdf) - raz na część
+    for klucz, rodzaj in (('mapy', sp.MAPY), ('atlasy', sp.ATLASY)):
+        if opcje.get(klucz):
+            pliki[klucz] += dod_gmina[rodzaj]
     for ob in cz['obreby']:
         p = pw.pliki_obrebu(ob['folder'], ob['municip'], ob['community'])
+        p[pw.MAPY] = p[pw.MAPY] + dod_obreby[ob['community']][sp.MAPY]
+        p[pw.ATLASY] = p[pw.ATLASY] + dod_obreby[ob['community']][sp.ATLASY]
         for klucz, rodzaj in (('operaty', pw.OPERATY),
                               ('operaty_bdo', pw.OPERATY_BDO),
                               ('mapy', pw.MAPY), ('atlasy', pw.ATLASY)):
@@ -273,17 +346,23 @@ def uzupelnij_czesc(cz, opcje):
                                   ob['community'])
             pliki['operaty_docx'] += zw
             pliki['operaty_bdo_docx'] += bdo
+        atl = [os.path.basename(s).upper()
+               for s in p[pw.ATLASY] + dod_gmina[sp.ATLASY]]
         brak = [n for n, klucz, jest in (
             ('operat', 'operaty', p[pw.OPERATY]),
             ('operat BDO', 'operaty_bdo', p[pw.OPERATY_BDO]),
-            ('mapa', 'mapy', p[pw.MAPY]),
-            ('atlas', 'atlasy', p[pw.ATLASY]))
+            ('mapa', 'mapy', p[pw.MAPY] + dod_gmina[sp.MAPY]),
+            ('atlas', 'atlasy', any('ATLAS' in n for n in atl)),
+            ('legenda', 'atlasy', any('_LEG' in n for n in atl)))
             if opcje.get(klucz) and not jest]
         if brak:
             braki.append(f"{ob['municip']}.{ob['community']} "
                          f"{ob.get('nazwa_obrebu') or ''}".rstrip() +
                          ': ' + ', '.join(brak))
     cz['pliki'] = {k: _bez_dubli(v) for k, v in pliki.items()}
+    for k in ('mapy', 'atlasy'):
+        # ten sam plik w PLOTOWANIE i _MAPY/PLOTOWANIE - raz (pierwszy)
+        cz['pliki'][k] = _bez_dubli_nazw(cz['pliki'][k])
     cz['foldery_shp'] = (foldery_shp_czesci(cz['folder'], cz['municip'],
                                             cz['obreby'])
                          if opcje.get('shp') else {})

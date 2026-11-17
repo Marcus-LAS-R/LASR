@@ -10,7 +10,10 @@ skrypt ustala obręby i gminy (jak Przygotuj na wyłożenia) i tworzy w
   - PGLLP      - [SULMN] + Operaty_BDO, Mapy, Atlasy.
 Co trafia na płyty - osobna lista dla każdego rodzaju płyty (zakładki,
 pp.ZAWARTOSC; domyślne pp.DOMYSLNE_PLYT: Całościowa i gminy - wszystko poza
-SULMN i Raporty, PGLLP - operaty BDO, mapy, atlasy). Bazy i SHP
+SULMN, Raporty, docx i plikami ogólnymi, PGLLP - operaty BDO, mapy,
+atlasy). Mapy/atlasy z PLOTOWANIE folderu gminy i z _MAPY/PLOTOWANIE
+(luzem albo w folderze gminy, także atlas/legenda całej gminy); SHP
+i OGOLNE z _MAPY, a gdy brak - z _MAPY/_ROBOCZE. Bazy i SHP
 przygotowywane raz dla sumy zaznaczeń.
 Bazy: najnowsza .mdb z folderu gminy, dwie kopie bez kwerend
 (<część>.mdb i <część>_anonim.mdb - zanonimizowana jak Anonimizuj bazy TPU),
@@ -284,7 +287,7 @@ class PlytyDialog(QDialog):
 
     def _odswiez_rodzaje(self, *_):
         """Mapy/atlasy do wyboru tylko, gdy są w zaznaczonych folderach."""
-        dostepne = pw.dostepne_rodzaje(self.wybrane_foldery())
+        dostepne = pp.dostepne_mapy(self.wybrane_foldery())
         for lista in self.listy.values():
             for rodzaj, klucz in ((pw.MAPY, 'mapy'), (pw.ATLASY, 'atlasy')):
                 lista.wlacz(klucz, rodzaj in dostepne)

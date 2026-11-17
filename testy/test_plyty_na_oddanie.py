@@ -35,6 +35,7 @@ def _gmina(korzen, folder, municip, obreby, baza=True):
     for com, nazwa in obreby:
         _plik(os.path.join(plot, 'Mapy', f'{com}_{nazwa}_MAPA_PRZEGLADOWA.pdf'))
         _plik(os.path.join(plot, 'Atlasy', f'{com}_{nazwa}_ATLAS.pdf'))
+        _plik(os.path.join(plot, 'Atlasy', f'{com}_{nazwa}_LEG.pdf'))
         _plik(os.path.join(g, 'Operaty', f'17-{municip}-{com}-{nazwa}.pdf'))
         _plik(os.path.join(g, 'Operaty', f'17-{municip}-{com}-{nazwa}.docx'))
         _plik(os.path.join(g, 'Operaty', f'~$-{municip}-{com}.docx'))
@@ -98,7 +99,9 @@ class TestNazwy(unittest.TestCase):
             self.assertFalse(d['sulmn'])
             self.assertFalse(d['raporty'])
             self.assertTrue(all(v for k, v in d.items()
-                                if k not in ('sulmn', 'raporty')))
+                                if k not in ('sulmn', 'raporty', 'docx',
+                                             'ogolne')))
+            self.assertFalse(d['docx'] or d['ogolne'])
         self.assertEqual(sorted(k for k, v in
                                 pp.DOMYSLNE_PLYT[pp.PGLLP].items() if v),
                          ['atlasy', 'mapy', 'operaty_bdo'])
@@ -109,7 +112,8 @@ class TestNazwy(unittest.TestCase):
     def test_podfoldery(self):
         self.assertEqual(pp.podfoldery_plyty(pp.DOMYSLNE_PLYT[pp.PGLLP]),
                          ('Operaty_BDO', 'Mapy', 'Atlasy'))
-        o = dict(CALOSC, bazy=False, anonim=False, shp=False, mapy=False)
+        o = dict(CALOSC, bazy=False, anonim=False, shp=False, mapy=False,
+                 ogolne=True)
         # same pliki ogólne -> SHP/OGOLNE
         self.assertEqual(pp.podfoldery_plyty(o),
                          ('SHP', 'Operaty', 'Operaty_BDO', 'Atlasy'))
@@ -162,7 +166,7 @@ class TestPliki(unittest.TestCase):
                          ['0002', '0003'])
         self.assertEqual({k: len(v) for k, v in ow['pliki'].items()},
                          {'operaty': 2, 'operaty_docx': 2, 'operaty_bdo': 2,
-                          'operaty_bdo_docx': 2, 'mapy': 2, 'atlasy': 2})
+                          'operaty_bdo_docx': 2, 'mapy': 2, 'atlasy': 4})
         self.assertEqual(sorted(ow['shp']), ['ODDZ', 'WYDZ_POL'])
         self.assertEqual(len(ow['shp']['WYDZ_POL']), 2)
         self.assertEqual(len(ow['ogolne']), 2)
@@ -184,7 +188,7 @@ class TestPliki(unittest.TestCase):
         cal, pgl = plan[0], plan[-1]
         n = sorted(os.path.basename(w) for _, w in pp.pliki_czesci(cal, ow))
         self.assertFalse(any(x.endswith('.docx') for x in n))
-        self.assertEqual(len(n), 8)
+        self.assertEqual(len(n), 10)
         n = [w for _, w in pp.pliki_czesci(pgl, ow)]
         self.assertTrue(all(w.split(os.sep)[0] in ('Operaty_BDO', 'Mapy',
                                                    'Atlasy') for w in n))
@@ -194,7 +198,7 @@ class TestPliki(unittest.TestCase):
         cz = self._czesci()
         sulmn = _plik(os.path.join(self.tmp.name, 'SULMN.pdf'))
         opcje = {pp.CALOSC: dict(CALOSC, sulmn=True, raporty=True,
-                                 anonim=False),
+                                 anonim=False, ogolne=True),
                  pp.GMINY: dict(pp.DOMYSLNE_PLYT[pp.GMINY], bazy=False),
                  pp.PGLLP: dict(pp.DOMYSLNE_PLYT[pp.PGLLP], sulmn=True)}
         plan = pp.zaplanuj(cz, pp.PLYTY, sulmn, opcje)
@@ -250,9 +254,9 @@ class TestPliki(unittest.TestCase):
             pp.CALOSC: CALOSC,
             pp.PGLLP: dict(pp.DOMYSLNE_PLYT[pp.PGLLP], sulmn=True)})
         rozm = {p['nazwa']: pp.rozmiar_plyty(p) for p in plan}
-        # PGLLP: Sekowa 3 pliki, M 3 pliki, OW 6 plików (po 10 B) + SULMN
-        self.assertEqual(rozm['PGLLP'], 125)
-        limit = 80
+        # PGLLP: Sekowa 4 pliki, M 4 pliki, OW 8 plików (po 10 B) + SULMN
+        self.assertEqual(rozm['PGLLP'], 165)
+        limit = 100
         self.assertEqual(sorted(pp.za_duze(plan, limit=limit)),
                          ['Calosciowa', 'PGLLP'])
         nowy = pp.podziel_plyty(plan, limit=limit)
@@ -268,6 +272,45 @@ class TestPliki(unittest.TestCase):
             os.makedirs(os.path.join(wyn, n))
         self.assertEqual(pp.istniejace_wyniki(wyn, plan),
                          ['Calosciowa', 'PGLLP_1', 'PGLLP_2'])
+
+    def test_mapy_plotowanie_i_robocze(self):
+        """_MAPY/PLOTOWANIE: obręby luzem i w folderze gminy (Mapy/),
+        atlas/legenda całej gminy; OGOLNE z _MAPY/_ROBOCZE."""
+        g = os.path.join(self.tmp.name, '180404_2_Jaroslaw_OW')
+        plot = os.path.join(g, '_MAPY', 'PLOTOWANIE')
+        _plik(os.path.join(plot, '042_JAROSLAW_ATLAS.pdf'))
+        _plik(os.path.join(plot, '042_JAROSLAW_LEG.pdf'))
+        _plik(os.path.join(plot, '0004_MAKOWISKO_MAPA_PRZEGLADOWA.pdf'))
+        _plik(os.path.join(plot, '0004_MAKOWISKO_MAPA_PRZEGLADOWA_x2.pdf'))
+        _plik(os.path.join(plot, '042_JAROSLAW', 'Mapy',
+                           '0010_TUCZEMPY_MAPA_PRZEGLADOWA.pdf'))
+        _plik(os.path.join(plot, '043_INNA_ATLAS.pdf'))
+        rob = os.path.join(g, '_MAPY', '_ROBOCZE', '042_JAROSLAW')
+        _plik(os.path.join(rob, 'OGOLNE', 'DROGI_LFT.shp'))
+        for com in ('0004_MAKOWISKO', '0010_TUCZEMPY'):
+            _plik(os.path.join(rob, com, 'SHP', 'WYDZ_POL.shp'))
+        _plik(os.path.join(g, 'Operaty_BDO', '18-042-0004-MAKOWISKO_BDO.pdf'))
+
+        self.assertEqual(pp.dostepne_mapy([g]), {pp.pw.MAPY, pp.pw.ATLASY})
+        gminy = {'180404': {'nazwa': 'Jaroslaw', 'obreby': [
+            _ob(g, '042', '0004'), _ob(g, '042', '0010')]}}
+        c = pp.uzupelnij_czesc(pp.czesci_z_gmin(gminy)[0],
+                               dict(WSZYSTKO, docx=False))
+        self.assertEqual(c['nazwa'], '180404_2_Jaroslaw')
+        self.assertEqual(sorted(os.path.basename(x) for x in c['pliki']['mapy']),
+                         ['0004_MAKOWISKO_MAPA_PRZEGLADOWA.pdf',
+                          '0010_TUCZEMPY_MAPA_PRZEGLADOWA.pdf'])
+        self.assertEqual(sorted(os.path.basename(x)
+                                for x in c['pliki']['atlasy']),
+                         ['042_JAROSLAW_ATLAS.pdf', '042_JAROSLAW_LEG.pdf'])
+        self.assertEqual([os.path.basename(x) for x in c['ogolne']],
+                         ['DROGI_LFT.shp'])
+        self.assertEqual(sorted(c['foldery_shp']), ['0004', '0010'])
+        # atlas/legenda całej gminy wystarczą obu obrębom - braki tylko
+        # baza i operaty
+        self.assertEqual(c['braki'], ['BRAK BAZY .mdb w folderze gminy',
+                                      '042.0004: operat',
+                                      '042.0010: operat, operat BDO'])
 
     def test_przerwanie(self):
         p = pp.zaplanuj(self._czesci(), [pp.PGLLP])[0]
