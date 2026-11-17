@@ -1,6 +1,35 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0ex — 2026-11-17
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> "Utwórz płyty na oddanie" - wskazujesz folder
+   oddania, a skrypt w _Plyty_na_oddanie tworzy płyty: Całościową
+   (wszystkie gminy), osobną dla każdej gminy (Gm.<gmina> - miasto
+   i obszar wiejski razem) i dla PGLLP. Każda gmina ma foldery
+   Bazy_danych, SHP, Operaty, Operaty_BDO, Mapy, Atlasy (i opcjonalnie
+   Raporty). Dla każdej płyty osobno wybierasz, co na nią wgrać: bazy
+   zwykłe i zanonimizowane (bez kwerend), warstwy SHP połączone z map
+   obrębów, pliki ogólne, operaty PDF i docx, operaty BDO, mapy, atlasy,
+   plik SULMN. Mapy i atlasy są szukane także w _MAPY/PLOTOWANIE (z
+   atlasem i legendą całej gminy), warstwy SHP także w _MAPY/_ROBOCZE.
+   Bazy na płytach nazywają się według TERYT gminy, np.
+   301703_5_Odolanow_OW.mdb. Opcja "Mniej niż 4,70 GB (DVD)" - za dużą
+   płytę skrypt zgłasza i proponuje podział po gminach na _1, _2...
+2. NOWOŚĆ: Narzędziowe -> podmenu "Podziel obiekt": "Na UPUL i ISL"
+   (dawne "Rozdziel bazy na UPUL i ISL"), "Gminami" i "Obrębami" - dzieli
+   bazę i/lub warstwy SHP na gminy (miasto i obszar wiejski osobno) albo
+   obręby. Każda gmina/obręb dostaje folder z kopią bazy tylko ze swoimi
+   danymi i podfolderem SHP. Słownik gmin (F_MUNICIPALITY) nie jest
+   okrajany - gdy brakuje w nim gminy, skrypt pyta, czy ją dopisać.
+3. POPRAWKA: bazy po podziale (UPUL/ISL, gminami, obrębami) i na płytach
+   nie wymagają już hasła w Accessie i Taksatorze - kompaktowanie
+   zachowuje hasło bazy źródłowej (wcześniej dodawało hasło "pw"). Bazy
+   utworzone wcześniej otwiera się hasłem pw.
+4. ZMIANA: "Spakuj do opiniowania" zapisuje ZIP-y w folderze
+   _Do_opiniowania (jak _Na_wylozenia).
+
 Wersja 2.0dx — 2026-11-17
 ------------------------------------------------
 
