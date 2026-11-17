@@ -299,6 +299,9 @@ INDEKS = {
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
+    'a_plyty_oddanie': _w('płyty na oddanie DVD nagraj całościowa gminy '
+                          'PGLLP bazy anonim zanonimizowana SHP operaty '
+                          'BDO mapy atlasy SULMN docx raporty'),
     'a_przygotuj_wylozenia': _w('wyłożenia wyłożenie przygotuj foldery '
                                 'gminy pUPUL mapy atlasy operaty BDO '
                                 'kopiuj gmina urząd właściciele generuj'),

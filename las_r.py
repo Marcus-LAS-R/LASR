@@ -134,6 +134,7 @@ from .skrypty import zabiegi_podmien
 from .skrypty import shp_polacz_warstwy
 from .skrypty import spakuj_do_opiniowania
 from .skrypty import przygotuj_na_wylozenia
+from .skrypty import plyty_na_oddanie
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1427,6 +1428,17 @@ class LasR:
         self.a_spakuj_opiniowanie.triggered.connect(
             self.spakuj_do_opiniowania)
 
+        self.a_plyty_oddanie = QAction(
+            QIcon(None), "Utwórz płyty na oddanie",
+            self.iface.mainWindow()
+        )
+        self.a_plyty_oddanie.setToolTip(
+            "Tworzy w _Plyty_na_oddanie płyty Całościową, dla gmin i dla "
+            "PGLLP: bazy (zwykła i zanonimizowana, bez kwerend), "
+            "połączone SHP, operaty, operaty BDO, mapy, atlasy, SULMN.")
+        self.m_raporty.addAction(self.a_plyty_oddanie)
+        self.a_plyty_oddanie.triggered.connect(self.plyty_na_oddanie)
+
         self.m_raporty.addSeparator()
         self.m_ntg = QMenu("NTG materiały", self.m_raporty)
         self.m_raporty.addMenu(self.m_ntg)
@@ -2488,6 +2500,9 @@ class LasR:
 
     def przygotuj_na_wylozenia(self):
         przygotuj_na_wylozenia.uruchom(self.iface)
+
+    def plyty_na_oddanie(self):
+        plyty_na_oddanie.uruchom(self.iface)
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DodajIUzupelnijAdm()
