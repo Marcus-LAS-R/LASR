@@ -80,6 +80,42 @@ class TestRaporty(unittest.TestCase):
         self.assertEqual(tp.parsuj('BLAD\t3\topis'), ('BLAD', '3', 'opis'))
         self.assertEqual(tp.parsuj('WERSJA\t50\t52'), ('WERSJA', '50', '52'))
 
+    def test_start_przez_cmd_po_bledzie_87(self):
+        tp._PRZEZ_CMD[0] = False
+        wywolania = []
+
+        def f(arg, **kw):
+            wywolania.append((arg, kw))
+            if isinstance(arg, list):
+                e = OSError('Parametr jest niepoprawny')
+                e.winerror = 87
+                raise e
+            return 'ok'
+        try:
+            prog = r'C:\Users\Ąę X\tpu.exe'
+            self.assertEqual(tp._start(f, [prog, r'C:\Program Files\T',
+                                           'lista'], capture_output=True),
+                             'ok')
+            self.assertEqual(len(wywolania), 2)
+            self.assertTrue(all(kw['stdin'] == tp.subprocess.DEVNULL
+                                for _, kw in wywolania))
+            self.assertTrue(wywolania[1][0].endswith(
+                ' /d /s /c ""C:\\Users\\Ąę X\\tpu.exe" '
+                '"C:\\Program Files\\T" "lista""'))
+            # dalej od razu przez cmd
+            wywolania.clear()
+            tp._start(f, [prog])
+            self.assertEqual(len(wywolania), 1)
+            self.assertIsInstance(wywolania[0][0], str)
+        finally:
+            tp._PRZEZ_CMD[0] = False
+
+        def g(arg, **kw):
+            raise FileNotFoundError(2, 'brak')
+        with self.assertRaises(FileNotFoundError):
+            tp._start(g, ['x'])
+        self.assertFalse(tp._PRZEZ_CMD[0])
+
     def test_opis_wynikow(self):
         wyn, _ = tp.zaplanuj('baza.mdb', [6], OB, 'T')
         t = tp.opis_wynikow(wyn, {wyn[1]['zrodla'][0][1]: 'zły obręb'}, {})

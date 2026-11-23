@@ -84,6 +84,52 @@ class BladPomocnika(Exception):
     """Pomocnik/Taksator zgłosił błąd."""
 
 
+# Po WinError 87 (raz w sesji QGIS) programy uruchamiane przez cmd /c.
+_PRZEZ_CMD = [False]
+
+
+def komenda_cmd(argumenty):
+    """[program, argumenty...] -> 'cmd.exe /d /s /c ""program" "arg" ..."'
+    (/s - cmd zdejmuje tylko zewnętrzne cudzysłowy, każdy argument
+    w swoich - spacje, polskie znaki)."""
+    cmd = os.environ.get('COMSPEC') or 'cmd.exe'
+    srodek = ' '.join(f'"{a}"' for a in argumenty)
+    return f'"{cmd}" /d /s /c "{srodek}"'
+
+
+def _start(funkcja, argumenty, **kw):
+    """subprocess.run/Popen z pustym wejściem i bez okna konsoli.
+    Na części komputerów (Windows 10, prawdopodobnie antywirus) QGIS nie
+    może uruchomić niepodpisanego pomocnika z przekierowanym wyjściem:
+    CreateProcess -> WinError 87, a przez cmd /c działa (diagnoza
+    w konsoli Pythona QGIS 2026-11-23). Przy WinError 87 - ponownie przez
+    cmd /c i tak już do końca sesji."""
+    kw.setdefault('stdin', subprocess.DEVNULL)
+    if not _PRZEZ_CMD[0]:
+        try:
+            return funkcja(argumenty, creationflags=_BEZ_OKNA, **kw)
+        except OSError as e:
+            if getattr(e, 'winerror', None) != 87:
+                raise
+            _PRZEZ_CMD[0] = True
+    return funkcja(komenda_cmd(argumenty), creationflags=_BEZ_OKNA, **kw)
+
+
+def zakoncz(proc):
+    """Zabija proces razem z potomkami (przez cmd /c pomocnik jest
+    potomkiem cmd - samo kill zostawiłoby go w tle)."""
+    try:
+        subprocess.run(['taskkill', '/F', '/T', '/PID', str(proc.pid)],
+                       stdin=subprocess.DEVNULL, capture_output=True,
+                       creationflags=_BEZ_OKNA, timeout=30)
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 # ------------------------------------------------------------------ nazwy
 
 def nazwa_pliku(municip, community, nazwa):
@@ -246,9 +292,8 @@ def kompiluj_pomocnika(katalog=None, zrodlo=POMOCNIK_ZRODLO):
     if not csc:
         raise BladPomocnika('brak kompilatora .NET Framework 4 (csc.exe)')
     os.makedirs(katalog, exist_ok=True)
-    w = subprocess.run(
-        [csc, '-nologo', '-platform:x64', '-optimize', f'-out:{exe}', zrodlo],
-        capture_output=True, creationflags=_BEZ_OKNA)
+    w = _start(subprocess.run, [csc, '-nologo', '-platform:x64', '-optimize',
+                                f'-out:{exe}', zrodlo], capture_output=True)
     if w.returncode != 0 or not os.path.isfile(exe):
         raise BladPomocnika('kompilacja pomocnika nie powiodła się: ' +
                             _tekst(w.stdout + w.stderr).strip())
@@ -274,9 +319,8 @@ def parsuj(linia):
 
 
 def _polecenie(exe, taksator, *argumenty, timeout=600):
-    w = subprocess.run([exe, taksator] + list(argumenty),
-                       capture_output=True, creationflags=_BEZ_OKNA,
-                       timeout=timeout)
+    w = _start(subprocess.run, [exe, taksator] + list(argumenty),
+               capture_output=True, timeout=timeout)
     linie = _tekst(w.stdout).splitlines()
     for linia in linie:
         p = parsuj(linia)
@@ -313,10 +357,9 @@ def aktualizuj_baze(exe, taksator, baza):
 
 def proces_raportow(exe, taksator, baza, plik_zadan):
     """Popen pomocnika generującego raporty (stdout: OK/BLAD <nr> ...)."""
-    return subprocess.Popen(
-        [exe, taksator, 'raporty', baza, plik_zadan],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        creationflags=_BEZ_OKNA)
+    return _start(subprocess.Popen,
+                  [exe, taksator, 'raporty', baza, plik_zadan],
+                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
 # ------------------------------------------------------------------- Excel

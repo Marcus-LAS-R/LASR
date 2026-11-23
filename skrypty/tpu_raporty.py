@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import threading
 import time
+import traceback
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -280,7 +281,7 @@ def generuj_xls(exe, taksator, kopia, zadania, katalog, postep):
                 raise Przerwano()
         proc.wait()
     except BaseException:
-        proc.kill()
+        tp.zakoncz(proc)  # z potomkami (pomocnik uruchomiony przez cmd)
         proc.wait()
         raise
     if ogolne:
@@ -360,7 +361,10 @@ def uruchom(iface):  # noqa
                      'wyniki): ' + ', '.join(powt))
     pd = _postep_okno(iface)
 
+    biezacy = ['Przygotowanie']
+
     def etap(tekst, wartosc):
+        biezacy[0] = tekst.rstrip('.')
         pd.setLabelText(tekst)
         pd.setValue(wartosc)
         QApplication.processEvents()
@@ -397,6 +401,7 @@ def uruchom(iface):  # noqa
             pd.setValue(5 + int(60 * zrobione / ile))
             QApplication.processEvents()
             return not pd.wasCanceled()
+        biezacy[0] = 'Raporty Taksatora'
         bledy_xls = generuj_xls(exe, taksator, kopia, zadania, tmp,
                                 postep_raportow)
 
@@ -408,6 +413,7 @@ def uruchom(iface):  # noqa
             pd.setValue(65 + int(35 * nr / max(len(wyniki), 1)))
             QApplication.processEvents()
             return not pd.wasCanceled()
+        biezacy[0] = 'Zapis xlsx (Excel)'
         bledy_excel = zapisz_xlsx(wyniki, bledy_xls, postep_excel)
     except Przerwano:
         pd.close()
@@ -419,8 +425,12 @@ def uruchom(iface):  # noqa
     except Exception as e:
         pd.close()
         shutil.rmtree(tmp, ignore_errors=True)
-        _log(f'błąd: {e}', Qgis.Critical)
-        QMessageBox.critical(iface.mainWindow(), _TYTUL, f'Błąd:\n{e}')
+        _log(f'błąd na etapie "{biezacy[0]}": {e}\n' +
+             traceback.format_exc(), Qgis.Critical)
+        QMessageBox.critical(
+            iface.mainWindow(), _TYTUL,
+            f'Błąd na etapie "{biezacy[0]}":\n{e}\n\nSzczegóły (plik '
+            'i linia) w Komunikatach dziennika QGIS, zakładka Las-R.')
         return
     pd.close()
     shutil.rmtree(tmp, ignore_errors=True)
