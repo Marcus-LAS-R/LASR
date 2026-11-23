@@ -120,6 +120,16 @@ class TestNazwy(unittest.TestCase):
         self.assertNotIn('SHP', pp.podfoldery_plyty(dict(o, ogolne=False)))
 
 
+class TestPomijaneWarstwy(unittest.TestCase):
+    def test_mapram_pomijany(self):
+        with tempfile.TemporaryDirectory() as k:
+            for p in ('WYDZ.shp', 'MapRam.shp', 'MAPRAM.dbf'):
+                _plik(os.path.join(k, p))
+            self.assertEqual(sorted(pp.zrodla_shp({'0001': k})), ['WYDZ'])
+        self.assertIn(pp._warstwa('MapRam.shp.xml'), pp.POMIJANE_WARSTWY)
+        self.assertNotIn(pp._warstwa('WYDZ.shp'), pp.POMIJANE_WARSTWY)
+
+
 class TestPliki(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -157,6 +167,7 @@ class TestPliki(unittest.TestCase):
                          ['17-035-0002-GARKI_BDO.docx'])
 
     def test_czesci_i_pliki(self):
+        self._raporty_tpu()
         cz = self._czesci()
         self.assertEqual([c['nazwa'] for c in cz],
                          ['120509_2_Sekowa', '301703_4_Odolanow_M',
@@ -194,7 +205,24 @@ class TestPliki(unittest.TestCase):
                                                    'Atlasy') for w in n))
         self.assertEqual(sum(w.endswith('_BDO.docx') for w in n), 2)
 
+    def _raporty_tpu(self):
+        """Raporty_TPU obok bazy Odolanów OW: zestawienie 0002 (z arkuszem
+        z danymi osobowymi), wykaz właścicieli 0002, opis 0003, obcy obręb."""
+        import openpyxl
+        kat = os.path.join(self.ow, 'Raporty_TPU')
+        wb = openpyxl.Workbook()
+        wb.active.title = 'OT'
+        wb.create_sheet('WzUPUL')['A1'] = 'NAZWISKO IMIE'
+        wb.create_sheet('Zestawienie')
+        os.makedirs(os.path.join(kat, 'Zestawienie_raportow'))
+        wb.save(os.path.join(kat, 'Zestawienie_raportow',
+                             '035-0002-Garki.xlsx'))
+        _plik(os.path.join(kat, 'Wykaz_wlascicieli', '035-0002-Garki.xlsx'))
+        _plik(os.path.join(kat, 'Opis_taksacyjny', '035-0003-Glisnica.xlsx'))
+        _plik(os.path.join(kat, 'Opis_taksacyjny', '035-0099-Obcy.xlsx'))
+
     def test_plan_i_kopiowanie(self):
+        self._raporty_tpu()
         cz = self._czesci()
         sulmn = _plik(os.path.join(self.tmp.name, 'SULMN.pdf'))
         opcje = {pp.CALOSC: dict(CALOSC, sulmn=True, raporty=True,
@@ -229,7 +257,20 @@ class TestPliki(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(ow)),
                          ['Atlasy', 'Bazy_danych', 'Mapy', 'Operaty',
                           'Operaty_BDO', 'Raporty', 'SHP'])
-        self.assertEqual(os.listdir(os.path.join(ow, 'Raporty')), [])
+        # raporty TPU bez danych osobowych; zestawienie bez arkusza WzUPUL
+        rap = os.path.join(ow, 'Raporty')
+        self.assertEqual(sorted(os.listdir(rap)),
+                         ['Opis_taksacyjny', 'Zestawienie_raportow'])
+        self.assertEqual(os.listdir(os.path.join(rap, 'Opis_taksacyjny')),
+                         ['035-0003-Glisnica.xlsx'])
+        import openpyxl
+        self.assertEqual(openpyxl.load_workbook(os.path.join(
+            rap, 'Zestawienie_raportow', '035-0002-Garki.xlsx')).sheetnames,
+            ['OT', 'Zestawienie'])
+        # część bez Raporty_TPU - brak w opisie, bez folderu Raporty
+        m = os.path.join(cal, '301703_4_Odolanow_M')
+        self.assertNotIn('Raporty', os.listdir(m))
+        self.assertIn('brak raportów TPU', pp.opis_planu(plan, cz))
         # Całościowa: tylko zwykła baza; gminy: tylko anonim, bez Raportów
         self.assertEqual(os.listdir(os.path.join(ow, 'Bazy_danych')),
                          ['301703_5_Odolanow_OW.mdb'])
@@ -295,7 +336,7 @@ class TestPliki(unittest.TestCase):
         gminy = {'180404': {'nazwa': 'Jaroslaw', 'obreby': [
             _ob(g, '042', '0004'), _ob(g, '042', '0010')]}}
         c = pp.uzupelnij_czesc(pp.czesci_z_gmin(gminy)[0],
-                               dict(WSZYSTKO, docx=False))
+                               dict(WSZYSTKO, docx=False, raporty=False))
         self.assertEqual(c['nazwa'], '180404_2_Jaroslaw')
         self.assertEqual(sorted(os.path.basename(x) for x in c['pliki']['mapy']),
                          ['0004_MAKOWISKO_MAPA_PRZEGLADOWA.pdf',

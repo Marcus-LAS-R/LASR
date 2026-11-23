@@ -27,10 +27,12 @@ try:
     from . import przygotuj_na_wylozenia_pliki as pw
     from . import spakuj_do_opiniowania_pliki as sp
     from . import podziel_obiekt_pliki as po
+    from . import tpu_raporty_pliki as tp
 except ImportError:  # testy - moduł ładowany bez pakietu
     import przygotuj_na_wylozenia_pliki as pw
     import spakuj_do_opiniowania_pliki as sp
     import podziel_obiekt_pliki as po
+    import tpu_raporty_pliki as tp
 
 FOLDER_WYNIKOWY = '_Plyty_na_oddanie'
 FOLDER_PRZYGOTOWANIA = '.przygotowanie' + pw.TMP
@@ -57,6 +59,8 @@ RAPORTY = 'Raporty'
 OGOLNE = 'OGOLNE'
 PODFOLDERY = (BAZY, SHP, OPERATY, OPERATY_BDO, MAPY, ATLASY, RAPORTY)
 PRZYROSTEK_ANONIM = '_anonim'
+# warstwy robocze, których nie dajemy na płyty (nazwa bez rozszerzenia)
+POMIJANE_WARSTWY = frozenset({'MAPRAM'})
 
 # lista "co wgrać na płytę": (klucz, etykieta)
 ZAWARTOSC = (
@@ -70,7 +74,7 @@ ZAWARTOSC = (
     ('docx', 'Operaty w wersji edytowalnej (docx)'),
     ('mapy', 'Mapy'),
     ('atlasy', 'Atlasy z legendami'),
-    ('raporty', 'Folder Raporty (na razie pusty)'),
+    ('raporty', 'Raporty TPU (bez danych osobowych)'),
 )
 KLUCZE = tuple(k for k, _ in ZAWARTOSC)
 _PELNE = {k: k not in ('sulmn', 'raporty', 'docx', 'ogolne')
@@ -193,10 +197,16 @@ def zrodla_shp(foldery_shp):
             continue
         for p in pliki:
             nazwa, rozsz = os.path.splitext(p)
-            if rozsz.lower() == '.shp':
+            if (rozsz.lower() == '.shp'
+                    and nazwa.upper() not in POMIJANE_WARSTWY):
                 wyn.setdefault(nazwa.upper(), []).append(
                     (com, os.path.join(kat, p)))
     return wyn
+
+
+def _warstwa(plik):
+    """Nazwa warstwy z nazwy pliku (MapRam.shp.xml -> MAPRAM)."""
+    return plik.split('.', 1)[0].upper()
 
 
 def pliki_ogolne(folder, municip):
@@ -209,7 +219,8 @@ def pliki_ogolne(folder, municip):
             kat = os.path.join(gm, OGOLNE)
             try:
                 wyn += [os.path.join(kat, p) for p in sorted(os.listdir(kat))
-                        if os.path.isfile(os.path.join(kat, p))]
+                        if os.path.isfile(os.path.join(kat, p))
+                        and _warstwa(p) not in POMIJANE_WARSTWY]
             except OSError:
                 pass
         if wyn:
@@ -373,6 +384,13 @@ def uzupelnij_czesc(cz, opcje):
         braki.append('brak SHP mapy obrębu (_MAPY): ' + ', '.join(bez_shp))
     cz['ogolne'] = (pliki_ogolne(cz['folder'], cz['municip'])
                     if opcje.get('ogolne') else [])
+    # raporty TPU z <folder gminy>/Raporty_TPU - bez danych osobowych
+    cz['raporty'] = (tp.raporty_na_plyte(
+        cz['folder'], cz['municip'], [o['community'] for o in cz['obreby']])
+        if opcje.get('raporty') else [])
+    if opcje.get('raporty') and not cz['raporty']:
+        braki.append(f'brak raportów TPU ({tp.FOLDER_RAPORTOW} obok bazy - '
+                     'Generuj › Zestawienia raportów TPU)')
     if cz['baza'] is None and (opcje.get('bazy') or opcje.get('anonim')):
         braki.insert(0, 'BRAK BAZY .mdb w folderze gminy')
     cz['braki'] = braki
@@ -432,6 +450,15 @@ def pliki_czesci(plyta, c):
     return wyn
 
 
+def raporty_czesci(plyta, c):
+    """[(źródło, ścieżka względna w części, arkusze do wycięcia)] -
+    raporty TPU (Raporty/<folder raportu>/...), gdy płyta je ma."""
+    if not plyta['opcje'].get('raporty'):
+        return []
+    return [(s, os.path.join(RAPORTY, wzgl), ark)
+            for s, wzgl, ark in c.get('raporty', [])]
+
+
 def przygotowane_czesci(plyta, c, przygotowanie):
     """[(źródło, ścieżka względna w części)] z folderu przygotowania:
     bazy wybranych wersji, połączone SHP, OGOLNE."""
@@ -484,15 +511,17 @@ def szacuj_rozmiar(plyta):
         if o.get('ogolne'):
             razem += sum(sp._rozmiar(p) for p in c['ogolne'])
         razem += sum(sp._rozmiar(s) for s, _ in pliki_czesci(plyta, c))
+        razem += sum(sp._rozmiar(s) for s, _, _ in raporty_czesci(plyta, c))
     return razem
 
 
 def rozmiar_czesci(plyta, c, przygotowanie=None):
     """Rozmiar części na płycie: przygotowane bazy/SHP (faktyczny) +
     pliki."""
-    return sum(sp._rozmiar(s) for s, _ in
-               przygotowane_czesci(plyta, c, przygotowanie) +
-               pliki_czesci(plyta, c))
+    return (sum(sp._rozmiar(s) for s, _ in
+                przygotowane_czesci(plyta, c, przygotowanie) +
+                pliki_czesci(plyta, c)) +
+            sum(sp._rozmiar(s) for s, _, _ in raporty_czesci(plyta, c)))
 
 
 def rozmiar_plyty(plyta, przygotowanie=None):
@@ -575,9 +604,15 @@ def kopiuj_plyte(docelowy, plyta, przygotowanie=None, postep=None):
             for s, wzgl in (przygotowane_czesci(plyta, c, przygotowanie) +
                             pliki_czesci(plyta, c)):
                 _kopiuj(s, os.path.join(kat, wzgl), bledy, postep)
-            if plyta['opcje'].get('raporty'):
-                # na razie pusty - zestawienia xlsx w przyszłości
-                os.makedirs(os.path.join(kat, RAPORTY), exist_ok=True)
+            for s, wzgl, arkusze in raporty_czesci(plyta, c):
+                # zestawienie bez arkuszy z danymi osobowymi
+                try:
+                    tp.kopiuj_bez_arkuszy(s, os.path.join(kat, wzgl),
+                                          arkusze)
+                except Exception as e:
+                    bledy.append(f'{s}: {e}')
+                if postep and postep(sp._rozmiar(s)) is False:
+                    raise Przerwano()
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
@@ -661,6 +696,10 @@ def opis_planu(plan, czesci, uwagi=(), rozmiary=None, limit=LIMIT_DVD):
                   else ''))
         L.append('    pliki: ' + ', '.join(
             f'{k} {len(v)}' for k, v in c['pliki'].items() if v))
+        if c.get('raporty'):
+            L.append(f"    raporty TPU: {len(c['raporty'])} plików (bez "
+                     'raportów z danymi osobowymi; Zestawienie raportów '
+                     'bez arkuszy ' + ', '.join(tp.ARKUSZE_OSOBOWE) + ')')
         for b in c['braki']:
             L.append(f'    BRAK: {b}')
     if uwagi:

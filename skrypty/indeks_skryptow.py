@@ -299,6 +299,9 @@ INDEKS = {
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
+    'a_tpu_raporty': _w('zestawienia raportów TPU Taksator PU raporty xlsx '
+                        'zestawienie raportów opis taksacyjny obręby '
+                        'wykaz działek właścicieli TPM generuj'),
     'a_plyty_oddanie': _w('płyty na oddanie DVD nagraj całościowa gminy '
                           'PGLLP bazy anonim zanonimizowana SHP operaty '
                           'BDO mapy atlasy SULMN docx raporty'),

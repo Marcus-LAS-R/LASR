@@ -135,6 +135,7 @@ from .skrypty import shp_polacz_warstwy
 from .skrypty import spakuj_do_opiniowania
 from .skrypty import przygotuj_na_wylozenia
 from .skrypty import plyty_na_oddanie
+from .skrypty import tpu_raporty
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1428,6 +1429,17 @@ class LasR:
         self.a_spakuj_opiniowanie.triggered.connect(
             self.spakuj_do_opiniowania)
 
+        self.a_tpu_raporty = QAction(
+            QIcon(None), "Zestawienia raportów TPU",
+            self.iface.mainWindow()
+        )
+        self.a_tpu_raporty.setToolTip(
+            "Generuje raporty Taksatora PU (Zestawienie raportów i "
+            "pojedyncze raporty) dla wybranych obrębów bazy - bez klikania "
+            "w Taksatorze; xlsx w Raporty_TPU obok bazy.")
+        self.m_raporty.addAction(self.a_tpu_raporty)
+        self.a_tpu_raporty.triggered.connect(self.tpu_raporty)
+
         self.a_plyty_oddanie = QAction(
             QIcon(None), "Utwórz płyty na oddanie",
             self.iface.mainWindow()
@@ -2503,6 +2515,9 @@ class LasR:
 
     def plyty_na_oddanie(self):
         plyty_na_oddanie.uruchom(self.iface)
+
+    def tpu_raporty(self):
+        tpu_raporty.uruchom(self.iface)
 
     def dopisz_adradm(self):
         shp_uzup_adradm.DodajIUzupelnijAdm()

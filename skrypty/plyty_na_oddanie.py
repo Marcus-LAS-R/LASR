@@ -19,8 +19,11 @@ Bazy: najnowsza .mdb z folderu gminy, dwie kopie bez kwerend
 (<część>.mdb i <część>_anonim.mdb - zanonimizowana jak Anonimizuj bazy TPU),
 skompaktowane. SHP: warstwy z _MAPY/<gmina>/<obręby>/SHP połączone
 silnikiem Połącz warstwy SHP (EPSG:2180, bez duplikatów), opcjonalnie pliki
-ogólne (_MAPY/<gmina>/OGOLNE -> SHP/OGOLNE). Raporty - na razie pusty
-folder (opcja). Płyta większa niż 4,7 GB - ostrzeżenie.
+ogólne (_MAPY/<gmina>/OGOLNE -> SHP/OGOLNE). Raporty (opcja) - raporty
+TPU z <folder gminy>/Raporty_TPU (Generuj › Zestawienia raportów TPU) bez
+danych osobowych: bez raportów 3, 5, 8, Zestawienie raportów bez ich
+arkuszy (tpu_raporty_pliki.raporty_na_plyte). Płyta większa niż 4,7 GB -
+ostrzeżenie.
 
 Plan, pliki, kopiowanie - plyty_na_oddanie_pliki.py. Źródła nie są
 zmieniane.
