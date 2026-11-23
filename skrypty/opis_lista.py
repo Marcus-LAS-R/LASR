@@ -83,9 +83,16 @@ def wczytaj_wiersze(cur, poligony, uwagi=None):
     """Wiersze listy (słowniki). poligony: adresy leśne obecne na warstwie,
     uwagi: {ARODES_INT_NUM: (błędy, ostrzeżenia)}."""
     uwagi = uwagi or {}
+    # F_MUNICIPALITY to słownik całego kraju - te same DISTRICT+MUNICIP
+    # powtarzają się w każdym województwie, a adres leśny nie ma kodu
+    # województwa. Gminy tylko z obrębów bazy (F_COMMUNITY), złączone
+    # razem z COUNTY_CD.
     gminy = _slownik_nazw(
-        cur, 'select DISTRICT_CD, MUNICIPALITY_CD, MUNICIPALITY_NAME '
-        'from F_MUNICIPALITY', 2)
+        cur, 'select distinct c.DISTRICT_CD, c.MUNICIPALITY_CD, '
+        'm.MUNICIPALITY_NAME from F_COMMUNITY as c inner join '
+        'F_MUNICIPALITY as m on (c.COUNTY_CD = m.COUNTY_CD) '
+        'and (c.DISTRICT_CD = m.DISTRICT_CD) '
+        'and (c.MUNICIPALITY_CD = m.MUNICIPALITY_CD)', 2)
     obreby = _slownik_nazw(
         cur, 'select DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD, '
         'COMMUNITY_NAME from F_COMMUNITY', 3)

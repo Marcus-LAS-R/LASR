@@ -152,30 +152,15 @@ def CzyscBaze(baza):  # noqa
 
     # sprawdz czy nie trzeba wyczyscic obrebow/gmin w F_COMMUNITY, ktore nie
     # maja juz zadnej dzialki w F_PARCEL, po skasowaniu dzialek bez Ls
-    sql = "select municipality_cd, community_cd from f_parcel;"
-    fpt = baza.pobierz(sql)
-    fps = set([x[0] + "-" + x[1] for x in fpt])
-    sql = "select municipality_cd, community_cd from f_community;"
-    comt = baza.pobierz(sql)
-    com = [x[0] + "-" + x[1] for x in comt]
-    for c in com:
-        if c not in fps:
-            municip, community = c.split("-")
-            sql = (
-                "delete * from F_COMMUNITY WHERE MUNICIPALITY_CD = '"
-                + municip
-                + "' AND COMMUNITY_CD = '"
-                + community
-                + "';"
-            )
-            if not baza.wpisz(sql):
-                QgsMessageLog.logMessage(
-                    "Nie udało się usunąć obrębu z COMMUNITY: " + str(c), "Las-R"
-                )
-            else:
-                QgsMessageLog.logMessage(
-                    "skasowałem w F_COMMUNITY: " + str(c[:9]), "Las-R", Qgis.Info
-                )
+    usuniete, bledy_obr = baza.usun_obreby_bez_dzialek()
+    for c in bledy_obr:
+        QgsMessageLog.logMessage(
+            "Nie udało się usunąć obrębu z COMMUNITY: " + c, "Las-R"
+        )
+    for c in usuniete:
+        QgsMessageLog.logMessage(
+            "skasowałem w F_COMMUNITY: " + c, "Las-R", Qgis.Info
+        )
 
     # statystyki po usuwaniu
     f_parcel_cnt_k = baza.pobierz("select count(*) from f_parcel;")[0][0]

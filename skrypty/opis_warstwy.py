@@ -59,10 +59,12 @@ def udzial_liczbowy(p):
 
 # ------------------------------------------------------------------ reguły
 
-def waliduj(warstwy, rodzaj_pow=''):
+def waliduj(warstwy, rodzaj_pow='', tablice=None):
     """Zwraca {klucz: [(poziom, kod_reguly, komunikat), ...]}; klucz:
     (wi, gi, pole) - komórka gatunku, (wi, None, pole) - komórka warstwy,
-    (wi, None, None) - cała warstwa, ('wydz', None, None) - wydzielenie."""
+    (wi, None, None) - cała warstwa, ('wydz', None, None) - wydzielenie.
+    tablice - dla kontroli pierśnicy/wysokości (kontrola_tablicowa);
+    None - bez tej kontroli."""
     wyn = {}
 
     def dodaj(klucz, poziom, kod, tekst):
@@ -162,6 +164,10 @@ def waliduj(warstwy, rodzaj_pow=''):
             for pole, limit, kod, tekst in LIMITY:
                 if not pusty(g[pole]) and float(g[pole]) > limit:
                     dodaj((wi, gi, pole), OSTRZ, kod, tekst)
+            if tablice and k in WARSTWY_KONTROLI_TABLIC:
+                for pole, poziom, kod, tekst in kontrola_tablicowa(
+                        g, tablice):
+                    dodaj((wi, gi, pole), poziom, kod, tekst)
     return wyn
 
 
@@ -192,7 +198,7 @@ def lista_bledow(walidacja, warstwy):
 
 # Kopia F_TABLICA_ROZSZERZONA (z czysta_baza_do_wgrywania_2026_09_08.mdb)
 # dla baz bez tej tabeli; UTF-8, separator ';', nagłówek:
-#   SPECIES_CD;SITE_CLASS_CD;SPECIES_AGE;HEIGHT;VOLUME
+#   SPECIES_CD;SITE_CLASS_CD;SPECIES_AGE;BHD;HEIGHT;VOLUME
 SCIEZKA_TABLICY = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'szablony', 'tablica_rozszerzona.csv')
@@ -200,7 +206,7 @@ SCIEZKA_TABLICY = os.path.join(
 TABLICA_Z_BAZY, TABLICA_Z_WTYCZKI = 'baza', 'wtyczka'
 
 
-def _dopisz_do_tablicy(tablica, masy, g, k, w, h, v):
+def _dopisz_do_tablicy(tablica, masy, piersnice, g, k, w, b, h, v):
     if g is None or k is None or w is None:
         return
     klucz, klasa = (str(g).strip(), int(w)), str(k).strip()
@@ -208,37 +214,46 @@ def _dopisz_do_tablicy(tablica, masy, g, k, w, h, v):
         tablica.setdefault(klucz, {})[klasa] = float(h)
     if v is not None:
         masy.setdefault(klucz, {})[klasa] = float(v)
+    if b is not None:
+        piersnice.setdefault(klucz, {})[klasa] = float(b)
 
 
 def wczytaj_tablice_bonitacji(cur):
-    """(tablica, masy, grupy, źródło): tablica {(gatunek, wiek): {klasa:
-    wysokość}} i masy {(gatunek, wiek): {klasa: zasobność}} z
+    """(tablica, masy, grupy, źródło, pierśnice): tablica {(gatunek, wiek):
+    {klasa: wysokość}}, masy {(gatunek, wiek): {klasa: zasobność}}
+    i pierśnice {(gatunek, wiek): {klasa: pierśnica}} z
     F_TABLICA_ROZSZERZONA bazy, a gdy baza jej nie ma - z kopii we wtyczce
     (źródło TABLICA_Z_BAZY / TABLICA_Z_WTYCZKI, None - brak tablicy);
     grupy {gatunek: gatunek tablicowy} z F_TREE_SPECIES.HEIGHT_GRP
     (gatunki bez własnej tablicy)."""
-    tablica, masy, grupy = {}, {}, {}
+    tablica, masy, grupy, piersnice = {}, {}, {}, {}
     zrodlo = None
-    try:
-        for g, k, w, h, v in cur.execute(
-                'select SPECIES_CD, SITE_CLASS_CD, SPECIES_AGE, HEIGHT, '
-                'VOLUME from F_TABLICA_ROZSZERZONA').fetchall():
-            _dopisz_do_tablicy(tablica, masy, g, k, w, h, v)
-        zrodlo = TABLICA_Z_BAZY
-    except Exception:
-        tablica, masy = {}, {}
+    # starsza tabela bez BHD - wysokości i masy dalej z bazy, bez pierśnic
+    for pole_bhd in ('BHD', 'NULL'):
+        try:
+            for g, k, w, b, h, v in cur.execute(
+                    f'select SPECIES_CD, SITE_CLASS_CD, SPECIES_AGE, '
+                    f'{pole_bhd}, HEIGHT, VOLUME '
+                    f'from F_TABLICA_ROZSZERZONA').fetchall():
+                _dopisz_do_tablicy(tablica, masy, piersnice,
+                                   g, k, w, b, h, v)
+            zrodlo = TABLICA_Z_BAZY
+            break
+        except Exception:
+            tablica, masy, piersnice = {}, {}, {}
     if not masy and os.path.isfile(SCIEZKA_TABLICY):
-        tablica, masy = {}, {}
+        tablica, masy, piersnice = {}, {}, {}
         try:
             with open(SCIEZKA_TABLICY, encoding='utf-8', newline='') as plik:
                 for r in csv.DictReader(plik, delimiter=';'):
                     _dopisz_do_tablicy(
-                        tablica, masy, r['SPECIES_CD'], r['SITE_CLASS_CD'],
-                        r['SPECIES_AGE'], r['HEIGHT'] or None,
+                        tablica, masy, piersnice, r['SPECIES_CD'],
+                        r['SITE_CLASS_CD'], r['SPECIES_AGE'],
+                        r.get('BHD') or None, r['HEIGHT'] or None,
                         r['VOLUME'] or None)
             zrodlo = TABLICA_Z_WTYCZKI if masy else None
         except Exception:
-            tablica, masy, zrodlo = {}, {}, None
+            tablica, masy, piersnice, zrodlo = {}, {}, {}, None
     try:
         for g, grp in cur.execute(
                 'select SPECIES_CD, HEIGHT_GRP from F_TREE_SPECIES').fetchall():
@@ -246,7 +261,102 @@ def wczytaj_tablice_bonitacji(cur):
                 grupy[str(g).strip()] = str(grp).strip()
     except Exception:
         grupy = {}
-    return tablica, masy, grupy, zrodlo
+    return tablica, masy, grupy, zrodlo, piersnice
+
+
+# ------------------------------------- pierśnica / wysokość wobec tablicy
+# Kontrola przy klepaniu (Edytor opisu): wpisana wartość wobec tablicowej
+# dla gatunku, wieku i bonitacji; bez bonitacji - wobec zakresu wszystkich
+# klas dla gatunku i wieku. Pierśnica: stosunek do tablicy, wysokość:
+# odchylenie względne. Żółte - ostrzeżenie, czerwone - błąd (blokuje
+# zapis). Gatunki bez własnej tablicy - gatunek tablicowy (HEIGHT_GRP),
+# IA poza SO* jak I, 0 w tablicy jak 1. Tylko warstwy z tablicami
+# drzewostanu (JAK_DRZEW i PRZES), wiek spoza tablicy - bez kontroli.
+WARSTWY_KONTROLI_TABLIC = JAK_DRZEW | {'PRZES'}
+# (pole, kod, nazwa, jednostka, próg ostrzeżenia, próg błędu, stosunek):
+# stosunek=True - wartość większa/mniejsza od tablicy więcej niż N razy,
+# False - odchylenie o więcej niż N (ułamek) wartości tablicowej
+KONTROLE_TABLIC = (
+    ('BHD', 'TAB1', 'Pierśnica', 'cm', 2.0, 3.0, True),
+    ('HEIGHT', 'TAB2', 'Wysokość', 'm', 0.25, 0.50, False),
+)
+# różnica bezwzględna (cm / m), do której nie ma kontroli - młode
+# drzewostany, tablica w liczbach całkowitych; 0 = kontrola zawsze
+TOLERANCJA_TABLIC = {'BHD': 0, 'HEIGHT': 0}
+
+
+def _zakres_tablicowy(tablica, grupy, gat, wiek, klasa):
+    """(min, max) z tablicy dla klasy (min = max) albo, bez klasy, dla
+    wszystkich klas; None - brak wpisu."""
+    if klasa == 'IA' and not gat.startswith('SO'):
+        klasa = 'I'
+    for klucz in (gat, grupy.get(gat)):
+        klasy = tablica.get((klucz, wiek)) if klucz else None
+        if not klasy:
+            continue
+        if klasa:
+            v = klasy.get(klasa)
+            if v is None:
+                return None
+            v = max(v, 1.0)
+            return v, v
+        wart = [max(v, 1.0) for v in klasy.values()]
+        return min(wart), max(wart)
+    return None
+
+
+def _liczba(x):
+    """Do komunikatu: 18 / 23,4 (przecinek dziesiętny)."""
+    x = float(x)
+    return str(int(x)) if x == int(x) else f'{x:g}'.replace('.', ',')
+
+
+def kontrola_tablicowa(g, tablice):
+    """[(pole, poziom, kod, komunikat)] - pierśnica i wysokość gatunku
+    wobec tablicy. tablice: {'BHD': {...}, 'HEIGHT': {...}} (jak z
+    wczytaj_tablice_bonitacji) i 'grupy'."""
+    wyn = []
+    gat = '' if pusty(g['SPECIES_CD']) else str(g['SPECIES_CD']).strip()
+    if not gat or pusty(g['SPECIES_AGE']):
+        return wyn
+    try:
+        wiek = int(float(g['SPECIES_AGE']))
+    except (TypeError, ValueError):
+        return wyn
+    klasa = str(g['SITE_CLASS_CD'] or '').strip()
+    for pole, kod, nazwa, jedn, p_ostrz, p_blad, stosunek in KONTROLE_TABLIC:
+        tablica = tablice.get(pole)
+        if not tablica or pusty(g[pole]):
+            continue
+        zakres = _zakres_tablicowy(tablica, tablice.get('grupy') or {},
+                                   gat, wiek, klasa)
+        if zakres is None:
+            continue
+        x = float(g[pole])
+        lo, hi = zakres
+        if lo <= x <= hi:
+            continue
+        ref = hi if x > hi else lo
+        if abs(x - ref) <= TOLERANCJA_TABLIC.get(pole, 0):
+            continue
+        if stosunek:
+            odch = x / ref if x > ref else (ref / x if x > 0 else float('inf'))
+        else:
+            odch = abs(x - ref) / ref
+        if odch <= p_ostrz:
+            continue
+        poziom = BLAD if odch > p_blad else OSTRZ
+        tab = (f'{_liczba(lo)} {jedn}' if lo == hi else
+               f'{_liczba(lo)}-{_liczba(hi)} {jedn}, bez bonitacji')
+        kier = 'więcej' if x > ref else 'mniej'
+        if stosunek:
+            opis = f'{odch:.1f} razy {kier}'.replace('.', ',')
+        else:
+            opis = f'{odch * 100:.0f}% {kier}'
+        wyn.append((pole, poziom, kod,
+                    f'{nazwa} {_liczba(x)} {jedn} - {opis} niż w tablicy '
+                    f'({tab})'))
+    return wyn
 
 
 def sugeruj_bonitacje(tablica, grupy, gatunek, wiek, wysokosc):

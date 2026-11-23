@@ -117,6 +117,7 @@ from . import opis_pnsw as opn
 from . import opis_warstwy as ow
 from .baza_wrapper import Baza, zajmij_baze, zwolnij_baze
 from .warstwa_opisow_dock import PRESETY_INF_ROZNE
+from .baza_dopisz_opisy_taks import INFO_LZ
 from .waypointy import katalog_raportow
 from .funkcje import etykiety_warstw, indeks_domyslnej, katalog_startowy
 
@@ -137,6 +138,7 @@ BLEDNE = QColor(255, 196, 196)      # reguła twarda - blokuje zapis
 OSTRZEGAWCZE = QColor(255, 240, 170)  # ostrzeżenie - zapis możliwy
 MAX_INFO = 255  # F_SUBAREA.SUBAREA_INFO VARCHAR(255)
 RODZAJ_INNE_WYL = 'INNE WYL'  # podgląd PPM pokazuje wtedy Informacje różne
+RODZAJ_LZ = 'LZ-Ł'  # wpisanie dopisuje INFO_LZ do Informacji różnych
 ODSTEP_TYTULU = ' ' * 24  # paski tytułu nie zawijają ani nie skracają spacji
 
 # pole -> (tabela słownika, kolumna kodu, kolumna nazwy, kolumna numeru)
@@ -1977,7 +1979,8 @@ class OknoOpisu(QWidget):
 
     def _przelicz(self):
         self.walidacja = ow.waliduj(self.dane['WARSTWY'],
-                                    self.dane['AREA_TYPE_CD'])
+                                    self.dane['AREA_TYPE_CD'],
+                                    self.panel.tablice_kontroli())
         self.walidacja_pnsw = opn.waliduj(self.dane['PNSW'], self.pow_wydz)
         bledy, ostrz = _liczby_uwag(self.walidacja, self.walidacja_pnsw,
                                     self.dane['WARSTWY'])
@@ -2162,12 +2165,35 @@ class OknoOpisu(QWidget):
         przed = copy.deepcopy(self.dane)
         nag = next(k[0] for k in KOLUMNY_OPIS if k[1] == pole)
         self._ustaw_pole(pole, tekst, wiersz)
+        if pole == 'AREA_TYPE_CD' and self.dane[pole] == RODZAJ_LZ and \
+                przed[pole] != RODZAJ_LZ:
+            self._dopisz_info_lz()  # ten sam krok historii co rodzaj
         self._do_historii(nag.replace('\n', ' '), przed)
         td = ow.TD_DLA_TSL.get(self.dane['SITE_TYPE_CD'])
         if pole == 'SITE_TYPE_CD' and td:
             self._status(f'TD dla {self.dane["SITE_TYPE_CD"]}: {td} - '
                          'podpowiedź w kolumnie TD, Enter przyjmuje',
                          '#1f5fa8')
+
+    def _dopisz_info_lz(self):
+        """Rodzaj pow. LZ-Ł: do Informacji różnych "LZ ze względu na
+        powierzchnię" (jak Dopisz opisy taksacyjne), po spacji, bez
+        dublowania i w limicie MAX_INFO; zmiana tylko w self.dane - krok
+        historii zapisuje wywołujący razem z rodzajem."""
+        obecny = (self.dane['SUBAREA_INFO'] or '').strip()
+        if re.search(rf'(?<!\w){re.escape(INFO_LZ)}(?!\w)', obecny):
+            return
+        nowy = f'{obecny} {INFO_LZ}' if obecny else INFO_LZ
+        if len(nowy) > MAX_INFO:
+            self._blad(f'Informacje różne: "{INFO_LZ}" nie mieści się '
+                       f'w limicie {MAX_INFO} znaków')
+            return
+        self.dane['SUBAREA_INFO'] = nowy
+        self.info.blockSignals(True)
+        self.info.setPlainText(nowy)
+        self.info.blockSignals(False)
+        self._info_krok = False
+        self._licznik()
 
     def _ustaw_pole(self, pole, tekst, wiersz=0):
         _n, _p, typ, slow = next(k for k in KOLUMNY_OPIS if k[1] == pole)
@@ -4227,6 +4253,7 @@ class PanelOpisu(QDockWidget):
         self.wydz = {}
         self.karta = None
         self.tablica_bonit, self.tablica_mas, self.grupy_bonit = {}, {}, {}
+        self.tablica_piersnic = {}
         self.zrodlo_tablicy = None
         self._podglad = None
         self.max_h = 0
@@ -4552,7 +4579,8 @@ class PanelOpisu(QDockWidget):
         self.tylko_odczyt = bool(blokada)
         self.slowniki = slowniki
         self.tablica_bonit, self.tablica_mas, self.grupy_bonit, \
-            self.zrodlo_tablicy = ow.wczytaj_tablice_bonitacji(baza.cur)
+            self.zrodlo_tablicy, self.tablica_piersnic = \
+            ow.wczytaj_tablice_bonitacji(baza.cur)
         self.wydz = wydz
         self._szczegoly = '' if ok else podsum + '\n\n' + szczegoly
         self._liczniki = liczniki
@@ -4995,6 +5023,14 @@ class PanelOpisu(QDockWidget):
         if self._lista_otwarta():
             self.lista.odswiez()
 
+    def tablice_kontroli(self):
+        """Tablice do kontroli pierśnicy/wysokości (ow.kontrola_tablicowa);
+        None - brak tablicy, kontrola pominięta."""
+        if not self.tablica_bonit and not self.tablica_piersnic:
+            return None
+        return {'BHD': self.tablica_piersnic, 'HEIGHT': self.tablica_bonit,
+                'grupy': self.grupy_bonit}
+
     def uwagi_wydzielen(self):
         """{ARODES_INT_NUM: (błędy, ostrzeżenia)} wg reguł karty, dla całej
         bazy naraz. Bez rekordu F_SUBAREA karta nie ma czego sprawdzać -
@@ -5009,6 +5045,7 @@ class PanelOpisu(QDockWidget):
                 wyn.setdefault(r['ARODES_INT_NUM'], []).append(r)
             return wyn
 
+        tablice = self.tablice_kontroli()
         try:
             warstwy = po_aint('select * from F_AROD_STOREY '
                               'order by STOREY_RANK_ORDER')
@@ -5023,7 +5060,7 @@ class PanelOpisu(QDockWidget):
                 a = s[0]
                 model = _model_warstw(warstwy.get(a, []), gatunki.get(a, []))
                 wyn[a] = _liczby_uwag(
-                    ow.waliduj(model, _txt(s[1])),
+                    ow.waliduj(model, _txt(s[1]), tablice),
                     opn.waliduj(opn.model(pnsw.get(a, []), pnsw_gat.get(a, [])),
                                 _float(s[2]) or 0.0),
                     model)

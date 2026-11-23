@@ -242,6 +242,30 @@ class Baza(object):
         except:  # nopep8
             return False
 
+    def usun_obreby_bez_dzialek(self):
+        """Usuwa z F_COMMUNITY obręby bez żadnej działki w F_PARCEL (po
+        kasowaniu działek). Klucz pełny: COUNTY+DISTRICT+MUNICIPALITY+
+        COMMUNITY - same gmina+obręb powtarzają się w różnych powiatach.
+        Zwraca (usunięte, błędy) - listy kluczy 'CC.DD.MMM.OOOO'."""
+        kolumny = 'COUNTY_CD, DISTRICT_CD, MUNICIPALITY_CD, COMMUNITY_CD'
+
+        def klucz(w):
+            return tuple('' if x is None else str(x).strip() for x in w)
+
+        dzialki = {klucz(w) for w in
+                   (self.pobierz(f'select {kolumny} from F_PARCEL;') or [])}
+        usuniete, bledy = [], []
+        for w in self.pobierz(f'select {kolumny} from F_COMMUNITY;') or []:
+            k = klucz(w)
+            if k in dzialki:
+                continue
+            ok = self.wpisz_tab((
+                'delete * from F_COMMUNITY where COUNTY_CD = ? and '
+                'DISTRICT_CD = ? and MUNICIPALITY_CD = ? and COMMUNITY_CD = ?',
+                tuple(w)))
+            (usuniete if ok else bledy).append('.'.join(k))
+        return usuniete, bledy
+
     def utworz_kopie(self, wpis="", debug=False):
         """Metoda tworzy kopie bezpieczenstwa bazy (ZIP ze znacznikiem czasu
         oraz ew. podanym wpisem) w folderze Kopie_manipulacyjne, w katalogu
