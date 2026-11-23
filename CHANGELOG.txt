@@ -1,6 +1,34 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0fx — 2026-11-23
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> "Zestawienia raportów TPU" - raporty Taksatora PU
+   dla wszystkich (albo wybranych) obrębów bazy za jednym razem, bez
+   klikania w Taksatorze. W oknie wskazujesz bazę, zaznaczasz raporty
+   (domyślnie "Zestawienie raportów", do wyboru też każdy z 18 raportów
+   osobno) i obręby (domyślnie wszystkie). Wyniki w xlsx w folderze
+   Raporty_TPU obok bazy, każdy raport w swoim podfolderze, nazwy plików
+   jak w Taksatorze (np. 115-0001-Białęgi.xlsx). Baza nie jest zmieniana.
+   Wymaga zainstalowanego Taksatora PU i Excela.
+2. NOWOŚĆ: Utwórz płyty na oddanie - pozycja "Raporty TPU (bez danych
+   osobowych)": raporty z Raporty_TPU trafiają do folderu Raporty
+   każdej gminy. Raporty z nazwiskami i adresami (rejestr działek
+   i właścicieli, zadania dla właścicieli, wykaz właścicieli) są
+   pomijane, a z Zestawienia raportów wycinane są ich arkusze.
+3. ZMIANA: Utwórz płyty na oddanie - robocza warstwa MapRam nie trafia
+   już na płyty.
+4. NOWOŚĆ: Edytor opisu - kontrola pierśnicy i wysokości z tablicą
+   (gatunek, wiek, bonitacja). Duże odchylenie - ostrzeżenie (żółte),
+   bardzo duże - błąd (czerwone), który blokuje zapis.
+5. NOWOŚĆ: Edytor opisu - zmiana rodzaju powierzchni na LZ-Ł dopisuje
+   do Informacji różnych "LZ ze względu na powierzchnię".
+6. POPRAWKA: Edytor opisów -> Lista wydzieleń - kolumna Gmina
+   pokazywała czasem gminę z innego województwa.
+7. POPRAWKA: Usuwanie opisów / nie-Lsów - puste obręby (bez działek)
+   są teraz faktycznie usuwane z bazy, także przy kilku powiatach.
+
 Wersja 2.0ex — 2026-11-17
 ------------------------------------------------
 
