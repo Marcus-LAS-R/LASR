@@ -1,6 +1,13 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0hx — 2026-11-24
+------------------------------------------------
+
+1. ZMIANA: Generuj naklejki - naklejki, płytki i okładki drukują się
+   na czarno (tekst oraz ramki i krzyżyki do wycinania), wcześniej
+   były zielone.
+
 Wersja 2.0gx — 2026-11-24
 ------------------------------------------------
 
