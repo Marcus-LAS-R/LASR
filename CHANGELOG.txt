@@ -1,6 +1,22 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0gx — 2026-11-24
+------------------------------------------------
+
+1. POPRAWKA: Przysnapuj Lsy do DZKAT - na niektórych komputerach skrypt
+   przerywał się błędem "invalid geometry", a na innych po cichu gubił
+   pojedyncze wydzielenia Ls. Teraz wszystkie obiekty trafiają do
+   wyniku niezależnie od ustawień QGIS, a gdyby czegoś zabrakło -
+   pojawi się komunikat i brakujące obiekty trafią do warstwy
+   _DO_PRZEGLADU (z opisem powodu w polu PRZEGLAD).
+2. ZMIANA: Przysnapuj Lsy do DZKAT - nowa warstwa nazywa się
+   LS_dociagnieta (wcześniej DOCIAGNIETA_NOWY).
+3. POPRAWKA: Zestawienia raportów TPU - na części komputerów (Windows 10,
+   antywirus) błąd "[WinError 87] Parametr jest niepoprawny" zaraz po
+   Uruchom. Skrypt sam przechodzi wtedy na bezpieczny sposób
+   uruchamiania, a w razie błędu podaje etap, na którym wystąpił.
+
 Wersja 2.0fx — 2026-11-23
 ------------------------------------------------
 
