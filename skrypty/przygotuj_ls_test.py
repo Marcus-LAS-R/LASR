@@ -12,7 +12,9 @@ from qgis.core import Qgis, QgsMessageLog, QgsProject
 
 from . import raporty, waypointy
 from .przygotuj_ls import PrzygotujLs, AnalizujKlus, PrzetworzKlu, \
-    GenerujRaport
+    GenerujRaport, TYP_UZYTKI
+from .przygotuj_ls_z_wydzielen import PrzetworzWydzielenia, \
+    AnalizujWydzielenia
 
 # prog wzglednej roznicy pow. graficznej i rejestrowej, ponizej ktorego
 # dopasowanie graf<->baza jest akceptowane
@@ -221,10 +223,55 @@ class PrzetworzKluTest(PrzetworzKlu):
         return True
 
 
+class PrzetworzUzytki(PrzetworzWydzielenia, PrzetworzKluTest):
+    """Dzialka w trybie "Tylko AU - warstwa UZYTKI": kontury uzytkow nie
+    maja klasy, SQ bierzemy z bazy (uzupelnij_sq_z_bazy). Dzialka z kilkoma
+    klasami Ls w bazie - kontur Ls do LS_DO_PRZECIECIA, jak w "Przygotuj Lsy
+    z wydzieleń" (polacz_ostateczne/dopisz_uwagi_pow z
+    PrzetworzWydzielenia), reszta uzytkow zwykla sciezka."""
+
+    def uzupelnij_sq_z_bazy(self, sq_na_dz):
+        """sq_na_dz: {AU: [SQ, ...]} z bazy dla tej dzialki. Uzytek z jedna
+        klasa w bazie dostaje ja w grafice; z kilkoma klasami zostaje bez
+        klasy (Ls - do przeciecia, s_ma_wiele_sq; inne uzytki - "Brak w
+        bazie" w SPRAWDZ)."""
+        for klu in self.klus:
+            klasy = sq_na_dz.get(klu['AU'], [])
+            if len(klasy) == 1:
+                klu['SQ'] = klasy[0]
+
+    def _ls_idx(self):
+        return [i for i, k in enumerate(self.klus) if k['AU'] == 'Ls']
+
+    def s_ma_wiele_sq(self):
+        """Kontur Ls w grafice, a w bazie kilka klas Ls na dzialce. Liczone
+        na biezacym self.klus (sprawdz_topologie moze z niego usuwac)."""
+        ile_w_bazie = len(self.p.sl_ls_na_dz.get(self.pid, []))
+        return bool(self._ls_idx()) and ile_w_bazie > 1
+
+    def s_dopisz_do_przeciecia(self):
+        """Jak PrzetworzWydzielenia.s_dopisz_do_przeciecia, ale tylko
+        kontury Ls - zdejmuje je z self.klus (inne uzytki ida dalej
+        zwykla sciezka)."""
+        idx = self._ls_idx()
+        geom = self.klus[idx[0]].geometry()
+        for i in idx[1:]:
+            geom = geom.combine(self.klus[i].geometry())
+        geom.convertToMultiType()
+        f = self.new_feat(
+            au='Ls',
+            uw='Kilka klas Ls w bazie - wymaga ręcznego przecięcia; ')
+        f.setGeometry(geom)
+        self.klus_do_przeciecia.append(f)
+        self.s_do_usuniecia(idx, 'OK')
+
+
 class AnalizujKlusTest(AnalizujKlus):
     def zaladuj_strukture(self):
         """Jak AnalizujKlus.zaladuj_strukture, ale buduje PrzetworzKluTest
-        zamiast PrzetworzKlu."""
+        zamiast PrzetworzKlu (w trybie UZYTKI - PrzetworzUzytki)."""
+        klasa = PrzetworzUzytki if self.typ == TYP_UZYTKI else \
+            PrzetworzKluTest
         sl_dzkat = {}
         for feat in self.dzkat.getFeatures():
             sl_dzkat[feat['PARCELID']] = feat
@@ -240,17 +287,30 @@ class AnalizujKlusTest(AnalizujKlus):
             if key in sl_single:
                 k = sl_single[key]
 
-            self.strukt[key] = PrzetworzKluTest(val, k, self.p, self.wl)
+            self.strukt[key] = klasa(val, k, self.p, self.wl)
 
     def przetworz_strukture(self):
         """Jak AnalizujKlus.przetworz_strukture, z dodatkowa probą
         dopasowania N-do-N po powierzchni (s_dopasuj_ls_po_pow) przed
         dotychczasowym s_czy_jeden_ls (ktory zostaje jako fallback dla
-        przypadku 'jeden uzytek w ogole na dzialce, przemianuj na Ls')."""
+        przypadku 'jeden uzytek w ogole na dzialce, przemianuj na Ls').
+        W trybie UZYTKI: najpierw klasy z bazy (uzupelnij_sq_z_bazy), bez
+        dopasowania po powierzchni (kontury nie niosa klasy, wiec kawalki
+        nie wyznaczaja granic klas); kilka klas Ls - do przeciecia."""
+        uzytki = self.typ == TYP_UZYTKI
+        if uzytki:
+            sq_na_dz = {}  # {PARCELID: {AU: [SQ, ...]}} z bazy
+            for au, sq, _pow, pid in (v[:4] for v in self.p.uzytki.values()):
+                sq_na_dz.setdefault(pid, {}).setdefault(au, []).append(
+                    sq or '')
+
         for key, val in self.strukt.items():
             if not val.is_valid():
                 self.bledne.append(key)
                 continue
+
+            if uzytki:
+                val.uzupelnij_sq_z_bazy(sq_na_dz.get(key, {}))
 
             trig = 0
             val.przetworz()
@@ -262,7 +322,12 @@ class AnalizujKlusTest(AnalizujKlus):
                 trig = 1
 
             if trig == 0:
-                if val.s_dopasuj_ls_po_pow():
+                if uzytki:
+                    if val.s_ma_wiele_sq():
+                        val.s_dopisz_do_przeciecia()
+                    if val.s_czy_jeden_ls():
+                        trig = 2
+                elif val.s_dopasuj_ls_po_pow():
                     trig = 2
                 elif val.s_czy_jeden_ls():
                     trig = 2
@@ -273,6 +338,12 @@ class AnalizujKlusTest(AnalizujKlus):
 
             val.polacz_ostateczne()
             val.dopisz_uwagi_pow()
+
+    def generuj_warstwy(self):
+        super().generuj_warstwy()
+        if self.typ == TYP_UZYTKI:
+            # ta sama warstwa LS_DO_PRZECIECIA co w "z wydzieleń"
+            AnalizujWydzielenia._generuj_warstwe_do_przeciecia(self)
 
     def generuj_raport(self):
         """Jak AnalizujKlus.generuj_raport (ta sama treść TXT). Raport obok
@@ -337,6 +408,11 @@ class AnalizujKlusTest(AnalizujKlus):
             wp('BRAKUJĄCE LSy [W BAZIE]', 'LANDID', landid,
                'Brak Ls w bazie (jest w grafice)', f'Ls {landid}',
                f'pow. graficzna {pow_graf}')
+        for pid, pow_graf, klasy in r.do_przeciecia:
+            wp('LSy DO RĘCZNEGO PRZECIĘCIA', 'PARCELID', pid,
+               'Kilka klas Ls w bazie - przetnij kontur Ls na klasy',
+               f'działka {pid}',
+               f'klasy w bazie: {klasy}, pow. graficzna {pow_graf}')
         for landid in sorted(self.p.ls_podwojne):
             wp('POWÓJNE LS [BAZA]', 'LANDID', landid,
                'Ls podwójny w bazie', f'Ls {landid}',

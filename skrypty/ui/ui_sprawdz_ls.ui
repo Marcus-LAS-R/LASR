@@ -29,9 +29,9 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>20</y>
+     <y>13</y>
      <width>101</width>
-     <height>16</height>
+     <height>32</height>
     </rect>
    </property>
    <property name="font">
@@ -40,7 +40,10 @@
     </font>
    </property>
    <property name="text">
-    <string>Warstwa KLU:</string>
+    <string>Warstwa KLU / UZYTKI:</string>
+   </property>
+   <property name="wordWrap">
+    <bool>true</bool>
    </property>
   </widget>
   <widget class="QLabel" name="label_2">
@@ -309,6 +312,11 @@
    <item>
     <property name="text">
      <string>LANDID (20020150012.AR_2.446/1.LsV)</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>Tylko AU - warstwa UZYTKI (klasy z bazy)</string>
     </property>
    </item>
   </widget>

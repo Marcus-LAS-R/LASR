@@ -24,6 +24,11 @@ from . import przygotuj_ls_bez_klasy as ls_bk
 #                      bez windowsa
 
 
+# sposob identyfikacji "Tylko AU - warstwa UZYTKI": indeks w oknie i typ
+IDENT_UZYTKI = 3
+TYP_UZYTKI = 'UZY'
+
+
 def dodaj_plus(xx):
     if xx > 0:
         return '+'+str(xx)
@@ -219,6 +224,8 @@ class AnalizujKlus(object):
                              '*.sqlite'))
 
         self.typ = self.dd.ui.comboBox_ident.currentText()[:3]
+        if self.dd.ui.comboBox_ident.currentIndex() == IDENT_UZYTKI:
+            self.typ = TYP_UZYTKI
         self.wl = self.dd.ui.comboBox_wlas.currentText()[:2]
         self.landid = self.dd.ui.comboBox_landid.currentText()
         self.sq = self.dd.ui.comboBox_sq.currentText()
@@ -358,7 +365,12 @@ class AnalizujKlus(object):
     def sprawdz_kolumny_wejscia(self):
         """Czy wskazano istniejace kolumny warstwy wejsciowej."""
         pola = self.klu.fields().names()
-        wybrane = [self.landid] if self.typ == 'LAN' else [self.au, self.sq]
+        if self.typ == 'LAN':
+            wybrane = [self.landid]
+        elif self.typ == TYP_UZYTKI:
+            wybrane = [self.au]
+        else:
+            wybrane = [self.au, self.sq]
         if [x for x in wybrane if x not in pola]:
             return self._przerwij(
                 'Nie wskazano kolumn warstwy KLU w oknie startowym.')
@@ -421,7 +433,11 @@ class AnalizujKlus(object):
                     zsq = 'xxx'
                     zau = 'xxx'
             else:
-                zsq = isNone(f[self.sq]).upper()
+                # UZYTKI nie maja klasy - SQ uzupelniane pozniej z bazy, per
+                # dzialka (PrzetworzKluTest.uzupelnij_sq_z_bazy)
+                zsq = ''
+                if self.typ != TYP_UZYTKI:
+                    zsq = isNone(f[self.sq]).upper()
                 zau = isNone(f[self.au])
                 if not zau:
                     bez_au += 1
@@ -874,6 +890,8 @@ class AnalizujKlus(object):
         bazie i brak ich w LS_<czas> - pyta, czy przygotowac je z warstwy
         UZYTKI (przeciecie z DZKAT minus Ls z klasa z LS_<czas>, bez wasow i
         szumu), patrz przygotuj_ls_bez_klasy. Wynik w self.ls_bk do raportu."""
+        if self.typ == TYP_UZYTKI:
+            return  # Ls bez klasy przygotowane juz z UZYTKI w glownym kroku
         lyrls = getattr(self, 'lyrls', None)
         if lyrls is None or not lyrls.isValid():
             return
@@ -2120,6 +2138,10 @@ class GenerujRaport():
         self.ls_w_bazie = []
         self.brakujace_ls_w_shp = []
         self.brakujace_ls_w_bazie = []
+        # Ls bez LANDID (dzialka z kilkoma klasami Ls w bazie, kontur do
+        # recznego przeciecia - tryb UZYTKI / z wydzielen)
+        # [[PARCELID, pow_graf, 'V, VI'], ...]
+        self.do_przeciecia = []
         self.pow_zerowe_baza = []
         self.lista_mikro = []
         self.lista_zm_sq = []
@@ -2165,6 +2187,7 @@ class GenerujRaport():
         self.ls_poza_baza.sort(key=nat)
         self.brakujace_ls_w_shp.sort(key=pierwszy)
         self.brakujace_ls_w_bazie.sort(key=pierwszy)
+        self.do_przeciecia.sort(key=pierwszy)
         self.pow_zerowe_baza.sort(key=nat)
         self.lista_mikro.sort(key=nat)
         self.lista_zm_sq.sort(key=pierwszy)
@@ -2222,10 +2245,16 @@ class GenerujRaport():
             # ]
 
     def zestaw_liste_brakujacych_ls_w_bazie(self):
+        # bez LANDID = do przeciecia, nie brak w bazie
+        self.do_przeciecia = [
+            [x['PARCELID'], str(round(x.geometry().area()/10000, 4)),
+             ', '.join(self.p.sl_ls_na_dz.get(x['PARCELID'], []))]
+            for x in self.ls_w_shp if not x['LANDID']]
+        ls_w_shp = [x for x in self.ls_w_shp if x['LANDID']]
         if self.wl == 'OF':
             self.brakujace_ls_w_bazie = [
                 [x['LANDID'], str(round(x.geometry().area()/10000, 4))]
-                for x in self.ls_w_shp
+                for x in ls_w_shp
                 if x['LANDID'] not in self.p.ls and
                 x['PARCELID'][4:] not in self.p.dz_op
             ]
@@ -2233,7 +2262,7 @@ class GenerujRaport():
         else:
             self.brakujace_ls_w_bazie = [
                 [x['LANDID'], str(round(x.geometry().area()/10000, 4))]
-                for x in self.ls_w_shp
+                for x in ls_w_shp
                 if x['LANDID'] not in self.p.ls
             ]
 
@@ -2379,6 +2408,10 @@ class GenerujRaport():
         self.wypis += 'Brakujących Ls-ów [w bazie]: ' + \
             str(len(self.brakujace_ls_w_bazie)) + '\n'
 
+        if self.do_przeciecia:
+            self.wypis += 'Działek z Ls do ręcznego przecięcia: ' + \
+                str(len(self.do_przeciecia)) + '\n'
+
         if self.ls_bk_dodane is not None:
             self.wypis += 'Ls bez klasy z UZYTKI dopisane: ' + \
                 str(len(self.ls_bk_dodane)) + ', nieprzygotowane: ' + \
@@ -2454,6 +2487,18 @@ class GenerujRaport():
             ])
             self.wypis += '\n' + 33 * '-' + '\n\n\n'
 
+        if self.do_przeciecia:
+            self.wypis += '---LSy DO RĘCZNEGO PRZECIĘCIA-----\n'
+            self.wypis += ('Działki z kilkoma klasami Ls w bazie - kontur Ls '
+                           'bez LANDID (LS_DO_PRZECIECIA) trzeba przeciąć na '
+                           'klasy. Ich Ls z bazy są w "BRAKUJĄCE LSy [W '
+                           'SHP]".\n')
+            self.wypis += 'Działek: ' + str(len(self.do_przeciecia)) + \
+                '\n\n'
+            self.wypis += '\n'.join(
+                '\t'.join(x) for x in self.do_przeciecia)
+            self.wypis += '\n' + 33 * '-' + '\n\n\n'
+
         if len(self.lista_bez_uzytkow) > 0:
             self.wypis += '---DZIALKI BEZ UŻYTKÓW------------\n'
             self.wypis += 'Dzialki z brakujacymi Ls-ami: ' + \
@@ -2524,6 +2569,14 @@ class GenerujRaport():
         return self.wypis
 
 
+# podpowiadane kolumny wejscia "Przygotuj Lsy" (kolejnosc = priorytet):
+# KLU po przygotowaniu ma AU/SQ, surowe KLU z GML OZU/OZK, stary standard
+# G5OZU/G5OZK; UZYTKI ma AU, OFU albo G5OFU
+KANDYDACI_AU = ['AU', 'OZU', 'G5OZU', 'OFU', 'G5OFU']
+KANDYDACI_SQ = ['SQ', 'OZK', 'G5OZK']
+KANDYDACI_LANDID = ['LANDID', 'LAND_ID']
+
+
 class PobierzDane(QDialog):
     def __init__(self, k=False, d=False):
         super(PobierzDane, self).__init__()
@@ -2557,6 +2610,9 @@ class PobierzDane(QDialog):
         self.ui.pushButton_bazy.clicked.connect(self.pobierz_bazy)
         self.ui.comboBox_ident.currentTextChanged.connect(self.identyfikuj)
         self.ui.pushButton_ok.clicked.connect(self.zatwierdz)
+        # sposob podpowiedziany w wczytaj_pola() przed podlaczeniem sygnalu
+        if self.ui.comboBox_ident.currentIndex() > 0:
+            self.identyfikuj()
 
     def zatwierdz(self):
         self.kontynuuj = True
@@ -2578,6 +2634,37 @@ class PobierzDane(QDialog):
         for x in comboboxy:
             x.clear()
             x.addItems(self.pola)
+
+        self.podpowiedz_pola()
+
+    def podpowiedz_pola(self):
+        """Podpowiada kolumny (pierwsza pasujaca nazwa z listy kandydatow,
+        bez wzgledu na wielkosc liter) i sposob identyfikacji
+        wg kolumn warstwy. Uzytkownik moze wszystko zmienic."""
+        def znajdz(kandydaci):
+            male = {p.lower(): p for p in self.pola[1:]}
+            for k in kandydaci:
+                if k.lower() in male:
+                    return male[k.lower()]
+            return None
+
+        au = znajdz(KANDYDACI_AU)
+        sq = znajdz(KANDYDACI_SQ)
+        landid = znajdz(KANDYDACI_LANDID)
+        for combo, pole in ((self.ui.comboBox_au, au),
+                            (self.ui.comboBox_sq, sq),
+                            (self.ui.comboBox_landid, landid)):
+            if pole:
+                combo.setCurrentText(pole)
+
+        # sposob identyfikacji wg kolumn nowo wybranej warstwy (np. UZYTKI
+        # po KLU przelacza na "Tylko AU")
+        if au and sq:
+            self.ui.comboBox_ident.setCurrentIndex(1)  # AU i SQ
+        elif landid:
+            self.ui.comboBox_ident.setCurrentIndex(2)  # LANDID
+        elif au:
+            self.ui.comboBox_ident.setCurrentIndex(IDENT_UZYTKI)
 
     def pobierz_klu(self):
         """Metoda pobiera wskazaną przez użytkownika warstwę i ją przetwarza"""
@@ -2658,6 +2745,14 @@ class PobierzDane(QDialog):
     def identyfikuj(self):
         """ Metoda sprawdza wybór uzytkownika i
             udostepnia odpowiednie pola do wyboru"""
+        # klasa tylko przy "AU i SQ" (UZYTKI nie maja klasy - SQ z bazy)
+        self.ui.comboBox_sq.setEnabled(
+            self.ui.comboBox_ident.currentIndex() != IDENT_UZYTKI)
+        if self.ui.comboBox_ident.currentIndex() == IDENT_UZYTKI:
+            self.ui.groupBox_adradm.setDisabled(True)
+            self.ui.pushButton_ok.setDisabled(False)
+            self.ui.groupBox_kol.setDisabled(False)
+            return
         if self.ui.comboBox_ident.currentText() == '---':
             self.ui.groupBox_adradm.setDisabled(True)
             self.ui.groupBox_kol.setDisabled(True)
