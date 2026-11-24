@@ -57,7 +57,7 @@ class DociagnijNatywny:
 
         self.kat = ''
         self.tempkat = ''
-        self.wyjscie_path = None  # None = domyslnie <kat>/DOCIAGNIETA_NOWY.shp
+        self.wyjscie_path = None  # None = domyslnie <kat>/LS_dociagnieta.shp
 
         self.postep = None
         self.pd = None
@@ -279,14 +279,14 @@ class DociagnijNatywny:
         """Krok 4: zapisz wynik koncowy, dodaj do TOC, pokaz podsumowanie."""
         self._postep(95)
         wyjscie = self.wyjscie_path or os.path.join(
-            self.kat, 'DOCIAGNIETA_NOWY.shp')
+            self.kat, 'LS_dociagnieta.shp')
         os.makedirs(os.path.dirname(wyjscie), exist_ok=True)
 
         wlyr = QgsVectorLayer(self.wynik_path, 'wynik', 'ogr')
         QgsVectorFileWriter.writeAsVectorFormatV3(
             wlyr, wyjscie, QgsProject.instance().transformContext(),
             _opcje_zapisu())
-        self.dociag = QgsVectorLayer(wyjscie, 'DOCIAGNIETA_NOWY', 'ogr')
+        self.dociag = QgsVectorLayer(wyjscie, 'LS_dociagnieta', 'ogr')
 
         przeglad_path = None
         if self.przeglad_lyr is not None:
