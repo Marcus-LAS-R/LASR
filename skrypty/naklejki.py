@@ -23,6 +23,11 @@ from .funkcje import katalog_startowy
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui',  'ui_naklejki_dialog.ui'))
 
+# kolor tekstów naklejek/płytki oraz ramek i krzyżyków do wycinania
+# (wcześniej zielony: tekst #00b050 / płytka #90bc00, ramki 0,176,80)
+KOLOR_NAKLEJEK = '#000000'
+KOLOR_RAMEK = '0, 0, 0, 255'
+
 
 class GenerujNaklejki:
     def __init__(self, iface):
@@ -36,7 +41,7 @@ class GenerujNaklejki:
         # jest dluzsza niz standard ustawiony przy generowanie grzebietu
         self.poszerzenie = 0
 
-        g = {'color': '255, 255, 255, 255', 'color_border': '0, 176, 80, 255'}
+        g = {'color': '255, 255, 255, 255', 'color_border': KOLOR_RAMEK}
         self.g = QgsFillSymbol.createSimple(g)
 
         # slowniki przetrzymujace dane z bazy,
@@ -365,7 +370,7 @@ class GenerujNaklejki:
         lay.setName('Okładka')
         self.mn.addLayout(lay)
 
-        # zielona ramka do wyciecia
+        # ramka do wyciecia
         okl = QgsLayoutItemShape(lay)
         okl.attemptResize(
             QgsLayoutSize(120, 120, QgsUnitTypes.LayoutMillimeters))
@@ -656,7 +661,7 @@ class GenerujNaklejki:
 
         # nazwa opracowania
         for przes in [0, 130]:
-            # zielone krzyzyki do wyciecia
+            # krzyzyki do wyciecia
             okl = QgsLayoutItemShape(lay)
             okl.attemptResize(
                 QgsLayoutSize(10, 2, QgsUnitTypes.LayoutMillimeters))
@@ -684,7 +689,7 @@ class GenerujNaklejki:
             naz.setHAlign(Qt.AlignCenter)
             naz.setText(self.sl_typ[self.typ][1])
             naz.setFont(QFont("Arial", 14, QFont.Bold))
-            naz.setFontColor(QColor("#90bc00"))
+            naz.setFontColor(QColor(KOLOR_NAKLEJEK))
             lay.addItem(naz)
 
             # lata opracowania
@@ -695,7 +700,7 @@ class GenerujNaklejki:
                        self.info.lineEdit_do.text()[-4:])
             l1.setFont(QFont("Arial", 14, QFont.Bold))
             naz.setHAlign(Qt.AlignCenter)
-            l1.setFontColor(QColor("#90bc00"))
+            l1.setFontColor(QColor(KOLOR_NAKLEJEK))
             l1.setHAlign(Qt.AlignCenter)
             l1.attemptResize(
                 QgsLayoutSize(63, 8.7, QgsUnitTypes.LayoutMillimeters))
@@ -929,7 +934,7 @@ class GenerujNaklejki:
                                QgsUnitTypes.LayoutMillimeters),
                 page=si
             )
-            ltom.setFontColor(QColor("#00b050"))
+            ltom.setFontColor(QColor(KOLOR_NAKLEJEK))
             ltom.setItemRotation(-90)
             lay.addItem(ltom)
 
@@ -937,7 +942,7 @@ class GenerujNaklejki:
             QgsLayoutPoint(20+px, 182+add, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
         # dalsze ustawienia ramki
@@ -965,7 +970,7 @@ class GenerujNaklejki:
         naz.setHAlign(Qt.AlignCenter)
         naz.setText(opr)
         naz.setFont(QFont("Arial", 6, QFont.Bold))
-        naz.setFontColor(QColor("#00b050"))
+        naz.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(naz)
 
     def g_kafelek(self, tab, lay):
@@ -975,7 +980,7 @@ class GenerujNaklejki:
         py = tab[1]
         si = tab[2]
 
-        # zielona ramka do wyciecia
+        # ramka do wyciecia
         okl = QgsLayoutItemShape(lay)
         okl.attemptResize(
             QgsLayoutSize(115, 70, QgsUnitTypes.LayoutMillimeters))
@@ -999,7 +1004,7 @@ class GenerujNaklejki:
         naz.setHAlign(Qt.AlignCenter)
         naz.setText(self.sl_typ[self.typ][0])
         naz.setFont(QFont("Arial", 13, QFont.Bold))
-        naz.setFontColor(QColor("#00b050"))
+        naz.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(naz)
 
         # obiekt
@@ -1017,7 +1022,7 @@ class GenerujNaklejki:
             QgsLayoutPoint(77.5+px, 35+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
         # gmina
@@ -1033,7 +1038,7 @@ class GenerujNaklejki:
                            QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
         # tom opracowania
@@ -1050,7 +1055,7 @@ class GenerujNaklejki:
                                QgsUnitTypes.LayoutMillimeters),
                 page=si
             )
-            l1.setFontColor(QColor("#00b050"))
+            l1.setFontColor(QColor(KOLOR_NAKLEJEK))
             lay.addItem(l1)
 
         # Powiat
@@ -1065,7 +1070,7 @@ class GenerujNaklejki:
             QgsLayoutPoint(77.5+px, 65.6+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
         # plany na okresy
@@ -1080,7 +1085,7 @@ class GenerujNaklejki:
             QgsLayoutPoint(77.5+px, 71.8+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
         # powierzchnia
@@ -1097,7 +1102,7 @@ class GenerujNaklejki:
                                QgsUnitTypes.LayoutMillimeters),
                 page=si
             )
-            l1.setFontColor(QColor("#00b050"))
+            l1.setFontColor(QColor(KOLOR_NAKLEJEK))
             lay.addItem(l1)
 
         # stan na
@@ -1112,7 +1117,7 @@ class GenerujNaklejki:
             QgsLayoutPoint(77.5+px, 82+py, QgsUnitTypes.LayoutMillimeters),
             page=si
         )
-        l1.setFontColor(QColor("#00b050"))
+        l1.setFontColor(QColor(KOLOR_NAKLEJEK))
         lay.addItem(l1)
 
 
