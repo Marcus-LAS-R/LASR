@@ -15,10 +15,12 @@ otwierany z menu ("Przebieg prac" nad Edytorem opisu).
   pokazuje jego postęp.
 
 Kolejność kroków - lista PROCESY niżej (zmiana bez ruszania kodu)."""
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtGui import QPainter
 from PyQt5.QtWidgets import (
     QCheckBox, QDockWidget, QFrame, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QSizePolicy, QTabWidget, QVBoxLayout, QWidget,
+    QScrollArea, QSizePolicy, QStackedWidget, QStyle, QStyleOptionButton,
+    QTabWidget, QToolButton, QVBoxLayout, QWidget,
 )
 from qgis.core import QgsProject
 
@@ -104,6 +106,81 @@ def zapisz_stan(proces, wykonane):
                                      sorted(wykonane))
 
 
+# ------------------------------------------------------------ zwijanie
+
+SZER_ZWINIETEGO = 26
+QWIDGETSIZE_MAX = 16777215
+
+
+class PasekZwiniety(QPushButton):
+    """Wąski pionowy pasek z obróconym tytułem - kliknięcie rozwija panel."""
+
+    def __init__(self, tytul, parent=None):
+        super().__init__(parent)
+        self._tytul = tytul
+        self.setToolTip(f'Rozwiń panel "{tytul}"')
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.setFixedWidth(SZER_ZWINIETEGO)
+
+    def sizeHint(self):
+        return QSize(SZER_ZWINIETEGO, 200)
+
+    def minimumSizeHint(self):
+        return QSize(SZER_ZWINIETEGO, 60)
+
+    def paintEvent(self, _ev):
+        p = QPainter(self)
+        opt = QStyleOptionButton()
+        self.initStyleOption(opt)
+        opt.text = ''
+        self.style().drawControl(QStyle.CE_PushButton, opt, p, self)
+        f = p.font()
+        f.setBold(True)
+        p.setFont(f)
+        # tekst od góry do dołu (obrót o 90 st. w prawo)
+        p.translate(self.width(), 0)
+        p.rotate(90)
+        p.drawText(8, 0, self.height() - 16, self.width(),
+                   Qt.AlignLeft | Qt.AlignVCenter, '▾  ' + self._tytul)
+        # (▾ po obrocie o 90 st. wskazuje w lewo - kierunek rozwinięcia)
+        p.end()
+
+
+class PasekTytulu(QWidget):
+    """Pasek tytułu panelu: tytuł + Zwiń / Odepnij / Zamknij. Puste
+    miejsce przepuszcza mysz do QDockWidget (przeciąganie panelu)."""
+
+    def __init__(self, dock, tytul):
+        super().__init__(dock)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(6, 2, 2, 2)
+        lay.setSpacing(1)
+        lbl = QLabel(tytul)
+        lbl.setAttribute(Qt.WA_TransparentForMouseEvents)
+        lay.addWidget(lbl, 1)
+        styl = dock.style()
+
+        def przycisk(ikona, tip, slot, tekst=None):
+            b = QToolButton(self)
+            if tekst:
+                b.setText(tekst)
+            else:
+                b.setIcon(styl.standardIcon(ikona))
+            b.setToolTip(tip)
+            b.setAutoRaise(True)
+            b.setFixedSize(20, 20)
+            b.clicked.connect(slot)
+            lay.addWidget(b)
+            return b
+
+        self.btn_zwin = przycisk(None, 'Zwiń panel do wąskiego paska',
+                                 dock.zwin, tekst='▸')
+        przycisk(QStyle.SP_TitleBarNormalButton, 'Odepnij / przypnij panel',
+                 lambda: dock.setFloating(not dock.isFloating()))
+        przycisk(QStyle.SP_TitleBarCloseButton, 'Zamknij panel', dock.close)
+
+
 # ------------------------------------------------------------------ panel
 
 class PanelPrzebiegu(QDockWidget):
@@ -120,7 +197,22 @@ class PanelPrzebiegu(QDockWidget):
         self._wiersze = {}      # proces -> [(typ, id, nr, ptaszek, przycisk)]
         self.zakladki = QTabWidget()
         self.zakladki.setDocumentMode(True)
-        self.setWidget(self.zakladki)
+        # zwijanie: stos [zakładki, pionowy pasek] + własny pasek tytułu
+        self._zwiniety = False
+        self._szer_rozwiniety = 0
+        self.pasek = PasekZwiniety(self.TYTUL)
+        self.pasek.clicked.connect(self.rozwin)
+        self.stos = QStackedWidget()
+        self.stos.addWidget(self.zakladki)
+        self.stos.addWidget(self.pasek)
+        self.setWidget(self.stos)
+        self.tytul_pelny = PasekTytulu(self, self.TYTUL)
+        self.tytul_pusty = QWidget(self)   # zwinięty - bez paska tytułu
+        self.tytul_pusty.setFixedHeight(0)
+        self.tytul_pusty.hide()
+        self.setTitleBarWidget(self.tytul_pelny)
+        # odpięty panel się nie zwija (zwinięcie dotyczy krawędzi okna)
+        self.topLevelChanged.connect(self._zmiana_odpiecia)
         for proces, nazwa, czesci in PROCESY:
             self.zakladki.addTab(self._zakladka(proces, czesci), nazwa)
         # ptaszek także przy uruchomieniu z menu / wyszukiwarki
@@ -135,6 +227,38 @@ class PanelPrzebiegu(QDockWidget):
         prj.readProject.connect(self.odswiez)
         prj.cleared.connect(self.odswiez)
         self.odswiez()
+
+    # ----------------------------------------------------------- zwijanie
+
+    def zwin(self):
+        if self._zwiniety or self.isFloating():
+            return
+        self._zwiniety = True
+        self._szer_rozwiniety = self.width()
+        self.tytul_pelny.hide()
+        self.setTitleBarWidget(self.tytul_pusty)
+        self.stos.setCurrentWidget(self.pasek)
+        self.setMinimumWidth(SZER_ZWINIETEGO)
+        self.setMaximumWidth(SZER_ZWINIETEGO)
+
+    def rozwin(self):
+        if not self._zwiniety:
+            return
+        self._zwiniety = False
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(QWIDGETSIZE_MAX)
+        self.stos.setCurrentWidget(self.zakladki)
+        self.tytul_pusty.hide()
+        self.setTitleBarWidget(self.tytul_pelny)
+        self.tytul_pelny.show()
+        if self._szer_rozwiniety > SZER_ZWINIETEGO and not self.isFloating():
+            okno = self.iface.mainWindow()
+            okno.resizeDocks([self], [self._szer_rozwiniety], Qt.Horizontal)
+
+    def _zmiana_odpiecia(self, odpiety):
+        if odpiety:
+            self.rozwin()
+        self.tytul_pelny.btn_zwin.setEnabled(not odpiety)
 
     # ------------------------------------------------------------- budowa
 

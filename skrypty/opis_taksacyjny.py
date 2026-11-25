@@ -139,6 +139,8 @@ OSTRZEGAWCZE = QColor(255, 240, 170)  # ostrzeżenie - zapis możliwy
 MAX_INFO = 255  # F_SUBAREA.SUBAREA_INFO VARCHAR(255)
 RODZAJ_INNE_WYL = 'INNE WYL'  # podgląd PPM pokazuje wtedy Informacje różne
 RODZAJ_LZ = 'LZ-Ł'  # wpisanie dopisuje INFO_LZ do Informacji różnych
+# Enter po tych rodzajach pow. przeskakuje od razu do TSL
+RODZAJE_OD_RAZU_DO_TSL = {RODZAJ_INNE_WYL, 'SUKCESJA'}
 ODSTEP_TYTULU = ' ' * 24  # paski tytułu nie zawijają ani nie skracają spacji
 
 # pole -> (tabela słownika, kolumna kodu, kolumna nazwy, kolumna numeru)
@@ -201,6 +203,10 @@ KOLUMNY_WARSTWY = [
     ('Zwarcie', 'DENSITY_CD', 'kod', 'DENSITY_CD', None, 62),
     ('Zd.', 'STANDDENSITY_INDEX', 'liczba', None, 1, 46),
 ]
+# pola gatunku, od których zależy masa z Zd (DRZEW) - Enter na nich przy
+# pustej masie ją uzupełnia
+POLA_WSKAZUJACE_MASE = ('SPECIES_CD', 'PART_CD', 'SPECIES_AGE',
+                        'SITE_CLASS_CD')
 KOLUMNY_GATUNKI = [
     ('Kod', 'SPECIES_CD', 'kod', 'SPECIES_CD', None, 72),
     ('Udział', 'PART_CD', 'kod', 'PART_CD', None, 58),
@@ -963,9 +969,7 @@ class _GrupaWarstwy(QWidget):
             lambda r, c, t: okno.ustaw_gatunek(
                 self.wi, r, KOLUMNY_GATUNKI[c][1], t),
             lambda r, c, e: self._enter('g', r, c, e),
-            lambda r, c: okno.podpowiedz_bonitacji(self.wi, r)
-            if c < len(KOLUMNY_GATUNKI) and
-            KOLUMNY_GATUNKI[c][1] == 'SITE_CLASS_CD' else None,
+            lambda r, c: okno.podpowiedz_gatunku(self.wi, r, c),
             lambda r, c, k: self.strzalka('g', r, c, k))
         self.tg.cellClicked.connect(self._klik_gatunku)
         hl.addWidget(self.tg, 0, Qt.AlignTop)
@@ -1213,7 +1217,18 @@ class _GrupaWarstwy(QWidget):
             # warstwa, a za ostatnią - okienko nowej warstwy
             okno.po_ostatnim_wierszu(self.wi)
             return
-        pola = ow.pola_wymagane_gatunku(w['STOREY_CD'], gat[r])
+        if c < len(KOLUMNY_GATUNKI) and \
+                KOLUMNY_GATUNKI[c][1] in POLA_WSKAZUJACE_MASE:
+            # Enter na niezmienionej komórce przy pustej masie - masa z Zd
+            # (zmieniona wartość liczy masę już w ustaw_gatunek)
+            okno.uzupelnij_mase(self.wi, r)
+            if sip.isdeleted(self) or self.wi >= len(okno.dane['WARSTWY']):
+                return
+            w = okno.dane['WARSTWY'][self.wi]
+            gat = w['gatunki']
+            if r >= len(gat):
+                return
+        pola =ow.pola_wymagane_gatunku(w['STOREY_CD'], gat[r])
         kolumny = [k[1] for k in KOLUMNY_GATUNKI]
         dalej = [x for x in pola if kolumny.index(x) > c]
         if dalej:
@@ -2153,6 +2168,10 @@ class OknoOpisu(QWidget):
         # nie skakało przy przełączaniu wydzieleń; powyżej 90% - przewijanie
         h = min(max(self._wysokosc_tresci(), self.panel.max_h),
                 int(ekran.height() * 0.9))
+        # nigdy poniżej bieżącej wysokości (okno powiększone ręcznie albo
+        # przez układ przy minimalnej wysokości treści)
+        if self.isVisible():
+            h = max(h, self.height())
         self.panel.max_h = h
         self.tresc.setMinimumHeight(self.tresc.sizeHint().height())
         self.resize(self.width(), h)
@@ -2372,6 +2391,10 @@ class OknoOpisu(QWidget):
                 if pole == 'VOLUME' else ''
         g = w['gatunki'][gi]
         if pole == 'VOLUME':
+            if g['VOLUME'] is not None and g['VOLUME'] == ow.masa_z_zd(
+                    self.panel.tablica_mas, self.panel.grupy_bonit, g,
+                    w['STANDDENSITY_INDEX']):
+                return ''  # masa zgodna z Zd (np. przyjęta podpowiedź)
             zd, pominiete = ow.zd_z_mas(self.panel.tablica_mas,
                                         self.panel.grupy_bonit, w['gatunki'])
             if zd is None:
@@ -2414,6 +2437,53 @@ class OknoOpisu(QWidget):
         return ow.sugeruj_bonitacje(
             self.panel.tablica_bonit, self.panel.grupy_bonit,
             g['SPECIES_CD'], g['SPECIES_AGE'], g['HEIGHT'])
+
+    def podpowiedz_gatunku(self, wi, gi, c):
+        """Podpowiedź do pustej komórki gatunku: bonitacja z tablic, masa
+        z Zd (DRZEW)."""
+        if c >= len(KOLUMNY_GATUNKI):
+            return None
+        pole = KOLUMNY_GATUNKI[c][1]
+        if pole == 'SITE_CLASS_CD':
+            return self.podpowiedz_bonitacji(wi, gi)
+        if pole == 'VOLUME':
+            m = self._masa_do_uzupelnienia(wi, gi)
+            return None if m is None else _fmt(m, KOLUMNY_GATUNKI[c][4])
+        return None
+
+    def _masa_do_uzupelnienia(self, wi, gi):
+        """Masa z Zd dla gatunku z pustą masą w DRZEW albo None (brak
+        tablicy mas, Zd, udziału 1-10, wieku, bonitacji, wpisu w tablicy;
+        PJD/MJS - udział poza 1-10)."""
+        if self.dane is None or self.tylko_odczyt or \
+                wi >= len(self.dane['WARSTWY']) or not self.panel.tablica_mas:
+            return None
+        w = self.dane['WARSTWY'][wi]
+        if w['STOREY_CD'] != ow.WARSTWA_MASY or gi >= len(w['gatunki']):
+            return None
+        g = w['gatunki'][gi]
+        if g['VOLUME'] is not None:
+            return None
+        return ow.masa_z_zd(self.panel.tablica_mas, self.panel.grupy_bonit,
+                            g, w['STANDDENSITY_INDEX'])
+
+    def uzupelnij_mase(self, wi, gi):
+        """Pusta masa gatunku DRZEW -> masa z Zd (krok historii); nic, gdy
+        nie da się policzyć albo masa jest wpisana."""
+        if sip.isdeleted(self):
+            return
+        m = self._masa_do_uzupelnienia(wi, gi)
+        if m is None:
+            return
+        przed = copy.deepcopy(self.dane)
+        w = self.dane['WARSTWY'][wi]
+        g = w['gatunki'][gi]
+        g['VOLUME'] = m
+        self._do_historii(f"{w['STOREY_CD']} / {g['SPECIES_CD'] or '?'} - "
+                          'Zasob.', przed)
+        self._po_zmianie_warstwy(wi)
+        self._status(f'{g["SPECIES_CD"]}: masa z Zd '
+                     f'{_fmt(w["STANDDENSITY_INDEX"], 1)} = {m}')
 
     def usun_gatunek(self, wi, gi):
         """Przycisk ✕ w wierszu gatunku."""
@@ -2513,11 +2583,18 @@ class OknoOpisu(QWidget):
     def _enter_opis(self, r, c, _w_edycji):
         """Opis wydzielenia: Enter - następna kolumna; w cechach/TD po
         wpisanym kodzie niżej (kolejny kod), na pustym - następna kolumna;
-        po ostatniej kolumnie - pierwsza warstwa (albo nowa warstwa)."""
+        po ostatniej kolumnie - pierwsza warstwa (albo nowa warstwa).
+        Rodzaj pow. INNE WYL/SUKCESJA - od razu do TSL (bez cech
+        drzewostanu, budowy, uszkodzeń)."""
         if self.dane is None or self.tylko_odczyt:
             return
         _n, pole, typ, _s = KOLUMNY_OPIS[c]
-        if typ == 'lista' and r < len(self.dane[pole]):
+        if pole == 'AREA_TYPE_CD' and \
+                _txt(self.dane[pole]) in RODZAJE_OD_RAZU_DO_TSL:
+            idz_do_komorki(self.t_opis, 0, next(
+                i for i, k in enumerate(KOLUMNY_OPIS)
+                if k[1] == 'SITE_TYPE_CD'))
+        elif typ == 'lista' and r < len(self.dane[pole]):
             idz_do_komorki(self.t_opis, r + 1, c)
         elif c + 1 < len(KOLUMNY_OPIS):
             idz_do_komorki(self.t_opis, 0, c + 1)

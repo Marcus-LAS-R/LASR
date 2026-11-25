@@ -1716,6 +1716,7 @@ class LasR:
 
     def pokaz_przebieg_prac(self):
         self.dockPrzebieg.show()
+        self.dockPrzebieg.rozwin()
         self.dockPrzebieg.raise_()
 
     def spis_skryptow(self):
