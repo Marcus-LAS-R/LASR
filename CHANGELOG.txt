@@ -1,6 +1,33 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0ix — 2026-11-26
+------------------------------------------------
+
+1. NOWOŚĆ: Raporty -> "Wykaz rozbieżności (dok. geodezyjna)" - wykaz
+   "Użytki gruntowe leśne do wylesień" w .docx wg wzoru LP: stan wg
+   ewidencji gruntów (klasoużytek, pow.) i stan nowy wg UPUL, z
+   wyjaśnieniem z informacji różnych. Wskazujesz folder obiektu, gminy
+   albo obrębu - wykazy powstają osobno dla obrębów, razem dla gmin
+   i dla całego obiektu (do wyboru). Klasoużytek nowy uzupełniany
+   automatycznie: Lz dla LZ, R + klasa dla GUR, B dla budynków,
+   zabudowań i podwórek; pozostałe komórki są puste z żółtym tłem -
+   do uzupełnienia ręcznie. Komórki gminy, obrębu i działki scalone.
+2. NOWOŚĆ: Przygotuj Lsy - nowy sposób identyfikacji "Tylko AU - warstwa
+   UZYTKI (klasy z bazy)" dla konturów użytków bez klas. Okno samo
+   podpowiada kolumny (AU/OZU/G5OZU, SQ/OZK/G5OZK, LANDID) i sposób
+   identyfikacji po wczytaniu warstwy.
+3. POPRAWKA: raport Przygotuj Lsy - Ls do ręcznego przecięcia mają
+   własną sekcję (z klasami z bazy) i waypointy dla Nawigatora, zamiast
+   trafiać do "brakujących" z pustym LANDID.
+4. NOWOŚĆ: panel Przebieg prac można zwinąć do wąskiego paska
+   (przycisk ▸ na pasku tytułu).
+5. ZMIANA: Edytor opisu - pusta masa podpowiada się z Zd (Enter
+   przyjmuje), bez ponownego wpisywania bonitacji; Enter w "Rodz. pow."
+   przy INNE WYL i SUKCESJA przeskakuje od razu do TSL.
+6. POPRAWKA: Edytor opisu - okno karty nie zmniejsza się już przy
+   przechodzeniu między wydzieleniami.
+
 Wersja 2.0hx — 2026-11-24
 ------------------------------------------------
 
