@@ -136,6 +136,7 @@ from .skrypty import spakuj_do_opiniowania
 from .skrypty import przygotuj_na_wylozenia
 from .skrypty import plyty_na_oddanie
 from .skrypty import tpu_raporty
+from .skrypty import wykaz_rozbieznosci
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -1393,6 +1394,17 @@ class LasR:
         self.m_raporty.addAction(self.a_wyciagi)
         self.a_wyciagi.triggered.connect(self.generuj_wyciagi)
 
+        self.a_wykaz_rozb = QAction(
+            QIcon(None), "Wykaz rozbieżności (dok. geodezyjna)",
+            self.iface.mainWindow()
+        )
+        self.a_wykaz_rozb.setToolTip(
+            "Generuje .docx z wykazem rozbieżności EGiB (stan stary) vs "
+            "UPUL i stan na gruncie (stan nowy) - osobno dla obrębów, "
+            "razem dla gmin i dla całego obiektu.")
+        self.m_raporty.addAction(self.a_wykaz_rozb)
+        self.a_wykaz_rozb.triggered.connect(self.generuj_wykaz_rozbieznosci)
+
         self.m_raporty.addSeparator()
 
         self.a_kontrola_terenowa = QAction(
@@ -2499,6 +2511,9 @@ class LasR:
     def generuj_wyciagi(self):
         g = raport_wyciagi.GenerujWyciagi(self.iface)
         g.generowanie()
+
+    def generuj_wykaz_rozbieznosci(self):
+        wykaz_rozbieznosci.uruchom(self.iface)
 
     def reprojekcja_warstw(self):
         rep = shp_konwertuj.KonwertujWarstwy()

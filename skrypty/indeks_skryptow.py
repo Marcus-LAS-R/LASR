@@ -297,6 +297,7 @@ INDEKS = {
     'okl': _w('okładki atlas wydruk generuj leśnictwo obręb'),
     'a_rap_wyles': _w('karty wylesień działki raport wylesienie generuj'),
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
+    'a_wykaz_rozb': _w('wykaz rozbieżności dokumentacja geodezyjna EGiB ewidencja gruntów stan stary nowy klasoużytek wylesienia INNE WYL Lz docx obręby gminy obiekt użytki gruntowe leśne do wylesień'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
     'a_tpu_raporty': _w('zestawienia raportów TPU Taksator PU raporty xlsx '
