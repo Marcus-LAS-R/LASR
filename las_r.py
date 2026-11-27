@@ -137,6 +137,7 @@ from .skrypty import przygotuj_na_wylozenia
 from .skrypty import plyty_na_oddanie
 from .skrypty import tpu_raporty
 from .skrypty import wykaz_rozbieznosci
+from .skrypty import zestawienie_powierzchni
 from .skrypty.testowe import eksport_shp_gml
 from .skrypty.testowe import rozdziel_wg_baz
 
@@ -666,7 +667,8 @@ class LasR:
         )
         self.dop_zab_nowe.setToolTip(
             "Uzupełnia i weryfikuje zaplanowane zabiegi gospodarcze (cięcia, "
-            "pielęgnacje) w bazie.")
+            "pielęgnacje) w bazie. Przed zabiegami po cichu uzupełnia puste "
+            "uszkodzenia (jak Uzupełnij uszkodzenia w bazie).")
         self.m_rozlicz_pow.addAction(self.dop_zab_nowe)
         self.dop_zab_nowe.triggered.connect(self.zabiegi_nowe)
 
@@ -1314,10 +1316,10 @@ class LasR:
             QIcon(None), "Uzupełnij uszkodzenia w bazie", self.iface.mainWindow()
         )
         self.a_uzup_uszkodzen.setToolTip(
-            "Dla wydzieleń D-STAN uzupełnia w bazie puste pola przyczyny "
-            "(CAUSE_CD) i stopnia uszkodzenia (DAMAGE_DEGREE_CD) - domyślnie "
+            "Dla wydzieleń z piętrem drzewostanu (DRZEW/IP/IIP) uzupełnia "
+            "w bazie puste pola przyczyny (CAUSE_CD) i stopnia uszkodzenia (DAMAGE_DEGREE_CD) - domyślnie "
             "KLIMAT/0, dla gat. panującego poniżej 20 lat ZWIERZ, a na "
-            "siedliskach wilgotnych WODNE.")
+            "siedliskach bagiennych, olsach i łęgach WODNE.")
         self.m_narzedzia.addAction(self.a_uzup_uszkodzen)
         self.a_uzup_uszkodzen.triggered.connect(self.uzupelnij_uszkodzenia)
 
@@ -1404,6 +1406,17 @@ class LasR:
             "razem dla gmin i dla całego obiektu.")
         self.m_raporty.addAction(self.a_wykaz_rozb)
         self.a_wykaz_rozb.triggered.connect(self.generuj_wykaz_rozbieznosci)
+
+        self.a_zest_pow = QAction(
+            QIcon(None), "Utwórz zestawienie powierzchni",
+            self.iface.mainWindow()
+        )
+        self.a_zest_pow.setToolTip(
+            "Dla baz w folderze gmin/obrębów liczy TABELĘ 1 (pow. użytków "
+            "Ls, lasów pozaewidencyjnych, Lz, do rozliczenia) i zapisuje "
+            ".xlsx z arkuszem Całość i osobnym dla każdej gminy/obrębu.")
+        self.m_raporty.addAction(self.a_zest_pow)
+        self.a_zest_pow.triggered.connect(self.generuj_zestawienie_powierzchni)
 
         self.m_raporty.addSeparator()
 
@@ -2514,6 +2527,9 @@ class LasR:
 
     def generuj_wykaz_rozbieznosci(self):
         wykaz_rozbieznosci.uruchom(self.iface)
+
+    def generuj_zestawienie_powierzchni(self):
+        zestawienie_powierzchni.uruchom(self.iface)
 
     def reprojekcja_warstw(self):
         rep = shp_konwertuj.KonwertujWarstwy()

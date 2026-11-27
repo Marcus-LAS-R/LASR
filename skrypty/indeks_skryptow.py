@@ -114,7 +114,8 @@ INDEKS = {
     'dop_fo': _w('formy ochrony przyrody FOP natura 2000 rezerwat dopisz '
                  'baza F_OCHRONY'),
     'dop_zab_nowe': _w('zabiegi gospodarcze cięcia pielęgnacje dopisz '
-                       'sprawdź wygeneruj baza CP',
+                       'sprawdź wygeneruj baza CP uszkodzenia przyczyna '
+                       'stopień',
                        dawne=['Zabiegi dopisz/sprawdź',
                               'Zabiegi dopisz/sprawdź (nowe)'],
                        dawne_id=['dop_zab']),
@@ -274,8 +275,10 @@ INDEKS = {
     'a_polacz_shp': _w('połącz scal złącz warstwy SHP gminy obręby '
                        'DZKAT LS EWID WYDZ ODDZ PNSW duplikaty nakładanie '
                        'SHP_razem 2180'),
-    'a_uzup_uszkodzen': _w('uzupełnij uszkodzenia D-STAN CAUSE_CD '
-                           'DAMAGE_DEGREE przyczyna stopień baza'),
+    'a_uzup_uszkodzen': _w('uzupełnij uszkodzenia D-STAN drzewostan piętro '
+                           'DRZEW CAUSE_CD '
+                           'DAMAGE_DEGREE przyczyna stopień baza ZWIERZ '
+                           'WODNE KLIMAT bagienne olsy łęgi'),
     'a_dop_adm': _w('dodaj uzupełnij MUNICIP COMMUNITY gmina obręb kody '
                     'kolumny',
                     dawne=['Uzupełnij [MUNICIP, COMMUNITY]',
@@ -298,6 +301,9 @@ INDEKS = {
     'a_rap_wyles': _w('karty wylesień działki raport wylesienie generuj'),
     'a_wyciagi': _w('wyciągi właściciele UPUL plan raport generuj wydruk'),
     'a_wykaz_rozb': _w('wykaz rozbieżności dokumentacja geodezyjna EGiB ewidencja gruntów stan stary nowy klasoużytek wylesienia INNE WYL Lz docx obręby gminy obiekt użytki gruntowe leśne do wylesień'),
+    'a_zest_pow': _w('utwórz zestawienie powierzchni TABELA 1 pkt 1 3 4 '
+                     'POW_LS_WPISANE użytki Ls lasy pozaewidencyjne Lz do '
+                     'rozliczenia gminy obręby xlsx Excel całość'),
     'a_kontrola_terenowa': _w('materiały kontrola terenowa mapy '
                               'zestawienia teren generuj'),
     'a_tpu_raporty': _w('zestawienia raportów TPU Taksator PU raporty xlsx '

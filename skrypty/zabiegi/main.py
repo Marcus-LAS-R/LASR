@@ -11,6 +11,7 @@ from .wydzielenie import Wydzielenie
 from ..baza_wrapper import Baza
 from ..funkcje import katalog_startowy
 from .. import raporty
+from .. import baza_uzupelnij_uszkodzenia as uszkodzenia
 
 # uwagi do osobnej (dolnej) grupy raportu - początek tekstu z sprawdz.py
 UWAGI_PIERSNICY = ('Duża odchyłka pierś/wys', 'Brak wpisanej pierśnicy')
@@ -40,6 +41,8 @@ class Zabiegi():
         self.wr = {}  # {species_cd: wiek_reb}
         self.janczulewicz_flag = False
         self.czysc_cue = False  # wyczysc F_AROD_CUE przed dopisaniem
+        # wynik cichego uzupełnienia uszkodzeń (do raportu), '' - nic
+        self.uszk_info = ''
 
     def pobierz_dane(self):
         self.dd = PobierzDane()
@@ -129,6 +132,12 @@ class Zabiegi():
         self.wydz_id = {v: k for k, v in self.wydz.items()}
         self.wr = self.baza.pobierz_wiek_reb()
 
+        # po cichu uzupełnij puste uszkodzenia wydzieleń z piętrem
+        # drzewostanu (jak w Narzędziach: Uzupełnij uszkodzenia w bazie) -
+        # przed wpisywaniem zabiegów, żeby
+        # sprawdzenie widziało już uzupełniony stopień uszkodzeń
+        self._uzupelnij_uszkodzenia()
+
         if self.czysc_cue:
             if not self.baza.usun_zabiegi():
                 self.iface.messageBar().pushMessage(
@@ -148,6 +157,19 @@ class Zabiegi():
         if self.iface:
             self.iface.messageBar().clearWidgets()
             QApplication.processEvents()
+
+    def _uzupelnij_uszkodzenia(self) -> None:
+        """Uzupełnia puste CAUSE_CD/DAMAGE_DEGREE_CD bez pytania. W trybach
+        Dop/Uzu kopia bazy jest już zrobiona w kopiuj_baze(), w trybie Spr
+        robiona jest tylko wtedy, gdy jest co uzupełniać."""
+        ile = uszkodzenia.uzupelnij_po_cichu(
+            self.baza, kopia=self.wybor not in ('Dop', 'Uzu'))
+        if ile is False:
+            self.uszk_info = ('Błąd zapisu uszkodzeń do F_SUBAREA - '
+                              'nie uzupełniono przyczyny/stopnia uszkodzeń')
+        elif sum(ile.values()) > 0:
+            self.uszk_info = ('Uzupełniono puste uszkodzenia - ' +
+                              uszkodzenia.opis_wyniku(ile))
 
     def _process_wydzielenie(self, adr_les) -> None:
         ok, _wydz = self.przetworz_wydzielenie(adr_les)
@@ -206,7 +228,12 @@ class Zabiegi():
                     'zonk!? - SPRAWDZIC!!!'
                 ])
                 rap += '\n'
-        rap = (NAGLOWEK_UWAG + (rap or 'Brak uwag\n') + '\n' +
+        if self.uszk_info:
+            rap = f'{self.uszk_info}\n\n' + NAGLOWEK_UWAG + (
+                rap or 'Brak uwag\n') + '\n'
+        else:
+            rap = NAGLOWEK_UWAG + (rap or 'Brak uwag\n') + '\n'
+        rap = (rap +
                NAGLOWEK_PIERSNICY + (rap_piers or 'Brak uwag\n'))
 
         rap_sc = os.path.join(
