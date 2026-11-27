@@ -1,6 +1,22 @@
 CHANGELOG — Wtyczka Las-R
 ==============================
 
+Wersja 2.0jx — 2026-11-27
+------------------------------------------------
+
+1. NOWOŚĆ: Generuj -> "Utwórz zestawienie powierzchni" - dla baz
+   w folderze gmin/obrębów liczy powierzchnie z Tabeli 1 (użytki Ls,
+   lasy pozaewidencyjne, Lz, powierzchnia do rozliczenia) i zapisuje
+   plik .xlsx: arkusz Całość ze wszystkimi obrębami i sumą oraz osobny
+   arkusz dla każdej gminy/obrębu. Kwerenda w bazie nie jest potrzebna.
+2. ZMIANA: Dopisz/sprawdź zabiegi - przed zabiegami automatycznie
+   uzupełnia puste uszkodzenia (stopień 0, przyczyna KLIMAT / WODNE /
+   ZWIERZ) w wydzieleniach z piętrem drzewostanu. Wpisane wartości
+   zostają bez zmian, podsumowanie na początku raportu zabiegów.
+3. ZMIANA: Uzupełnij uszkodzenia w bazie - przyczyna WODNE także na
+   siedliskach bagiennych (obok olsów i łęgów); uzupełniane są tylko
+   wydzielenia z piętrem drzewostanu (DRZEW, IP, IIP).
+
 Wersja 2.0ix — 2026-11-26
 ------------------------------------------------
 
